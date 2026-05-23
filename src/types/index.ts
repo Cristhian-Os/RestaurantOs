@@ -1,0 +1,75 @@
+export interface Order {
+  id: string
+  user_id: string
+  items: string
+  total: number
+  status: 'pending' | 'completed' | 'cancelled' | 'cooking' | 'ready'
+  table_num: number | null
+  created_at: string
+  updated_at: string
+  tipo_pedido?: 'LOCAL' | 'LLEVAR' | 'DOMICILIO' | 'RAPPI'
+  notes?: string
+}
+
+export interface User {
+  id: string
+  email: string
+}
+
+// ─── Tipos del Menú Digital (ClientView) ─────────────────────
+export type DishCategory =
+  | 'entrada'
+  | 'principal'
+  | 'postre'
+  | 'bebida'
+  | 'especial'
+
+export interface Dish {
+  id:          string
+  name:        string
+  description: string
+  price:       number
+  category:    DishCategory
+  image_url?:  string       // opcional: imagen del plato
+  available:   boolean
+  availability_status?: 'available' | 'out_of_stock' | 'discontinued'
+  tags?:       string[]     // ej: ['vegano', 'sin gluten', 'picante']
+}
+
+// ─── Tipos del Sistema de Tareas ─────────────────────────────
+export type TaskStatus   = 'pending' | 'in_progress' | 'completed' | 'rejected'
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
+
+export interface Task {
+  id:          string
+  title:       string
+  description: string | null
+  assigned_to: string           // UUID del empleado
+  created_by:  string           // UUID del admin
+  status:      TaskStatus
+  priority:    TaskPriority
+  due_date:    string | null
+  created_at:  string
+  updated_at:  string
+  // Joins opcionales (cuando se hace SELECT con relaciones)
+  assignee?:   { id: string; full_name: string | null; role: string }
+  evidence?:   TaskEvidence[]
+}
+
+export interface TaskEvidence {
+  id:           string
+  task_id:      string
+  uploaded_by:  string
+  photo_url:    string          // URL pública de Supabase Storage
+  storage_path: string          // path interno del bucket
+  notes:        string | null
+  submitted_at: string
+  uploader?:    { full_name: string | null }
+}
+
+export interface Profile {
+  id:        string
+  role:      'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
+  full_name: string | null
+  email?:    string
+}

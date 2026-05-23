@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Nunito:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #E8EAF0;
+    font-family: 'Nunito', sans-serif;
+    min-height: 100vh;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+}
+
+@layer components {
+  .neo-card {
+    @apply bg-[#E8EAF0] rounded-3xl shadow-neo-out;
+  }
+  .neo-card-sm {
+    @apply bg-[#E8EAF0] rounded-2xl shadow-neo-out-sm;
+  }
+  .neo-inset {
+    @apply bg-[#E0E3EC] rounded-2xl shadow-neo-in;
+  }
+  .neo-btn {
+    @apply bg-[#E8EAF0] rounded-2xl shadow-neo-out-sm active:shadow-neo-in transition-all duration-150 cursor-pointer select-none;
+  }
+  .neo-btn-coral {
+    @apply bg-[#FF5722] rounded-2xl shadow-neo-coral text-white font-semibold transition-all duration-150 cursor-pointer hover:bg-[#E64A19] active:scale-95;
+  }
+  .neo-input {
+    @apply bg-[#E0E3EC] rounded-xl shadow-neo-in-sm border-none outline-none px-4 py-3 text-[#2D3561] placeholder-[#9CA3AF] font-body text-sm w-full;
+  }
+  .neo-sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-2xl text-[#6B7280] font-semibold text-sm transition-all duration-200 cursor-pointer;
+  }
+  .neo-sidebar-item-active {
+    @apply shadow-neo-in bg-[#E0E3EC] text-[#FF5722];
+  }
+  .neo-badge-pending   { @apply bg-amber-100 text-amber-700 rounded-full px-3 py-1 text-xs font-bold; }
+  .neo-badge-completed { @apply bg-emerald-100 text-emerald-700 rounded-full px-3 py-1 text-xs font-bold; }
+  .neo-badge-cancelled { @apply bg-red-100 text-red-600 rounded-full px-3 py-1 text-xs font-bold; }
+  .neo-badge-cooking   { @apply bg-orange-100 text-orange-700 rounded-full px-3 py-1 text-xs font-bold; }
+  .neo-badge-ready     { @apply bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-xs font-bold; }
+}
+
+/* Ant Design reset para convivir con Tailwind */
+.ant-spin-dot-item { background-color: #FF5722 !important; }
+
+/* Scrollbar neomórfico */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #E8EAF0; border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(163,177,198,0.7); border-radius: 10px; }
+
+/* Animaciones */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+.animate-fade-in-up { animation: fadeInUp 0.4s ease forwards; }
+.animate-pulse-soft { animation: pulse-soft 2s ease infinite; }
