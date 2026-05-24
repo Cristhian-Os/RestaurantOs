@@ -19,11 +19,11 @@ import type { Profile } from '../../pages/Dashboard'
 
 // ─── Estilos neomórficos ──────────────────────────────────────
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  neoIn:   { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
-  green:   { boxShadow: '8px 8px 16px rgba(16,185,129,0.3),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  green:   { boxShadow: '8px 8px 16px rgba(16,185,129,0.28),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
@@ -221,7 +221,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                 step === s ? 'bg-[#FF5722] text-white' :
                 (['mesa','menu','confirm'].indexOf(step) > i) ? 'bg-emerald-500 text-white' :
-                'bg-[#E0E3EC] text-[#9CA3AF]'
+                'bg-[#CDD0DC] text-[#9CA3AF]'
               }`}
               style={step === s ? S.coral : S.neoOutSm}
             >
@@ -243,7 +243,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.3, ease: EASE }}
             className="space-y-4"
           >
-            <div className="bg-[#E8EAF0] rounded-3xl p-6" style={S.neoOut}>
+            <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
               <h3 className="font-bold text-[#2D3561] mb-4" style={{ fontFamily: 'DM Sans, sans-serif' }}>
                 📋 Tipo de pedido
               </h3>
@@ -261,7 +261,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                     className="py-3 rounded-2xl text-sm font-bold transition-all"
                     style={tipoPedido === opt.val
                       ? { background: '#FF5722', color: 'white', ...S.coral }
-                      : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }}
+                      : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
                   >
                     {opt.label}
                   </button>
@@ -288,7 +288,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                           style={selectedMesa?.id === mesa.id
                             ? { background: '#FF5722', color: 'white', ...S.coral }
                             : mesa.estado === 'libre'
-                              ? { background: '#E8EAF0', color: '#2D3561', ...S.neoOutSm }
+                              ? { background: '#D8DAE4', color: '#2D3561', ...S.neoOutSm }
                               : { background: '#FEE2E2', color: '#DC2626', ...S.neoOutSm }}
                         >
                           <div className="text-lg font-bold">{mesa.numero}</div>
@@ -334,7 +334,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             className="space-y-4"
           >
             {/* Buscador */}
-            <div className="bg-[#E8EAF0] rounded-2xl px-4 py-3 flex items-center gap-3" style={S.neoIn}>
+            <div className="bg-[#D8DAE4] rounded-2xl px-4 py-3 flex items-center gap-3" style={S.neoIn}>
               <span className="text-[#9CA3AF]">🔍</span>
               <input
                 value={search}
@@ -352,7 +352,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               <button
                 onClick={() => setCategory('all')}
                 className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
-                style={activeCategory === 'all' ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }}
+                style={activeCategory === 'all' ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
               >
                 🍴 Todo
               </button>
@@ -360,7 +360,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 <button key={cat}
                   onClick={() => setCategory(cat)}
                   className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
-                  style={activeCategory === cat ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }}
+                  style={activeCategory === cat ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
                 >
                   {CATEGORY_LABELS[cat]}
                 </button>
@@ -371,7 +371,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             {loadingDishes ? (
               <div className="text-center py-8 text-[#9CA3AF]">Cargando menú...</div>
             ) : filteredDishes.length === 0 ? (
-              <div className="bg-[#E8EAF0] rounded-3xl p-8 text-center" style={S.neoIn}>
+              <div className="bg-[#D8DAE4] rounded-3xl p-8 text-center" style={S.neoIn}>
                 <p className="text-2xl mb-2">🍽️</p>
                 <p className="text-sm font-bold text-[#2D3561]">Sin platos encontrados</p>
               </div>
@@ -380,7 +380,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 {filteredDishes.map(dish => {
                   const qty = getQty(dish.id)
                   return (
-                    <div key={dish.id} className="bg-[#E8EAF0] rounded-2xl p-3 flex flex-col gap-2" style={S.neoOut}>
+                    <div key={dish.id} className="bg-[#D8DAE4] rounded-2xl p-3 flex flex-col gap-2" style={S.neoOut}>
                       {/* Emoji/imagen */}
                       <div className="w-full h-20 rounded-xl flex items-center justify-center text-3xl" style={S.neoIn}>
                         {dish.image_url
@@ -449,7 +449,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3, ease: EASE }}
             className="space-y-4"
           >
-            <div className="bg-[#E8EAF0] rounded-3xl p-6" style={S.neoOut}>
+            <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
               <h3 className="font-bold text-[#2D3561] mb-1">Resumen del pedido</h3>
               <p className="text-xs text-[#9CA3AF] mb-4">
                 {tipoPedido === 'LOCAL' && selectedMesa ? `Mesa ${selectedMesa.numero}` : tipoPedido}
@@ -476,7 +476,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                       onChange={e => updateNotes(item.dish.id, e.target.value)}
                       placeholder="Nota (ej: sin cebolla)..."
                       maxLength={100}
-                      className="w-full bg-[#E0E3EC] rounded-xl px-3 py-2 text-xs text-[#2D3561] outline-none placeholder-[#9CA3AF]"
+                      className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-xs text-[#2D3561] outline-none placeholder-[#9CA3AF]"
                       style={S.neoIn}
                     />
                   </div>
@@ -494,7 +494,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   placeholder="Ej: alérgico al maní, celebración de cumpleaños..."
                   maxLength={500}
                   rows={2}
-                  className="w-full bg-[#E0E3EC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none resize-none placeholder-[#9CA3AF]"
+                  className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none resize-none placeholder-[#9CA3AF]"
                   style={S.neoIn}
                 />
               </div>

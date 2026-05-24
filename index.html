@@ -2,47 +2,69 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- PWA / Instalación -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <link rel="apple-touch-icon" href="/logo.jpg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#FF5722" />
-    <meta name="description" content="RestaurantOS — Sistema inteligente de gestión para restaurantes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="RestaurantOS" />
-    <title>RestaurantOS</title>
+    <meta name="theme-color" content="#FF5722" />
+    <meta name="msapplication-TileColor" content="#FF5722" />
+    <meta name="msapplication-TileImage" content="/icon-144x144.png" />
 
-    <!-- Preconexión a Google Fonts (performance) -->
+    <!-- Iconos -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icon-96x96.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icon-72x72.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon-180x180.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icon-180x180.png" />
+
+    <!-- SEO & Open Graph -->
+    <title>RestaurantOS</title>
+    <meta name="description" content="Sistema de gestión para restaurantes — punto de venta multi-rol con cocina, caja y menú digital." />
+    <meta name="keywords" content="restaurante, POS, punto de venta, gestión, menú digital, caja" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="RestaurantOS" />
+    <meta property="og:description" content="Sistema de gestión para restaurantes — punto de venta multi-rol." />
+    <meta property="og:image" content="/icon-512x512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="RestaurantOS" />
+    <meta name="twitter:description" content="Sistema de gestión para restaurantes." />
+
+    <!-- Fuentes -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-    <!-- Fuentes cargadas directamente en el HTML — garantiza disponibilidad en Vercel -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Nunito:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
-
-    <!-- Estilos base inline — garantizan el fondo neomórfico incluso si Tailwind falla -->
+    <!-- Estilos críticos inline — previenen flash blanco en móvil -->
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body, #root {
-        min-height: 100vh;
-        background-color: #E8EAF0;
+      html { background: #D8DAE4; }
+      body {
+        background-color: #D8DAE4 !important;
         font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+        min-height: 100vh;
+        min-height: 100dvh;
         -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        color: #2D3561;
+        overflow-x: hidden;
+        /* Safe area para notch iOS */
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
       }
-      /* Prevenir flash de fondo blanco */
-      body { background: #E8EAF0 !important; }
-      #root { background: #E8EAF0; }
-
-      /* Scrollbar neomórfico */
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: #E8EAF0; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb { background: rgba(163,177,198,0.7); border-radius: 10px; }
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+        background-color: #D8DAE4;
+      }
+      /* Prevenir tap highlight azul en mobile */
+      * { -webkit-tap-highlight-color: transparent; }
+      img { max-width: 100%; display: block; }
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: #D8DAE4; }
+      ::-webkit-scrollbar-thumb { background: rgba(140,150,175,0.5); border-radius: 4px; }
     </style>
   </head>
   <body>

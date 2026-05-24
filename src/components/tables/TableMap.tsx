@@ -12,10 +12,10 @@ import message from 'antd/es/message'
 import type { Profile } from '../../pages/Dashboard'
 
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  neoIn:   { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 interface Mesa {
@@ -37,7 +37,7 @@ interface ActiveOrder {
 }
 
 const ESTADO_CONFIG = {
-  libre:    { label: 'Libre',         color: '#E8EAF0', text: '#10B981', dot: 'bg-emerald-400', border: 'border-emerald-200' },
+  libre:    { label: 'Libre',         color: '#D8DAE4', text: '#10B981', dot: 'bg-emerald-400', border: 'border-emerald-200' },
   ocupada:  { label: 'Ocupada',       color: '#FEF3C7', text: '#D97706', dot: 'bg-amber-400',   border: 'border-amber-300'  },
   reservada:{ label: 'Reservada',     color: '#EDE9FE', text: '#7C3AED', dot: 'bg-violet-400',  border: 'border-violet-200' },
   cuenta:   { label: 'Pide la cuenta',color: '#FEE2E2', text: '#DC2626', dot: 'bg-red-400',     border: 'border-red-300'    },
@@ -138,7 +138,7 @@ export const TableMap = memo<TableMapProps>(({ profile, onSelectMesa }) => {
           { label: 'Cuenta',     val: stats.cuenta,    color: 'text-red-600'     },
           { label: 'Reservadas', val: stats.reservadas,color: 'text-violet-600'  },
         ].map(s => (
-          <div key={s.label} className="bg-[#E8EAF0] rounded-2xl p-3 text-center" style={S.neoOutSm}>
+          <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-3 text-center" style={S.neoOutSm}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
             <p className="text-[10px] text-[#9CA3AF] font-medium">{s.label}</p>
           </div>
@@ -152,7 +152,7 @@ export const TableMap = memo<TableMapProps>(({ profile, onSelectMesa }) => {
             <button key={z}
               onClick={() => setFilterZona(z)}
               className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold capitalize"
-              style={filterZona === z ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }}
+              style={filterZona === z ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
             >
               {z === 'all' ? '📍 Todas' : z}
             </button>
@@ -224,7 +224,7 @@ export const TableMap = memo<TableMapProps>(({ profile, onSelectMesa }) => {
           <motion.div
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }} transition={{ duration: 0.3 }}
-            className="bg-[#E8EAF0] rounded-3xl p-5" style={S.neoOut}
+            className="bg-[#D8DAE4] rounded-3xl p-5" style={S.neoOut}
           >
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -245,7 +245,7 @@ export const TableMap = memo<TableMapProps>(({ profile, onSelectMesa }) => {
                 <p className="text-sm text-[#9CA3AF] mb-4">Sin orden activa</p>
               )
               return (
-                <div className="bg-[#E0E3EC] rounded-2xl p-4 mb-4" style={S.neoIn}>
+                <div className="bg-[#CDD0DC] rounded-2xl p-4 mb-4" style={S.neoIn}>
                   <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Orden activa</p>
                   <div className="flex flex-col gap-1 mb-2">
                     {order.items.slice(0, 4).map((item, i) => (

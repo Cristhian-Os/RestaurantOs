@@ -9,10 +9,10 @@ export default {
   // que el purger podría eliminar al no verlas en el código estático
   safelist: [
     // Fondos neomórficos
-    'bg-[#E8EAF0]', 'bg-[#E0E3EC]', 'bg-[#FF5722]', 'bg-[#E64A19]',
+    'bg-[#D8DAE4]', 'bg-[#CDD0DC]', 'bg-[#E2E4EC]', 'bg-[#FF5722]', 'bg-[#E64A19]',
     'bg-[#2D3561]', 'bg-[#10B981]', 'bg-[#F59E0B]', 'bg-[#3B82F6]',
     // Textos
-    'text-[#2D3561]', 'text-[#6B7280]', 'text-[#9CA3AF]', 'text-[#FF5722]',
+    'text-[#2D3561]', 'text-[#5A617A]', 'text-[#8B92AA]', 'text-[#FF5722]',
     'text-[#E64A19]', 'text-[#10B981]',
     // Border colors
     'border-[#FF5722]', 'border-[#E0E3EC]',
@@ -74,13 +74,17 @@ export default {
     extend: {
       colors: {
         neo: {
-          base:      '#E8EAF0',
-          surface:   '#E0E3EC',
+          base:      '#D8DAE4',   // atenuado
+          surface:   '#CDD0DC',   // atenuado
+          raised:    '#E2E4EC',
           coral:     '#FF5722',
           coralDark: '#E64A19',
           dark:      '#2D3561',
-          mid:       '#6B7280',
-          light:     '#F5F7FF',
+          mid:       '#5A617A',
+          light:     '#8B92AA',
+          green:     '#10B981',
+          amber:     '#F59E0B',
+          blue:      '#3B82F6',
         },
       },
       boxShadow: {

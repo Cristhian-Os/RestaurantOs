@@ -18,10 +18,10 @@ const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
 }
 
 const S = {
-  out:   { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  outSm: { boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  in:    { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral: { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
+  out:   { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  outSm: { boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  in:    { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral: { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 function fmtCOP(n: number) {
@@ -33,6 +33,7 @@ interface CartItem { dish: Dish; qty: number }
 export default function PublicMenu() {
   const [dishes,   setDishes]   = useState<Dish[]>([])
   const [loading,  setLoading]  = useState(true)
+  const [bizName,  setBizName]  = useState('RestaurantOS')
   const [cat,      setCat]      = useState<DishCategory | 'all'>('all')
   const [search,   setSearch]   = useState('')
   const [cart,     setCart]     = useState<CartItem[]>([])
@@ -48,15 +49,17 @@ export default function PublicMenu() {
     if (m) setMesa(m)
   }, [])
 
-  // Cargar menú desde Supabase (sin auth — RLS permite lectura pública)
+  // Cargar menú y config desde Supabase (sin auth — RLS permite lectura pública)
   useEffect(() => {
-    supabase
-      .from('dishes')
-      .select('*')
-      .eq('available', true)
-      .neq('availability_status', 'discontinued')
-      .order('sort_order').order('name')
-      .then(({ data }) => { setDishes(data || []); setLoading(false) })
+    Promise.all([
+      supabase.from('dishes').select('*').eq('available', true)
+        .neq('availability_status', 'discontinued').order('sort_order').order('name'),
+      supabase.from('restaurant_config').select('display_name').single(),
+    ]).then(([dishRes, cfgRes]) => {
+      setDishes(dishRes.data || [])
+      if (cfgRes.data?.display_name) setBizName(cfgRes.data.display_name)
+      setLoading(false)
+    })
   }, [])
 
   const filtered = useMemo(() => {
@@ -121,11 +124,11 @@ export default function PublicMenu() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#E8EAF0', fontFamily: '"Nunito", sans-serif' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#D8DAE4', fontFamily: '"Nunito", sans-serif' }}>
 
       {/* ── Header ── */}
       <header style={{
-        backgroundColor: '#E8EAF0',
+        backgroundColor: '#D8DAE4',
         padding: '1rem 1.25rem',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         position: 'sticky', top: 0, zIndex: 20,
@@ -140,7 +143,7 @@ export default function PublicMenu() {
           </div>
           <div>
             <h1 style={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, fontSize: '1rem', color: '#2D3561', margin: 0 }}>
-              Heladería Doña María
+              {bizName}
             </h1>
             {mesa && (
               <p style={{ fontSize: '0.7rem', color: '#FF5722', fontWeight: 700, margin: 0 }}>
@@ -203,7 +206,7 @@ export default function PublicMenu() {
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar en el menú..."
             style={{
-              width: '100%', backgroundColor: '#E0E3EC', borderRadius: '1rem',
+              width: '100%', backgroundColor: '#CDD0DC', borderRadius: '1rem',
               paddingLeft: '2.75rem', paddingRight: '1rem', paddingTop: '0.75rem', paddingBottom: '0.75rem',
               border: 'none', outline: 'none', fontSize: '0.875rem', color: '#2D3561', fontFamily: 'inherit',
               ...S.in,
@@ -221,7 +224,7 @@ export default function PublicMenu() {
                 fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
                 ...(cat === c
                   ? { backgroundColor: '#FF5722', color: '#fff', ...S.coral }
-                  : { backgroundColor: '#E8EAF0', color: '#6B7280', ...S.outSm }
+                  : { backgroundColor: '#D8DAE4', color: '#6B7280', ...S.outSm }
                 ),
               }}>
               {CATEGORY_LABELS[c]}
@@ -233,7 +236,7 @@ export default function PublicMenu() {
         {loading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
             {[...Array(6)].map((_, i) => (
-              <div key={i} style={{ height: 200, borderRadius: '1.5rem', backgroundColor: '#E0E3EC', animation: 'pulse 1.5s ease infinite' }} />
+              <div key={i} style={{ height: 200, borderRadius: '1.5rem', backgroundColor: '#CDD0DC', animation: 'pulse 1.5s ease infinite' }} />
             ))}
           </div>
         ) : filtered.length === 0 ? (
@@ -247,11 +250,11 @@ export default function PublicMenu() {
               const inCart = cart.find(i => i.dish.id === dish.id)?.qty ?? 0
               return (
                 <motion.div key={dish.id} layout
-                  style={{ backgroundColor: '#E8EAF0', borderRadius: '1.5rem', padding: '1rem', ...S.out }}>
+                  style={{ backgroundColor: '#D8DAE4', borderRadius: '1.5rem', padding: '1rem', ...S.out }}>
                   {/* Imagen / emoji */}
                   <div style={{
                     width: '100%', height: '80px', borderRadius: '1rem',
-                    backgroundColor: '#E0E3EC', display: 'flex',
+                    backgroundColor: '#CDD0DC', display: 'flex',
                     alignItems: 'center', justifyContent: 'center',
                     fontSize: '2.25rem', marginBottom: '0.75rem',
                     ...S.in,
@@ -284,7 +287,7 @@ export default function PublicMenu() {
                       style={{
                         width: 32, height: 32, borderRadius: '0.625rem', border: 'none',
                         fontWeight: 700, fontSize: '1.125rem', cursor: inCart === 0 ? 'not-allowed' : 'pointer',
-                        backgroundColor: '#E8EAF0', color: '#2D3561', fontFamily: 'inherit',
+                        backgroundColor: '#D8DAE4', color: '#2D3561', fontFamily: 'inherit',
                         opacity: inCart === 0 ? 0.35 : 1,
                         ...S.outSm,
                       }}>−</button>
@@ -322,7 +325,7 @@ export default function PublicMenu() {
               onClick={e => e.stopPropagation()}
               style={{
                 width: '100%', maxWidth: '480px',
-                backgroundColor: '#E8EAF0', borderRadius: '1.5rem 1.5rem 0 0',
+                backgroundColor: '#D8DAE4', borderRadius: '1.5rem 1.5rem 0 0',
                 padding: '1.5rem', maxHeight: '80vh', overflowY: 'auto',
                 boxShadow: '0 -8px 32px rgba(163,177,198,0.5)',
               }}>
@@ -336,7 +339,7 @@ export default function PublicMenu() {
                 {cart.map(item => (
                   <div key={item.dish.id} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    backgroundColor: '#E0E3EC', borderRadius: '0.875rem', padding: '0.75rem 1rem',
+                    backgroundColor: '#CDD0DC', borderRadius: '0.875rem', padding: '0.75rem 1rem',
                     ...S.in,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
@@ -364,7 +367,7 @@ export default function PublicMenu() {
                   <input type="number" value={mesa} onChange={e => setMesa(e.target.value)}
                     placeholder="Ej: 3"
                     style={{
-                      width: '100%', backgroundColor: '#E0E3EC', borderRadius: '0.875rem',
+                      width: '100%', backgroundColor: '#CDD0DC', borderRadius: '0.875rem',
                       padding: '0.75rem 1rem', border: 'none', outline: 'none',
                       fontSize: '1rem', color: '#2D3561', fontFamily: 'inherit', fontWeight: 600,
                       ...S.in,

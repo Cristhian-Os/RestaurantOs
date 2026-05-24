@@ -8,14 +8,14 @@ import type { Session } from '@supabase/supabase-js'
 function SplashScreen() {
   return (
     <div style={{
-      minHeight: '100vh', backgroundColor: '#E8EAF0',
+      minHeight: '100vh', backgroundColor: '#D8DAE4',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', gap: '1.5rem',
       fontFamily: '"Nunito", sans-serif',
     }}>
       <div style={{
         width: 96, height: 96, borderRadius: '1.5rem', overflow: 'hidden', flexShrink: 0,
-        boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)',
+        boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)',
       }}>
         <img src="/logo.jpg" alt="RestaurantOS"
           style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />

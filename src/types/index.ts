@@ -68,8 +68,11 @@ export interface TaskEvidence {
 }
 
 export interface Profile {
-  id:        string
-  role:      'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-  full_name: string | null
-  email?:    string
+  id:          string
+  role:        'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
+  full_name:   string | null
+  email?:      string
+  phone?:      string | null
+  avatar_url?: string | null
+  active?:     boolean
 }

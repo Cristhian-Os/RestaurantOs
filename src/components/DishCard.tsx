@@ -15,8 +15,8 @@ import type { Dish } from '../types'
 
 // ─── Constantes de estilo (fuera del componente para evitar recreación) ─
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
   neoIn:   { boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.55),inset -4px -4px 8px rgba(255,255,255,0.65)' },
   coral:   { boxShadow: '6px 6px 12px rgba(255,87,34,0.3),-3px -3px 8px rgba(255,255,255,0.5)' },
 } as const
@@ -59,7 +59,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0 }) => {
 
   return (
     <div
-      className="bg-[#E8EAF0] rounded-3xl p-4 flex flex-col gap-3 relative"
+      className="bg-[#D8DAE4] rounded-3xl p-4 flex flex-col gap-3 relative"
       style={S.neoOut}
     >
       {/* ── Badge de cantidad en carrito ── */}
@@ -122,7 +122,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0 }) => {
             {dish.tags.map(tag => (
               <span
                 key={tag}
-                className="text-[10px] text-[#6B7280] bg-[#E0E3EC] px-2 py-0.5 rounded-full"
+                className="text-[10px] text-[#6B7280] bg-[#CDD0DC] px-2 py-0.5 rounded-full"
                 style={S.neoOutSm}
               >
                 {tag}
@@ -155,7 +155,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0 }) => {
               ? justAdded
                 ? 'bg-emerald-500 text-white'
                 : 'bg-[#FF5722] text-white hover:bg-[#E64A19]'
-              : 'bg-[#E0E3EC] text-[#9CA3AF] cursor-not-allowed',
+              : 'bg-[#CDD0DC] text-[#9CA3AF] cursor-not-allowed',
           ].join(' ')}
           style={
             dish.available

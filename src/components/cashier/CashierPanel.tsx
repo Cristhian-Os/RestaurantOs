@@ -14,11 +14,11 @@ import message from 'antd/es/message'
 import type { Profile } from '../../pages/Dashboard'
 
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  neoIn:   { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
-  green:   { boxShadow: '8px 8px 16px rgba(16,185,129,0.3),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  green:   { boxShadow: '8px 8px 16px rgba(16,185,129,0.28),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
@@ -56,6 +56,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [showCorte,    setShowCorte] = useState(false)
   const [corteResult,  setCorteResult] = useState<any>(null)
   const [cortingLoading, setCortingLoading] = useState(false)
+  // Destino de fondos — obligatorio en el corte de caja
+  const [fondosDestino, setFondosDestino] = useState<'cuenta_principal' | 'cuenta_secundaria' | ''>('')
+  const [notasCorte,    setNotasCorte]    = useState('')
 
   const fetchData = useCallback(async () => {
     const [ordersRes, completedRes] = await Promise.all([
@@ -140,7 +143,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const handleCorte = useCallback(async () => {
     setCortingLoading(true)
     try {
-      const { data, error } = await supabase.rpc('hacer_corte_caja', { p_notas: null })
+      const { data, error } = await supabase.rpc('hacer_corte_caja', { p_notas: notasCorte.trim() || `Destino: ${fondosDestino}` })
       if (error) throw error
       setCorteResult(data)
       setShowCorte(true)
@@ -169,7 +172,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           { label: 'Transferencias hoy', val: `$${daySummary.total_transferencia.toFixed(2)}`, color: 'text-blue-600'    },
           { label: 'Total del día',      val: `$${totalDia.toFixed(2)}`,                       color: 'text-[#FF5722]'   },
         ].map(s => (
-          <div key={s.label} className="bg-[#E8EAF0] rounded-2xl p-4 text-center" style={S.neoOutSm}>
+          <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
             <p className="text-[10px] text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
             {s.label === 'Total del día' && (
@@ -194,7 +197,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         </div>
 
         {readyOrders.length === 0 ? (
-          <div className="bg-[#E8EAF0] rounded-3xl p-12 text-center" style={S.neoIn}>
+          <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
             <p className="text-4xl mb-3">✅</p>
             <p className="font-bold text-[#2D3561]">Todo al día</p>
             <p className="text-sm text-[#9CA3AF] mt-1">Sin órdenes pendientes de cobro</p>
@@ -205,7 +208,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <motion.div
                 key={order.id}
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-[#E8EAF0] rounded-3xl p-5" style={S.neoOut}
+                className="bg-[#D8DAE4] rounded-3xl p-5" style={S.neoOut}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
@@ -274,7 +277,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
               exit={{ y: 80, opacity: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#E8EAF0] rounded-3xl p-6 w-full max-w-sm" style={S.neoOut}
+              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm" style={S.neoOut}
             >
               <div className="flex items-start justify-between mb-5">
                 <div>
@@ -287,7 +290,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               </div>
 
               {/* Items en el modal */}
-              <div className="bg-[#E0E3EC] rounded-2xl p-3 mb-4 max-h-32 overflow-y-auto" style={S.neoIn}>
+              <div className="bg-[#CDD0DC] rounded-2xl p-3 mb-4 max-h-32 overflow-y-auto" style={S.neoIn}>
                 {payingOrder.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-xs py-0.5">
                     <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
@@ -302,7 +305,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <button key={m}
                     onClick={() => { setPayMethod(m); if (m === 'transferencia') setAmountPaid(payingOrder.total.toFixed(2)) }}
                     className="py-3 rounded-2xl text-sm font-bold capitalize"
-                    style={payMethod === m ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }}
+                    style={payMethod === m ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
                   >
                     {m === 'efectivo' ? '💵 Efectivo' : '📲 Transferencia'}
                   </button>
@@ -321,7 +324,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     onChange={e => setAmountPaid(e.target.value)}
                     min={payingOrder.total}
                     step="0.01"
-                    className="w-full bg-[#E0E3EC] rounded-xl px-4 py-3 text-lg font-bold text-[#2D3561] outline-none"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-lg font-bold text-[#2D3561] outline-none"
                     style={S.neoIn}
                     autoFocus
                   />
@@ -387,7 +390,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#E8EAF0] rounded-3xl p-6 w-full max-w-sm" style={S.neoOut}
+              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm" style={S.neoOut}
             >
               <div className="text-center mb-5">
                 <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl mx-auto mb-3" style={S.green}>
@@ -404,8 +407,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   { label: '💵 Efectivo',     val: corteResult.total_efectivo },
                   { label: '📲 Transferencia', val: corteResult.total_transferencia },
                   { label: '📦 Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
+                  { label: '🏦 Destino',       val: fondosDestino === 'cuenta_principal' ? 'Cuenta Principal' : 'Cuenta Secundaria', isCurrency: false },
                 ].map(item => (
-                  <div key={item.label} className="flex justify-between items-center bg-[#E0E3EC] rounded-2xl px-4 py-3" style={S.neoIn}>
+                  <div key={item.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
                     <span className="text-sm text-[#6B7280]">{item.label}</span>
                     <span className="font-bold text-[#2D3561]">
                       {item.isCurrency === false ? item.val : `$${Number(item.val).toFixed(2)}`}

@@ -20,10 +20,10 @@ const CATEGORY_LABELS: Record<DishCategory, string> = {
 interface CartItem { dish: Dish; quantity: number }
 
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoIn:   { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
 }
 
 export const ClientMenuSection = memo(() => {
@@ -137,7 +137,7 @@ export const ClientMenuSection = memo(() => {
             Nuestro Menú
           </h2>
           {totalItems > 0 && (
-            <div className="flex items-center gap-2 bg-[#E8EAF0] px-4 py-2 rounded-2xl" style={S.neoOutSm}>
+            <div className="flex items-center gap-2 bg-[#D8DAE4] px-4 py-2 rounded-2xl" style={S.neoOutSm}>
               <span className="text-xs text-[#9CA3AF]">Carrito</span>
               <span className="text-sm font-bold text-[#FF5722]">{totalItems}</span>
               <span className="text-xs text-[#6B7280]">·</span>
@@ -148,7 +148,7 @@ export const ClientMenuSection = memo(() => {
       </ScrollReveal>
 
       {/* Buscador */}
-      <div className="bg-[#E8EAF0] rounded-2xl px-4 py-3 flex items-center gap-3" style={S.neoIn}>
+      <div className="bg-[#D8DAE4] rounded-2xl px-4 py-3 flex items-center gap-3" style={S.neoIn}>
         <span className="text-[#9CA3AF]">🔍</span>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar plato..."
@@ -163,7 +163,7 @@ export const ClientMenuSection = memo(() => {
             className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold"
             style={activeCategory === 'all'
               ? { background: '#FF5722', color: 'white', ...S.coral }
-              : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }}>
+              : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}>
             🍴 Todo
           </button>
           {availableCategories.map(cat => (
@@ -171,7 +171,7 @@ export const ClientMenuSection = memo(() => {
               className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold"
               style={activeCategory === cat
                 ? { background: '#FF5722', color: 'white', ...S.coral }
-                : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }}>
+                : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}>
               {CATEGORY_LABELS[cat]}
             </button>
           ))}
@@ -182,11 +182,11 @@ export const ClientMenuSection = memo(() => {
       {loading ? (
         <div className="grid grid-cols-2 gap-4">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-[#E8EAF0] rounded-3xl h-52 animate-pulse" style={S.neoOut} />
+            <div key={i} className="bg-[#D8DAE4] rounded-3xl h-52 animate-pulse" style={S.neoOut} />
           ))}
         </div>
       ) : filteredDishes.length === 0 ? (
-        <div className="bg-[#E8EAF0] rounded-3xl p-12 text-center" style={S.neoIn}>
+        <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
           <p className="text-3xl mb-2">🍽️</p>
           <p className="text-sm font-bold text-[#2D3561]">Sin platos encontrados</p>
         </div>
@@ -205,7 +205,7 @@ export const ClientMenuSection = memo(() => {
         {totalItems > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }} className="mt-4">
-            <div className="bg-[#E8EAF0] rounded-3xl p-5" style={S.neoOut}>
+            <div className="bg-[#D8DAE4] rounded-3xl p-5" style={S.neoOut}>
               <h3 className="font-bold text-[#2D3561] mb-3">🛒 Tu pedido</h3>
 
               {cart.map(item => (
@@ -238,7 +238,7 @@ export const ClientMenuSection = memo(() => {
                 </label>
                 <input type="number" value={tableNum} onChange={e => setTableNum(e.target.value)}
                   placeholder="Ej: 5"
-                  className="w-full bg-[#E0E3EC] rounded-xl px-4 py-3 text-sm text-[#2D3561] outline-none"
+                  className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] outline-none"
                   style={S.neoIn} />
               </div>
 

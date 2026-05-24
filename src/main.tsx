@@ -5,11 +5,18 @@ import './index.css'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './services/queryClient'
 
-// Registrar Service Worker para PWA
+// Registrar Service Worker (sw.js — no el .ts del bucket de push)
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js')
-    .then((reg) => console.log('📱 Service Worker registrado:', reg))
-    .catch((err) => console.error('Error registrando Service Worker:', err))
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/' })
+      .then(reg => {
+        console.log('✅ SW registrado:', reg.scope)
+        // Verificar actualizaciones
+        reg.update()
+      })
+      .catch(err => console.warn('SW error:', err))
+  })
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

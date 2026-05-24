@@ -21,10 +21,10 @@ type UploadState = 'idle' | 'preview' | 'uploading' | 'done' | 'error'
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoIn:   { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
-  green:   { boxShadow: '8px 8px 16px rgba(16,185,129,0.3),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  green:   { boxShadow: '8px 8px 16px rgba(16,185,129,0.28),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 // Comprime imagen antes de subir (importante para fotos de cámara ~5MB)
@@ -165,7 +165,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.35, ease: EASE }}
-      className="bg-[#E8EAF0] rounded-3xl p-6"
+      className="bg-[#D8DAE4] rounded-3xl p-6"
       style={S.neoOut}
     >
       {/* Header */}
@@ -267,7 +267,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
                 placeholder="Ej: Tarea completada, área limpia..."
                 maxLength={500}
                 rows={2}
-                className="w-full bg-[#E0E3EC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none resize-none placeholder-[#9CA3AF]"
+                className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none resize-none placeholder-[#9CA3AF]"
                 style={S.neoIn}
               />
             </div>
@@ -282,7 +282,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
             <div className="flex gap-3">
               <button
                 onClick={reset}
-                className="flex-1 py-3 rounded-2xl text-sm font-bold text-[#6B7280] bg-[#E8EAF0]"
+                className="flex-1 py-3 rounded-2xl text-sm font-bold text-[#6B7280] bg-[#D8DAE4]"
                 style={S.neoOut}
               >
                 Repetir foto
@@ -314,7 +314,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
                 <span>Subiendo evidencia...</span>
                 <span>{progress}%</span>
               </div>
-              <div className="w-full h-2 bg-[#E0E3EC] rounded-full overflow-hidden" style={S.neoIn}>
+              <div className="w-full h-2 bg-[#CDD0DC] rounded-full overflow-hidden" style={S.neoIn}>
                 <motion.div
                   className="h-full bg-[#FF5722] rounded-full"
                   animate={{ width: `${progress}%` }}

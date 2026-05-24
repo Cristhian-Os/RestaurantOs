@@ -12,10 +12,10 @@ import type { Task, TaskStatus, TaskPriority, Profile } from '../../types'
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  neoIn:   { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 const STATUS_CFG: Record<TaskStatus, { label: string; color: string }> = {
@@ -157,7 +157,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
           <p className="text-sm text-[#9CA3AF] mt-0.5">{stats.total} tareas en total</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={refetch} className="flex items-center gap-2 text-sm font-semibold text-[#6B7280] px-4 py-2.5 rounded-2xl bg-[#E8EAF0]" style={S.neoOutSm}>
+          <button onClick={refetch} className="flex items-center gap-2 text-sm font-semibold text-[#6B7280] px-4 py-2.5 rounded-2xl bg-[#D8DAE4]" style={S.neoOutSm}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
               <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
@@ -185,7 +185,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
           { label: 'Completadas',  value: stats.completed, color: 'text-emerald-600' },
           { label: 'Rechazadas',   value: stats.rejected,  color: 'text-red-500'   },
         ].map(s => (
-          <div key={s.label} className="bg-[#E8EAF0] rounded-2xl p-4 text-center" style={S.neoOutSm}>
+          <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-2xl font-bold ${s.color}`} style={{ fontFamily: 'DM Sans, sans-serif' }}>
               {s.value}
             </p>
@@ -204,7 +204,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
             transition={{ duration: 0.35, ease: EASE }}
             className="overflow-hidden mb-6"
           >
-            <div className="bg-[#E8EAF0] rounded-3xl p-6" style={S.neoOut}>
+            <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
               <h2 className="font-bold text-[#2D3561] mb-5" style={{ fontFamily: 'DM Sans, sans-serif' }}>
                 📋 Nueva tarea
               </h2>
@@ -217,7 +217,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                     onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
                     placeholder="Ej: Limpiar área de cocina"
                     maxLength={200}
-                    className="w-full bg-[#E0E3EC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
                     style={S.neoIn}
                   />
                 </div>
@@ -230,7 +230,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                     placeholder="Detalles de la tarea..."
                     maxLength={1000}
                     rows={2}
-                    className="w-full bg-[#E0E3EC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none resize-none"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none resize-none"
                     style={S.neoIn}
                   />
                 </div>
@@ -240,7 +240,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                   <select
                     value={form.assigned_to}
                     onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}
-                    className="w-full bg-[#E0E3EC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
                     style={S.neoIn}
                   >
                     <option value="">Seleccionar empleado</option>
@@ -257,7 +257,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                   <select
                     value={form.priority}
                     onChange={e => setForm(p => ({ ...p, priority: e.target.value as TaskPriority }))}
-                    className="w-full bg-[#E0E3EC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
                     style={S.neoIn}
                   >
                     <option value="low">🟢 Baja</option>
@@ -273,7 +273,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                     type="datetime-local"
                     value={form.due_date}
                     onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))}
-                    className="w-full bg-[#E0E3EC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
                     style={S.neoIn}
                   />
                 </div>
@@ -288,7 +288,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
               <div className="flex gap-3">
                 <button
                   onClick={() => { setShowForm(false); setForm(FORM_INITIAL); setFormError(null) }}
-                  className="flex-1 py-3 rounded-2xl text-sm font-bold text-[#6B7280] bg-[#E8EAF0]"
+                  className="flex-1 py-3 rounded-2xl text-sm font-bold text-[#6B7280] bg-[#D8DAE4]"
                   style={S.neoOut}
                 >
                   Cancelar
@@ -318,7 +318,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
             style={
               filterStatus === f
                 ? { background: '#FF5722', color: 'white', ...S.coral }
-                : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }
+                : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }
             }
           >
             {f === 'all' ? 'Todas' : STATUS_CFG[f as TaskStatus].label}
@@ -332,7 +332,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
           <div className="w-8 h-8 rounded-full border-4 border-[#FF5722] border-t-transparent animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-[#E8EAF0] rounded-3xl p-12 text-center" style={S.neoIn}>
+        <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
           <p className="text-4xl mb-3">📋</p>
           <p className="font-bold text-[#2D3561]">Sin tareas</p>
           <p className="text-sm text-[#9CA3AF] mt-1">Crea la primera tarea para tu equipo</p>
@@ -388,7 +388,7 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
   const evidenceCount = task.evidence?.length ?? 0
 
   return (
-    <div className="bg-[#E8EAF0] rounded-2xl p-5" style={S.neoOut}>
+    <div className="bg-[#D8DAE4] rounded-2xl p-5" style={S.neoOut}>
       <div className="flex items-start gap-3">
         {/* Prioridad dot */}
         <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${pri.dot}`} />
@@ -424,7 +424,7 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
             {evidenceCount > 0 && (
               <button
                 onClick={onViewEvidence}
-                className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-[#E8EAF0] px-3 py-1.5 rounded-xl"
+                className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-[#D8DAE4] px-3 py-1.5 rounded-xl"
                 style={S.neoOutSm}
               >
                 📸 Ver evidencia ({evidenceCount})
@@ -434,7 +434,7 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
             {task.status === 'completed' && evidenceCount > 0 && (
               <button
                 onClick={onReject}
-                className="text-xs font-bold text-red-500 bg-[#E8EAF0] px-3 py-1.5 rounded-xl"
+                className="text-xs font-bold text-red-500 bg-[#D8DAE4] px-3 py-1.5 rounded-xl"
                 style={S.neoOutSm}
               >
                 ❌ Rechazar
@@ -443,7 +443,7 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
 
             <button
               onClick={onDelete}
-              className="text-xs font-bold text-[#9CA3AF] bg-[#E8EAF0] px-3 py-1.5 rounded-xl ml-auto"
+              className="text-xs font-bold text-[#9CA3AF] bg-[#D8DAE4] px-3 py-1.5 rounded-xl ml-auto"
               style={S.neoOutSm}
             >
               🗑️
@@ -480,7 +480,7 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         onClick={e => e.stopPropagation()}
-        className="bg-[#E8EAF0] rounded-3xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto"
+        className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto"
         style={S.neoOut}
       >
         {/* Header */}
@@ -533,7 +533,7 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
                   </a>
                 </div>
                 {ev.notes && (
-                  <p className="text-xs text-[#6B7280] bg-[#E0E3EC] rounded-xl px-3 py-2" style={S.neoIn}>
+                  <p className="text-xs text-[#6B7280] bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
                     💬 {ev.notes}
                   </p>
                 )}
@@ -547,14 +547,14 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
           <div className="flex gap-3 mt-5">
             <button
               onClick={onReject}
-              className="flex-1 py-3 rounded-2xl text-sm font-bold text-red-500 bg-[#E8EAF0]"
+              className="flex-1 py-3 rounded-2xl text-sm font-bold text-red-500 bg-[#D8DAE4]"
               style={S.neoOut}
             >
               ❌ Rechazar evidencia
             </button>
             <button
               onClick={onClose}
-              className="flex-1 py-3 rounded-2xl text-sm font-bold text-emerald-600 bg-[#E8EAF0]"
+              className="flex-1 py-3 rounded-2xl text-sm font-bold text-emerald-600 bg-[#D8DAE4]"
               style={S.neoOut}
             >
               ✅ Aceptar

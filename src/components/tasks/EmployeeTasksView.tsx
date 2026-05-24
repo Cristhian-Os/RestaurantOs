@@ -12,10 +12,10 @@ import type { Task, TaskStatus, Profile } from '../../types'
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  neoIn:   { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 // ─── Configuración visual por estado y prioridad ─────────────
@@ -82,7 +82,7 @@ export const EmployeeTasksView = memo<EmployeeTasksViewProps>(({ profile }) => {
           </h1>
           <p className="text-sm text-[#9CA3AF] mt-0.5">Revisa y completa tus asignaciones</p>
         </div>
-        <button onClick={refetch} className="flex items-center gap-2 text-sm font-semibold text-[#6B7280] px-4 py-2.5 rounded-2xl bg-[#E8EAF0]" style={S.neoOutSm}>
+        <button onClick={refetch} className="flex items-center gap-2 text-sm font-semibold text-[#6B7280] px-4 py-2.5 rounded-2xl bg-[#D8DAE4]" style={S.neoOutSm}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
             <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
@@ -97,7 +97,7 @@ export const EmployeeTasksView = memo<EmployeeTasksViewProps>(({ profile }) => {
           { label: 'En progreso', value: inProg,    color: 'text-blue-600'    },
           { label: 'Completadas', value: completed, color: 'text-emerald-600' },
         ].map(s => (
-          <div key={s.label} className="bg-[#E8EAF0] rounded-2xl p-4 text-center" style={S.neoOutSm}>
+          <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-2xl font-bold ${s.color}`} style={{ fontFamily: 'DM Sans, sans-serif' }}>
               {s.value}
             </p>
@@ -116,7 +116,7 @@ export const EmployeeTasksView = memo<EmployeeTasksViewProps>(({ profile }) => {
             style={
               filter === f
                 ? { background: '#FF5722', color: 'white', ...S.coral }
-                : { background: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }
+                : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }
             }
           >
             {f === 'all' ? 'Todas' : STATUS_CONFIG[f as TaskStatus].label}
@@ -130,7 +130,7 @@ export const EmployeeTasksView = memo<EmployeeTasksViewProps>(({ profile }) => {
           <div className="w-8 h-8 rounded-full border-4 border-[#FF5722] border-t-transparent animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-[#E8EAF0] rounded-3xl p-12 text-center" style={S.neoIn}>
+        <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
           <p className="text-4xl mb-3">🎉</p>
           <p className="font-bold text-[#2D3561]">Sin tareas</p>
           <p className="text-sm text-[#9CA3AF] mt-1">
@@ -196,7 +196,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
 
   return (
     <div
-      className={`bg-[#E8EAF0] rounded-3xl p-5 ${isOverdue ? 'border-l-4 border-red-400' : ''}`}
+      className={`bg-[#D8DAE4] rounded-3xl p-5 ${isOverdue ? 'border-l-4 border-red-400' : ''}`}
       style={S.neoOut}
     >
       {/* Top row */}
@@ -254,7 +254,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={onStart}
-            className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-orange-600 bg-[#E8EAF0]"
+            className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-orange-600 bg-[#D8DAE4]"
             style={S.neoOut}
           >
             🔄 Reintentar
@@ -262,7 +262,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
         )}
 
         {task.status === 'completed' && (
-          <div className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-emerald-600 bg-[#E8EAF0] flex items-center justify-center gap-2" style={S.neoOut}>
+          <div className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-emerald-600 bg-[#D8DAE4] flex items-center justify-center gap-2" style={S.neoOut}>
             ✅ Completada con evidencia
           </div>
         )}

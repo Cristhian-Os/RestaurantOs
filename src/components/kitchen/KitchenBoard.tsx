@@ -13,12 +13,12 @@ import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
 
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  neoIn:   { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
   amber:   { boxShadow: '8px 8px 16px rgba(245,158,11,0.3),-4px -4px 12px rgba(255,255,255,0.6)' },
-  green:   { boxShadow: '8px 8px 16px rgba(16,185,129,0.3),-4px -4px 12px rgba(255,255,255,0.6)' },
+  green:   { boxShadow: '8px 8px 16px rgba(16,185,129,0.28),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 interface OrderItem { id: string; name: string; price: number; quantity: number; notes?: string }
@@ -68,7 +68,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
       layout
       initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      className={`bg-[#E8EAF0] rounded-3xl p-4 flex flex-col gap-3 ${isUrgent ? 'ring-2 ring-red-400' : ''}`}
+      className={`bg-[#D8DAE4] rounded-3xl p-4 flex flex-col gap-3 ${isUrgent ? 'ring-2 ring-red-400' : ''}`}
       style={S.neoOut}
     >
       {/* Header */}
@@ -88,7 +88,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
       </div>
 
       {/* Items */}
-      <div className="flex flex-col gap-1.5 bg-[#E0E3EC] rounded-2xl p-3" style={S.neoIn}>
+      <div className="flex flex-col gap-1.5 bg-[#CDD0DC] rounded-2xl p-3" style={S.neoIn}>
         {order.items.map((item, i) => (
           <div key={i} className="flex items-start gap-2">
             <span className="w-5 h-5 rounded-lg bg-[#FF5722] text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5" style={S.coral}>
@@ -104,7 +104,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
 
       {/* Nota general */}
       {order.notes && (
-        <p className="text-xs text-[#6B7280] bg-[#E0E3EC] rounded-xl px-3 py-2" style={S.neoIn}>
+        <p className="text-xs text-[#6B7280] bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
           💬 {order.notes}
         </p>
       )}
@@ -222,7 +222,7 @@ export const KitchenBoard = memo(() => {
 
       {/* Columnas Kanban */}
       {orders.length === 0 ? (
-        <div className="bg-[#E8EAF0] rounded-3xl p-16 text-center" style={S.neoIn}>
+        <div className="bg-[#D8DAE4] rounded-3xl p-16 text-center" style={S.neoIn}>
           <p className="text-5xl mb-3">🍽️</p>
           <p className="font-bold text-[#2D3561] text-lg">Sin órdenes activas</p>
           <p className="text-sm text-[#9CA3AF] mt-1">Las nuevas órdenes aparecerán aquí al instante</p>

@@ -28,10 +28,10 @@ import { QRMenu }             from '../components/pwa/QRMenu'
 
 // ── Sombras neomórficas inline (independientes de Tailwind) ──
 const S = {
-  neoOut:   { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  neoOutSm: { boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  neoIn:    { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:    { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoOut:   { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  neoOutSm: { boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  neoIn:    { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:    { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 export type Role    = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
@@ -166,7 +166,7 @@ const AdminDashboard = memo(({ profile, onNavigate }: { profile: Profile; onNavi
             onClick={() => onNavigate(card.nav)}
             style={{
               padding: '1.25rem',
-              backgroundColor: '#E8EAF0',
+              backgroundColor: '#D8DAE4',
               borderRadius: '1.5rem',
               textAlign: 'left',
               border: 'none',
@@ -242,7 +242,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }, [])
 
   if (loading || !profile) return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#E8EAF0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#D8DAE4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         {/* Logo de carga: w-16 h-16 rounded-3xl object-contain */}
         <div style={{ width: '64px', height: '64px', borderRadius: '1.5rem', overflow: 'hidden', margin: '0 auto 1rem', animation: 'pulseSoft 1.5s ease infinite', ...S.neoOut }}>
@@ -294,11 +294,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#E8EAF0', fontFamily: '"Nunito", sans-serif' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#D8DAE4', fontFamily: '"Nunito", sans-serif' }}>
 
       {/* ── HEADER ──────────────────────────────────────────── */}
       <header style={{
-        backgroundColor: '#E8EAF0',
+        backgroundColor: '#D8DAE4',
         padding: '1rem 1.5rem',
         display: 'flex',
         justifyContent: 'space-between',
@@ -317,7 +317,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             borderRadius: '0.75rem', /* rounded-xl */
             overflow: 'hidden',
             flexShrink: 0,      /* No se estira */
-            backgroundColor: '#E8EAF0',
+            backgroundColor: '#D8DAE4',
             ...S.neoOutSm,
           }}>
             <img
@@ -351,7 +351,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             onClick={() => setMobileOpen(p => !p)}
             style={{
               padding: '0.625rem',
-              backgroundColor: '#E8EAF0',
+              backgroundColor: '#D8DAE4',
               borderRadius: '0.75rem',
               border: 'none',
               color: '#6B7280',
@@ -373,7 +373,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             onClick={onLogout}
             style={{
               padding: '0.625rem',
-              backgroundColor: '#E8EAF0',
+              backgroundColor: '#D8DAE4',
               borderRadius: '0.75rem',
               border: 'none',
               color: '#6B7280',
@@ -405,7 +405,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             style={{
               position: 'absolute', top: 0, left: 0, bottom: 0,
               width: '220px',
-              backgroundColor: '#E8EAF0',
+              backgroundColor: '#D8DAE4',
               padding: '1.5rem 1rem',
               display: 'flex',
               flexDirection: 'column',
@@ -438,7 +438,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   textAlign: 'left',
                   ...(activeNav === view
                     ? { backgroundColor: '#FF5722', color: '#ffffff', ...S.coral }
-                    : { backgroundColor: '#E8EAF0', color: '#6B7280', ...S.neoOutSm }
+                    : { backgroundColor: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }
                   ),
                 }}
               >
@@ -458,7 +458,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           className="hidden lg:flex"
           style={{
             width: '80px',
-            backgroundColor: '#E8EAF0',
+            backgroundColor: '#D8DAE4',
             flexDirection: 'column',
             alignItems: 'center',
             padding: '1.5rem 0',

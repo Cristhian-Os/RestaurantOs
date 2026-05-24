@@ -1,17 +1,42 @@
 {
   "name": "RestaurantOS",
   "short_name": "RestaurantOS",
-  "description": "Sistema de gestión para restaurantes",
+  "description": "Sistema de gestión para restaurantes — punto de venta multi-rol",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#E8EAF0",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "background_color": "#D8DAE4",
   "theme_color": "#FF5722",
   "orientation": "any",
-  "icons": [
-    { "src": "/logo.jpg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any maskable" },
-    { "src": "/logo.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any maskable" }
-  ],
-  "categories": ["business", "productivity"],
   "lang": "es",
-  "screenshots": []
+  "categories": ["business", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icon-72x72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "any" },
+    { "src": "/icon-96x96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
+    { "src": "/icon-128x128.png","sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-144x144.png","sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-152x152.png","sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-180x180.png","sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192x192.png","sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-384x384.png","sizes": "384x384", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512x512.png","sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nueva Orden",
+      "short_name": "Orden",
+      "description": "Crear una nueva orden",
+      "url": "/?view=orders",
+      "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Menú Digital",
+      "short_name": "Menú",
+      "description": "Ver el menú de clientes",
+      "url": "/menu",
+      "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
+    }
+  ]
 }

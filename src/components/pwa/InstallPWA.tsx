@@ -8,10 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import QRCode from 'qrcode'
 
 const S = {
-  out:   { boxShadow: '8px 8px 16px rgba(163,177,198,0.65),-8px -8px 16px rgba(255,255,255,0.75)' },
-  outSm: { boxShadow: '4px 4px 10px rgba(163,177,198,0.6),-4px -4px 10px rgba(255,255,255,0.7)' },
-  in:    { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral: { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
+  out:   { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
+  outSm: { boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
+  in:    { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral: { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 // Icono descarga
@@ -96,7 +96,7 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
     QRCode.toDataURL(APP_URL, {
       width: 220,
       margin: 2,
-      color: { dark: '#2D3561', light: '#E8EAF0' },
+      color: { dark: '#2D3561', light: '#D8DAE4' },
       errorCorrectionLevel: 'H',
     }).then(setQrDataUrl).catch(console.error)
   }, [showModal, APP_URL])
@@ -135,7 +135,7 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
           title="Instalar app"
           style={{
             padding: '0.625rem',
-            backgroundColor: '#E8EAF0',
+            backgroundColor: '#D8DAE4',
             borderRadius: '0.75rem',
             border: 'none',
             color: '#6B7280',
@@ -170,7 +170,7 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
   return (
     <>
       <div style={{
-        backgroundColor: '#E8EAF0',
+        backgroundColor: '#D8DAE4',
         borderRadius: '1.5rem',
         padding: '1.5rem',
         display: 'flex',
@@ -202,7 +202,7 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
 
         {/* Descripción */}
         <div style={{
-          backgroundColor: '#E0E3EC',
+          backgroundColor: '#CDD0DC',
           borderRadius: '1rem',
           padding: '1rem',
           display: 'flex', flexDirection: 'column', gap: '0.5rem',
@@ -266,7 +266,7 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
             style={{
               flex: deferredPrompt ? '0 0 auto' : 1,
               padding: '0.75rem 1rem',
-              backgroundColor: '#E8EAF0',
+              backgroundColor: '#D8DAE4',
               borderRadius: '1rem',
               border: 'none',
               color: '#6B7280',
@@ -344,7 +344,7 @@ function InstallModal({
             onClick={e => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: '400px',
-              backgroundColor: '#E8EAF0',
+              backgroundColor: '#D8DAE4',
               borderRadius: '1.5rem',
               padding: '1.75rem',
               fontFamily: '"Nunito", sans-serif',
@@ -363,7 +363,7 @@ function InstallModal({
               </div>
               <button onClick={onClose} style={{
                 width: 32, height: 32, borderRadius: '0.5rem',
-                border: 'none', backgroundColor: '#E8EAF0',
+                border: 'none', backgroundColor: '#D8DAE4',
                 color: '#9CA3AF', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '3px 3px 6px rgba(163,177,198,0.5),-3px -3px 6px rgba(255,255,255,0.6)',
@@ -376,7 +376,7 @@ function InstallModal({
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr',
               gap: '0.5rem', marginBottom: '1.25rem',
-              backgroundColor: '#E0E3EC',
+              backgroundColor: '#CDD0DC',
               borderRadius: '0.875rem', padding: '0.25rem',
               boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.5),inset -4px -4px 8px rgba(255,255,255,0.6)',
             }}>
@@ -411,7 +411,7 @@ function InstallModal({
                 >
                   {/* Instrucciones Chrome/Edge */}
                   <div style={{
-                    backgroundColor: '#E0E3EC', borderRadius: '1rem', padding: '1rem',
+                    backgroundColor: '#CDD0DC', borderRadius: '1rem', padding: '1rem',
                     boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.5),inset -4px -4px 8px rgba(255,255,255,0.6)',
                   }}>
                     <p style={{ fontWeight: 700, color: '#2D3561', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
@@ -449,7 +449,7 @@ function InstallModal({
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         gap: '0.5rem', fontFamily: 'inherit',
                         opacity: installing ? 0.7 : 1,
-                        boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)',
+                        boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)',
                       }}
                     >
                       {installing ? (
@@ -489,16 +489,16 @@ function InstallModal({
                 >
                   {/* QR Code */}
                   <div style={{
-                    backgroundColor: '#E0E3EC', borderRadius: '1.25rem',
+                    backgroundColor: '#CDD0DC', borderRadius: '1.25rem',
                     padding: '1.25rem', display: 'inline-flex',
-                    boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)',
+                    boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)',
                   }}>
                     {qrDataUrl
                       ? <img src={qrDataUrl} alt="QR RestaurantOS"
                           style={{ width: 180, height: 180, display: 'block', imageRendering: 'pixelated' }} />
                       : <div style={{
                           width: 180, height: 180, borderRadius: '0.75rem',
-                          backgroundColor: '#E8EAF0', display: 'flex',
+                          backgroundColor: '#D8DAE4', display: 'flex',
                           alignItems: 'center', justifyContent: 'center',
                           fontSize: '0.75rem', color: '#9CA3AF',
                         }}>
@@ -513,10 +513,10 @@ function InstallModal({
 
                   {/* URL copiable */}
                   <div style={{
-                    width: '100%', backgroundColor: '#E0E3EC', borderRadius: '0.875rem',
+                    width: '100%', backgroundColor: '#CDD0DC', borderRadius: '0.875rem',
                     padding: '0.75rem 1rem', display: 'flex', alignItems: 'center',
                     justifyContent: 'space-between', gap: '0.5rem',
-                    boxShadow: 'inset 3px 3px 7px rgba(163,177,198,0.55),inset -3px -3px 7px rgba(255,255,255,0.65)',
+                    boxShadow: 'inset 3px 3px 6px rgba(130,142,170,0.45),inset -3px -3px 6px rgba(255,255,255,0.45)',
                   }}>
                     <p style={{ fontSize: '0.75rem', color: '#2D3561', fontWeight: 600,
                       margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -526,7 +526,7 @@ function InstallModal({
                       onClick={() => { navigator.clipboard.writeText(appUrl) }}
                       style={{
                         padding: '0.375rem 0.75rem', borderRadius: '0.5rem',
-                        backgroundColor: '#E8EAF0', border: 'none',
+                        backgroundColor: '#D8DAE4', border: 'none',
                         fontSize: '0.75rem', fontWeight: 700, color: '#FF5722',
                         cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit',
                         boxShadow: '3px 3px 6px rgba(163,177,198,0.5),-3px -3px 6px rgba(255,255,255,0.6)',
@@ -538,7 +538,7 @@ function InstallModal({
 
                   {/* Instrucciones iOS */}
                   <div style={{
-                    width: '100%', backgroundColor: '#E0E3EC', borderRadius: '1rem', padding: '0.875rem',
+                    width: '100%', backgroundColor: '#CDD0DC', borderRadius: '1rem', padding: '0.875rem',
                     boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.5),inset -4px -4px 8px rgba(255,255,255,0.6)',
                   }}>
                     <p style={{ fontWeight: 700, color: '#2D3561', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>

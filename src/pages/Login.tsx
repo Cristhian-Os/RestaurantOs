@@ -11,9 +11,9 @@ interface LoginProps { onLogin: () => void }
 // Sombras neomórficas (inline para independencia de Tailwind)
 const S = {
   neoOut: { boxShadow: '12px 12px 24px rgba(163,177,198,0.7),-12px -12px 24px rgba(255,255,255,0.8)' },
-  neoIn:  { boxShadow: 'inset 6px 6px 12px rgba(163,177,198,0.6),inset -6px -6px 12px rgba(255,255,255,0.7)' },
-  coral:  { boxShadow: '8px 8px 16px rgba(255,87,34,0.35),-4px -4px 12px rgba(255,255,255,0.6)' },
-  green:  { boxShadow: '8px 8px 16px rgba(16,185,129,0.3),-4px -4px 12px rgba(255,255,255,0.6)' },
+  neoIn:  { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
+  coral:  { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  green:  { boxShadow: '8px 8px 16px rgba(16,185,129,0.28),-4px -4px 12px rgba(255,255,255,0.45)' },
 } as const
 
 type Mode = 'login' | 'forgot' | 'forgot_sent'
@@ -69,7 +69,7 @@ export default function Login({ onLogin }: LoginProps) {
     <div
       style={{
         minHeight: '100vh',
-        backgroundColor: '#E8EAF0',
+        backgroundColor: '#D8DAE4',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -94,7 +94,7 @@ export default function Login({ onLogin }: LoginProps) {
               flexShrink: 0,
               marginBottom: '1rem',
               ...S.neoOut,
-              backgroundColor: '#E8EAF0',
+              backgroundColor: '#D8DAE4',
             }}
           >
             <img
@@ -134,7 +134,7 @@ export default function Login({ onLogin }: LoginProps) {
             >
               <div
                 style={{
-                  backgroundColor: '#E8EAF0',
+                  backgroundColor: '#D8DAE4',
                   borderRadius: '1.5rem',
                   padding: '2rem',
                   ...S.neoOut,
@@ -165,7 +165,7 @@ export default function Login({ onLogin }: LoginProps) {
                         autoCapitalize="none"
                         style={{
                           width: '100%',
-                          backgroundColor: '#E0E3EC',
+                          backgroundColor: '#CDD0DC',
                           borderRadius: '1rem',
                           paddingLeft: '2.75rem',
                           paddingRight: '1rem',
@@ -210,7 +210,7 @@ export default function Login({ onLogin }: LoginProps) {
                         autoComplete="current-password"
                         style={{
                           width: '100%',
-                          backgroundColor: '#E0E3EC',
+                          backgroundColor: '#CDD0DC',
                           borderRadius: '1rem',
                           paddingLeft: '2.75rem',
                           paddingRight: '3rem',
@@ -289,7 +289,7 @@ export default function Login({ onLogin }: LoginProps) {
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}
             >
-              <div style={{ backgroundColor: '#E8EAF0', borderRadius: '1.5rem', padding: '2rem', ...S.neoOut }}>
+              <div style={{ backgroundColor: '#D8DAE4', borderRadius: '1.5rem', padding: '2rem', ...S.neoOut }}>
                 <button
                   onClick={() => { setMode('login'); setError(null) }}
                   style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '1.25rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, minHeight: 'auto' }}
@@ -309,7 +309,7 @@ export default function Login({ onLogin }: LoginProps) {
                     onChange={e => { setEmail(e.target.value); setError(null) }}
                     placeholder="tu@email.com"
                     autoComplete="email"
-                    style={{ width: '100%', backgroundColor: '#E0E3EC', borderRadius: '1rem', padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#2D3561', border: 'none', outline: 'none', fontFamily: 'inherit', ...S.neoIn }}
+                    style={{ width: '100%', backgroundColor: '#CDD0DC', borderRadius: '1rem', padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#2D3561', border: 'none', outline: 'none', fontFamily: 'inherit', ...S.neoIn }}
                   />
                   {error && (
                     <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: '0.75rem', padding: '0.75rem 1rem', borderRadius: '1rem' }}>
@@ -336,8 +336,8 @@ export default function Login({ onLogin }: LoginProps) {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
             >
-              <div style={{ backgroundColor: '#E8EAF0', borderRadius: '1.5rem', padding: '2rem', textAlign: 'center', ...S.neoOut }}>
-                <div style={{ width: '64px', height: '64px', borderRadius: '1rem', backgroundColor: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', margin: '0 auto 1rem', boxShadow: '8px 8px 16px rgba(16,185,129,0.3),-4px -4px 12px rgba(255,255,255,0.6)' }}>
+              <div style={{ backgroundColor: '#D8DAE4', borderRadius: '1.5rem', padding: '2rem', textAlign: 'center', ...S.neoOut }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '1rem', backgroundColor: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', margin: '0 auto 1rem', boxShadow: '8px 8px 16px rgba(16,185,129,0.28),-4px -4px 12px rgba(255,255,255,0.45)' }}>
                   📧
                 </div>
                 <h2 style={{ fontWeight: 700, color: '#2D3561', fontSize: '1.125rem', marginBottom: '0.5rem' }}>
