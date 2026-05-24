@@ -126,7 +126,7 @@ export const TeamManager = memo(() => {
         p_email:          form.email.trim().toLowerCase(),
         p_full_name:      form.full_name.trim(),
         p_role:           form.role,
-        p_password:       form.password,
+        p_password:       form.password.trim() || 'Temporal1234!',
         p_recovery_email: form.recovery_email.trim() || null,
         p_phone:          form.phone.trim() || null,
       })
@@ -134,24 +134,10 @@ export const TeamManager = memo(() => {
       let profileId: string | null = null
 
       if (rpcError) {
-        // Fallback: insertar directo en profiles
-        const { data: inserted, error: insErr } = await supabase
-          .from('profiles')
-          .insert({
-            email:     form.email.trim().toLowerCase(),
-            full_name: form.full_name.trim(),
-            role:      form.role,
-            phone:     form.phone.trim() || null,
-            active:    true,
-          })
-          .select('id')
-          .single()
-        if (insErr) throw insErr
-        profileId = inserted.id
-        message.warning('Perfil creado. El empleado debe registrarse con su email.')
+        throw new Error(rpcError.message)
       } else {
         profileId = rpcData?.profile_id ?? null
-        message.success(`✅ ${form.full_name} agregado como ${ROLE_CONFIG[form.role].label}`)
+        message.success(`✅ ${form.full_name.trim()} agregado como ${ROLE_CONFIG[form.role].label}`)
       }
 
       // Subir avatar si hay foto
