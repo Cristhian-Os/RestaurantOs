@@ -68,7 +68,17 @@
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Splash nativo — visible antes de que React cargue (0ms delay) -->
+      <div id="native-splash" style="position:fixed;inset:0;background:#D8DAE4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;font-family:Nunito,sans-serif;z-index:9999;">
+        <div style="width:80px;height:80px;border-radius:1.25rem;overflow:hidden;flex-shrink:0;box-shadow:8px 8px 16px rgba(130,142,170,0.5),-8px -8px 16px rgba(255,255,255,0.5);background:#D8DAE4;">
+          <img src="/logo.jpg" alt="RestaurantOS" style="width:100%;height:100%;object-fit:contain;display:block;" onerror="this.style.display='none'" />
+        </div>
+        <p style="color:#2D3561;font-weight:700;font-size:1.125rem;margin:0;">RestaurantOS</p>
+        <div style="width:32px;height:32px;border-radius:50%;border:3px solid #CDD0DC;border-top-color:#FF5722;animation:rs 0.8s linear infinite;"></div>
+        <style>@keyframes rs{to{transform:rotate(360deg)}}</style>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
