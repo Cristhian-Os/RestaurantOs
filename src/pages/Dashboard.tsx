@@ -24,6 +24,7 @@ import { ShoppingList }       from '../components/inventory/ShoppingList'
 import { RecipeBuilder }      from '../components/recipes/RecipeBuilder'
 import BusinessAssistant      from './BusinessAssistant'
 import { InstallPWA }         from '../components/pwa/InstallPWA'
+import { QRMenu }             from '../components/pwa/QRMenu'
 
 // ── Sombras neomórficas inline (independientes de Tailwind) ──
 const S = {
@@ -190,9 +191,10 @@ const AdminDashboard = memo(({ profile, onNavigate }: { profile: Profile; onNavi
 
       {/* Tabs rápidos */}
       <Tabs defaultActiveKey="orders" items={[
-        { key: 'orders', label: '📋 Nueva orden', children: <OrderFlow profile={profile} onOrderCreated={() => {}} /> },
-        { key: 'tables', label: '🗺️ Mesas',        children: <TableMap profile={profile} /> },
-        { key: 'tasks',  label: '✅ Tareas',        children: <AdminTasksView profile={profile} /> },
+        { key: 'orders', label: '📋 Nueva orden',  children: <OrderFlow profile={profile} onOrderCreated={() => {}} /> },
+        { key: 'tables', label: '🗺️ Mesas',         children: <TableMap profile={profile} /> },
+        { key: 'tasks',  label: '✅ Tareas',         children: <AdminTasksView profile={profile} /> },
+        { key: 'qr',     label: '📱 QR del Menú',   children: <QRMenu /> },
       ]} />
     </div>
   )
