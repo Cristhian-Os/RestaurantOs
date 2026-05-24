@@ -259,7 +259,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     switch (activeNav) {
       case 'dashboard': return profile.role === 'admin'
         ? <AdminDashboard profile={profile} onNavigate={setActiveNav} />
-        : null
+        // Roles sin dashboard → redirigir automáticamente a su vista principal
+        : (() => {
+            const defaultNav: Record<string, NavView> = {
+              waiter: 'orders', kitchen: 'kitchen', cashier: 'cashier', client: 'menu'
+            }
+            const next = defaultNav[profile.role]
+            if (next) { setTimeout(() => setActiveNav(next), 0); return null }
+            return null
+          })()
       case 'orders':    return (
         <div>
           <h2 style={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, fontSize: '1.5rem', color: '#2D3561', marginBottom: '1rem' }}>📋 Nueva Orden</h2>
@@ -443,7 +451,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       )}
 
       {/* ── LAYOUT DESKTOP ──────────────────────────────────── */}
-      <div style={{ display: 'flex' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
 
         {/* Sidebar — solo visible en desktop (lg+) */}
         <nav
@@ -457,7 +465,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             gap: '0.5rem',
             position: 'sticky',
             top: '72px',
-            height: 'calc(100vh - 72px)',
+            height: 'calc(100vh - 72px)', minHeight: 0,
             overflowY: 'auto',
             ...S.neoOut,
           }}
@@ -499,15 +507,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           ))}
         </nav>
 
-        {/* Contenido principal */}
+        {/* Contenido principal — sin maxHeight fijo, el scroll es natural */}
         <main style={{
           flex: 1,
-          padding: '1.5rem',
+          padding: '1.25rem',
           overflowX: 'hidden',
-          maxHeight: 'calc(100vh - 72px)',
-          overflowY: 'auto',
+          /* En móvil: scroll normal del documento.
+             En desktop: la sidebar es sticky entonces el main scrollea dentro del flex. */
+          minWidth: 0,  /* Previene overflow horizontal en flex */
         }}>
           {renderContent()}
+          {/* Espacio inferior para que el contenido no quede pegado al borde */}
+          <div style={{ height: '2rem' }} />
         </main>
       </div>
     </div>
