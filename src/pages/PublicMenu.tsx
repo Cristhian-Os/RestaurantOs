@@ -177,6 +177,9 @@ export default function PublicMenu() {
   const [sent,     setSent]     = useState(false)
   const [sending,  setSending]  = useState(false)
   const [customizing, setCustomizing] = useState<Dish | null>(null)
+  const [orderId,    setOrderId]    = useState<string | null>(null)
+  const [orderStatus,setOrderStatus]= useState<string | null>(null)
+  const [showTracking,setShowTracking]=useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -194,6 +197,21 @@ export default function PublicMenu() {
       setLoading(false)
     })
   }, [])
+
+  // Suscribirse al estado del pedido del cliente en tiempo real
+  useEffect(() => {
+    if (!orderId) return
+    const ch = supabase.channel(`order-track-${orderId}`)
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
+        (payload) => {
+          const newStatus = (payload.new as { status: string }).status
+          if (newStatus) setOrderStatus(newStatus)
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [orderId])
 
   const filtered = useMemo(() => {
     let list = dishes
@@ -230,7 +248,7 @@ export default function PublicMenu() {
         quantity: i.qty,
         notes: [i.size && `Tamaño: ${i.size}`, ...(i.extras.length ? [`Adicionales: ${i.extras.join(', ')}`] : []), i.notes].filter(Boolean).join(' | ') || null,
       }))
-      await supabase.from('orders').insert({
+      const { data: newOrder } = await supabase.from('orders').insert({
         table_num:     parseInt(mesa),
         items:         JSON.stringify(items),
         total:         cartTotal,
@@ -239,7 +257,12 @@ export default function PublicMenu() {
         customer_name: clientName.trim() || null,
         notes:         clientName.trim() ? `Cliente: ${clientName.trim()}` : null,
         user_id:       (await supabase.auth.getUser()).data.user?.id ?? '00000000-0000-0000-0000-000000000000',
-      })
+      }).select('id').single()
+      if (newOrder?.id) {
+        setOrderId(newOrder.id)
+        setOrderStatus('pending')
+        setShowTracking(true)
+      }
       setSent(true); setCart([]); setShowCart(false)
     } finally { setSending(false) }
   }, [cart, mesa, clientName, cartTotal])
@@ -269,7 +292,101 @@ export default function PublicMenu() {
       </header>
 
       <div style={{ padding:'1.25rem', maxWidth:640, margin:'0 auto' }}>
-        <AnimatePresence>
+        {/* ── Panel de estado del pedido ── */}
+      <AnimatePresence>
+        {showTracking && orderId && (
+          <motion.div
+            initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }}
+            exit={{ opacity:0, height:0 }} transition={{ duration: 0.3 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{
+              margin: '0 0 1rem',
+              backgroundColor: '#D8DAE4', borderRadius: '1.5rem', padding: '1.25rem',
+              boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)',
+            }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
+                <p style={{ fontFamily:'DM Sans,sans-serif', fontWeight:700, color:'#2D3561', margin:0 }}>
+                  📋 Estado de tu pedido
+                </p>
+                <button onClick={() => setShowTracking(false)}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'#8B92AA', fontSize:'1rem', minHeight:'auto', minWidth:'auto' }}>✕</button>
+              </div>
+
+              {/* Barra de progreso */}
+              <div style={{ display:'flex', alignItems:'center', gap:'0', marginBottom:'0.875rem' }}>
+                {[
+                  { key:'pending',   icon:'📝', label:'Recibido'   },
+                  { key:'cooking',   icon:'🍳', label:'En cocina'  },
+                  { key:'ready',     icon:'✅', label:'¡Listo!'    },
+                  { key:'completed', icon:'🎉', label:'Entregado'  },
+                ].map((step, i, arr) => {
+                  const order = ['pending','cooking','ready','completed']
+                  const current = order.indexOf(orderStatus ?? 'pending')
+                  const stepIdx  = order.indexOf(step.key)
+                  const done    = stepIdx <= current
+                  const active  = stepIdx === current
+                  return (
+                    <div key={step.key} style={{ display:'flex', alignItems:'center', flex: i < arr.length-1 ? 1 : 'none' }}>
+                      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.25rem' }}>
+                        <motion.div
+                          animate={active ? { scale: [1, 1.15, 1] } : {}}
+                          transition={{ repeat: active ? Infinity : 0, duration: 1.5 }}
+                          style={{
+                            width: 40, height: 40, borderRadius: '0.875rem',
+                            display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.125rem',
+                            backgroundColor: done ? (active ? '#FF5722' : '#10B981') : '#CDD0DC',
+                            boxShadow: done
+                              ? (active
+                                ? '4px 4px 8px rgba(255,87,34,0.3),-2px -2px 6px rgba(255,255,255,0.5)'
+                                : '4px 4px 8px rgba(16,185,129,0.25),-2px -2px 6px rgba(255,255,255,0.5)')
+                              : 'inset 3px 3px 6px rgba(130,142,170,0.4),inset -3px -3px 6px rgba(255,255,255,0.4)',
+                          }}>
+                          {step.icon}
+                        </motion.div>
+                        <p style={{ fontSize:'0.6rem', fontWeight:700, color: done ? '#2D3561' : '#8B92AA', margin:0, textAlign:'center', lineHeight:1.2 }}>
+                          {step.label}
+                        </p>
+                      </div>
+                      {i < arr.length-1 && (
+                        <div style={{ flex:1, height:3, borderRadius:2, margin:'0 0.25rem 1.25rem',
+                          backgroundColor: current > stepIdx ? '#10B981' : '#CDD0DC' }} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Mensaje según estado */}
+              <div style={{
+                backgroundColor: '#CDD0DC', borderRadius:'1rem', padding:'0.75rem 1rem',
+                boxShadow:'inset 3px 3px 6px rgba(130,142,170,0.4),inset -3px -3px 6px rgba(255,255,255,0.4)',
+              }}>
+                <p style={{ fontWeight:600, color:'#2D3561', margin:0, fontSize:'0.875rem' }}>
+                  {orderStatus === 'pending'   && '⏳ Tu pedido fue recibido. Pronto comenzamos a prepararlo.'}
+                  {orderStatus === 'cooking'   && '🍳 ¡Estamos preparando tu pedido! Ya casi está.'}
+                  {orderStatus === 'ready'     && '🔔 ¡Tu pedido está listo! El mesero te lo llevará enseguida.'}
+                  {orderStatus === 'completed' && '🎉 ¡Buen provecho! Esperamos que lo disfrutes.'}
+                  {orderStatus === 'cancelled' && '❌ Tu pedido fue cancelado. Consulta con el mesero.'}
+                </p>
+              </div>
+
+              {orderStatus === 'ready' && (
+                <motion.div
+                  animate={{ opacity: [1, 0.5, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.2 }}
+                  style={{ marginTop:'0.75rem', textAlign:'center' }}>
+                  <p style={{ fontWeight:800, color:'#FF5722', fontSize:'1rem', margin:0 }}>
+                    🛎️ ¡Pide a un mesero que te traiga tu pedido!
+                  </p>
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
           {sent && (
             <motion.div initial={{ opacity:0, y:-12 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
               style={{ backgroundColor:'#ECFDF5', border:'2px solid #A7F3D0', borderRadius:'1rem',
