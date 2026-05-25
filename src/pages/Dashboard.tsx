@@ -11,23 +11,24 @@ import Spin    from 'antd/es/spin'
 import message from 'antd/es/message'
 import Tabs    from 'antd/es/tabs'
 
-// Lazy loading
+import { OrderFlow }    from '../components/orders/OrderFlow'
+import { TableMap }     from '../components/tables/TableMap'
+import { AdminTasksView } from '../components/tasks/AdminTasksView'
+import { QRMenu }         from '../components/pwa/QRMenu'
+
+// Lazy loading — solo para views top-level de renderContent (no dentro de Tabs)
 const WaiterNotifications = lazy(() => import('../components/orders/WaiterNotifications').then(m => ({ default: m.WaiterNotifications })))
 // Esto evita que un crash en un módulo pesado rompa toda la app en móvil
-const OrderFlow        = lazy(() => import('../components/orders/OrderFlow').then(m => ({ default: m.OrderFlow })))
-const TableMap         = lazy(() => import('../components/tables/TableMap').then(m => ({ default: m.TableMap })))
 const KitchenBoard     = lazy(() => import('../components/kitchen/KitchenBoard').then(m => ({ default: m.KitchenBoard })))
 const CashierPanel     = lazy(() => import('../components/cashier/CashierPanel').then(m => ({ default: m.CashierPanel })))
 const TeamManager      = lazy(() => import('../components/team/TeamManager').then(m => ({ default: m.TeamManager })))
 const MenuManager      = lazy(() => import('../components/menu/MenuManager').then(m => ({ default: m.MenuManager })))
 const ClientMenuSection= lazy(() => import('../components/ClientMenuSection').then(m => ({ default: m.ClientMenuSection })))
-const AdminTasksView   = lazy(() => import('../components/tasks/AdminTasksView').then(m => ({ default: m.AdminTasksView })))
 const EmployeeTasksView= lazy(() => import('../components/tasks/EmployeeTasksView').then(m => ({ default: m.EmployeeTasksView })))
 const ShoppingList     = lazy(() => import('../components/inventory/ShoppingList').then(m => ({ default: m.ShoppingList })))
 const RecipeBuilder    = lazy(() => import('../components/recipes/RecipeBuilder').then(m => ({ default: m.RecipeBuilder })))
 const BusinessAssistant= lazy(() => import('./BusinessAssistant'))
 const InstallPWA       = lazy(() => import('../components/pwa/InstallPWA').then(m => ({ default: m.InstallPWA })))
-const QRMenu           = lazy(() => import('../components/pwa/QRMenu').then(m => ({ default: m.QRMenu })))
 
 // ── Sombras neomórficas inline (independientes de Tailwind) ──
 const S = {
@@ -292,9 +293,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }, [profile, activeNav])
 
-  // Si terminó de cargar pero no hay perfil → cerrar sesión y volver al login
+  // El signOut se hace en useEffect, no durante el render
+  useEffect(() => {
+    if (!loading && !profile) {
+      supabase.auth.signOut().then(() => onLogout())
+    }
+  }, [loading, profile, onLogout])
+
   if (!loading && !profile) {
-    supabase.auth.signOut().then(() => onLogout())
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#D8DAE4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
         <p style={{ color: '#FF5722', fontWeight: 700, fontFamily: '"Nunito", sans-serif' }}>
