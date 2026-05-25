@@ -1,14 +1,16 @@
 export interface Order {
-  id: string
-  user_id: string
-  items: string
-  total: number
-  status: 'pending' | 'completed' | 'cancelled' | 'cooking' | 'ready'
-  table_num: number | null
-  created_at: string
-  updated_at: string
-  tipo_pedido?: 'LOCAL' | 'LLEVAR' | 'DOMICILIO' | 'RAPPI'
-  notes?: string
+  id:            string
+  user_id:       string
+  items:         string
+  total:         number
+  status:        'pending' | 'completed' | 'cancelled' | 'cooking' | 'ready'
+  table_num:     number | null
+  created_at:    string
+  updated_at:    string
+  tipo_pedido?:  'LOCAL' | 'LLEVAR' | 'DOMICILIO' | 'RAPPI'
+  notes?:        string
+  customer_name?: string | null
+  paid_at?:      string | null
 }
 
 export interface User {

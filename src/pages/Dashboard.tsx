@@ -11,7 +11,8 @@ import Spin    from 'antd/es/spin'
 import message from 'antd/es/message'
 import Tabs    from 'antd/es/tabs'
 
-// Lazy loading — los componentes se cargan solo cuando se necesitan
+// Lazy loading
+const WaiterNotifications = lazy(() => import('../components/orders/WaiterNotifications').then(m => ({ default: m.WaiterNotifications })))
 // Esto evita que un crash en un módulo pesado rompa toda la app en móvil
 const OrderFlow        = lazy(() => import('../components/orders/OrderFlow').then(m => ({ default: m.OrderFlow })))
 const TableMap         = lazy(() => import('../components/tables/TableMap').then(m => ({ default: m.TableMap })))

@@ -1,9 +1,8 @@
 /**
- * TableMap.tsx
- * ─────────────────────────────────────────────────────────────
- * Mapa visual de mesas con estado en tiempo real.
- * Admin y meseros pueden ver el estado de todas las mesas.
- * El admin puede cambiar el estado manualmente.
+ * TableMap.tsx v2
+ * - Click en mesa muestra pedido activo, tiempo de espera, estado de pago
+ * - Meseros también ven alertas de pedido listo
+ * - Admin puede cambiar estado de mesa
  */
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -19,198 +18,194 @@ const S = {
 } as const
 
 interface Mesa {
-  id:        string
-  numero:    number
-  capacidad: number
-  estado:    'libre' | 'ocupada' | 'reservada' | 'cuenta'
-  zona:      string
-  activa:    boolean
+  id: string; numero: number; capacidad: number
+  estado: 'libre' | 'ocupada' | 'reservada' | 'cuenta'; zona: string; activa: boolean
 }
-
+interface OrderItem { name: string; quantity: number; notes?: string }
 interface ActiveOrder {
-  id:         string
-  mesa_id:    string
-  total:      number
-  status:     string
-  created_at: string
-  items:      Array<{ name: string; quantity: number }>
+  id: string; mesa_id: string; total: number; status: string
+  created_at: string; items: OrderItem[]; paid_at?: string | null
+  customer_name?: string | null
 }
 
 const ESTADO_CONFIG = {
-  libre:    { label: 'Libre',         color: '#D8DAE4', text: '#10B981', dot: 'bg-emerald-400', border: 'border-emerald-200' },
-  ocupada:  { label: 'Ocupada',       color: '#FEF3C7', text: '#D97706', dot: 'bg-amber-400',   border: 'border-amber-300'  },
-  reservada:{ label: 'Reservada',     color: '#EDE9FE', text: '#7C3AED', dot: 'bg-violet-400',  border: 'border-violet-200' },
-  cuenta:   { label: 'Pide la cuenta',color: '#FEE2E2', text: '#DC2626', dot: 'bg-red-400',     border: 'border-red-300'    },
+  libre:    { label: 'Libre',          bg: '#D8DAE4', text: '#10B981', dot: '#10B981' },
+  ocupada:  { label: 'Ocupada',        bg: '#FEF3C7', text: '#D97706', dot: '#F59E0B' },
+  reservada:{ label: 'Reservada',      bg: '#EDE9FE', text: '#7C3AED', dot: '#8B5CF6' },
+  cuenta:   { label: 'Pide la cuenta', bg: '#FEE2E2', text: '#DC2626', dot: '#EF4444' },
 }
 
-interface TableMapProps {
-  profile: Profile
-  onSelectMesa?: (mesa: Mesa) => void
+function elapsed(createdAt: string) {
+  const s = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000)
+  const m = Math.floor(s / 60), h = Math.floor(m / 60)
+  if (h > 0) return `${h}h ${m % 60}m`
+  return `${m}m ${s % 60}s`
 }
 
-export const TableMap = memo<TableMapProps>(({ profile, onSelectMesa }) => {
-  const [mesas,        setMesas]        = useState<Mesa[]>([])
-  const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([])
-  const [loading,      setLoading]      = useState(true)
-  const [selectedMesa, setSelected]     = useState<Mesa | null>(null)
-  const [filterZona,   setFilterZona]   = useState<string>('all')
+function ElapsedTimer({ createdAt }: { createdAt: string }) {
+  const [t, setT] = useState(elapsed(createdAt))
+  const secs = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000)
+  useEffect(() => {
+    const id = setInterval(() => setT(elapsed(createdAt)), 1000)
+    return () => clearInterval(id)
+  }, [createdAt])
+  const isUrgent = secs > 900
+  return (
+    <span style={{ color: isUrgent ? '#DC2626' : '#D97706', fontWeight: 700, fontSize: '0.875rem' }}>
+      ⏱ {t} {isUrgent ? '⚠️' : ''}
+    </span>
+  )
+}
 
+const STATUS_LABELS: Record<string, string> = {
+  pending:   '⏳ En espera',
+  cooking:   '🍳 En cocina',
+  ready:     '✅ Listo para entregar',
+  completed: '💰 Entregado',
+  cancelled: '❌ Cancelado',
+}
+
+export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => void }>(({ profile }) => {
+  const [mesas,        setMesas]       = useState<Mesa[]>([])
+  const [activeOrders, setActiveOrders]= useState<ActiveOrder[]>([])
+  const [readyOrders,  setReadyOrders] = useState<Set<string>>(new Set())
+  const [loading,      setLoading]     = useState(true)
+  const [selected,     setSelected]    = useState<Mesa | null>(null)
+  const [zona,         setZona]        = useState('all')
   const isAdmin = profile.role === 'admin'
 
   const fetchData = useCallback(async () => {
-    const [mesasRes, ordersRes] = await Promise.all([
+    const [mr, or] = await Promise.all([
       supabase.from('mesas').select('*').eq('activa', true).order('numero'),
-      supabase.from('orders').select('id, mesa_id, total, status, created_at, items')
+      supabase.from('orders').select('id,mesa_id,total,status,created_at,items,paid_at,customer_name')
         .not('mesa_id', 'is', null)
-        .not('status', 'in', '("completed","cancelled")')
+        .not('status', 'in', '(completed,cancelled)')
     ])
-    if (!mesasRes.error) setMesas(mesasRes.data || [])
-    if (!ordersRes.error) {
-      setActiveOrders((ordersRes.data || []).map(o => ({
+    if (!mr.error) setMesas(mr.data || [])
+    if (!or.error) {
+      const orders = (or.data || []).map(o => ({
         ...o,
         items: (() => { try { return JSON.parse(typeof o.items === 'string' ? o.items : JSON.stringify(o.items)) } catch { return [] } })()
-      })))
+      }))
+      setActiveOrders(orders)
+      // Detectar pedidos listos para alerta
+      const readySet = new Set(orders.filter(o => o.status === 'ready').map(o => o.mesa_id))
+      setReadyOrders(readySet as Set<string>)
     }
     setLoading(false)
   }, [])
 
   useEffect(() => {
     fetchData()
-    const channel = supabase
-      .channel('tablemap-realtime')
+    const ch = supabase.channel('tablemap-v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        fetchData()
+        // Alerta al mesero cuando un pedido pasa a "ready"
+        const newRow = payload.new as { status?: string; table_num?: number }
+        if (newRow?.status === 'ready') {
+          const mesa = newRow?.table_num
+          message.open({
+            type: 'success',
+            content: `🔔 ¡Mesa ${mesa ?? '?'} — pedido listo para entregar!`,
+            duration: 8,
+            style: { fontWeight: 700, fontSize: '1rem' },
+          })
+          // Vibrar si el dispositivo lo soporta
+          if ('vibrate' in navigator) navigator.vibrate([300, 100, 300])
+        }
+      })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => { supabase.removeChannel(ch) }
   }, [fetchData])
 
-  const handleChangeEstado = useCallback(async (mesa: Mesa, newEstado: Mesa['estado']) => {
-    if (!isAdmin) return
-    const { error } = await supabase
-      .from('mesas').update({ estado: newEstado }).eq('id', mesa.id)
-    if (error) message.error('Error al actualizar mesa: ' + error.message)
-    else { message.success(`Mesa ${mesa.numero} → ${ESTADO_CONFIG[newEstado].label}`); fetchData() }
-  }, [isAdmin, fetchData])
+  const handleChangeEstado = useCallback(async (mesa: Mesa, estado: Mesa['estado']) => {
+    const { error } = await supabase.from('mesas').update({ estado }).eq('id', mesa.id)
+    if (error) { message.error('Error: ' + error.message); return }
+    setMesas(prev => prev.map(m => m.id === mesa.id ? { ...m, estado } : m))
+    setSelected(prev => prev?.id === mesa.id ? { ...prev, estado } : prev)
+  }, [])
 
-  const getOrderForMesa = (mesaId: string) =>
-    activeOrders.find(o => o.mesa_id === mesaId)
-
-  const zonas = ['all', ...Array.from(new Set(mesas.map(m => m.zona))).sort()]
-  const filteredMesas = filterZona === 'all' ? mesas : mesas.filter(m => m.zona === filterZona)
-
-  const stats = {
-    libres:    mesas.filter(m => m.estado === 'libre').length,
-    ocupadas:  mesas.filter(m => m.estado === 'ocupada').length,
-    cuenta:    mesas.filter(m => m.estado === 'cuenta').length,
-    reservadas:mesas.filter(m => m.estado === 'reservada').length,
-  }
+  const zonas = ['all', ...Array.from(new Set(mesas.map(m => m.zona)))]
+  const filtered = zona === 'all' ? mesas : mesas.filter(m => m.zona === zona)
+  const selectedOrder = selected ? activeOrders.find(o => o.mesa_id === selected.id) : null
 
   if (loading) return (
-    <div className="flex justify-center items-center py-20">
-      <div className="w-8 h-8 rounded-full border-4 border-[#FF5722] border-t-transparent animate-spin" />
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #CDD0DC', borderTopColor: '#FF5722', animation: 'rs 0.8s linear infinite' }} />
+      <style>{'@keyframes rs{to{transform:rotate(360deg)}}'}</style>
     </div>
   )
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h2 className="text-2xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-            🗺️ Mapa de Mesas
-          </h2>
-          <p className="text-sm text-[#9CA3AF] mt-0.5">
-            {mesas.length} mesas · actualización en tiempo real
+          <h2 style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1.5rem', color: '#2D3561', margin: 0 }}>🗺️ Mesas</h2>
+          <p style={{ fontSize: '0.8125rem', color: '#8B92AA', margin: 0, marginTop: 2 }}>
+            {mesas.filter(m => m.estado === 'ocupada').length} ocupadas · {mesas.filter(m => m.estado === 'libre').length} libres
+            {readyOrders.size > 0 && <span style={{ color: '#10B981', fontWeight: 700, marginLeft: 8 }}>· 🔔 {readyOrders.size} listas</span>}
           </p>
         </div>
-        <button onClick={fetchData} className="p-2.5 rounded-2xl text-[#6B7280]" style={S.neoOutSm}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
+        <button onClick={fetchData} style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: '#D8DAE4', color: '#5A617A', cursor: 'pointer', ...S.neoOutSm }}>
+          🔄
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: 'Libres',     val: stats.libres,    color: 'text-emerald-600' },
-          { label: 'Ocupadas',   val: stats.ocupadas,  color: 'text-amber-600'   },
-          { label: 'Cuenta',     val: stats.cuenta,    color: 'text-red-600'     },
-          { label: 'Reservadas', val: stats.reservadas,color: 'text-violet-600'  },
-        ].map(s => (
-          <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-3 text-center" style={S.neoOutSm}>
-            <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
-            <p className="text-[10px] text-[#9CA3AF] font-medium">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filtro por zona */}
+      {/* Filtro zonas */}
       {zonas.length > 2 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto' }}>
           {zonas.map(z => (
-            <button key={z}
-              onClick={() => setFilterZona(z)}
-              className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold capitalize"
-              style={filterZona === z ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
-            >
-              {z === 'all' ? '📍 Todas' : z}
+            <button key={z} onClick={() => setZona(z)}
+              style={{
+                flexShrink: 0, padding: '0.5rem 0.875rem', borderRadius: '9999px',
+                border: 'none', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
+                ...(zona === z ? { background: '#FF5722', color: '#fff', ...S.coral } : { backgroundColor: '#D8DAE4', color: '#5A617A', ...S.neoOutSm })
+              }}>
+              {z === 'all' ? 'Todas' : z}
             </button>
           ))}
         </div>
       )}
 
-      {/* Leyenda */}
-      <div className="flex gap-3 flex-wrap">
-        {Object.entries(ESTADO_CONFIG).map(([k, v]) => (
-          <div key={k} className="flex items-center gap-1.5">
-            <span className={`w-2.5 h-2.5 rounded-full ${v.dot}`} />
-            <span className="text-xs text-[#6B7280]">{v.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Grid de mesas */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-        {filteredMesas.map(mesa => {
-          const cfg   = ESTADO_CONFIG[mesa.estado]
-          const order = getOrderForMesa(mesa.id)
-          const isSelected = selectedMesa?.id === mesa.id
-
+      {/* Grid mesas */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '0.75rem' }}>
+        {filtered.map(mesa => {
+          const cfg = ESTADO_CONFIG[mesa.estado]
+          const order = activeOrders.find(o => o.mesa_id === mesa.id)
+          const isReady = readyOrders.has(mesa.id)
+          const isSelected = selected?.id === mesa.id
           return (
-            <motion.button
-              key={mesa.id}
-              whileTap={{ scale: 0.96 }}
-              onClick={() => {
-                setSelected(isSelected ? null : mesa)
-                onSelectMesa?.(mesa)
-              }}
-              className={`relative p-3 rounded-2xl text-left transition-all border-2 ${cfg.border} ${isSelected ? 'ring-2 ring-[#FF5722]' : ''}`}
+            <motion.button key={mesa.id} whileTap={{ scale: 0.95 }}
+              onClick={() => setSelected(isSelected ? null : mesa)}
               style={{
-                background: cfg.color,
-                boxShadow: isSelected
-                  ? '8px 8px 16px rgba(255,87,34,0.3),-8px -8px 16px rgba(255,255,255,0.75)'
-                  : S.neoOutSm.boxShadow
-              }}
-            >
-              {/* Dot de estado */}
-              <span className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${cfg.dot} ${mesa.estado === 'ocupada' ? 'animate-pulse' : ''}`} />
-
-              {/* Número */}
-              <p className="text-2xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                backgroundColor: cfg.bg,
+                borderRadius: '1.25rem', border: 'none', cursor: 'pointer',
+                padding: '0.875rem 0.5rem',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.375rem',
+                fontFamily: 'inherit', position: 'relative',
+                outline: isSelected ? `3px solid #FF5722` : 'none',
+                outlineOffset: 2,
+                ...(isReady ? { boxShadow: '0 0 0 3px #10B981, 8px 8px 16px rgba(130,142,170,0.4),-8px -8px 16px rgba(255,255,255,0.5)' } : S.neoOut),
+              }}>
+              {isReady && (
+                <div style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18,
+                  borderRadius: '50%', backgroundColor: '#10B981', color: '#fff',
+                  fontSize: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                  ✓
+                </div>
+              )}
+              <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: cfg.dot }} />
+              <p style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1rem', color: '#2D3561', margin: 0 }}>
                 {mesa.numero}
               </p>
-
-              {/* Info */}
-              <p className="text-[10px] font-bold mt-1" style={{ color: cfg.text }}>
+              <p style={{ fontSize: '0.625rem', color: cfg.text, fontWeight: 700, margin: 0 }}>
                 {cfg.label}
               </p>
-              <p className="text-[10px] text-[#9CA3AF]">👥 {mesa.capacidad}</p>
-
-              {/* Total si hay orden activa */}
               {order && (
-                <p className="text-xs font-bold text-[#FF5722] mt-1">
-                  ${order.total.toFixed(2)}
+                <p style={{ fontSize: '0.6rem', color: '#8B92AA', margin: 0 }}>
+                  ${order.total.toLocaleString('es')}
                 </p>
               )}
             </motion.button>
@@ -218,73 +213,111 @@ export const TableMap = memo<TableMapProps>(({ profile, onSelectMesa }) => {
         })}
       </div>
 
-      {/* Panel de mesa seleccionada */}
+      {/* Panel detalle mesa seleccionada */}
       <AnimatePresence>
-        {selectedMesa && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }} transition={{ duration: 0.3 }}
-            className="bg-[#D8DAE4] rounded-3xl p-5" style={S.neoOut}
-          >
-            <div className="flex items-start justify-between mb-4">
+        {selected && (
+          <motion.div key={selected.id}
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.25 }}
+            style={{ backgroundColor: '#D8DAE4', borderRadius: '1.5rem', padding: '1.5rem', ...S.neoOut }}>
+
+            {/* Mesa header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>
-                <h3 className="font-bold text-[#2D3561] text-lg">Mesa {selectedMesa.numero}</h3>
-                <p className="text-xs text-[#9CA3AF]">{selectedMesa.zona} · {selectedMesa.capacidad} personas</p>
+                <h3 style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1.25rem', color: '#2D3561', margin: 0 }}>
+                  Mesa {selected.numero}
+                  <span style={{ marginLeft: 8, fontSize: '0.75rem', backgroundColor: ESTADO_CONFIG[selected.estado].bg,
+                    color: ESTADO_CONFIG[selected.estado].text, padding: '0.25rem 0.625rem', borderRadius: '9999px', fontWeight: 700 }}>
+                    {ESTADO_CONFIG[selected.estado].label}
+                  </span>
+                </h3>
+                <p style={{ fontSize: '0.8125rem', color: '#8B92AA', margin: 0, marginTop: 2 }}>
+                  Zona: {selected.zona} · Cap: {selected.capacidad}
+                </p>
               </div>
-              <button onClick={() => setSelected(null)} className="text-[#9CA3AF] p-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-                  <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
+              <button onClick={() => setSelected(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8B92AA', fontSize: '1.25rem', padding: 4 }}>
+                ✕
               </button>
             </div>
 
-            {/* Orden activa en esta mesa */}
-            {(() => {
-              const order = getOrderForMesa(selectedMesa.id)
-              if (!order) return (
-                <p className="text-sm text-[#9CA3AF] mb-4">Sin orden activa</p>
-              )
-              return (
-                <div className="bg-[#CDD0DC] rounded-2xl p-4 mb-4" style={S.neoIn}>
-                  <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Orden activa</p>
-                  <div className="flex flex-col gap-1 mb-2">
-                    {order.items.slice(0, 4).map((item, i) => (
-                      <div key={i} className="flex justify-between text-sm">
-                        <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
+            {/* Pedido activo */}
+            {selectedOrder ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                {/* Info general del pedido */}
+                <div style={{ backgroundColor: '#CDD0DC', borderRadius: '1rem', padding: '0.875rem 1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', ...S.neoIn }}>
+                  <div>
+                    <p style={{ fontSize: '0.7rem', color: '#8B92AA', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Estado</p>
+                    <p style={{ fontWeight: 700, color: '#2D3561', fontSize: '0.875rem', margin: 0 }}>{STATUS_LABELS[selectedOrder.status] ?? selectedOrder.status}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '0.7rem', color: '#8B92AA', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Tiempo</p>
+                    <ElapsedTimer createdAt={selectedOrder.created_at} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '0.7rem', color: '#8B92AA', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Total</p>
+                    <p style={{ fontWeight: 700, color: '#FF5722', fontSize: '1rem', margin: 0 }}>${selectedOrder.total.toLocaleString('es')}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '0.7rem', color: '#8B92AA', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Pago</p>
+                    <p style={{ fontWeight: 700, fontSize: '0.875rem', margin: 0, color: selectedOrder.paid_at ? '#10B981' : '#D97706' }}>
+                      {selectedOrder.paid_at ? '✅ Pagado' : '⏳ Pendiente'}
+                    </p>
+                  </div>
+                  {selectedOrder.customer_name && (
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <p style={{ fontSize: '0.7rem', color: '#8B92AA', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Cliente</p>
+                      <p style={{ fontWeight: 600, color: '#2D3561', fontSize: '0.875rem', margin: 0 }}>👤 {selectedOrder.customer_name}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Items del pedido */}
+                <div>
+                  <p style={{ fontSize: '0.7rem', color: '#8B92AA', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Pedido</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                    {selectedOrder.items.map((item, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#CDD0DC', borderRadius: '0.75rem', padding: '0.5rem 0.75rem', ...S.neoIn }}>
+                        <span style={{ fontSize: '0.875rem', color: '#2D3561', fontWeight: 600 }}>
+                          <span style={{ color: '#FF5722', fontWeight: 700, marginRight: 6 }}>{item.quantity}×</span>
+                          {item.name}
+                        </span>
+                        {item.notes && <span style={{ fontSize: '0.7rem', color: '#8B92AA' }}>📝 {item.notes}</span>}
                       </div>
                     ))}
-                    {order.items.length > 4 && (
-                      <p className="text-xs text-[#9CA3AF]">+{order.items.length - 4} más...</p>
-                    )}
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-[#C5CAD8]">
-                    <span className="text-xs text-[#9CA3AF]">
-                      {new Date(order.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span className="font-bold text-[#FF5722]">${order.total.toFixed(2)}</span>
                   </div>
                 </div>
-              )
-            })()}
+
+                {/* Alerta si está listo */}
+                {selectedOrder.status === 'ready' && (
+                  <div style={{ backgroundColor: '#D1FAE5', borderRadius: '1rem', padding: '0.75rem 1rem', border: '2px solid #10B981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '1.25rem' }}>🔔</span>
+                    <p style={{ fontWeight: 700, color: '#065F46', margin: 0 }}>¡Este pedido está listo para entregar!</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '1.5rem 0', color: '#8B92AA' }}>
+                <p style={{ fontSize: '1.5rem', margin: 0 }}>🪑</p>
+                <p style={{ fontWeight: 600, margin: '0.5rem 0 0' }}>Sin pedido activo</p>
+              </div>
+            )}
 
             {/* Cambiar estado (solo admin) */}
             {isAdmin && (
-              <div>
-                <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
-                  Cambiar estado
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(ESTADO_CONFIG) as Mesa['estado'][]).map(estado => (
-                    <button key={estado}
-                      onClick={() => handleChangeEstado(selectedMesa, estado)}
-                      disabled={selectedMesa.estado === estado}
-                      className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
-                        selectedMesa.estado === estado ? 'opacity-40' : ''
-                      }`}
-                      style={selectedMesa.estado === estado ? S.neoIn : S.neoOutSm}
-                    >
-                      <span className={`${ESTADO_CONFIG[estado].dot.replace('bg-', 'text-').replace('-400', '-600')}`}>●</span>
-                      {' '}{ESTADO_CONFIG[estado].label}
+              <div style={{ marginTop: '1rem' }}>
+                <p style={{ fontSize: '0.7rem', color: '#8B92AA', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Cambiar estado</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem' }}>
+                  {(['libre','ocupada','reservada','cuenta'] as Mesa['estado'][]).map(e => (
+                    <button key={e} onClick={() => handleChangeEstado(selected, e)}
+                      style={{
+                        padding: '0.5rem', borderRadius: '0.75rem', border: 'none',
+                        fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'inherit',
+                        ...(selected.estado === e
+                          ? { background: '#FF5722', color: '#fff', ...S.coral }
+                          : { backgroundColor: '#D8DAE4', color: '#5A617A', ...S.neoOutSm })
+                      }}>
+                      {ESTADO_CONFIG[e].label}
                     </button>
                   ))}
                 </div>
@@ -296,5 +329,4 @@ export const TableMap = memo<TableMapProps>(({ profile, onSelectMesa }) => {
     </div>
   )
 })
-
 TableMap.displayName = 'TableMap'

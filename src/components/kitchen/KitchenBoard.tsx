@@ -28,7 +28,7 @@ interface Order {
   tipo_pedido:string
   items:      OrderItem[]
   notes:      string | null
-  status:     'pending' | 'cooking' | 'ready'
+  status:     'pending' | 'cooking' | 'ready' | 'completed'
   created_at: string
 }
 
@@ -55,13 +55,14 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
   const isUrgent = elapsedSecs > 900 // >15min → urgente
 
   const nextStatus: Record<Order['status'], Order['status'] | null> = {
-    pending: 'cooking',
-    cooking: 'ready',
-    ready:   null,
+    pending:   'cooking',
+    cooking:   'ready',
+    ready:     'completed',
+    completed: null,
   }
   const next = nextStatus[order.status]
 
-  const actionLabel = { pending: '🍳 Iniciar', cooking: '✅ Listo', ready: null }
+  const actionLabel: Record<Order['status'], string | null> = { pending: '🍳 Iniciar', cooking: '✅ Listo para recoger', ready: null, completed: null }
 
   return (
     <motion.div
@@ -126,9 +127,14 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
         </motion.button>
       )}
       {order.status === 'ready' && (
-        <div className="w-full py-2.5 rounded-2xl text-center text-sm font-bold text-emerald-600" style={S.neoIn}>
-          ✅ Listo para recoger
-        </div>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => onAdvance(order.id, 'completed')}
+          className="w-full py-2.5 rounded-2xl text-center text-sm font-bold text-white"
+          style={{ background: '#2D3561', boxShadow: '8px 8px 16px rgba(45,53,97,0.3),-4px -4px 12px rgba(255,255,255,0.5)' }}
+        >
+          🛎️ Entregar al mesero
+        </motion.button>
       )}
     </motion.div>
   )
@@ -181,10 +187,17 @@ export const KitchenBoard = memo(() => {
   }, [])
 
   const handleAdvance = useCallback(async (orderId: string, nextStatus: Order['status']) => {
+    const order = orders.find(o => o.id === orderId)
     const { error } = await supabase.from('orders').update({ status: nextStatus }).eq('id', orderId)
     if (error) { message.error('Error al actualizar: ' + error.message); return }
     fetchOrders()
-    if (nextStatus === 'ready') message.success('🔔 Orden lista — notificando a mesero')
+    if (nextStatus === 'ready') {
+      message.success({
+        content: `🔔 Mesa ${order?.table_num ?? '?'} — ¡Pedido listo! Notificando al mesero...`,
+        duration: 5,
+      })
+    }
+    if (nextStatus === 'completed') message.success('✅ Pedido entregado')
   }, [fetchOrders])
 
   const pending = orders.filter(o => o.status === 'pending')
