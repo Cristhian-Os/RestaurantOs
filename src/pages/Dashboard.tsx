@@ -279,6 +279,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     return () => { isMounted.current = false }
   }, [])
 
+  // Redirigir roles sin dashboard a su vista principal — NUNCA en renderContent
+  useEffect(() => {
+    if (!profile) return
+    if (profile.role !== 'admin' && activeNav === 'dashboard') {
+      const defaultView: Record<string, NavView> = {
+        waiter: 'orders', kitchen: 'kitchen', cashier: 'cashier', client: 'menu'
+      }
+      const target = defaultView[profile.role]
+      if (target) setActiveNav(target)
+    }
+  }, [profile, activeNav])
+
   // Si terminó de cargar pero no hay perfil → cerrar sesión y volver al login
   if (!loading && !profile) {
     supabase.auth.signOut().then(() => onLogout())
@@ -310,15 +322,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     switch (activeNav) {
       case 'dashboard': return profile.role === 'admin'
         ? <AdminDashboard profile={profile} onNavigate={setActiveNav} />
-        // Roles sin dashboard → redirigir automáticamente a su vista principal
-        : (() => {
-            const defaultNav: Record<string, NavView> = {
-              waiter: 'orders', kitchen: 'kitchen', cashier: 'cashier', client: 'menu'
-            }
-            const next = defaultNav[profile.role]
-            if (next) { setTimeout(() => setActiveNav(next), 0); return null }
-            return null
-          })()
+        : null  // El useEffect de abajo redirige al view correcto
       case 'orders':    return (
         <div>
           <h2 style={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, fontSize: '1.5rem', color: '#2D3561', marginBottom: '1rem' }}>📋 Nueva Orden</h2>
