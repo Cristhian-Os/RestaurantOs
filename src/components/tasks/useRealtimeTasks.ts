@@ -26,10 +26,9 @@ export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
   const fetchTasks = useCallback(async () => {
     try {
       let query = supabase
-        .from('tasks')
+        .from('tasks_with_profiles')
         .select(`
           *,
-          assignee:profiles!tasks_assigned_to_fkey(id, full_name, role),
           evidence:task_evidence(id, photo_url, storage_path, notes, submitted_at, uploaded_by)
         `)
         .order('created_at', { ascending: false })
