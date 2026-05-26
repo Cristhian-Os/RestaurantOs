@@ -101,9 +101,6 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
     }).then(setQrDataUrl).catch(console.error)
   }, [showModal, APP_URL])
 
-  // No mostrar si ya está instalada
-  if (isInstalled) return null
-
   const handleInstallClick = useCallback(async () => {
     if (deferredPrompt) {
       // Instalar directamente en desktop
@@ -124,6 +121,9 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
       setShowModal(true)
     }
   }, [deferredPrompt])
+
+  // No mostrar si ya está instalada (después de todos los hooks)
+  if (isInstalled) return null
 
   // ── Botón compacto para el header ────────────────────────
   if (compact) {
