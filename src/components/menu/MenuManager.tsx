@@ -430,7 +430,7 @@ export const MenuManager = memo(() => {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
           >
-            <div className="rounded-3xl p-6 space-y-5" style={{ backgroundColor: bg, ...S.neoOut }}>
+            <div className="glass-card no-hover rounded-3xl p-6 space-y-5">
               <h3 className="font-bold" style={{ color: txt }}>⚙️ Configuración general</h3>
 
               {/* Nombre del establecimiento */}
@@ -617,7 +617,7 @@ export const MenuManager = memo(() => {
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
           >
-            <div className="rounded-3xl p-6" style={{ backgroundColor: bg, ...S.neoOut }}>
+            <div className="glass-card no-hover rounded-3xl p-6">
               <h3 className="font-bold mb-5" style={{ color: txt }}>
                 {editing ? `✏️ Editar: ${editing.name}` : '➕ Nuevo plato'}
               </h3>
@@ -768,8 +768,7 @@ export const MenuManager = memo(() => {
             const cat = categories.find(c => c.value === dish.category)
             return (
               <motion.div key={dish.id} layout
-                className={`rounded-2xl p-4 flex items-center gap-3 ${!dish.available ? 'opacity-60' : ''}`}
-                style={{ backgroundColor: bg, ...S.neoOut }}
+                className={`glass-card-sm p-4 flex items-center gap-3 ${!dish.available ? 'opacity-60' : ''}`}
                 whileHover={{ y: -2 }}
                 transition={{ duration: 0.15 }}>
                 <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-2xl"
@@ -782,8 +781,8 @@ export const MenuManager = memo(() => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-bold text-sm truncate" style={{ color: txt }}>{dish.name}</p>
-                    {!dish.available && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold shrink-0">OFF</span>}
-                    {dish.has_sizes   && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold shrink-0">📏</span>}
+                    {!dish.available && <span className="tag-sm tag-red shrink-0">OFF</span>}
+                    {dish.has_sizes   && <span className="tag-sm tag-blue shrink-0">📏</span>}
                   </div>
                   {(dish.tags ?? []).length > 0 && (
                     <div className="flex gap-1 mt-0.5 flex-wrap">

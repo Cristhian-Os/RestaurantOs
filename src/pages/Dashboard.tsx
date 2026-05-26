@@ -150,10 +150,8 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
       <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'1rem'}}>
         {cards.map((card,i) => (
           <button key={i} onClick={()=>onNavigate(card.nav)}
-            style={{padding:'1.25rem',backgroundColor:'var(--bg,#D8DAE4)',borderRadius:'1.5rem',
-              textAlign:'left',border:'none',cursor:'pointer',fontFamily:'inherit',...S.neoOut, transition:'transform 0.15s ease'}}
-            onMouseEnter={e=>(e.currentTarget.style.transform='scale(1.02)')}
-            onMouseLeave={e=>(e.currentTarget.style.transform='scale(1)')}>
+            className="glass-card hover-lift"
+            style={{padding:'1.25rem',textAlign:'left',border:'none',cursor:'pointer',fontFamily:'inherit'}}>
             <div style={{fontSize:'1.875rem',marginBottom:'0.75rem'}}>{card.icon}</div>
             <div style={{fontFamily:'"DM Sans",sans-serif',fontWeight:700,fontSize:'1.5rem',color:card.color}}>
               {card.value}
@@ -309,10 +307,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       )}
 
       {/* Header */}
-      <header style={{
-        backgroundColor:'var(--bg,#D8DAE4)', padding:'1rem 1.5rem',
+      <header className="glass-header" style={{
+        padding:'1rem 1.5rem',
         display:'flex', justifyContent:'space-between', alignItems:'center',
-        position:'sticky', top:0, zIndex:20, ...S.neoOut,
+        position:'sticky', top:0, zIndex:20,
       }}>
         <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
           <div style={{width:40,height:40,borderRadius:'0.75rem',overflow:'hidden',flexShrink:0,...S.neoOutSm}}>
@@ -360,11 +358,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div style={{position:'fixed',inset:0,zIndex:30,backgroundColor:'rgba(45,53,97,0.4)',
-          backdropFilter:'blur(4px)'}} onClick={()=>setMobileOpen(false)}>
-          <nav style={{position:'absolute',top:0,left:0,bottom:0,width:220,
-            backgroundColor:'var(--bg,#D8DAE4)',padding:'1.5rem 1rem',display:'flex',
-            flexDirection:'column',gap:'0.375rem',overflowY:'auto',...S.neoOut}}
+        <div style={{position:'fixed',inset:0,zIndex:30,backgroundColor:'rgba(15,17,24,0.55)',
+          backdropFilter:'blur(8px)'}} onClick={()=>setMobileOpen(false)}>
+          <nav className="glass-modal" style={{position:'absolute',top:0,left:0,bottom:0,width:220,
+            padding:'1.5rem 1rem',display:'flex',
+            flexDirection:'column',gap:'0.375rem',overflowY:'auto',borderRadius:0,border:'none',
+            borderRight:'1px solid var(--glass-border)'}}
             onClick={e=>e.stopPropagation()}>
             <p style={{fontSize:'0.65rem',fontWeight:700,color:'var(--text-muted,#9CA3AF)',textTransform:'uppercase',
               letterSpacing:'0.1em',marginBottom:'0.75rem',paddingLeft:'0.5rem'}}>
@@ -388,12 +387,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       {/* Layout */}
       <div style={{display:'flex',alignItems:'flex-start'}}>
         {/* Sidebar desktop */}
-        <nav style={{width:80,backgroundColor:'var(--bg,#D8DAE4)',flexDirection:'column',
+        <nav className="lg-sidebar glass-header" style={{width:80,flexDirection:'column',
           alignItems:'center',padding:'1.5rem 0',gap:'0.5rem',
           position:'sticky',top:72,height:'calc(100vh - 72px)',
-          overflowY:'auto',...S.neoOut,
-          display:'none'}} // Controlado por CSS className abajo
-          className="lg-sidebar">
+          overflowY:'auto',borderBottom:'none',borderRight:'1px solid var(--glass-border)',
+          display:'none'}}>
           {navItems.map(({view,icon,label})=>(
             <button key={view} onClick={()=>setActiveNav(view)} title={label}
               style={{width:56,padding:'0.75rem 0',borderRadius:'1rem',border:'none',
@@ -416,10 +414,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </main>
       </div>
 
-      <style>{`
-        @media (min-width: 1024px) { .lg-sidebar { display: flex !important; } }
-        @keyframes rs { to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 }

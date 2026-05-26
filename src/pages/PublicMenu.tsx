@@ -91,12 +91,13 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
       style={{ position: 'fixed', inset: 0, zIndex: 80, backgroundColor: 'rgba(45,53,97,0.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', fontFamily: 'Nunito, sans-serif' }}>
       <motion.div
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 40, mass: 0.8 }}
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 480, backgroundColor: bg, borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto', boxShadow: `0 -8px 32px rgba(130,142,170,0.4)` }}>
+        className="glass-modal"
+        style={{ width: '100%', maxWidth: 480, borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
 
         {/* Drag handle */}
-        <div style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: bgSurf, margin: '0 auto 1.25rem' }} />
+        <div style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'var(--divider)', margin: '0 auto 1.25rem' }} />
 
         {/* Dish header */}
         <div style={{ display: 'flex', gap: '0.875rem', marginBottom: '1.25rem', alignItems: 'center' }}>
@@ -173,13 +174,13 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
 })
 CustomizeModal.displayName = 'CustomizeModal'
 
-// ── Dish card (Liquid Glass) ──────────────────────────────────────
-const DishCard = memo(({ dish, inCart, onCustomize }: {
+// ── Dish card (Liquid Glass — CSS hover, no JS animation overhead) ──
+const DishCard = memo(({ dish, inCart, onCustomize, index = 0 }: {
   dish:        Dish
   inCart:      number
   onCustomize: () => void
+  index?:      number
 }) => {
-  const bg     = 'var(--bg, #D8DAE4)'
   const bgSurf = 'var(--bg-surface, #CDD0DC)'
   const txt    = 'var(--text-primary, #2D3561)'
   const txtMut = 'var(--text-muted, #8B92AA)'
@@ -190,15 +191,19 @@ const DishCard = memo(({ dish, inCart, onCustomize }: {
   }
 
   return (
-    <motion.div
-      whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.18 }}
-      style={{ backgroundColor: bg, borderRadius: '1.25rem', padding: '1rem', boxShadow: S.out, display: 'flex', flexDirection: 'column', gap: '0.5rem', cursor: 'pointer', position: 'relative' }}
+    <div
+      className="glass-card dish-card dish-enter"
+      style={{
+        padding: '1rem',
+        display: 'flex', flexDirection: 'column', gap: '0.5rem',
+        position: 'relative',
+        animationDelay: `${Math.min(index, 10) * 55}ms`,
+      }}
       onClick={onCustomize}>
       {/* Image area */}
       <div style={{ width: '100%', height: 82, borderRadius: '0.875rem', overflow: 'hidden', backgroundColor: bgSurf, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: S.in, flexShrink: 0 }}>
         {dish.image_url
-          ? <img src={dish.image_url} alt={dish.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ? <img src={dish.image_url} alt={dish.name} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : <span style={{ fontSize: '2.25rem' }}>{FALLBACK_EMOJI[dish.category] ?? '🍽️'}</span>
         }
       </div>
@@ -216,7 +221,10 @@ const DishCard = memo(({ dish, inCart, onCustomize }: {
       <p style={{ fontWeight: 700, color: acc, fontSize: '1rem', margin: 0 }}>{fmtCOP(dish.price)}</p>
       {/* Add button */}
       <button
-        style={{ width: '100%', padding: '0.5625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: acc, color: '#fff', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: S.coral }}>
+        style={{ width: '100%', padding: '0.5625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: acc, color: '#fff', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: S.coral, transition: 'transform 0.12s ease' }}
+        onMouseDown={e => { e.stopPropagation(); (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.94)' }}
+        onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)' }}
+      >
         {inCart > 0 ? `✓ En pedido (${inCart})` : '+ Agregar'}
       </button>
       {/* In-cart badge */}
@@ -225,7 +233,7 @@ const DishCard = memo(({ dish, inCart, onCustomize }: {
           {inCart}
         </div>
       )}
-    </motion.div>
+    </div>
   )
 })
 DishCard.displayName = 'DishCard'
@@ -373,7 +381,7 @@ export default function PublicMenu() {
         })
         if (best.cat) setActiveCat(best.cat as DishCategory)
       },
-      { threshold: [0, 0.25, 0.5, 0.75, 1], rootMargin: '-15% 0px -60% 0px' }
+      { threshold: [0.1, 0.5], rootMargin: '-10% 0px -55% 0px' }
     )
 
     map.forEach(el => observerRef.current?.observe(el))
@@ -410,7 +418,7 @@ export default function PublicMenu() {
     <div style={{ minHeight: '100vh', backgroundColor: bg, fontFamily: 'Nunito, sans-serif', paddingBottom: '6rem' }}>
 
       {/* ── Sticky header ── */}
-      <header style={{ backgroundColor: bg, padding: '0.875rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 30, boxShadow: S.out }}>
+      <header className="glass-header" style={{ padding: '0.875rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 30 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{ width: 40, height: 40, borderRadius: '0.75rem', overflow: 'hidden', flexShrink: 0, boxShadow: S.outSm }}>
             <img src="/logo.jpg" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -434,11 +442,20 @@ export default function PublicMenu() {
       </header>
 
       {/* ── Sticky category nav ── */}
-      <div style={{ position: 'sticky', top: 64, zIndex: 25, backgroundColor: bg, boxShadow: S.outSm, padding: '0.625rem 0' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', padding: '0 1.25rem', scrollbarWidth: 'none' }}>
+      <div className="glass-header" style={{ position: 'sticky', top: 64, zIndex: 25, padding: '0.625rem 0', borderTop: 'none' }}>
+        <div className="no-scrollbar" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', padding: '0 1.25rem' }}>
           {categoryNavItems.map(({ key, label }) => (
             <button key={key} onClick={() => scrollToCategory(key)}
-              style={{ flexShrink: 0, padding: '0.4375rem 0.875rem', borderRadius: '9999px', border: 'none', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.18s ease', boxShadow: activeCat === key ? S.coral : S.outSm, backgroundColor: activeCat === key ? acc : bg, color: activeCat === key ? '#fff' : txtSec }}>
+              style={{
+                flexShrink: 0, padding: '0.4375rem 0.875rem', borderRadius: '9999px',
+                border: activeCat === key ? 'none' : '1px solid var(--glass-border-sub)',
+                fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all 0.2s cubic-bezier(0.34,1.56,0.64,1)',
+                boxShadow: activeCat === key ? S.coral : S.outSm,
+                backgroundColor: activeCat === key ? acc : 'var(--glass-bg)',
+                color: activeCat === key ? '#fff' : txtSec,
+                backdropFilter: 'blur(8px)',
+              }}>
               {label}
             </button>
           ))}
@@ -451,7 +468,8 @@ export default function PublicMenu() {
         <AnimatePresence>
           {showTracking && orderId && (
             <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
-              style={{ marginBottom: '1rem', backgroundColor: bg, borderRadius: '1.5rem', padding: '1.25rem', boxShadow: S.out }}>
+              className="glass-card no-hover"
+              style={{ marginBottom: '1rem', padding: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <p style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, margin: 0 }}>📋 Estado de tu pedido</p>
                 <button onClick={() => setShowTracking(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: txtMut, fontSize: '1rem' }}>✕</button>
@@ -502,13 +520,13 @@ export default function PublicMenu() {
         <AnimatePresence>
           {sent && (
             <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              style={{ backgroundColor: '#ECFDF5', border: '2px solid #A7F3D0', borderRadius: '1rem', padding: '1rem 1.25rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              style={{ backgroundColor: 'var(--tag-green-bg)', border: '2px solid var(--tag-green-text)', borderRadius: '1rem', padding: '1rem 1.25rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <span style={{ fontSize: '1.5rem' }}>🎉</span>
               <div style={{ flex: 1 }}>
-                <p style={{ fontWeight: 700, color: '#065F46', margin: 0 }}>¡Pedido enviado a cocina!</p>
-                <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: 0 }}>En breve lo estaremos preparando.</p>
+                <p style={{ fontWeight: 700, color: 'var(--tag-green-text)', margin: 0 }}>¡Pedido enviado a cocina!</p>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0 }}>En breve lo estaremos preparando.</p>
               </div>
-              <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: '1rem' }}>✕</button>
+              <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem' }}>✕</button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -536,9 +554,9 @@ export default function PublicMenu() {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-              {filteredFlat.map(dish => {
-                const inCart = cart.filter(i => i.dish.id === dish.id).reduce((s, i) => s + i.qty, 0)
-                return <DishCard key={dish.id} dish={dish} inCart={inCart} onCustomize={() => setCustomizing(dish)} />
+              {filteredFlat.map((dish, i) => {
+                const inCart = cart.filter(ci => ci.dish.id === dish.id).reduce((s, ci) => s + ci.qty, 0)
+                return <DishCard key={dish.id} dish={dish} inCart={inCart} onCustomize={() => setCustomizing(dish)} index={i} />
               })}
             </div>
           )
@@ -560,9 +578,9 @@ export default function PublicMenu() {
                     <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: txtMut }}>{catDishes.length}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                    {catDishes.map(dish => {
-                      const inCart = cart.filter(i => i.dish.id === dish.id).reduce((s, i) => s + i.qty, 0)
-                      return <DishCard key={dish.id} dish={dish} inCart={inCart} onCustomize={() => setCustomizing(dish)} />
+                    {catDishes.map((dish, i) => {
+                      const inCart = cart.filter(ci => ci.dish.id === dish.id).reduce((s, ci) => s + ci.qty, 0)
+                      return <DishCard key={dish.id} dish={dish} inCart={inCart} onCustomize={() => setCustomizing(dish)} index={i} />
                     })}
                   </div>
                 </section>
@@ -611,12 +629,13 @@ export default function PublicMenu() {
             style={{ position: 'fixed', inset: 0, zIndex: 50, backgroundColor: 'rgba(45,53,97,0.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 40, mass: 0.8 }}
               onClick={e => e.stopPropagation()}
-              style={{ width: '100%', maxWidth: 480, backgroundColor: bg, borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto', boxShadow: `0 -8px 32px rgba(130,142,170,0.4)` }}>
+              className="glass-modal"
+              style={{ width: '100%', maxWidth: 480, borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
 
               {/* Drag handle */}
-              <div style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: bgSurf, margin: '0 auto 1.25rem' }} />
+              <div style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'var(--divider)', margin: '0 auto 1.25rem' }} />
               <h3 style={{ fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1rem', fontFamily: 'DM Sans, sans-serif' }}>🛒 Tu pedido</h3>
 
               {/* Cart items */}

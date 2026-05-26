@@ -151,9 +151,10 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
         initial={{ scale: 0.92, opacity: 0, y: 16 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 16 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+        transition={{ type: 'spring', stiffness: 480, damping: 32 }}
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', backgroundColor: bg, borderRadius: '1.75rem', padding: '1.5rem', boxShadow: shadowOutLg }}>
+        className="glass-modal"
+        style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', borderRadius: '1.75rem', padding: '1.5rem' }}>
 
         {/* ── Header ── */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
@@ -211,12 +212,10 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
 
                 return (
                   <div key={iso}
+                    className="glass-card-sm"
                     style={{
-                      borderRadius: '1.125rem', padding: '0.875rem 1rem',
-                      backgroundColor: bg,
-                      boxShadow: isToday
-                        ? `0 0 0 2px ${acc}, ${shadowOut}`
-                        : shadowOut,
+                      padding: '0.875rem 1rem',
+                      ...(isToday && { border: `2px solid ${acc}`, boxShadow: `0 0 0 0px transparent, var(--glass-shadow)` }),
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       {/* Day number */}

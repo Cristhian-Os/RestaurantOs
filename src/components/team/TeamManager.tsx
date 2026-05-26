@@ -34,12 +34,12 @@ interface Profile {
   created_at:  string
 }
 
-const ROLE_CONFIG: Record<Role, { label: string; emoji: string; color: string }> = {
-  admin:   { label: 'Administrador', emoji: '👑', color: 'bg-purple-100 text-purple-700' },
-  waiter:  { label: 'Mesero',        emoji: '🛎️', color: 'bg-blue-100 text-blue-700'    },
-  kitchen: { label: 'Cocina',        emoji: '👨‍🍳', color: 'bg-orange-100 text-orange-700'},
-  cashier: { label: 'Caja',          emoji: '💰', color: 'bg-emerald-100 text-emerald-700'},
-  client:  { label: 'Cliente',       emoji: '🧑', color: 'bg-gray-100 text-gray-600'    },
+const ROLE_CONFIG: Record<Role, { label: string; emoji: string; bg: string; txt: string }> = {
+  admin:   { label: 'Administrador', emoji: '👑', bg: 'var(--tag-purple-bg)', txt: 'var(--tag-purple-text)' },
+  waiter:  { label: 'Mesero',        emoji: '🛎️', bg: 'var(--tag-blue-bg)',   txt: 'var(--tag-blue-text)'  },
+  kitchen: { label: 'Cocina',        emoji: '👨‍🍳', bg: 'var(--tag-orange-bg)', txt: 'var(--tag-orange-text)'},
+  cashier: { label: 'Caja',          emoji: '💰', bg: 'var(--tag-green-bg)',  txt: 'var(--tag-green-text)' },
+  client:  { label: 'Cliente',       emoji: '🧑', bg: 'var(--tag-gray-bg)',   txt: 'var(--tag-gray-text)'  },
 }
 
 interface NewEmployeeForm {
@@ -312,7 +312,7 @@ export const TeamManager = memo(() => {
           <motion.div
             initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
-            <div style={{ borderRadius: '1.5rem', padding: '1.5rem', backgroundColor: bg, ...S.out }}>
+            <div className="glass-card no-hover" style={{ padding: '1.5rem' }}>
               <h3 style={{ fontWeight: 700, color: txt, marginBottom: '1.25rem', margin: '0 0 1.25rem', fontFamily: 'DM Sans, sans-serif' }}>➕ Nuevo empleado</h3>
 
               {/* Avatar upload */}
@@ -403,7 +403,8 @@ export const TeamManager = memo(() => {
           const isEditing = editingId === profile.id
           return (
             <motion.div key={profile.id} layout
-              style={{ borderRadius: '1rem', padding: '0.875rem 1rem', backgroundColor: bg, opacity: profile.active ? 1 : 0.55, ...S.out }}>
+              className="glass-card-sm no-hover"
+              style={{ padding: '0.875rem 1rem', opacity: profile.active ? 1 : 0.6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 {/* Avatar */}
                 <div style={{ width: 44, height: 44, borderRadius: '1rem', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', backgroundColor: bgSurf, ...S.in }}>
@@ -416,12 +417,12 @@ export const TeamManager = memo(() => {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontWeight: 700, color: txt, fontSize: '0.875rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {profile.full_name ?? 'Sin nombre'}
-                    {!profile.active && <span style={{ marginLeft: '0.5rem', fontSize: '0.625rem', color: '#EF4444', fontWeight: 700 }}>INACTIVO</span>}
+                    {!profile.active && <span style={{ marginLeft: '0.5rem', fontSize: '0.5625rem', backgroundColor: 'var(--tag-red-bg)', color: 'var(--tag-red-text)', fontWeight: 700, padding: '0.0625rem 0.3125rem', borderRadius: '9999px' }}>INACTIVO</span>}
                   </p>
                   <p style={{ fontSize: '0.75rem', color: txtMut, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{profile.email}</p>
                 </div>
                 {/* Role badge */}
-                <span className={`${roleCfg.color} text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0`}>{roleCfg.label}</span>
+                <span className="tag-sm shrink-0" style={{ backgroundColor: roleCfg.bg, color: roleCfg.txt }}>{roleCfg.label}</span>
                 {/* Actions */}
                 {profile.role !== 'admin' && (
                   <div style={{ display: 'flex', gap: '0.3125rem' }}>
@@ -486,9 +487,10 @@ export const TeamManager = memo(() => {
             onClick={() => setShowEditMe(false)}
             style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(45,53,97,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'Nunito, sans-serif' }}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              transition={{ type: 'spring', stiffness: 480, damping: 32 }}
               onClick={e => e.stopPropagation()}
-              style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', borderRadius: '1.75rem', padding: '1.5rem', backgroundColor: bg, ...S.out }}>
+              className="glass-modal"
+              style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', borderRadius: '1.75rem', padding: '1.5rem' }}>
               <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1.25rem' }}>✏️ Mi perfil</h3>
 
               {/* Avatar */}
@@ -560,9 +562,10 @@ export const TeamManager = memo(() => {
             onClick={() => !hardDeleting && setConfirmDeleteId(null)}
             style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(45,53,97,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'Nunito, sans-serif' }}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              transition={{ type: 'spring', stiffness: 480, damping: 32 }}
               onClick={e => e.stopPropagation()}
-              style={{ width: '100%', maxWidth: 340, borderRadius: '1.75rem', padding: '1.5rem', backgroundColor: bg, ...S.out, textAlign: 'center' }}>
+              className="glass-modal"
+              style={{ width: '100%', maxWidth: 340, borderRadius: '1.75rem', padding: '1.5rem', textAlign: 'center' }}>
               <p style={{ fontSize: '2.5rem', margin: '0 0 0.75rem' }}>⚠️</p>
               <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.0625rem', margin: '0 0 0.5rem' }}>¿Eliminar empleado?</h3>
               <p style={{ fontSize: '0.8125rem', color: txtSec, margin: '0 0 1.25rem', lineHeight: 1.5 }}>
