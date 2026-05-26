@@ -77,15 +77,11 @@ export class ErrorBoundary extends Component<Props, State> {
             {this.state.error}
           </p>
           {componentStack && (
-            <details style={{ marginTop: '0.5rem' }}>
-              <summary style={{ fontSize: '0.65rem', color: '#DC2626', cursor: 'pointer' }}>
-                Ver componente causante
-              </summary>
-              <pre style={{ fontSize: '0.6rem', color: '#7F1D1D', margin: '0.25rem 0 0',
-                whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 150, overflow: 'auto' }}>
-                {componentStack.trim().split('\n').slice(0, 8).join('\n')}
-              </pre>
-            </details>
+            <pre style={{ fontSize: '0.6rem', color: '#7F1D1D', margin: '0.5rem 0 0',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 200, overflow: 'auto',
+              backgroundColor: '#FEE2E2', padding: '0.5rem', borderRadius: '0.5rem' }}>
+              {componentStack.trim().split('\n').slice(0, 15).join('\n')}
+            </pre>
           )}
         </div>
 
