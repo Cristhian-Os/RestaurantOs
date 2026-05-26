@@ -3,7 +3,7 @@
 // Todos los imports estáticos para evitar error #300
 // ============================================================
 
-import { useState, useEffect, useCallback, useRef, memo, startTransition } from 'react'
+import { useState, useEffect, useCallback, memo, startTransition } from 'react'
 import { supabase } from '../services/supabaseClient'
 import { initializeOfflineSync } from '../services/offlineService'
 import { pushNotificationService } from '../services/pushNotificationService'
@@ -183,18 +183,19 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [activeNav,  setActiveNav]  = useState<NavView>('dashboard')
   const [loading,    setLoading]    = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const isMounted = useRef(true)
-
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
     try { pushNotificationService.initializePushNotifications() } catch { /* no crítico */ }
   }, [])
 
   useEffect(() => {
+    // Variable local — cada ejecución del efecto tiene su propio 'active'
+    let active = true
+
     const load = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { if (isMounted.current) setLoading(false); return }
+        if (!user) { if (active) setLoading(false); return }
 
         let { data: prof, error } = await supabase
           .from('profiles').select('*').eq('id', user.id).single()
@@ -208,22 +209,22 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           prof = np; error = null
         }
 
-        if (!isMounted.current) return
+        if (!active) return
         if (prof) {
           setProfile(prof)
           const defaults: Record<Role, NavView> = {
             admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
           }
-          startTransition(() => setActiveNav(defaults[prof.role as Role] ?? 'orders'))
+          startTransition(() => setActiveNav(defaults[prof!.role as Role] ?? 'orders'))
         }
       } catch (e) {
         console.error('Dashboard load:', e)
       } finally {
-        if (isMounted.current) setLoading(false)
+        if (active) setLoading(false)
       }
     }
     load()
-    return () => { isMounted.current = false }
+    return () => { active = false }
   }, [])
 
   // Redirigir si no-admin aterriza en 'dashboard'

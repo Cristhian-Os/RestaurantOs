@@ -83,6 +83,7 @@ export const TeamManager = memo(() => {
   const [myForm,      setMyForm]    = useState({ full_name: '', phone: '' })
   const [savingMe,    setSavingMe]  = useState(false)
   const avatarRef = useRef<HTMLInputElement>(null)
+  const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const meAvatarRef = useRef<HTMLInputElement>(null)
   const [meAvatarFile, setMeAvatarFile] = useState<File | null>(null)
   const [meAvatarPreview, setMePreview] = useState<string | null>(null)
@@ -152,7 +153,8 @@ export const TeamManager = memo(() => {
       setAvatarFile(null)
       setPreview(null)
       setShowForm(false)
-      setTimeout(fetchProfiles, 800)
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+      fetchTimerRef.current = setTimeout(fetchProfiles, 800)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al crear empleado'
       setFormError(msg.includes('duplicate') ? 'Ya existe una cuenta con ese email' : msg)

@@ -49,9 +49,10 @@ export const WaiterNotifications = memo(() => {
     // Polling de respaldo cada 15 segundos
     const poll = setInterval(fetchReady, 15_000)
 
-    // Realtime — ahora funciona porque orders tiene REPLICA IDENTITY FULL
+    // Canal único por instancia — evita canales duplicados si React monta 2 veces
+    const channelName = `waiter-notifs-${Date.now()}`
     const ch = supabase
-      .channel('waiter-notifs-v2')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders' },
