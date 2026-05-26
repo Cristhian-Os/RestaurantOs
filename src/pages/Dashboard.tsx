@@ -3,7 +3,7 @@
 // Todos los imports estáticos para evitar error #300
 // ============================================================
 
-import { useState, useEffect, useCallback, useRef, memo } from 'react'
+import { useState, useEffect, useCallback, useRef, memo, startTransition } from 'react'
 import { supabase } from '../services/supabaseClient'
 import { initializeOfflineSync } from '../services/offlineService'
 import { pushNotificationService } from '../services/pushNotificationService'
@@ -214,7 +214,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           const defaults: Record<Role, NavView> = {
             admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
           }
-          setActiveNav(defaults[prof.role as Role] ?? 'orders')
+          startTransition(() => setActiveNav(defaults[prof.role as Role] ?? 'orders'))
         }
       } catch (e) {
         console.error('Dashboard load:', e)
@@ -234,7 +234,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
       }
       const target = defaults[profile.role]
-      if (target) setActiveNav(target)
+      if (target) startTransition(() => setActiveNav(target))
     }
   }, [profile, activeNav])
 
