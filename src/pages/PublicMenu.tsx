@@ -355,7 +355,7 @@ export default function PublicMenu() {
         table_num:     tableNum,
         items:         JSON.stringify(items),
         total:         cartTotal,
-        tipo_pedido:   mesa.trim() ? 'LOCAL' : 'MOSTRADOR',
+        tipo_pedido:   'LOCAL',
         status:        'pending',
         customer_name: clientName.trim() || null,
         notes:         noteParts.length ? noteParts.join(' · ') : null,
