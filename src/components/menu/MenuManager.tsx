@@ -105,6 +105,8 @@ interface EmojiPortalProps {
 }
 function EmojiPortal({ anchorRef, onSelect, onClose }: EmojiPortalProps) {
   const [pos, setPos] = useState({ top: 0, left: 0 })
+  // Ref al contenedor del portal para distinguir clicks DENTRO vs FUERA
+  const portalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (anchorRef.current) {
@@ -112,6 +114,9 @@ function EmojiPortal({ anchorRef, onSelect, onClose }: EmojiPortalProps) {
       setPos({ top: r.bottom + 8 + window.scrollY, left: r.left + window.scrollX })
     }
     const handleClick = (e: MouseEvent) => {
+      // Si el click fue DENTRO del portal → no cerrar (permite seleccionar emoji)
+      if (portalRef.current && portalRef.current.contains(e.target as Node)) return
+      // Si el click fue FUERA del anchor button → cerrar
       if (anchorRef.current && !anchorRef.current.contains(e.target as Node)) {
         onClose()
       }
@@ -122,6 +127,7 @@ function EmojiPortal({ anchorRef, onSelect, onClose }: EmojiPortalProps) {
 
   return createPortal(
     <div
+      ref={portalRef}
       onClick={e => e.stopPropagation()}
       style={{
         position: 'absolute',
