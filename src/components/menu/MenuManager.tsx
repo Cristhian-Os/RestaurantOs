@@ -189,6 +189,9 @@ export const MenuManager = memo(() => {
   const [savingCat,   setSavingCat]   = useState(false)
   const [editingCat,  setEditingCat]  = useState<string | null>(null)
   const [catLabel,    setCatLabel]    = useState('')
+  // Confirmación de borrado inline (reemplaza window.confirm)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Emoji pickers
   const [showNewCatPicker, setShowNewCatPicker] = useState(false)
   const [editEmojiForCat,  setEditEmojiForCat]  = useState<string | null>(null)
@@ -298,8 +301,17 @@ export const MenuManager = memo(() => {
     setDishes(prev => prev.map(x => x.id === d.id ? { ...x, available: newAvail } : x))
   }, [])
 
+  // Primer click → pide confirmación inline; segundo click → borra
+  const requestDelete = useCallback((id: string) => {
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current)
+    setConfirmDeleteId(id)
+    // Auto-cancelar tras 4 s si no confirma
+    confirmTimerRef.current = setTimeout(() => setConfirmDeleteId(null), 4000)
+  }, [])
+
   const handleDelete = useCallback(async (d: Dish) => {
-    if (!window.confirm(`¿Eliminar "${d.name}"? Esta acción no se puede deshacer.`)) return
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current)
+    setConfirmDeleteId(null)
     try {
       const { error } = await supabase.from('dishes').delete().eq('id', d.id)
       if (error) throw error
@@ -825,9 +837,34 @@ export const MenuManager = memo(() => {
                   <button onClick={() => handleToggle(dish)}
                     className="w-8 h-8 rounded-xl text-xs flex items-center justify-center transition-transform hover:scale-110"
                     style={S.neoOutSm}>{dish.available ? '⏸️' : '▶️'}</button>
-                  <button onClick={() => handleDelete(dish)}
-                    className="w-8 h-8 rounded-xl text-xs flex items-center justify-center text-red-400 transition-transform hover:scale-110"
-                    style={S.neoOutSm}>🗑️</button>
+
+                  {/* Borrado con confirmación inline — sin window.confirm */}
+                  {confirmDeleteId === dish.id ? (
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => handleDelete(dish)}
+                        className="w-8 h-8 rounded-xl text-xs flex items-center justify-center font-bold text-white animate-pulse"
+                        style={{ backgroundColor: '#EF4444', boxShadow: '0 0 0 2px #EF4444' }}
+                        title="Confirmar eliminación">
+                        ✓
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="w-8 h-8 rounded-xl text-xs flex items-center justify-center"
+                        style={{ ...S.neoOutSm, color: txtMid }}
+                        title="Cancelar">
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => requestDelete(dish.id)}
+                      className="w-8 h-8 rounded-xl text-xs flex items-center justify-center text-red-400 transition-transform hover:scale-110"
+                      style={S.neoOutSm}
+                      title="Eliminar plato">
+                      🗑️
+                    </button>
+                  )}
                 </div>
               </motion.div>
             )
