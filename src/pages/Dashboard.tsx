@@ -52,10 +52,9 @@ interface Metrics {
 }
 
 const S = {
-  neoOut:   { boxShadow: 'var(--shadow-out,   8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55))' },
-  neoOutSm: { boxShadow: 'var(--shadow-out-sm,4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5))' },
-  neoIn:    { boxShadow: 'var(--shadow-in,    inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5))' },
-  coral:    { boxShadow: 'var(--shadow-coral, 8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45))' },
+  sm:    { boxShadow: 'var(--w-shadow-sm)' },
+  md:    { boxShadow: 'var(--w-shadow-md)' },
+  terra: { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
 // Iconos SVG inline
@@ -73,6 +72,8 @@ const Icons = {
   Logout:    () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
   Hamburger: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
   Download:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  Sun:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>,
+  Moon:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>,
 }
 
 const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: string }[]> = {
@@ -124,12 +125,12 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
   }, [fetchMetrics])
 
   const cards = [
-    { label:'Ventas hoy',    value:`$${(metrics?.total_sales_today??0).toLocaleString('es')}`, icon:'💰', nav:'analytics' as NavView, color:'#10B981' },
-    { label:'Pendientes',    value:metrics?.pending_count??0,   icon:'⏳', nav:'kitchen'   as NavView, color:'#F59E0B' },
-    { label:'En cocina',     value:metrics?.cooking_count??0,   icon:'🍳', nav:'kitchen'   as NavView, color:'#3B82F6' },
-    { label:'Listas',        value:metrics?.ready_count??0,     icon:'✅', nav:'cashier'   as NavView, color:'#10B981' },
-    { label:'Completadas',   value:metrics?.completed_today??0, icon:'🎉', nav:'analytics' as NavView, color:'#8B5CF6' },
-    { label:'Mesas activas', value:metrics?.active_tables??0,   icon:'🍽️', nav:'tables'    as NavView, color:'#FF5722' },
+    { label:'Ventas hoy',    value:`$${(metrics?.total_sales_today??0).toLocaleString('es-CO')}`, Icon:Icons.Analytics, nav:'analytics' as NavView, color:'var(--w-olive)'   },
+    { label:'Pendientes',    value:metrics?.pending_count??0,   Icon:Icons.Orders,  nav:'kitchen'   as NavView, color:'var(--w-saffron)' },
+    { label:'En cocina',     value:metrics?.cooking_count??0,   Icon:Icons.Kitchen, nav:'kitchen'   as NavView, color:'var(--w-terra)'   },
+    { label:'Listas',        value:metrics?.ready_count??0,     Icon:Icons.Tasks,   nav:'cashier'   as NavView, color:'var(--w-olive)'   },
+    { label:'Completadas',   value:metrics?.completed_today??0, Icon:Icons.Tasks,   nav:'analytics' as NavView, color:'var(--w-wine)'    },
+    { label:'Mesas activas', value:metrics?.active_tables??0,   Icon:Icons.Tables,  nav:'tables'    as NavView, color:'var(--w-terra)'   },
   ]
 
   if (loading) return <div style={{display:'flex',justifyContent:'center',padding:'5rem 0'}}><Spin size="large"/></div>
@@ -137,26 +138,26 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'2rem'}}>
       <div>
-        <h2 style={{fontFamily:'"DM Sans",sans-serif',fontWeight:700,fontSize:'1.5rem',color:'var(--text-primary,#2D3561)',marginBottom:'0.25rem'}}>
-          Hola, {profile.full_name?.split(' ')[0]??'Admin'} 👋
-        </h2>
-        <p style={{fontSize:'0.875rem',color:'var(--text-muted,#8B92AA)'}}>
+        <p className="ed-kicker" style={{marginBottom:'0.375rem'}}>
           {new Date().toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'})}
         </p>
+        <h2 className="ed-display" style={{fontWeight:600,fontSize:'2rem',margin:0}}>
+          Hola, {profile.full_name?.split(' ')[0]??'Admin'}
+        </h2>
       </div>
 
       <InstallPWA />
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'1rem'}}>
+      <div className="menu-grid">
         {cards.map((card,i) => (
           <button key={i} onClick={()=>onNavigate(card.nav)}
-            className="glass-card hover-lift"
-            style={{padding:'1.25rem',textAlign:'left',border:'none',cursor:'pointer',fontFamily:'inherit'}}>
-            <div style={{fontSize:'1.875rem',marginBottom:'0.75rem'}}>{card.icon}</div>
-            <div style={{fontFamily:'"DM Sans",sans-serif',fontWeight:700,fontSize:'1.5rem',color:card.color}}>
+            className="w-lift w-rise"
+            style={{padding:'1.25rem',textAlign:'left',border:'1px solid var(--w-line)',cursor:'pointer',fontFamily:'var(--w-sans)',background:'var(--w-surface)',borderRadius:'1.25rem',boxShadow:'var(--w-shadow-sm)',animationDelay:`${i*45}ms`}}>
+            <div style={{color:card.color,marginBottom:'0.75rem'}}><card.Icon /></div>
+            <div className="ed-display" style={{fontWeight:600,fontSize:'1.75rem',color:card.color,lineHeight:1}}>
               {card.value}
             </div>
-            <div style={{fontSize:'0.75rem',color:'var(--text-muted,#8B92AA)',fontWeight:500,marginTop:'0.25rem'}}>
+            <div className="ed-body" style={{fontSize:'0.75rem',color:'var(--w-ink-mut)',fontWeight:500,marginTop:'0.375rem'}}>
               {card.label}
             </div>
           </button>
@@ -164,10 +165,10 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
       </div>
 
       <Tabs defaultActiveKey="orders" items={[
-        { key:'orders', label:'📋 Nueva orden',  children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
-        { key:'tables', label:'🗺️ Mesas',         children:<TableMap profile={profile} /> },
-        { key:'tasks',  label:'✅ Tareas',         children:<AdminTasksView profile={profile} /> },
-        { key:'qr',     label:'📱 QR del Menú',   children:<QRMenu /> },
+        { key:'orders', label:'Nueva orden', children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
+        { key:'tables', label:'Mesas',       children:<TableMap profile={profile} /> },
+        { key:'tasks',  label:'Tareas',      children:<AdminTasksView profile={profile} /> },
+        { key:'qr',     label:'QR del Menú', children:<QRMenu /> },
       ]} />
     </div>
   )
@@ -254,8 +255,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         : null
       case 'orders':    return (
         <div>
-          <h2 style={{fontFamily:'"DM Sans",sans-serif',fontWeight:700,fontSize:'1.5rem',color:'var(--text-primary,#2D3561)',marginBottom:'1rem'}}>
-            📋 Nueva Orden
+          <h2 className="ed-display" style={{fontWeight:600,fontSize:'1.875rem',marginBottom:'1.25rem'}}>
+            Nueva orden
           </h2>
           <OrderFlow profile={profile} onOrderCreated={()=>message.success('Orden enviada a cocina')} />
         </div>
@@ -268,8 +269,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         : <EmployeeTasksView profile={profile} />
       case 'inventory': return (
         <Tabs defaultActiveKey="1" items={[
-          { key:'1', label:'📦 Lista de compras', children:<ShoppingList /> },
-          { key:'2', label:'🍳 Recetas',           children:<RecipeBuilder /> },
+          { key:'1', label:'Lista de compras', children:<ShoppingList /> },
+          { key:'2', label:'Recetas',          children:<RecipeBuilder /> },
         ]} />
       )
       case 'analytics': return <BusinessAssistant />
@@ -280,10 +281,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   if (loading) return (
-    <div style={{minHeight:'100vh',backgroundColor:'var(--bg,#D8DAE4)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+    <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center'}}>
-        <div style={{width:64,height:64,borderRadius:'1.5rem',overflow:'hidden',margin:'0 auto 1rem',...S.neoOut}}>
-          <img src="/logo.jpg" alt="logo" style={{width:'100%',height:'100%',objectFit:'contain',display:'block'}} />
+        <div style={{width:64,height:64,borderRadius:'1.25rem',overflow:'hidden',margin:'0 auto 1rem',border:'1px solid var(--w-line)',...S.md}}>
+          <img src="/logo.jpg" alt="logo" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
         </div>
         <Spin size="large" />
       </div>
@@ -291,15 +292,21 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   )
 
   if (!loading && !profile) return (
-    <div style={{minHeight:'100vh',backgroundColor:'var(--bg,#D8DAE4)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <p style={{color:'var(--accent,#FF5722)',fontWeight:700,fontFamily:'"Nunito",sans-serif'}}>Reiniciando sesión...</p>
+    <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <p style={{color:'var(--w-terra)',fontWeight:700,fontFamily:'var(--w-sans)'}}>Reiniciando sesión...</p>
     </div>
   )
 
   const navItems = NAV_BY_ROLE[profile!.role] ?? NAV_BY_ROLE.client
 
+  const chromeBtn: React.CSSProperties = {
+    padding:'0.625rem', background:'var(--w-surface)', borderRadius:'0.75rem',
+    border:'1px solid var(--w-line)', color:'var(--w-ink-soft)', cursor:'pointer',
+    display:'flex', alignItems:'center', justifyContent:'center',
+  }
+
   return (
-    <div style={{minHeight:'100vh',backgroundColor:'var(--bg,#D8DAE4)',fontFamily:'"Nunito",sans-serif'}}>
+    <div style={{minHeight:'100vh',background:'var(--w-bg)',fontFamily:'var(--w-sans)'}}>
 
       {/* Notificaciones pedido listo — mesero y admin */}
       {(profile!.role === 'waiter' || profile!.role === 'admin') && (
@@ -307,20 +314,21 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       )}
 
       {/* Header */}
-      <header className="glass-header" style={{
-        padding:'1rem 1.5rem',
+      <header className="lg" style={{
+        padding:'0.875rem 1.25rem', borderRadius:0, border:'none',
+        borderBottom:'1px solid var(--w-line)',
         display:'flex', justifyContent:'space-between', alignItems:'center',
         position:'sticky', top:0, zIndex:20,
       }}>
         <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
-          <div style={{width:40,height:40,borderRadius:'0.75rem',overflow:'hidden',flexShrink:0,...S.neoOutSm}}>
-            <img src="/logo.jpg" alt="RestaurantOS" style={{width:'100%',height:'100%',objectFit:'contain',display:'block'}} />
+          <div style={{width:38,height:38,borderRadius:'0.625rem',overflow:'hidden',flexShrink:0,border:'1px solid var(--w-line)'}}>
+            <img src="/logo.jpg" alt="RestaurantOS" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
           </div>
           <div>
-            <h1 style={{fontFamily:'"DM Sans",sans-serif',fontWeight:700,fontSize:'1.0625rem',color:'var(--text-primary,#2D3561)',margin:0}}>
+            <h1 className="ed-display" style={{fontWeight:600,fontSize:'1.125rem',margin:0,lineHeight:1.1}}>
               RestaurantOS
             </h1>
-            <p style={{fontSize:'0.7rem',color:'var(--text-muted,#8B92AA)',margin:0}}>
+            <p style={{fontSize:'0.6875rem',color:'var(--w-ink-mut)',margin:0,fontFamily:'var(--w-sans)'}}>
               {profile!.full_name ?? profile!.email} · {profile!.role}
             </p>
           </div>
@@ -332,25 +340,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           {profile!.role === 'admin' && (
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              style={{padding:'0.625rem',backgroundColor:'var(--bg,#D8DAE4)',borderRadius:'0.75rem',
-                border:'none',color:'var(--text-secondary,#6B7280)',cursor:'pointer',display:'flex',alignItems:'center',
-                justifyContent:'center',fontSize:'1.0625rem',...S.neoOutSm}}
+              style={chromeBtn}
               title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <Icons.Sun /> : <Icons.Moon />}
             </button>
           )}
-          <button onClick={()=>setMobileOpen(p=>!p)}
-            style={{padding:'0.625rem',backgroundColor:'var(--bg,#D8DAE4)',borderRadius:'0.75rem',
-              border:'none',color:'var(--text-secondary,#6B7280)',cursor:'pointer',display:'flex',alignItems:'center',
-              justifyContent:'center',...S.neoOutSm}}
-            aria-label="Menú">
+          <button onClick={()=>setMobileOpen(p=>!p)} style={chromeBtn} aria-label="Menú">
             <Icons.Hamburger />
           </button>
-          <button onClick={onLogout}
-            style={{padding:'0.625rem',backgroundColor:'var(--bg,#D8DAE4)',borderRadius:'0.75rem',
-              border:'none',color:'var(--text-secondary,#6B7280)',cursor:'pointer',display:'flex',alignItems:'center',
-              justifyContent:'center',...S.neoOutSm}}
-            title="Cerrar sesión">
+          <button onClick={onLogout} style={chromeBtn} title="Cerrar sesión">
             <Icons.Logout />
           </button>
         </div>
@@ -358,25 +356,26 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div style={{position:'fixed',inset:0,zIndex:30,backgroundColor:'rgba(15,17,24,0.55)',
-          backdropFilter:'blur(8px)'}} onClick={()=>setMobileOpen(false)}>
-          <nav className="glass-modal" style={{position:'absolute',top:0,left:0,bottom:0,width:220,
+        <div style={{position:'fixed',inset:0,zIndex:30,background:'oklch(0.20 0.02 55 / 0.50)',
+          backdropFilter:'blur(6px)'}} onClick={()=>setMobileOpen(false)}>
+          <nav className="lg" style={{position:'absolute',top:0,left:0,bottom:0,width:230,
             padding:'1.5rem 1rem',display:'flex',
-            flexDirection:'column',gap:'0.375rem',overflowY:'auto',borderRadius:0,border:'none',
-            borderRight:'1px solid var(--glass-border)'}}
+            flexDirection:'column',gap:'0.375rem',overflowY:'auto',borderRadius:0,
+            borderRight:'1px solid var(--w-line)'}}
             onClick={e=>e.stopPropagation()}>
-            <p style={{fontSize:'0.65rem',fontWeight:700,color:'var(--text-muted,#9CA3AF)',textTransform:'uppercase',
-              letterSpacing:'0.1em',marginBottom:'0.75rem',paddingLeft:'0.5rem'}}>
+            <p className="ed-kicker" style={{marginBottom:'0.875rem',paddingLeft:'0.5rem'}}>
               Navegación
             </p>
             {navItems.map(({view,icon,label})=>(
               <button key={view} onClick={()=>{setActiveNav(view);setMobileOpen(false)}}
+                className="w-press"
                 style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 1rem',
-                  borderRadius:'1rem',border:'none',cursor:'pointer',fontFamily:'inherit',
+                  borderRadius:'0.875rem',border:'none',cursor:'pointer',fontFamily:'var(--w-sans)',
                   fontWeight:600,fontSize:'0.875rem',width:'100%',textAlign:'left',
+                  transition:'all 0.2s cubic-bezier(0.16,1,0.3,1)',
                   ...(activeNav===view
-                    ? {backgroundColor:'var(--accent,#FF5722)',color:'#fff',...S.coral}
-                    : {backgroundColor:'var(--bg,#D8DAE4)',color:'var(--text-secondary,#6B7280)',...S.neoOutSm})}}>
+                    ? {background:'var(--w-terra)',color:'#fff',...S.terra}
+                    : {background:'transparent',color:'var(--w-ink-soft)'})}}>
                 {icon}{label}
               </button>
             ))}
@@ -387,19 +386,21 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       {/* Layout */}
       <div style={{display:'flex',alignItems:'flex-start'}}>
         {/* Sidebar desktop */}
-        <nav className="lg-sidebar glass-header" style={{width:80,flexDirection:'column',
-          alignItems:'center',padding:'1.5rem 0',gap:'0.5rem',
-          position:'sticky',top:72,height:'calc(100vh - 72px)',
-          overflowY:'auto',borderBottom:'none',borderRight:'1px solid var(--glass-border)',
+        <nav className="lg-sidebar lg" style={{width:84,flexDirection:'column',
+          alignItems:'center',padding:'1.25rem 0',gap:'0.5rem',
+          position:'sticky',top:70,height:'calc(100vh - 70px)',
+          overflowY:'auto',borderRadius:0,borderRight:'1px solid var(--w-line)',
           display:'none'}}>
           {navItems.map(({view,icon,label})=>(
             <button key={view} onClick={()=>setActiveNav(view)} title={label}
-              style={{width:56,padding:'0.75rem 0',borderRadius:'1rem',border:'none',
+              className="w-press"
+              style={{width:60,padding:'0.625rem 0',borderRadius:'0.875rem',border:'none',
                 cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',
-                gap:'0.25rem',fontFamily:'inherit',
+                gap:'0.3rem',fontFamily:'var(--w-sans)',
+                transition:'all 0.2s cubic-bezier(0.16,1,0.3,1)',
                 ...(activeNav===view
-                  ? {backgroundColor:'var(--accent,#FF5722)',color:'#fff',...S.coral}
-                  : {backgroundColor:'transparent',color:'var(--text-secondary,#6B7280)'})}}>
+                  ? {background:'var(--w-terra)',color:'#fff',...S.terra}
+                  : {background:'transparent',color:'var(--w-ink-mut)'})}}>
               {icon}
               <span style={{fontSize:'9px',fontWeight:700,lineHeight:1,textAlign:'center'}}>
                 {label}
