@@ -5,6 +5,8 @@
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Nunito:wght@400;500;600;700;800&display=swap');
+/* Editorial warm system — Fraunces (display serif) + Inter (UI sans) */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -468,4 +470,149 @@
 [data-theme="dark"] .bg-amber-50.border.border-amber-200 {
   background-color: rgba(245, 158, 11, 0.12) !important;
   border-color:     rgba(245, 158, 11, 0.30) !important;
+}
+
+/* ══════════════════════════════════════════════════════════
+   WARM EDITORIAL SYSTEM v1  ·  "Cálido gastronómico"
+   Paleta tierra (OKLCH) + Liquid Glass (Apple) + tipografía
+   editorial. Aditivo: convive con el sistema neo/glass legacy.
+   Animaciones solo transform/opacity (GPU), ease-out exponencial.
+   ══════════════════════════════════════════════════════════ */
+:root {
+  /* — Paleta tierra cálida (OKLCH, neutros tintados al hue cálido) — */
+  --w-bg:        oklch(0.955 0.012 75);   /* lino cálido        */
+  --w-bg-2:      oklch(0.925 0.016 70);   /* lino más profundo  */
+  --w-surface:   oklch(0.985 0.008 80);   /* crema (tarjetas)   */
+  --w-ink:       oklch(0.255 0.022 55);   /* espresso (texto)   */
+  --w-ink-soft:  oklch(0.430 0.028 55);   /* texto secundario   */
+  --w-ink-mut:   oklch(0.585 0.025 60);   /* texto tenue        */
+  --w-line:      oklch(0.255 0.022 55 / 0.12); /* divisores      */
+
+  --w-terra:     oklch(0.585 0.135 38);   /* terracota (acento) */
+  --w-terra-dk:  oklch(0.510 0.140 36);
+  --w-olive:     oklch(0.520 0.080 120);  /* oliva (estados)    */
+  --w-saffron:   oklch(0.770 0.110 70);   /* azafrán (detalle)  */
+  --w-wine:      oklch(0.430 0.130 20);   /* vino (profundidad) */
+
+  --w-terra-rgb: 200, 85, 61;
+
+  /* — Sombras cálidas (tintadas, no grises) — */
+  --w-shadow-sm: 0 1px 2px oklch(0.255 0.04 55 / 0.06), 0 2px 6px oklch(0.255 0.04 55 / 0.08);
+  --w-shadow-md: 0 4px 12px oklch(0.255 0.04 55 / 0.10), 0 8px 24px oklch(0.255 0.04 55 / 0.10);
+  --w-shadow-lg: 0 12px 32px oklch(0.255 0.04 55 / 0.16), 0 24px 60px oklch(0.255 0.04 55 / 0.14);
+  --w-shadow-terra: 0 6px 20px oklch(0.585 0.135 38 / 0.32);
+
+  /* — Tipografía — */
+  --w-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --w-sans:    'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* — Liquid Glass (Apple) — translúcido, especular, refractado — */
+.lg {
+  position: relative;
+  background: oklch(0.985 0.008 80 / 0.55);
+  backdrop-filter: blur(20px) saturate(180%) brightness(1.04);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.04);
+  border: 1px solid oklch(1 0 0 / 0.55);
+  box-shadow:
+    var(--w-shadow-md),
+    inset 0 1px 1px oklch(1 0 0 / 0.65),       /* highlight superior */
+    inset 0 -1px 1px oklch(0.255 0.04 55 / 0.06);
+  border-radius: 1.25rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Brillo especular que recorre el borde superior (refracción) */
+.lg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.85) 0%,
+    oklch(1 0 0 / 0.10) 30%,
+    transparent 55%,
+    oklch(0.585 0.135 38 / 0.10) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+}
+/* Velo de luz difusa interior */
+.lg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(120% 80% at 18% 0%, oklch(1 0 0 / 0.30) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 1;
+}
+.lg > * { position: relative; z-index: 3; }
+
+/* Variante oscura translúcida (para overlays sobre foto) */
+.lg-dark {
+  background: oklch(0.20 0.02 55 / 0.42);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid oklch(1 0 0 / 0.18);
+  box-shadow: var(--w-shadow-lg), inset 0 1px 1px oklch(1 0 0 / 0.22);
+  border-radius: 1.25rem;
+}
+
+/* Botón liquid glass con acento terracota */
+.lg-accent {
+  background: linear-gradient(135deg, var(--w-terra) 0%, var(--w-terra-dk) 100%);
+  color: oklch(0.985 0.01 80);
+  border: 1px solid oklch(1 0 0 / 0.20);
+  box-shadow: var(--w-shadow-terra), inset 0 1px 1px oklch(1 0 0 / 0.30);
+  border-radius: 1rem;
+}
+
+/* — Tipografía editorial — */
+.ed-display {
+  font-family: var(--w-display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 0.98;
+  color: var(--w-ink);
+}
+.ed-kicker {
+  font-family: var(--w-sans);
+  font-weight: 700;
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--w-terra);
+}
+.ed-body { font-family: var(--w-sans); color: var(--w-ink-soft); }
+
+/* — Animaciones performantes (transform/opacity, ease-out expo) — */
+@keyframes wRise   { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes wFade   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wScale  { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes wShimmer { from { transform: translateX(-120%); } to { transform: translateX(220%); } }
+
+.w-rise  { animation: wRise  0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.w-fade  { animation: wFade  0.5s ease-out both; }
+.w-scale { animation: wScale 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Hover lift cálido (GPU) */
+.w-lift { transition: transform 0.32s cubic-bezier(0.16,1,0.3,1), box-shadow 0.32s ease; will-change: transform; }
+.w-lift:hover  { transform: translateY(-4px); box-shadow: var(--w-shadow-lg); }
+.w-lift:active { transform: translateY(-1px) scale(0.99); }
+
+/* Press táctil */
+.w-press { transition: transform 0.14s cubic-bezier(0.16,1,0.3,1); }
+.w-press:active { transform: scale(0.95); }
+
+/* Respeta usuarios con movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  .w-rise, .w-fade, .w-scale { animation: none; opacity: 1; transform: none; }
+  .w-lift, .w-press { transition: none; }
 }

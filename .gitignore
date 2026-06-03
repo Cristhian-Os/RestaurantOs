@@ -16,3 +16,6 @@ dist/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Preview local config
+.claude/

@@ -1,13 +1,9 @@
 /**
- * PublicMenu.tsx v4 — Liquid Glass Edition
- * ✓ Floating FAB cart button (fixed bottom-right, animated badge)
- * ✓ Sticky category nav bar with scrollspy (IntersectionObserver)
- * ✓ All dishes shown in sections; search reverts to flat list
- * ✓ Skeleton loading cards
- * ✓ Glass-morphism dish cards
- * ✓ Dark / light theme via CSS custom properties
- * ✓ Real-time order tracking
- * ✓ CustomizeModal (tamaños, toppings, notas, qty)
+ * PublicMenu.tsx v5 — Warm Editorial + Liquid Glass
+ * Estética "cálido gastronómico": hero editorial, paleta tierra,
+ * liquid glass (Apple) en la cromática flotante (nav, carrito, modales),
+ * tarjetas editoriales sólidas para el contenido. Animaciones GPU.
+ * Toda la lógica (datos, carrito, scrollspy, tracking, envío) intacta.
  */
 import {
   useState, useEffect, useMemo, useCallback, useRef, memo,
@@ -16,22 +12,22 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
 import type { Dish, DishCategory } from '../types'
 
-// ── Theme-aware shadow helpers ────────────────────────────────────
-const S = {
-  out:   'var(--shadow-out,   8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55))',
-  outSm: 'var(--shadow-out-sm,4px 4px 10px rgba(130,142,170,0.5), -4px -4px 10px rgba(255,255,255,0.5))',
-  in:    'var(--shadow-in,    inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5))',
-  inSm:  'var(--shadow-in-sm, inset 3px 3px 6px rgba(130,142,170,0.45),inset -3px -3px 6px rgba(255,255,255,0.45))',
-  coral: 'var(--shadow-coral, 8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45))',
+const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
+  all:       'Todo',
+  especial:  'Especiales',
+  principal: 'Principales',
+  postre:    'Postres',
+  bebida:    'Bebidas',
+  entrada:   'Entradas',
 }
 
-const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
-  all:       '✨ Todo',
-  especial:  '⭐ Especiales',
-  principal: '🍽️ Principales',
-  postre:    '🍰 Postres',
-  bebida:    '🥤 Bebidas',
-  entrada:   '🥗 Entradas',
+// Tinte cálido por categoría — da variedad sin romper la paleta
+const CAT_TINT: Record<string, string> = {
+  entrada:   'var(--w-olive)',
+  principal: 'var(--w-terra)',
+  postre:    'var(--w-saffron)',
+  bebida:    'var(--w-wine)',
+  especial:  'var(--w-terra-dk)',
 }
 
 const SIZES = ['Pequeño', 'Mediano', 'Grande']
@@ -49,26 +45,46 @@ interface CartItem {
   extras: string[]
 }
 
-// ── Skeleton card ─────────────────────────────────────────────────
-const SkeletonCard = memo(() => {
-  const bg     = 'var(--bg, #D8DAE4)'
-  const bgSurf = 'var(--bg-surface, #CDD0DC)'
+// ── Skeleton card (warm) ──────────────────────────────────────────
+const SkeletonCard = memo(() => (
+  <div style={{ background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '0.75rem', boxShadow: 'var(--w-shadow-sm)' }}>
+    <div className="skeleton" style={{ width: '100%', height: 120, borderRadius: '0.875rem', marginBottom: '0.75rem' }} />
+    <div className="skeleton" style={{ width: '70%', height: 16, borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+    <div className="skeleton" style={{ width: '45%', height: 12, borderRadius: '0.5rem', marginBottom: '0.75rem' }} />
+    <div className="skeleton" style={{ width: '38%', height: 20, borderRadius: '0.5rem' }} />
+  </div>
+))
+SkeletonCard.displayName = 'SkeletonCard'
+
+// ── Image / editorial fallback ────────────────────────────────────
+const DishImage = memo(({ dish, height }: { dish: Dish; height: number }) => {
+  if (dish.image_url) {
+    return (
+      <div style={{ width: '100%', height, borderRadius: '0.875rem', overflow: 'hidden', position: 'relative' }}>
+        <img src={dish.image_url} alt={dish.name} loading="lazy" decoding="async"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
+    )
+  }
+  const tint = CAT_TINT[dish.category] ?? 'var(--w-terra)'
   return (
-    <div style={{ backgroundColor: bg, borderRadius: '1.25rem', padding: '1rem', boxShadow: S.out }}>
-      <div className="skeleton" style={{ width: '100%', height: 80, borderRadius: '0.875rem', marginBottom: '0.75rem', backgroundColor: bgSurf }} />
-      <div className="skeleton" style={{ width: '75%', height: 14, borderRadius: '0.5rem', marginBottom: '0.375rem', backgroundColor: bgSurf }} />
-      <div className="skeleton" style={{ width: '50%', height: 11, borderRadius: '0.5rem', marginBottom: '0.625rem', backgroundColor: bgSurf }} />
-      <div className="skeleton" style={{ width: '40%', height: 18, borderRadius: '0.5rem', marginBottom: '0.75rem', backgroundColor: bgSurf }} />
-      <div className="skeleton" style={{ width: '100%', height: 34, borderRadius: '0.75rem', backgroundColor: bgSurf }} />
+    <div style={{
+      width: '100%', height, borderRadius: '0.875rem', overflow: 'hidden', position: 'relative',
+      background: `linear-gradient(150deg, color-mix(in oklch, ${tint} 22%, var(--w-surface)) 0%, var(--w-surface) 75%)`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <span style={{ fontFamily: 'var(--w-display)', fontWeight: 600, fontSize: height > 100 ? '3rem' : '2rem', color: tint, opacity: 0.55, lineHeight: 1 }}>
+        {dish.name.charAt(0).toUpperCase()}
+      </span>
     </div>
   )
 })
-SkeletonCard.displayName = 'SkeletonCard'
+DishImage.displayName = 'DishImage'
 
-// ── Customize bottom-sheet ────────────────────────────────────────
+// ── Customize bottom-sheet (liquid glass) ─────────────────────────
 const CustomizeModal = memo(({ dish, onAdd, onClose }: {
-  dish:   Dish
-  onAdd:  (item: Omit<CartItem, 'uid'>) => void
+  dish:    Dish
+  onAdd:   (item: Omit<CartItem, 'uid'>) => void
   onClose: () => void
 }) => {
   const [qty,    setQty]    = useState(1)
@@ -76,67 +92,57 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
   const [size,   setSize]   = useState('')
   const [extras, setExtras] = useState<string[]>([])
 
-  const bg     = 'var(--bg, #D8DAE4)'
-  const bgSurf = 'var(--bg-surface, #CDD0DC)'
-  const txt    = 'var(--text-primary, #2D3561)'
-  const txtMut = 'var(--text-muted, #8B92AA)'
-  const acc    = 'var(--accent, #FF5722)'
-
   const toggleExtra = (e: string) =>
     setExtras(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e])
+
+  const chip = (active: boolean): React.CSSProperties => ({
+    padding: '0.5rem 0.9rem', borderRadius: '0.75rem', cursor: 'pointer', fontFamily: 'var(--w-sans)',
+    fontWeight: 600, fontSize: '0.8125rem', transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
+    border: active ? '1px solid transparent' : '1px solid var(--w-line)',
+    background: active ? 'var(--w-terra)' : 'var(--w-surface)',
+    color: active ? '#fff' : 'var(--w-ink-soft)',
+    boxShadow: active ? 'var(--w-shadow-terra)' : 'none',
+  })
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 80, backgroundColor: 'rgba(45,53,97,0.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', fontFamily: 'Nunito, sans-serif' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'oklch(0.25 0.03 55 / 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <motion.div
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 500, damping: 40, mass: 0.8 }}
+        transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
         onClick={e => e.stopPropagation()}
-        className="glass-modal"
-        style={{ width: '100%', maxWidth: 480, borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
+        className="lg"
+        style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
 
-        {/* Drag handle */}
-        <div style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'var(--divider)', margin: '0 auto 1.25rem' }} />
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
 
-        {/* Dish header */}
-        <div style={{ display: 'flex', gap: '0.875rem', marginBottom: '1.25rem', alignItems: 'center' }}>
-          <div style={{ width: 64, height: 64, borderRadius: '1rem', overflow: 'hidden', flexShrink: 0, backgroundColor: bgSurf, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: S.in }}>
-            {dish.image_url
-              ? <img src={dish.image_url} alt={dish.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={{ fontSize: '2rem' }}>🍽️</span>
-            }
-          </div>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center' }}>
+          <div style={{ width: 72, height: 72, flexShrink: 0 }}><DishImage dish={dish} height={72} /></div>
           <div>
-            <p style={{ fontWeight: 700, color: txt, fontSize: '1.0625rem', margin: 0 }}>{dish.name}</p>
-            {dish.description && <p style={{ fontSize: '0.8125rem', color: txtMut, margin: '0.125rem 0 0' }}>{dish.description}</p>}
-            <p style={{ fontWeight: 700, color: acc, margin: '0.25rem 0 0' }}>{fmtCOP(dish.price)} c/u</p>
+            <h3 className="ed-display" style={{ fontSize: '1.375rem', margin: 0 }}>{dish.name}</h3>
+            {dish.description && <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.25rem 0 0', color: 'var(--w-ink-mut)' }}>{dish.description}</p>}
+            <p style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', margin: '0.375rem 0 0', fontSize: '1rem' }}>{fmtCOP(dish.price)}</p>
           </div>
         </div>
 
-        {/* Sizes */}
         {dish.has_sizes && (
-          <div style={{ marginBottom: '1rem' }}>
-            <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: txtMut, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Tamaño</p>
+          <div style={{ marginBottom: '1.25rem' }}>
+            <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Tamaño</p>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {SIZES.map(s => (
-                <button key={s} onClick={() => setSize(size === s ? '' : s)}
-                  style={{ flex: 1, padding: '0.5rem', borderRadius: '0.75rem', border: 'none', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: size === s ? S.coral : S.outSm, backgroundColor: size === s ? acc : bg, color: size === s ? '#fff' : txt }}>
-                  {s}
-                </button>
+                <button key={s} onClick={() => setSize(size === s ? '' : s)} style={{ flex: 1, ...chip(size === s) }}>{s}</button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Extras/toppings */}
         {(dish.tags ?? []).length > 0 && (
-          <div style={{ marginBottom: '1rem' }}>
-            <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: txtMut, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Adicionales / Toppings</p>
+          <div style={{ marginBottom: '1.25rem' }}>
+            <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Adicionales</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
               {(dish.tags ?? []).map(tag => (
-                <button key={tag} onClick={() => toggleExtra(tag)}
-                  style={{ padding: '0.375rem 0.75rem', borderRadius: '9999px', border: 'none', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: extras.includes(tag) ? S.coral : S.outSm, backgroundColor: extras.includes(tag) ? acc : bg, color: extras.includes(tag) ? '#fff' : txt }}>
+                <button key={tag} onClick={() => toggleExtra(tag)} style={{ borderRadius: '9999px', ...chip(extras.includes(tag)) }}>
                   {extras.includes(tag) ? '✓ ' : '+ '}{tag}
                 </button>
               ))}
@@ -144,29 +150,27 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
           </div>
         )}
 
-        {/* Notes */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: txtMut, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Comentario (opcional)</p>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Comentario</p>
           <textarea value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="Sin cebolla, término medio, alergia a nueces..."
             rows={2} maxLength={200}
-            style={{ width: '100%', backgroundColor: bgSurf, borderRadius: '0.875rem', padding: '0.75rem', border: 'none', outline: 'none', resize: 'none', fontSize: '0.875rem', color: txt, fontFamily: 'inherit', boxShadow: S.in, boxSizing: 'border-box' }} />
+            style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
         </div>
 
-        {/* Qty + add button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: bgSurf, borderRadius: '1rem', padding: '0.5rem 0.75rem', boxShadow: S.in }}>
-            <button onClick={() => setQty(q => Math.max(1, q - 1))}
-              style={{ width: 28, height: 28, borderRadius: '0.5rem', border: 'none', backgroundColor: bg, fontWeight: 700, fontSize: '1rem', cursor: 'pointer', boxShadow: S.outSm, color: txt }}>−</button>
-            <span style={{ fontWeight: 700, color: txt, minWidth: 24, textAlign: 'center' }}>{qty}</span>
-            <button onClick={() => setQty(q => q + 1)}
-              style={{ width: 28, height: 28, borderRadius: '0.5rem', border: 'none', backgroundColor: acc, color: '#fff', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', boxShadow: S.coral }}>+</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', background: 'var(--w-bg)', borderRadius: '1rem', padding: '0.5rem 0.875rem', border: '1px solid var(--w-line)' }}>
+            <button className="w-press" onClick={() => setQty(q => Math.max(1, q - 1))}
+              style={{ width: 30, height: 30, borderRadius: '0.625rem', border: '1px solid var(--w-line)', background: 'var(--w-surface)', fontWeight: 700, fontSize: '1.125rem', color: 'var(--w-ink)' }}>−</button>
+            <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-ink)', minWidth: 22, textAlign: 'center' }}>{qty}</span>
+            <button className="w-press" onClick={() => setQty(q => q + 1)}
+              style={{ width: 30, height: 30, borderRadius: '0.625rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, fontSize: '1.125rem' }}>+</button>
           </div>
-          <motion.button whileTap={{ scale: 0.97 }}
+          <button className="lg-accent w-press"
             onClick={() => { onAdd({ dish, qty, notes, size, extras }); onClose() }}
-            style={{ flex: 1, padding: '0.875rem', backgroundColor: acc, borderRadius: '1rem', border: 'none', color: '#fff', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: S.coral }}>
-            ✅ Agregar {qty > 1 ? `×${qty}` : ''} · {fmtCOP(dish.price * qty)}
-          </motion.button>
+            style={{ flex: 1, padding: '0.95rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none' }}>
+            Agregar {qty > 1 ? `×${qty}` : ''} · {fmtCOP(dish.price * qty)}
+          </button>
         </div>
       </motion.div>
     </motion.div>
@@ -174,71 +178,58 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
 })
 CustomizeModal.displayName = 'CustomizeModal'
 
-// ── Dish card (Liquid Glass — CSS hover, no JS animation overhead) ──
+// ── Dish card (editorial, solid warm) ─────────────────────────────
 const DishCard = memo(({ dish, inCart, onCustomize, index = 0 }: {
   dish:        Dish
   inCart:      number
   onCustomize: () => void
   index?:      number
-}) => {
-  const bgSurf = 'var(--bg-surface, #CDD0DC)'
-  const txt    = 'var(--text-primary, #2D3561)'
-  const txtMut = 'var(--text-muted, #8B92AA)'
-  const acc    = 'var(--accent, #FF5722)'
+}) => (
+  <div
+    className="w-lift w-rise"
+    style={{
+      background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '0.75rem',
+      border: '1px solid var(--w-line)', boxShadow: 'var(--w-shadow-sm)',
+      display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative', cursor: 'pointer',
+      animationDelay: `${Math.min(index, 10) * 50}ms`,
+    }}
+    onClick={onCustomize}>
+    <DishImage dish={dish} height={120} />
 
-  const FALLBACK_EMOJI: Record<DishCategory | string, string> = {
-    bebida: '🥤', postre: '🍰', especial: '⭐', entrada: '🥗', principal: '🍽️',
-  }
+    <h3 className="ed-display" style={{ fontSize: '1.0625rem', fontWeight: 600, margin: '0.125rem 0 0', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>
+      {dish.name}
+    </h3>
 
-  return (
-    <div
-      className="glass-card dish-card dish-enter"
-      style={{
-        padding: '1rem',
-        display: 'flex', flexDirection: 'column', gap: '0.5rem',
-        position: 'relative',
-        animationDelay: `${Math.min(index, 10) * 55}ms`,
-      }}
-      onClick={onCustomize}>
-      {/* Image area */}
-      <div style={{ width: '100%', height: 82, borderRadius: '0.875rem', overflow: 'hidden', backgroundColor: bgSurf, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: S.in, flexShrink: 0 }}>
-        {dish.image_url
-          ? <img src={dish.image_url} alt={dish.name} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <span style={{ fontSize: '2.25rem' }}>{FALLBACK_EMOJI[dish.category] ?? '🍽️'}</span>
-        }
-      </div>
-      {/* Name */}
-      <p style={{ fontWeight: 700, color: txt, fontSize: '0.875rem', margin: 0, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>
-        {dish.name}
+    {dish.description && (
+      <p className="ed-body" style={{ fontSize: '0.75rem', margin: 0, color: 'var(--w-ink-mut)', lineHeight: 1.45, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>
+        {dish.description}
       </p>
-      {/* Description */}
-      {dish.description && (
-        <p style={{ fontSize: '0.6875rem', color: txtMut, margin: 0, lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>
-          {dish.description}
-        </p>
-      )}
-      {/* Price */}
-      <p style={{ fontWeight: 700, color: acc, fontSize: '1rem', margin: 0 }}>{fmtCOP(dish.price)}</p>
-      {/* Add button */}
-      <button
-        style={{ width: '100%', padding: '0.5625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: acc, color: '#fff', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: S.coral, transition: 'transform 0.12s ease' }}
-        onMouseDown={e => { e.stopPropagation(); (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.94)' }}
-        onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)' }}
-      >
-        {inCart > 0 ? `✓ En pedido (${inCart})` : '+ Agregar'}
+    )}
+
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '0.375rem' }}>
+      <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', fontSize: '1.0625rem' }}>{fmtCOP(dish.price)}</span>
+      <button className="w-press" aria-label="Agregar"
+        style={{
+          width: 36, height: 36, borderRadius: '50%', border: 'none', flexShrink: 0,
+          background: inCart > 0 ? 'var(--w-olive)' : 'var(--w-terra)', color: '#fff',
+          fontSize: '1.25rem', fontWeight: 600, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: 'var(--w-shadow-terra)',
+        }}
+        onClick={e => { e.stopPropagation(); onCustomize() }}>
+        {inCart > 0 ? '✓' : '+'}
       </button>
-      {/* In-cart badge */}
-      {inCart > 0 && (
-        <div style={{ position: 'absolute', top: '0.625rem', right: '0.625rem', width: 20, height: 20, borderRadius: '50%', backgroundColor: acc, color: '#fff', fontSize: '0.625rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: S.coral }}>
-          {inCart}
-        </div>
-      )}
     </div>
-  )
-})
+
+    {inCart > 0 && (
+      <div style={{ position: 'absolute', top: '0.625rem', left: '0.625rem', minWidth: 22, height: 22, padding: '0 6px', borderRadius: '9999px', background: 'var(--w-olive)', color: '#fff', fontSize: '0.6875rem', fontWeight: 800, fontFamily: 'var(--w-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--w-shadow-sm)' }}>
+        {inCart}
+      </div>
+    )}
+  </div>
+))
 DishCard.displayName = 'DishCard'
 
-// ── Main component ────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────
 export default function PublicMenu() {
   const [dishes,        setDishes]        = useState<Dish[]>([])
   const [loading,       setLoading]       = useState(true)
@@ -258,15 +249,7 @@ export default function PublicMenu() {
 
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
   const observerRef = useRef<IntersectionObserver | null>(null)
-  const scrollingTo  = useRef(false) // prevents observer from firing during programmatic scroll
-
-  // ── theme vars ─────────────────────────────────────────────────
-  const bg     = 'var(--bg, #D8DAE4)'
-  const bgSurf = 'var(--bg-surface, #CDD0DC)'
-  const txt    = 'var(--text-primary, #2D3561)'
-  const txtSec = 'var(--text-secondary, #5A617A)'
-  const txtMut = 'var(--text-muted, #8B92AA)'
-  const acc    = 'var(--accent, #FF5722)'
+  const scrollingTo = useRef(false)
 
   // ── URL params ─────────────────────────────────────────────────
   useEffect(() => {
@@ -316,9 +299,7 @@ export default function PublicMenu() {
 
   const dishesByCategory = useMemo(() => {
     const map = new Map<DishCategory, Dish[]>()
-    for (const cat of categories) {
-      map.set(cat, dishes.filter(d => d.category === cat))
-    }
+    for (const cat of categories) map.set(cat, dishes.filter(d => d.category === cat))
     return map
   }, [dishes, categories])
 
@@ -329,13 +310,11 @@ export default function PublicMenu() {
   const addToCart = useCallback((item: Omit<CartItem, 'uid'>) => {
     setCart(prev => [...prev, { uid: crypto.randomUUID(), ...item }])
   }, [])
-
   const removeCartItem = useCallback((uid: string) => {
     setCart(prev => prev.filter(i => i.uid !== uid))
   }, [])
 
   // ── send order ─────────────────────────────────────────────────
-  // Permite confirmar con mesa O con nombre (cualquiera de los dos)
   const canConfirm = mesa.trim() !== '' || clientName.trim() !== ''
 
   const sendOrder = useCallback(async () => {
@@ -371,17 +350,15 @@ export default function PublicMenu() {
     } finally { setSending(false) }
   }, [cart, mesa, clientName, cartTotal, canConfirm])
 
-  // ── scrollspy setup (only when not searching) ─────────────────
+  // ── scrollspy ──────────────────────────────────────────────────
   useEffect(() => {
     if (isSearching) return
     const map = sectionRefs.current
-
     observerRef.current?.disconnect()
     observerRef.current = new IntersectionObserver(
       entries => {
         if (scrollingTo.current) return
-        // pick the section with most intersection ratio
-        let best: { cat: string; ratio: number } = { cat: '', ratio: 0 }
+        let best = { cat: '', ratio: 0 }
         entries.forEach(entry => {
           if (entry.intersectionRatio > best.ratio) {
             best = { cat: entry.target.getAttribute('data-cat') ?? '', ratio: entry.intersectionRatio }
@@ -389,102 +366,86 @@ export default function PublicMenu() {
         })
         if (best.cat) setActiveCat(best.cat as DishCategory)
       },
-      { threshold: [0.1, 0.5], rootMargin: '-10% 0px -55% 0px' }
+      { threshold: [0.1, 0.5], rootMargin: '-15% 0px -55% 0px' }
     )
-
     map.forEach(el => observerRef.current?.observe(el))
     return () => observerRef.current?.disconnect()
   }, [isSearching, categories])
 
-  // ── scroll to section ──────────────────────────────────────────
   const scrollToCategory = (cat: DishCategory | 'all') => {
     if (isSearching) { setActiveCat(cat); return }
-    if (cat === 'all') {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      setActiveCat('all')
-      return
-    }
+    if (cat === 'all') { window.scrollTo({ top: 0, behavior: 'smooth' }); setActiveCat('all'); return }
     const el = sectionRefs.current.get(cat)
     if (!el) return
     scrollingTo.current = true
     setActiveCat(cat)
-    const y = el.getBoundingClientRect().top + window.scrollY - 120
+    const y = el.getBoundingClientRect().top + window.scrollY - 110
     window.scrollTo({ top: y, behavior: 'smooth' })
-    setTimeout(() => { scrollingTo.current = false }, 1000)
+    setTimeout(() => { scrollingTo.current = false }, 900)
   }
 
-  // ── section ref callback ───────────────────────────────────────
   const setSectionRef = (cat: DishCategory) => (el: HTMLElement | null) => {
     if (el) sectionRefs.current.set(cat, el)
     else    sectionRefs.current.delete(cat)
   }
 
-  // ── render ─────────────────────────────────────────────────────
-  const categoryNavItems = [{ key: 'all' as const, label: '✨ Todo' }, ...categories.map(c => ({ key: c, label: CATEGORY_LABELS[c] ?? c }))]
+  const categoryNavItems = [{ key: 'all' as const, label: 'Todo' }, ...categories.map(c => ({ key: c, label: CATEGORY_LABELS[c] ?? c }))]
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: bg, fontFamily: 'Nunito, sans-serif', paddingBottom: '6rem' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--w-bg)', fontFamily: 'var(--w-sans)', paddingBottom: '6rem' }}>
 
-      {/* ── Sticky header ── */}
-      <header className="glass-header" style={{ padding: '0.875rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 30 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '0.75rem', overflow: 'hidden', flexShrink: 0, boxShadow: S.outSm }}>
-            <img src="/logo.jpg" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      {/* ── Editorial hero ── */}
+      <header style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', maxWidth: 760, margin: '0 auto', overflow: 'hidden' }}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.875rem' }}>
+            <span className="ed-kicker">Menú</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--w-line)' }} />
+            {mesa && <span className="ed-kicker" style={{ color: 'var(--w-ink-mut)' }}>Mesa {mesa}</span>}
           </div>
-          <div>
-            <h1 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1rem', color: txt, margin: 0 }}>{bizName}</h1>
-            {mesa && <p style={{ fontSize: '0.6875rem', color: acc, fontWeight: 700, margin: 0 }}>Mesa {mesa}</p>}
-          </div>
-        </div>
-        {/* Desktop cart button */}
-        <AnimatePresence>
-          {cartCount > 0 && (
-            <motion.button initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
-              whileTap={{ scale: 0.95 }} onClick={() => setShowCart(true)}
-              style={{ display: 'none', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', backgroundColor: acc, borderRadius: '1rem', border: 'none', color: '#fff', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: S.coral }}
-              className="desktop-cart-btn">
-              🛒 {cartCount} · {fmtCOP(cartTotal)}
-            </motion.button>
-          )}
-        </AnimatePresence>
+          <h1 className="ed-display" style={{ fontSize: 'clamp(2.5rem, 11vw, 4.25rem)', fontWeight: 600, margin: 0 }}>
+            {bizName}
+          </h1>
+          <p className="ed-body" style={{ marginTop: '0.75rem', fontSize: '0.9375rem', color: 'var(--w-ink-mut)', maxWidth: '34ch' }}>
+            Elige tus platos favoritos y pide directo desde tu mesa.
+          </p>
+        </motion.div>
       </header>
 
-      {/* ── Sticky category nav ── */}
-      <div className="glass-header" style={{ position: 'sticky', top: 64, zIndex: 25, padding: '0.625rem 0', borderTop: 'none' }}>
-        <div className="no-scrollbar" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', padding: '0 1.25rem' }}>
-          {categoryNavItems.map(({ key, label }) => (
-            <button key={key} onClick={() => scrollToCategory(key)}
-              style={{
-                flexShrink: 0, padding: '0.4375rem 0.875rem', borderRadius: '9999px',
-                border: activeCat === key ? 'none' : '1px solid var(--glass-border-sub)',
-                fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'all 0.2s cubic-bezier(0.34,1.56,0.64,1)',
-                boxShadow: activeCat === key ? S.coral : S.outSm,
-                backgroundColor: activeCat === key ? acc : 'var(--glass-bg)',
-                color: activeCat === key ? '#fff' : txtSec,
-                backdropFilter: 'blur(8px)',
-              }}>
-              {label}
-            </button>
-          ))}
+      {/* ── Sticky category nav (liquid glass) ── */}
+      <div style={{ position: 'sticky', top: 12, zIndex: 30, padding: '0 1rem', margin: '0.5rem auto 1.5rem', maxWidth: 760 }}>
+        <div className="lg no-scrollbar" style={{ display: 'flex', gap: '0.375rem', overflowX: 'auto', padding: '0.5rem', borderRadius: '1rem' }}>
+          {categoryNavItems.map(({ key, label }) => {
+            const active = activeCat === key
+            return (
+              <button key={key} onClick={() => scrollToCategory(key)}
+                style={{
+                  flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '0.75rem',
+                  border: 'none', fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'var(--w-sans)',
+                  transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
+                  background: active ? 'var(--w-terra)' : 'transparent',
+                  color: active ? '#fff' : 'var(--w-ink-soft)',
+                  boxShadow: active ? 'var(--w-shadow-terra)' : 'none',
+                }}>
+                {label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      <div style={{ padding: '1rem 1.25rem', maxWidth: 680, margin: '0 auto' }}>
+      <div style={{ padding: '0 1.5rem', maxWidth: 760, margin: '0 auto' }}>
 
-        {/* ── Order tracking banner ── */}
+        {/* ── Order tracking ── */}
         <AnimatePresence>
           {showTracking && orderId && (
             <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
-              className="glass-card no-hover"
-              style={{ marginBottom: '1rem', padding: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <p style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, margin: 0 }}>📋 Estado de tu pedido</p>
-                <button onClick={() => setShowTracking(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: txtMut, fontSize: '1rem' }}>✕</button>
+              style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'var(--w-surface)', borderRadius: '1.25rem', border: '1px solid var(--w-line)', boxShadow: 'var(--w-shadow-md)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <p className="ed-kicker">Tu pedido</p>
+                <button onClick={() => setShowTracking(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1.125rem' }}>✕</button>
               </div>
-              {/* Progress steps */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: '0.875rem' }}>
-                {[{ key: 'pending', icon: '📝', label: 'Recibido' }, { key: 'cooking', icon: '🍳', label: 'En cocina' }, { key: 'ready', icon: '✅', label: '¡Listo!' }, { key: 'completed', icon: '🎉', label: 'Entregado' }].map((step, i, arr) => {
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, marginBottom: '1rem' }}>
+                {[{ key: 'pending', label: 'Recibido' }, { key: 'cooking', label: 'En cocina' }, { key: 'ready', label: 'Listo' }, { key: 'completed', label: 'Entregado' }].map((step, i, arr) => {
                   const order   = ['pending', 'cooking', 'ready', 'completed']
                   const current = order.indexOf(orderStatus ?? 'pending')
                   const stepIdx = order.indexOf(step.key)
@@ -492,34 +453,29 @@ export default function PublicMenu() {
                   const active  = stepIdx === current
                   return (
                     <div key={step.key} style={{ display: 'flex', alignItems: 'center', flex: i < arr.length - 1 ? 1 : 'none' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-                        <motion.div animate={active ? { scale: [1, 1.15, 1] } : {}} transition={{ repeat: active ? Infinity : 0, duration: 1.5 }}
-                          style={{ width: 40, height: 40, borderRadius: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.125rem', backgroundColor: done ? (active ? acc : 'var(--green, #10B981)') : bgSurf, boxShadow: done ? (active ? S.coral : 'var(--shadow-green)') : S.inSm }}>
-                          {step.icon}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.375rem' }}>
+                        <motion.div animate={active ? { scale: [1, 1.18, 1] } : {}} transition={{ repeat: active ? Infinity : 0, duration: 1.6, ease: 'easeInOut' }}
+                          style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 800, color: done ? '#fff' : 'var(--w-ink-mut)', background: done ? (active ? 'var(--w-terra)' : 'var(--w-olive)') : 'var(--w-bg)', border: done ? 'none' : '1px solid var(--w-line)' }}>
+                          {done && !active ? '✓' : stepIdx + 1}
                         </motion.div>
-                        <p style={{ fontSize: '0.5625rem', fontWeight: 700, color: done ? txt : txtMut, margin: 0, textAlign: 'center', lineHeight: 1.2 }}>{step.label}</p>
+                        <p style={{ fontSize: '0.625rem', fontWeight: 700, color: done ? 'var(--w-ink)' : 'var(--w-ink-mut)', margin: 0, textAlign: 'center' }}>{step.label}</p>
                       </div>
                       {i < arr.length - 1 && (
-                        <div style={{ flex: 1, height: 3, borderRadius: 2, margin: '0 0.25rem 1.25rem', backgroundColor: current > stepIdx ? 'var(--green, #10B981)' : bgSurf }} />
+                        <div style={{ flex: 1, height: 2, borderRadius: 2, margin: '0 0.25rem 1.125rem', background: current > stepIdx ? 'var(--w-olive)' : 'var(--w-line)' }} />
                       )}
                     </div>
                   )
                 })}
               </div>
-              <div style={{ backgroundColor: bgSurf, borderRadius: '1rem', padding: '0.75rem 1rem', boxShadow: S.inSm }}>
-                <p style={{ fontWeight: 600, color: txt, margin: 0, fontSize: '0.875rem' }}>
-                  {orderStatus === 'pending'   && '⏳ Tu pedido fue recibido. Pronto comenzamos a prepararlo.'}
-                  {orderStatus === 'cooking'   && '🍳 ¡Estamos preparando tu pedido! Ya casi está.'}
-                  {orderStatus === 'ready'     && '🔔 ¡Tu pedido está listo! El mesero te lo llevará enseguida.'}
-                  {orderStatus === 'completed' && '🎉 ¡Buen provecho! Esperamos que lo disfrutes.'}
-                  {orderStatus === 'cancelled' && '❌ Tu pedido fue cancelado. Consulta con el mesero.'}
+              <div style={{ background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.875rem 1rem', border: '1px solid var(--w-line)' }}>
+                <p style={{ fontWeight: 500, color: 'var(--w-ink)', margin: 0, fontSize: '0.875rem' }}>
+                  {orderStatus === 'pending'   && 'Tu pedido fue recibido. Pronto comenzamos a prepararlo.'}
+                  {orderStatus === 'cooking'   && 'Estamos preparando tu pedido. Ya casi está.'}
+                  {orderStatus === 'ready'     && 'Tu pedido está listo. El mesero te lo llevará enseguida.'}
+                  {orderStatus === 'completed' && 'Buen provecho. Esperamos que lo disfrutes.'}
+                  {orderStatus === 'cancelled' && 'Tu pedido fue cancelado. Consulta con el mesero.'}
                 </p>
               </div>
-              {orderStatus === 'ready' && (
-                <motion.div animate={{ opacity: [1, 0.5, 1] }} transition={{ repeat: Infinity, duration: 1.2 }} style={{ marginTop: '0.75rem', textAlign: 'center' }}>
-                  <p style={{ fontWeight: 800, color: acc, fontSize: '1rem', margin: 0 }}>🛎️ ¡Pide a un mesero que te traiga tu pedido!</p>
-                </motion.div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -528,37 +484,33 @@ export default function PublicMenu() {
         <AnimatePresence>
           {sent && (
             <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              style={{ backgroundColor: 'var(--tag-green-bg)', border: '2px solid var(--tag-green-text)', borderRadius: '1rem', padding: '1rem 1.25rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ fontSize: '1.5rem' }}>🎉</span>
+              style={{ background: 'color-mix(in oklch, var(--w-olive) 14%, var(--w-surface))', border: '1px solid var(--w-olive)', borderRadius: '1rem', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
               <div style={{ flex: 1 }}>
-                <p style={{ fontWeight: 700, color: 'var(--tag-green-text)', margin: 0 }}>¡Pedido enviado a cocina!</p>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0 }}>En breve lo estaremos preparando.</p>
+                <p style={{ fontFamily: 'var(--w-display)', fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontSize: '1.0625rem' }}>Pedido enviado a cocina</p>
+                <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-ink-mut)' }}>En breve lo estaremos preparando.</p>
               </div>
-              <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem' }}>✕</button>
+              <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1.125rem' }}>✕</button>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* ── Search ── */}
-        <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
-          <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: txtMut, fontSize: '1rem', pointerEvents: 'none' }}>🔍</span>
+        <div style={{ position: 'relative', marginBottom: '1.75rem' }}>
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Buscar en el menú..."
-            style={{ width: '100%', backgroundColor: bgSurf, borderRadius: '1rem', paddingLeft: '2.75rem', paddingRight: '1rem', paddingTop: '0.75rem', paddingBottom: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, fontFamily: 'inherit', boxShadow: S.in, boxSizing: 'border-box' }} />
+            style={{ width: '100%', background: 'var(--w-surface)', borderRadius: '1rem', padding: '0.875rem 1.125rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', boxShadow: 'var(--w-shadow-sm)' }} />
         </div>
 
-        {/* ── Content area ── */}
+        {/* ── Content ── */}
         {loading ? (
-          /* Skeleton grid */
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : isSearching ? (
-          /* Flat search results */
           filteredFlat.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-              <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍦</p>
-              <p style={{ color: txtMut, fontWeight: 600 }}>No encontramos ese plato</p>
+            <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
+              <p className="ed-display" style={{ fontSize: '1.5rem', color: 'var(--w-ink-mut)', margin: 0 }}>Sin resultados</p>
+              <p className="ed-body" style={{ color: 'var(--w-ink-mut)', marginTop: '0.5rem' }}>No encontramos ese plato.</p>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
@@ -569,21 +521,18 @@ export default function PublicMenu() {
             </div>
           )
         ) : (
-          /* Sectioned view for scrollspy */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
             {categories.map(cat => {
               const catDishes = dishesByCategory.get(cat) ?? []
               if (catDishes.length === 0) return null
               return (
                 <section key={cat} ref={setSectionRef(cat)} data-cat={cat}>
-                  {/* Section header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1rem' }}>
-                    <span style={{ fontSize: '1.25rem' }}>{CATEGORY_LABELS[cat]?.split(' ')[0]}</span>
-                    <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.0625rem', color: txt, margin: 0 }}>
-                      {CATEGORY_LABELS[cat]?.split(' ').slice(1).join(' ') ?? cat}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginBottom: '1.125rem' }}>
+                    <h2 className="ed-display" style={{ fontSize: '1.625rem', fontWeight: 600, margin: 0 }}>
+                      {CATEGORY_LABELS[cat] ?? cat}
                     </h2>
-                    <div style={{ flex: 1, height: 1, backgroundColor: bgSurf, borderRadius: 1 }} />
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: txtMut }}>{catDishes.length}</span>
+                    <div style={{ flex: 1, height: 1, background: 'var(--w-line)' }} />
+                    <span className="ed-kicker" style={{ color: 'var(--w-ink-mut)' }}>{catDishes.length}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                     {catDishes.map((dish, i) => {
@@ -598,137 +547,114 @@ export default function PublicMenu() {
         )}
       </div>
 
-      {/* ── Floating FAB cart button ── */}
+      {/* ── Floating cart (liquid glass accent) ── */}
       <AnimatePresence>
         {cartCount > 0 && (
           <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            whileHover={{ scale: 1.05 }}
+            initial={{ scale: 0, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0, opacity: 0, y: 20 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 28 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowCart(true)}
-            style={{ position: 'fixed', bottom: '1.5rem', right: '1.25rem', zIndex: 50, display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.875rem 1.25rem', backgroundColor: acc, borderRadius: '1rem', border: 'none', color: '#fff', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: S.coral }}>
-            <span style={{ fontSize: '1.25rem' }}>🛒</span>
-            <span>{fmtCOP(cartTotal)}</span>
-            {/* Count badge */}
-            <motion.span
-              key={cartCount}
-              initial={{ scale: 1.4 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}
-              style={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, backgroundColor: '#fff', color: acc, borderRadius: '50%', fontSize: '0.6875rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(255,87,34,0.4)' }}>
+            className="lg-accent"
+            style={{ position: 'fixed', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)', zIndex: 50, display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.875rem 1.5rem', border: 'none', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', fontFamily: 'var(--w-sans)', whiteSpace: 'nowrap' }}>
+            <motion.span key={cartCount} initial={{ scale: 1.4 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}
+              style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: '9999px', background: '#fff', color: 'var(--w-terra)', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {cartCount}
             </motion.span>
+            <span>Ver pedido</span>
+            <span style={{ opacity: 0.5 }}>·</span>
+            <span>{fmtCOP(cartTotal)}</span>
           </motion.button>
         )}
       </AnimatePresence>
 
       {/* ── Customize modal ── */}
       <AnimatePresence>
-        {customizing && (
-          <CustomizeModal dish={customizing} onAdd={addToCart} onClose={() => setCustomizing(null)} />
-        )}
+        {customizing && <CustomizeModal dish={customizing} onAdd={addToCart} onClose={() => setCustomizing(null)} />}
       </AnimatePresence>
 
-      {/* ── Cart bottom-sheet ── */}
+      {/* ── Cart bottom-sheet (liquid glass) ── */}
       <AnimatePresence>
         {showCart && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setShowCart(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 50, backgroundColor: 'rgba(45,53,97,0.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'oklch(0.25 0.03 55 / 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 500, damping: 40, mass: 0.8 }}
+              transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
               onClick={e => e.stopPropagation()}
-              className="glass-modal"
-              style={{ width: '100%', maxWidth: 480, borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
+              className="lg"
+              style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
 
-              {/* Drag handle */}
-              <div style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'var(--divider)', margin: '0 auto 1.25rem' }} />
-              <h3 style={{ fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1rem', fontFamily: 'DM Sans, sans-serif' }}>🛒 Tu pedido</h3>
+              <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
+              <h3 className="ed-display" style={{ fontWeight: 600, fontSize: '1.5rem', margin: '0 0 1.25rem' }}>Tu pedido</h3>
 
-              {/* Cart items */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
                 {cart.map(item => (
-                  <div key={item.uid} style={{ backgroundColor: bgSurf, borderRadius: '0.875rem', padding: '0.75rem 1rem', boxShadow: S.inSm }}>
+                  <div key={item.uid} style={{ background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.875rem 1rem', border: '1px solid var(--w-line)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', flex: 1 }}>
-                        <span style={{ width: 22, height: 22, borderRadius: '0.375rem', backgroundColor: acc, color: '#fff', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{item.qty}</span>
+                      <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start', flex: 1 }}>
+                        <span style={{ minWidth: 24, height: 24, padding: '0 6px', borderRadius: '0.5rem', background: 'var(--w-terra)', color: '#fff', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{item.qty}</span>
                         <div>
-                          <p style={{ fontWeight: 600, color: txt, fontSize: '0.875rem', margin: 0 }}>{item.dish.name}</p>
-                          {item.size && <p style={{ fontSize: '0.6875rem', color: txtMut, margin: 0 }}>📏 {item.size}</p>}
-                          {item.extras.length > 0 && <p style={{ fontSize: '0.6875rem', color: txtMut, margin: 0 }}>➕ {item.extras.join(', ')}</p>}
-                          {item.notes && <p style={{ fontSize: '0.6875rem', color: txtMut, margin: 0 }}>📝 {item.notes}</p>}
+                          <p style={{ fontWeight: 600, color: 'var(--w-ink)', fontSize: '0.9375rem', margin: 0, fontFamily: 'var(--w-display)' }}>{item.dish.name}</p>
+                          {item.size && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>Tamaño: {item.size}</p>}
+                          {item.extras.length > 0 && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>+ {item.extras.join(', ')}</p>}
+                          {item.notes && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>Nota: {item.notes}</p>}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <p style={{ fontWeight: 700, color: txt, fontSize: '0.875rem', margin: 0 }}>{fmtCOP(item.dish.price * item.qty)}</p>
-                        <button onClick={() => removeCartItem(item.uid)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: '1rem', padding: 0 }}>✕</button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                        <p style={{ fontWeight: 700, color: 'var(--w-ink)', fontSize: '0.875rem', margin: 0, fontFamily: 'var(--w-sans)' }}>{fmtCOP(item.dish.price * item.qty)}</p>
+                        <button onClick={() => removeCartItem(item.uid)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-wine)', fontSize: '1rem', padding: 0 }}>✕</button>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Mesa + nombre */}
-              <div style={{ display: 'grid', gridTemplateColumns: mesa ? '1fr' : '1fr 1fr', gap: '0.75rem', marginBottom: '0.625rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: mesa ? '1fr' : '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                 {!mesa && (
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, color: txtMut, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem' }}>
-                      Mesa <span style={{ fontWeight: 400, textTransform: 'none', fontSize: '0.625rem' }}>(opcional)</span>
-                    </label>
-                    <input type="number" value={mesa} onChange={e => setMesa(e.target.value)}
-                      placeholder="Nº"
-                      style={{ width: '100%', backgroundColor: bgSurf, borderRadius: '0.875rem', padding: '0.75rem 1rem', border: 'none', outline: 'none', fontSize: '1rem', color: txt, fontFamily: 'inherit', fontWeight: 600, textAlign: 'center', boxShadow: S.in, boxSizing: 'border-box' }} />
+                    <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>Mesa</label>
+                    <input type="number" value={mesa} onChange={e => setMesa(e.target.value)} placeholder="Nº"
+                      style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '1rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 600, textAlign: 'center', boxSizing: 'border-box' }} />
                   </div>
                 )}
                 <div style={{ gridColumn: mesa ? '1 / -1' : undefined }}>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, color: txtMut, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem' }}>
-                    Tu nombre <span style={{ fontWeight: 400, textTransform: 'none', fontSize: '0.625rem' }}>(opcional)</span>
-                  </label>
-                  <input type="text" value={clientName} onChange={e => setClientName(e.target.value)}
-                    placeholder="Ej: María"
-                    style={{ width: '100%', backgroundColor: bgSurf, borderRadius: '0.875rem', padding: '0.75rem 1rem', border: 'none', outline: 'none', fontSize: '0.9375rem', color: txt, fontFamily: 'inherit', boxShadow: S.in, boxSizing: 'border-box' }} />
+                  <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>Tu nombre</label>
+                  <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Ej: María"
+                    style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
                 </div>
               </div>
 
-              {/* Hint cuando ninguno está llenado */}
               {!canConfirm && (
-                <p style={{ fontSize: '0.6875rem', color: txtMut, marginBottom: '0.875rem', textAlign: 'center' }}>
-                  Ingresa tu <strong style={{ color: txt }}>nombre</strong> o el número de <strong style={{ color: txt }}>mesa</strong> para continuar
+                <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', marginBottom: '1rem', textAlign: 'center' }}>
+                  Ingresa tu <strong style={{ color: 'var(--w-ink)' }}>nombre</strong> o el número de <strong style={{ color: 'var(--w-ink)' }}>mesa</strong> para continuar
                 </p>
               )}
-              {/* Hint mostrador — sin mesa pero con nombre */}
               {canConfirm && !mesa.trim() && clientName.trim() && (
-                <p style={{ fontSize: '0.6875rem', color: 'var(--tag-green-text)', marginBottom: '0.875rem', textAlign: 'center', fontWeight: 700 }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--w-olive)', marginBottom: '1rem', textAlign: 'center', fontWeight: 700 }}>
                   ✓ Pedido a nombre de {clientName.trim()}
                 </p>
               )}
 
-              {/* Total */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: `1px solid ${bgSurf}`, marginBottom: '1rem' }}>
-                <span style={{ fontWeight: 700, color: txt }}>Total</span>
-                <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: acc }}>{fmtCOP(cartTotal)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '1rem', borderTop: '1px solid var(--w-line)', marginBottom: '1.25rem' }}>
+                <span className="ed-kicker">Total</span>
+                <span className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', color: 'var(--w-terra)' }}>{fmtCOP(cartTotal)}</span>
               </div>
 
-              <motion.button whileTap={{ scale: 0.97 }}
+              <button className="lg-accent w-press"
                 onClick={sendOrder} disabled={sending || !canConfirm}
-                style={{ width: '100%', padding: '1rem', borderRadius: '1rem', border: 'none', backgroundColor: !canConfirm ? bgSurf : acc, color: !canConfirm ? txtMut : '#fff', fontWeight: 700, fontSize: '1rem', cursor: !canConfirm ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: !canConfirm ? S.inSm : S.coral }}>
-                {sending
-                  ? 'Enviando...'
-                  : !canConfirm
-                    ? 'Ingresa tu nombre o número de mesa'
-                    : `✅ Pedir · ${fmtCOP(cartTotal)}`}
-              </motion.button>
+                style={{ width: '100%', padding: '1.05rem', border: 'none', fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--w-sans)', cursor: !canConfirm ? 'not-allowed' : 'pointer', opacity: !canConfirm ? 0.5 : 1 }}>
+                {sending ? 'Enviando...' : !canConfirm ? 'Ingresa nombre o mesa' : `Pedir · ${fmtCOP(cartTotal)}`}
+              </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <style>{`
-        .desktop-cart-btn { display: none !important; }
-        @media (min-width: 640px) { .desktop-cart-btn { display: flex !important; } }
-        ::-webkit-scrollbar { display: none; }
-      `}</style>
+      <style>{`::-webkit-scrollbar { display: none; }`}</style>
     </div>
   )
 }
