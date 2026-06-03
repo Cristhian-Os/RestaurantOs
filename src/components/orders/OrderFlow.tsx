@@ -260,8 +260,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                     onClick={() => { setTipo(opt.val as TipoPedido); if (opt.val !== 'LOCAL') setMesa(null) }}
                     className="py-3 rounded-2xl text-sm font-bold transition-all"
                     style={tipoPedido === opt.val
-                      ? { background: '#FF5722', color: 'white', ...S.coral }
-                      : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
+                      ? { background: 'var(--accent)', color: 'white', ...S.coral }
+                      : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
                   >
                     {opt.label}
                   </button>
@@ -286,9 +286,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                           }`}
                           disabled={mesa.estado === 'ocupada'}
                           style={selectedMesa?.id === mesa.id
-                            ? { background: '#FF5722', color: 'white', ...S.coral }
+                            ? { background: 'var(--accent)', color: 'white', ...S.coral }
                             : mesa.estado === 'libre'
-                              ? { background: '#D8DAE4', color: '#2D3561', ...S.neoOutSm }
+                              ? { background: 'var(--bg)', color: 'var(--text-primary)', ...S.neoOutSm }
                               : { background: '#FEE2E2', color: '#DC2626', ...S.neoOutSm }}
                         >
                           <div className="text-lg font-bold">{mesa.numero}</div>
@@ -352,7 +352,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               <button
                 onClick={() => setCategory('all')}
                 className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
-                style={activeCategory === 'all' ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
+                style={activeCategory === 'all' ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
               >
                 🍴 Todo
               </button>
@@ -360,7 +360,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 <button key={cat}
                   onClick={() => setCategory(cat)}
                   className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
-                  style={activeCategory === cat ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
+                  style={activeCategory === cat ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
                 >
                   {CATEGORY_LABELS[cat]}
                 </button>

@@ -115,8 +115,8 @@ export const EmployeeTasksView = memo<EmployeeTasksViewProps>(({ profile }) => {
             className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
             style={
               filter === f
-                ? { background: '#FF5722', color: 'white', ...S.coral }
-                : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }
+                ? { background: 'var(--accent)', color: 'white', ...S.coral }
+                : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }
             }
           >
             {f === 'all' ? 'Todas' : STATUS_CONFIG[f as TaskStatus].label}

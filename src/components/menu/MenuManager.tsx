@@ -607,7 +607,7 @@ export const MenuManager = memo(() => {
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: 'Total',     val: stats.total,     color: txt         },
-          { label: 'Activos',   val: stats.activos,   color: '#10B981'   },
+          { label: 'Activos',   val: stats.activos,   color: 'var(--green)'   },
           { label: 'Inactivos', val: stats.inactivos, color: '#EF4444'   },
         ].map(s => (
           <div key={s.label} className="rounded-2xl p-3 text-center" style={{ backgroundColor: bg, ...S.neoOutSm }}>

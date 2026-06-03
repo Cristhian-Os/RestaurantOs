@@ -237,7 +237,7 @@ export function ShoppingList() {
               title="Items a Comprar"
               value={totalItems}
               prefix="📦"
-              valueStyle={{ color: '#2D3561' }}
+              valueStyle={{ color: 'var(--text-primary)' }}
             />
           </Card>
         </Col>
@@ -248,7 +248,7 @@ export function ShoppingList() {
               value={totalCost}
               prefix="💰 $"
               precision={2}
-              valueStyle={{ color: '#FF5722' }}
+              valueStyle={{ color: 'var(--accent)' }}
             />
           </Card>
         </Col>

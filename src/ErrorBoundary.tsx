@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return (
       <div style={{
-        minHeight: '100vh', backgroundColor: '#D8DAE4',
+        minHeight: '100vh', backgroundColor: 'var(--bg)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '1.5rem', fontFamily: 'Nunito, sans-serif', gap: '1rem',
@@ -61,7 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <img src="/logo.jpg" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
 
-        <p style={{ fontWeight: 700, color: '#2D3561', fontSize: '1rem', textAlign: 'center', margin: 0 }}>
+        <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem', textAlign: 'center', margin: 0 }}>
           Error de aplicación
         </p>
 
@@ -90,7 +90,7 @@ export class ErrorBoundary extends Component<Props, State> {
             sessionStorage.removeItem('last_crash')
             window.location.reload()
           }} style={{
-            padding: '0.75rem 1.5rem', backgroundColor: '#FF5722', color: '#fff',
+            padding: '0.75rem 1.5rem', backgroundColor: 'var(--accent)', color: '#fff',
             fontWeight: 700, border: 'none', borderRadius: '1rem', cursor: 'pointer',
             fontSize: '0.875rem',
             boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)',
@@ -106,7 +106,7 @@ export class ErrorBoundary extends Component<Props, State> {
             } catch { /* ignorar */ }
             window.location.reload()
           }} style={{
-            padding: '0.75rem 1.5rem', backgroundColor: '#D8DAE4', color: '#5A617A',
+            padding: '0.75rem 1.5rem', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)',
             fontWeight: 700, border: 'none', borderRadius: '1rem', cursor: 'pointer',
             fontSize: '0.875rem',
             boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)',

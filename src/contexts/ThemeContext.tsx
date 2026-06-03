@@ -25,12 +25,12 @@ const ThemeContext = createContext<ThemeCtx>({
 // Aplica el tema inmediatamente al DOM
 function applyTheme(t: Theme) {
   document.documentElement.setAttribute('data-theme', t)
-  document.body.style.backgroundColor = t === 'dark' ? '#0F1118' : '#D8DAE4'
+  document.body.style.backgroundColor = t === 'dark' ? '#0F1118' : 'var(--bg)'
   document.body.style.backgroundImage = t === 'dark'
     ? 'radial-gradient(ellipse at 15% 10%, rgba(59,130,246,0.08) 0%, transparent 45%), radial-gradient(ellipse at 85% 90%, rgba(255,104,53,0.05) 0%, transparent 45%)'
     : 'radial-gradient(ellipse at 20% 5%, rgba(255,255,255,0.45) 0%, transparent 50%), radial-gradient(ellipse at 80% 95%, rgba(255,87,34,0.04) 0%, transparent 50%)'
   document.body.style.backgroundAttachment = 'fixed'
-  document.body.style.color = t === 'dark' ? '#E2E5F4' : '#2D3561'
+  document.body.style.color = t === 'dark' ? '#E2E5F4' : 'var(--text-primary)'
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

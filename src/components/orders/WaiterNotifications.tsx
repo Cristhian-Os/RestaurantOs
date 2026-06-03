@@ -107,7 +107,7 @@ export const WaiterNotifications = memo(() => {
             style={{ pointerEvents: 'auto' }}
           >
             <div style={{
-              backgroundColor: '#D8DAE4',
+              backgroundColor: 'var(--bg)',
               borderRadius: '1.25rem',
               padding: '0.875rem 1rem',
               display: 'flex', alignItems: 'center', gap: '0.875rem',
@@ -120,16 +120,16 @@ export const WaiterNotifications = memo(() => {
                 transition={{ repeat: Infinity, duration: 1.5 }}
                 style={{
                   width: 42, height: 42, borderRadius: '0.875rem',
-                  backgroundColor: '#10B981', flexShrink: 0,
+                  backgroundColor: 'var(--green)', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem',
                   boxShadow: '4px 4px 8px rgba(16,185,129,0.3),-2px -2px 6px rgba(255,255,255,0.5)',
                 }}>🔔</motion.div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 800, color: '#2D3561', margin: 0, fontSize: '0.9375rem', fontFamily: 'DM Sans, sans-serif' }}>
+                <p style={{ fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontSize: '0.9375rem', fontFamily: 'DM Sans, sans-serif' }}>
                   Mesa {order.table_num ?? '?'} — ¡Listo!
                 </p>
-                <p style={{ fontSize: '0.8125rem', color: '#10B981', margin: 0, fontWeight: 600 }}>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--green)', margin: 0, fontWeight: 600 }}>
                   Entregar ahora{order.customer_name ? ` · ${order.customer_name}` : ''}
                 </p>
               </div>
@@ -138,7 +138,7 @@ export const WaiterNotifications = memo(() => {
                 onClick={() => setReady(prev => prev.filter(o => o.id !== order.id))}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#8B92AA', fontSize: '1.125rem', padding: '0.25rem',
+                  color: 'var(--text-muted)', fontSize: '1.125rem', padding: '0.25rem',
                   flexShrink: 0, minHeight: 'auto', minWidth: 'auto',
                 }}>✕</button>
             </div>

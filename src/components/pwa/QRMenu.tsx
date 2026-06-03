@@ -23,7 +23,7 @@ async function generateQR(url: string): Promise<string> {
   return QRCode.toDataURL(url, {
     width: 300,
     margin: 2,
-    color: { dark: '#2D3561', light: '#FFFFFF' },
+    color: { dark: 'var(--text-primary)', light: '#FFFFFF' },
     errorCorrectionLevel: 'H',
   })
 }
@@ -114,7 +114,7 @@ export function QRMenu() {
     <>
       {/* ── Card principal ── */}
       <div style={{
-        backgroundColor: '#D8DAE4', borderRadius: '1.5rem', padding: '1.5rem',
+        backgroundColor: 'var(--bg)', borderRadius: '1.5rem', padding: '1.5rem',
         display: 'flex', flexDirection: 'column', gap: '1.25rem',
         ...S.out,
       }}>
@@ -122,7 +122,7 @@ export function QRMenu() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
           <div style={{
             width: 48, height: 48, borderRadius: '0.875rem', flexShrink: 0,
-            backgroundColor: '#2D3561', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             ...S.coral,
           }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} style={{ width: 24, height: 24 }}>
@@ -136,10 +136,10 @@ export function QRMenu() {
             </svg>
           </div>
           <div>
-            <p style={{ fontWeight: 700, color: '#2D3561', fontSize: '1rem', margin: 0 }}>
+            <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem', margin: 0 }}>
               QR del Menú para clientes
             </p>
-            <p style={{ fontSize: '0.75rem', color: '#9CA3AF', margin: 0 }}>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
               Los clientes escanean y ven el menú desde su celular
             </p>
           </div>
@@ -149,13 +149,13 @@ export function QRMenu() {
         {qrUrl && (
           <div style={{
             display: 'flex', justifyContent: 'center',
-            backgroundColor: '#CDD0DC', borderRadius: '1.25rem', padding: '1.25rem',
+            backgroundColor: 'var(--bg-surface)', borderRadius: '1.25rem', padding: '1.25rem',
             ...S.in,
           }}>
             <div style={{ textAlign: 'center' }}>
               <img src={qrUrl} alt="QR Menú"
                 style={{ width: 160, height: 160, imageRendering: 'pixelated', borderRadius: '0.5rem' }} />
-              <p style={{ fontSize: '0.7rem', color: '#9CA3AF', marginTop: '0.5rem' }}>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
                 Menú general · sin mesa
               </p>
             </div>
@@ -165,7 +165,7 @@ export function QRMenu() {
         {/* Selector de mesa */}
         <div>
           <label style={{
-            display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#9CA3AF',
+            display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)',
             textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem',
           }}>
             Generar QR para una mesa específica (opcional)
@@ -176,9 +176,9 @@ export function QRMenu() {
               onChange={e => setMesa(e.target.value)}
               placeholder="Nº mesa"
               style={{
-                flex: 1, backgroundColor: '#CDD0DC', borderRadius: '0.875rem',
+                flex: 1, backgroundColor: 'var(--bg-surface)', borderRadius: '0.875rem',
                 padding: '0.75rem 1rem', border: 'none', outline: 'none',
-                fontSize: '1rem', color: '#2D3561', fontFamily: 'inherit', fontWeight: 600,
+                fontSize: '1rem', color: 'var(--text-primary)', fontFamily: 'inherit', fontWeight: 600,
                 textAlign: 'center',
                 ...S.in,
               }}
@@ -188,7 +188,7 @@ export function QRMenu() {
               onClick={handleGenerate}
               style={{
                 padding: '0.75rem 1.25rem', borderRadius: '0.875rem', border: 'none',
-                backgroundColor: '#FF5722', color: '#fff', fontWeight: 700,
+                backgroundColor: 'var(--accent)', color: '#fff', fontWeight: 700,
                 fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
                 ...S.coral,
               }}
@@ -204,7 +204,7 @@ export function QRMenu() {
             onClick={() => { setMesa(''); handleGenerate() }}
             style={{
               padding: '0.75rem', borderRadius: '0.875rem', border: 'none',
-              backgroundColor: '#D8DAE4', color: '#6B7280', fontWeight: 700,
+              backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', fontWeight: 700,
               fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
               ...S.outSm,
@@ -215,7 +215,7 @@ export function QRMenu() {
             onClick={handleDownload}
             style={{
               padding: '0.75rem', borderRadius: '0.875rem', border: 'none',
-              backgroundColor: '#D8DAE4', color: '#6B7280', fontWeight: 700,
+              backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', fontWeight: 700,
               fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
               ...S.outSm,
@@ -227,7 +227,7 @@ export function QRMenu() {
             disabled={printing}
             style={{
               padding: '0.75rem', borderRadius: '0.875rem', border: 'none',
-              backgroundColor: '#D8DAE4', color: '#6B7280', fontWeight: 700,
+              backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', fontWeight: 700,
               fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
               gridColumn: '1 / -1',
@@ -239,11 +239,11 @@ export function QRMenu() {
 
         {/* Link directo */}
         <div style={{
-          backgroundColor: '#CDD0DC', borderRadius: '0.875rem', padding: '0.75rem 1rem',
+          backgroundColor: 'var(--bg-surface)', borderRadius: '0.875rem', padding: '0.75rem 1rem',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem',
           ...S.in,
         }}>
-          <p style={{ fontSize: '0.7rem', color: '#2D3561', fontWeight: 600,
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-primary)', fontWeight: 600,
             margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             🔗 {BASE_URL}/menu
           </p>
@@ -251,8 +251,8 @@ export function QRMenu() {
             onClick={() => navigator.clipboard.writeText(`${BASE_URL}/menu`)}
             style={{
               padding: '0.25rem 0.625rem', borderRadius: '0.5rem',
-              border: 'none', backgroundColor: '#D8DAE4',
-              fontSize: '0.7rem', fontWeight: 700, color: '#FF5722',
+              border: 'none', backgroundColor: 'var(--bg)',
+              fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent)',
               cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit',
               ...S.outSm,
             }}>
@@ -277,7 +277,7 @@ export function QRMenu() {
               transition={{ type: 'spring', stiffness: 400, damping: 28 }}
               onClick={e => e.stopPropagation()}
               style={{
-                backgroundColor: '#D8DAE4', borderRadius: '1.5rem',
+                backgroundColor: 'var(--bg)', borderRadius: '1.5rem',
                 padding: '2rem', textAlign: 'center',
                 width: '100%', maxWidth: '340px',
                 boxShadow: '12px 12px 32px rgba(163,177,198,0.7),-12px -12px 32px rgba(255,255,255,0.8)',
@@ -286,11 +286,11 @@ export function QRMenu() {
               <div style={{ width: 56, height: 56, borderRadius: '1rem', overflow: 'hidden', margin: '0 auto 0.75rem', ...S.outSm }}>
                 <img src="/logo.jpg" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
-              <h3 style={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, color: '#2D3561', fontSize: '1.125rem', marginBottom: '0.25rem' }}>
+              <h3 style={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, color: 'var(--text-primary)', fontSize: '1.125rem', marginBottom: '0.25rem' }}>
                 Menú Digital
               </h3>
               {mesa && (
-                <p style={{ color: '#FF5722', fontWeight: 700, fontSize: '1rem', marginBottom: '0.75rem' }}>
+                <p style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem', marginBottom: '0.75rem' }}>
                   Mesa {mesa}
                 </p>
               )}
@@ -304,7 +304,7 @@ export function QRMenu() {
                 {qrUrl && <img src={qrUrl} alt="QR" style={{ width: 220, height: 220, imageRendering: 'pixelated', display: 'block' }} />}
               </div>
 
-              <p style={{ fontSize: '0.8125rem', color: '#6B7280', marginBottom: '1.25rem' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
                 📱 Escanea con la cámara para ver el menú y pedir desde tu mesa
               </p>
 
@@ -314,7 +314,7 @@ export function QRMenu() {
                   onClick={handleDownload}
                   style={{
                     flex: 1, padding: '0.75rem', borderRadius: '0.875rem', border: 'none',
-                    backgroundColor: '#D8DAE4', color: '#6B7280', fontWeight: 700,
+                    backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', fontWeight: 700,
                     fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
                     ...S.outSm,
                   }}>
@@ -324,7 +324,7 @@ export function QRMenu() {
                   onClick={handlePrint}
                   style={{
                     flex: 1, padding: '0.75rem', borderRadius: '0.875rem', border: 'none',
-                    backgroundColor: '#FF5722', color: '#fff', fontWeight: 700,
+                    backgroundColor: 'var(--accent)', color: '#fff', fontWeight: 700,
                     fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
                     ...S.coral,
                   }}>
@@ -334,7 +334,7 @@ export function QRMenu() {
               <button onClick={() => setShowModal(false)}
                 style={{
                   marginTop: '0.75rem', background: 'none', border: 'none',
-                  color: '#9CA3AF', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
+                  color: 'var(--text-muted)', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
                 }}>
                 Cerrar
               </button>

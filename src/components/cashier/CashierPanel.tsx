@@ -305,7 +305,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <button key={m}
                     onClick={() => { setPayMethod(m); if (m === 'transferencia') setAmountPaid(payingOrder.total.toFixed(2)) }}
                     className="py-3 rounded-2xl text-sm font-bold capitalize"
-                    style={payMethod === m ? { background: '#FF5722', color: 'white', ...S.coral } : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}
+                    style={payMethod === m ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
                   >
                     {m === 'efectivo' ? '💵 Efectivo' : '📲 Transferencia'}
                   </button>

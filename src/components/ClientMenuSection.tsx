@@ -255,16 +255,16 @@ export const ClientMenuSection = memo(() => {
           <button onClick={() => setCategory('all')}
             className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold"
             style={activeCategory === 'all'
-              ? { background: '#FF5722', color: 'white', ...S.coral }
-              : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}>
+              ? { background: 'var(--accent)', color: 'white', ...S.coral }
+              : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
             🍴 Todo
           </button>
           {availableCategories.map(cat => (
             <button key={cat} onClick={() => setCategory(cat)}
               className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold"
               style={activeCategory === cat
-                ? { background: '#FF5722', color: 'white', ...S.coral }
-                : { background: '#D8DAE4', color: '#6B7280', ...S.neoOutSm }}>
+                ? { background: 'var(--accent)', color: 'white', ...S.coral }
+                : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
               {CATEGORY_LABELS[cat]}
             </button>
           ))}

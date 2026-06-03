@@ -30,8 +30,8 @@ interface ActiveOrder {
 
 // Semi-transparent backgrounds work on both light & dark themes
 const ESTADO_CONFIG = {
-  libre:    { label: 'Libre',          bg: 'var(--bg)',                         text: '#10B981', dot: '#10B981' },
-  ocupada:  { label: 'Ocupada',        bg: 'rgba(245,158,11,0.15)',             text: '#D97706', dot: '#F59E0B' },
+  libre:    { label: 'Libre',          bg: 'var(--bg)',                         text: 'var(--green)', dot: 'var(--green)' },
+  ocupada:  { label: 'Ocupada',        bg: 'rgba(245,158,11,0.15)',             text: '#D97706', dot: 'var(--amber)' },
   reservada:{ label: 'Reservada',      bg: 'rgba(139,92,246,0.15)',             text: '#7C3AED', dot: '#8B5CF6' },
   cuenta:   { label: 'Pide la cuenta', bg: 'rgba(239,68,68,0.15)',              text: '#DC2626', dot: '#EF4444' },
 }
@@ -133,7 +133,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid var(--bg-surface)', borderTopColor: '#FF5722', animation: 'rs 0.8s linear infinite' }} />
+      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid var(--bg-surface)', borderTopColor: 'var(--accent)', animation: 'rs 0.8s linear infinite' }} />
       <style>{'@keyframes rs{to{transform:rotate(360deg)}}'}</style>
     </div>
   )
@@ -146,7 +146,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
           <h2 style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1.5rem', color: 'var(--text-primary)', margin: 0 }}>🗺️ Mesas</h2>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
             {mesas.filter(m => m.estado === 'ocupada').length} ocupadas · {mesas.filter(m => m.estado === 'libre').length} libres
-            {readyOrders.size > 0 && <span style={{ color: '#10B981', fontWeight: 700, marginLeft: 8 }}>· 🔔 {readyOrders.size} listas</span>}
+            {readyOrders.size > 0 && <span style={{ color: 'var(--green)', fontWeight: 700, marginLeft: 8 }}>· 🔔 {readyOrders.size} listas</span>}
           </p>
         </div>
         <button onClick={fetchData} style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer', ...S.neoOutSm }}>
@@ -162,7 +162,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
               style={{
                 flexShrink: 0, padding: '0.5rem 0.875rem', borderRadius: '9999px',
                 border: 'none', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
-                ...(zona === z ? { background: '#FF5722', color: '#fff', ...S.coral } : { backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm })
+                ...(zona === z ? { background: 'var(--accent)', color: '#fff', ...S.coral } : { backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm })
               }}>
               {z === 'all' ? 'Todas' : z}
             </button>
@@ -192,7 +192,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
               }}>
               {isReady && (
                 <div style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18,
-                  borderRadius: '50%', backgroundColor: '#10B981', color: '#fff',
+                  borderRadius: '50%', backgroundColor: 'var(--green)', color: '#fff',
                   fontSize: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
                   ✓
                 </div>
@@ -257,11 +257,11 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                   </div>
                   <div>
                     <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Total</p>
-                    <p style={{ fontWeight: 700, color: '#FF5722', fontSize: '1rem', margin: 0 }}>${selectedOrder.total.toLocaleString('es')}</p>
+                    <p style={{ fontWeight: 700, color: 'var(--accent)', fontSize: '1rem', margin: 0 }}>${selectedOrder.total.toLocaleString('es')}</p>
                   </div>
                   <div>
                     <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Pago</p>
-                    <p style={{ fontWeight: 700, fontSize: '0.875rem', margin: 0, color: selectedOrder.paid_at ? '#10B981' : '#D97706' }}>
+                    <p style={{ fontWeight: 700, fontSize: '0.875rem', margin: 0, color: selectedOrder.paid_at ? 'var(--green)' : '#D97706' }}>
                       {selectedOrder.paid_at ? '✅ Pagado' : '⏳ Pendiente'}
                     </p>
                   </div>
@@ -280,7 +280,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                     {selectedOrder.items.map((item, i) => (
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-surface)', borderRadius: '0.75rem', padding: '0.5rem 0.75rem', ...S.neoIn }}>
                         <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                          <span style={{ color: '#FF5722', fontWeight: 700, marginRight: 6 }}>{item.quantity}×</span>
+                          <span style={{ color: 'var(--accent)', fontWeight: 700, marginRight: 6 }}>{item.quantity}×</span>
                           {item.name}
                         </span>
                         {item.notes && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>📝 {item.notes}</span>}
@@ -293,7 +293,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                 {selectedOrder.status === 'ready' && (
                   <div style={{ backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: '1rem', padding: '0.75rem 1rem', border: '2px solid #10B981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span style={{ fontSize: '1.25rem' }}>🔔</span>
-                    <p style={{ fontWeight: 700, color: '#10B981', margin: 0 }}>¡Este pedido está listo para entregar!</p>
+                    <p style={{ fontWeight: 700, color: 'var(--green)', margin: 0 }}>¡Este pedido está listo para entregar!</p>
                   </div>
                 )}
               </div>
@@ -315,7 +315,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                         padding: '0.5rem', borderRadius: '0.75rem', border: 'none',
                         fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'inherit',
                         ...(selected.estado === e
-                          ? { background: '#FF5722', color: '#fff', ...S.coral }
+                          ? { background: 'var(--accent)', color: '#fff', ...S.coral }
                           : { backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm })
                       }}>
                       {ESTADO_CONFIG[e].label}
