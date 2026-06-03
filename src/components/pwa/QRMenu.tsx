@@ -124,7 +124,7 @@ export function QRMenu() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
           <div style={{
             width: 48, height: 48, borderRadius: '0.875rem', flexShrink: 0,
-            backgroundColor: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             ...S.coral,
           }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} style={{ width: 24, height: 24 }}>

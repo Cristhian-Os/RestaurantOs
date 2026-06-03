@@ -35,9 +35,9 @@
   --shadow-out-lg: 0 12px 32px rgba(70,50,35,0.14),0 24px 60px rgba(70,50,35,0.12);
   --shadow-in:     inset 0 1px 2px rgba(70,50,35,0.08);
   --shadow-in-sm:  inset 0 1px 2px rgba(70,50,35,0.06);
-  --shadow-coral:  0 6px 20px rgba(79,122,71,0.30);
-  --shadow-green:  0 6px 20px rgba(111,160,77,0.26);
-  --shadow-amber:  0 6px 20px rgba(201,122,69,0.28);
+  --shadow-coral:  0 2px 8px rgba(79,122,71,0.22);
+  --shadow-green:  0 2px 8px rgba(111,160,77,0.20);
+  --shadow-amber:  0 2px 8px rgba(201,122,69,0.20);
 
   /* Glass system — cálido */
   --glass-bg:         rgba(251, 246, 238, 0.72);
@@ -90,9 +90,9 @@
   --shadow-out-lg: 0 16px 40px rgba(0,0,0,0.52),0 28px 64px rgba(0,0,0,0.40);
   --shadow-in:     inset 0 1px 2px rgba(0,0,0,0.40);
   --shadow-in-sm:  inset 0 1px 2px rgba(0,0,0,0.30);
-  --shadow-coral:  0 6px 22px rgba(124,168,94,0.42);
-  --shadow-green:  0 6px 22px rgba(143,191,99,0.34);
-  --shadow-amber:  0 6px 22px rgba(217,140,85,0.38);
+  --shadow-coral:  0 2px 10px rgba(124,168,94,0.28);
+  --shadow-green:  0 2px 10px rgba(143,191,99,0.24);
+  --shadow-amber:  0 2px 10px rgba(217,140,85,0.26);
 
   /* Glass system — dark neutro */
   --glass-bg:         rgba(28, 30, 34, 0.85);
@@ -501,7 +501,7 @@
   --w-shadow-sm: 0 1px 2px oklch(0.255 0.04 55 / 0.06), 0 2px 6px oklch(0.255 0.04 55 / 0.08);
   --w-shadow-md: 0 4px 12px oklch(0.255 0.04 55 / 0.10), 0 8px 24px oklch(0.255 0.04 55 / 0.10);
   --w-shadow-lg: 0 12px 32px oklch(0.255 0.04 55 / 0.16), 0 24px 60px oklch(0.255 0.04 55 / 0.14);
-  --w-shadow-terra: 0 6px 20px oklch(0.515 0.105 148 / 0.30);
+  --w-shadow-terra: 0 2px 8px oklch(0.515 0.105 148 / 0.24);
 
   /* — Tipografía — */
   --w-display: 'Fraunces', Georgia, 'Times New Roman', serif;
@@ -630,7 +630,7 @@
   --w-shadow-sm: 0 1px 2px oklch(0 0 0 / 0.30), 0 2px 8px oklch(0 0 0 / 0.32);
   --w-shadow-md: 0 4px 14px oklch(0 0 0 / 0.42), 0 10px 28px oklch(0 0 0 / 0.36);
   --w-shadow-lg: 0 16px 40px oklch(0 0 0 / 0.52), 0 28px 64px oklch(0 0 0 / 0.40);
-  --w-shadow-terra: 0 6px 22px oklch(0.64 0.125 148 / 0.42);
+  --w-shadow-terra: 0 2px 10px oklch(0.64 0.125 148 / 0.30);
 }
 /* Liquid glass en oscuro — panel translúcido oscuro */
 [data-theme="dark"] .lg {
