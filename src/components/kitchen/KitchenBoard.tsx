@@ -1,25 +1,12 @@
 /**
- * KitchenBoard.tsx
- * ─────────────────────────────────────────────────────────────
- * Panel de cocina con:
- *  • Órdenes activas en tiempo real (columnas Kanban)
- *  • Botones para avanzar estado: pending → cooking → ready
- *  • Timer visual por orden (cuánto lleva esperando)
- *  • Sonido/vibración al llegar orden nueva (si el navegador lo permite)
+ * KitchenBoard.tsx — Warm Editorial
+ * Tablero de cocina (kanban) en tiempo real. Alto contraste para trabajo.
+ * Lógica intacta: timer por orden, realtime, avance de estado.
  */
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
-
-const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
-  amber:   { boxShadow: 'var(--shadow-amber)' },
-  green:   { boxShadow: 'var(--shadow-green)' },
-} as const
 
 interface OrderItem { id: string; name: string; price: number; quantity: number; notes?: string }
 interface Order {
@@ -31,6 +18,8 @@ interface Order {
   status:     'pending' | 'cooking' | 'ready' | 'completed'
   created_at: string
 }
+
+const tint = (c: string, pct: number) => `color-mix(in oklch, ${c} ${pct}%, var(--w-surface))`
 
 // ─── Timer hook ───────────────────────────────────────────────
 function useElapsed(createdAt: string): string {
@@ -48,92 +37,81 @@ function useElapsed(createdAt: string): string {
   return elapsed
 }
 
-// ─── Tarjeta de orden individual ─────────────────────────────
+// ─── Tarjeta de orden ─────────────────────────────────────────
 const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: string, next: Order['status']) => void }) => {
   const elapsed = useElapsed(order.created_at)
   const elapsedSecs = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 1000)
-  const isUrgent = elapsedSecs > 900 // >15min → urgente
+  const isUrgent = elapsedSecs > 900
 
   const nextStatus: Record<Order['status'], Order['status'] | null> = {
-    pending:   'cooking',
-    cooking:   'ready',
-    ready:     'completed',
-    completed: null,
+    pending: 'cooking', cooking: 'ready', ready: 'completed', completed: null,
   }
   const next = nextStatus[order.status]
-
-  const actionLabel: Record<Order['status'], string | null> = { pending: '🍳 Iniciar', cooking: '✅ Listo para recoger', ready: null, completed: null }
+  const actionLabel: Record<Order['status'], string | null> = {
+    pending: 'Iniciar preparación', cooking: 'Marcar listo', ready: null, completed: null,
+  }
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      className={`bg-[#D8DAE4] rounded-3xl p-4 flex flex-col gap-3 ${isUrgent ? 'ring-2 ring-red-400' : ''}`}
-      style={S.neoOut}
-    >
+      initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+      style={{
+        background: 'var(--w-surface)', borderRadius: '1.125rem', padding: '0.875rem',
+        display: 'flex', flexDirection: 'column', gap: '0.75rem',
+        border: isUrgent ? '2px solid var(--w-wine)' : '1px solid var(--w-line)',
+        boxShadow: 'var(--w-shadow-sm)',
+      }}>
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <p className="font-bold text-[#2D3561] text-base" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <p className="ed-display" style={{ fontWeight: 600, fontSize: '1.0625rem', margin: 0 }}>
             {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
           </p>
-          <p className="text-xs text-[#9CA3AF]">#{order.id.slice(0,8)}</p>
+          <p style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>#{order.id.slice(0,8)}</p>
         </div>
-        <div className="text-right">
-          <p className={`text-lg font-bold ${isUrgent ? 'text-red-500 animate-pulse' : 'text-[#9CA3AF]'}`}>
-            ⏱ {elapsed}
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1.0625rem', margin: 0,
+            color: isUrgent ? 'var(--w-wine)' : 'var(--w-ink-mut)' }} className={isUrgent ? 'animate-pulse' : ''}>
+            {elapsed}
           </p>
-          {isUrgent && <p className="text-[10px] text-red-500 font-bold">¡URGENTE!</p>}
+          {isUrgent && <p style={{ fontSize: '0.625rem', color: 'var(--w-wine)', fontWeight: 800, margin: 0 }}>¡URGENTE!</p>}
         </div>
       </div>
 
       {/* Items */}
-      <div className="flex flex-col gap-1.5 bg-[#CDD0DC] rounded-2xl p-3" style={S.neoIn}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)' }}>
         {order.items.map((item, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <span className="w-5 h-5 rounded-lg bg-[#FF5722] text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5" style={S.coral}>
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <span style={{ minWidth: 22, height: 22, padding: '0 6px', borderRadius: '0.5rem', background: 'var(--w-terra)', color: '#fff', fontSize: '0.6875rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, fontFamily: 'var(--w-sans)' }}>
               {item.quantity}
             </span>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-[#2D3561]">{item.name}</p>
-              {item.notes && <p className="text-[10px] text-amber-600 font-medium">⚠️ {item.notes}</p>}
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontFamily: 'var(--w-sans)' }}>{item.name}</p>
+              {item.notes && <p style={{ fontSize: '0.6875rem', color: 'var(--w-saffron)', fontWeight: 600, margin: 0 }}>{item.notes}</p>}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Nota general */}
       {order.notes && (
-        <p className="text-xs text-[#6B7280] bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
-          💬 {order.notes}
+        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-soft)', background: 'var(--w-bg)', borderRadius: '0.625rem', padding: '0.5rem 0.75rem', margin: 0, border: '1px solid var(--w-line)' }}>
+          {order.notes}
         </p>
       )}
 
-      {/* Botón de avance */}
-      {/* BUG FIX #3: eliminada prop inválida style2 (no existe en React).
-          Background fusionado en style junto con la sombra neomórfica. */}
       {next && actionLabel[order.status] && (
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          onClick={() => onAdvance(order.id, next)}
-          className="w-full py-3 rounded-2xl font-bold text-white text-sm"
-          style={{
-            background: order.status === 'pending' ? '#FF5722' : '#10B981',
-            ...(order.status === 'pending' ? S.coral : S.green),
-          }}
-        >
+        <motion.button whileTap={{ scale: 0.97 }} onClick={() => onAdvance(order.id, next)}
+          style={{ width: '100%', padding: '0.75rem', borderRadius: '0.875rem', fontWeight: 700, color: '#fff', fontSize: '0.875rem', border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)',
+            background: order.status === 'pending' ? 'var(--w-terra)' : 'var(--w-olive)',
+            boxShadow: order.status === 'pending' ? 'var(--w-shadow-terra)' : 'var(--w-shadow-sm)' }}>
           {actionLabel[order.status]}
         </motion.button>
       )}
       {order.status === 'ready' && (
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          onClick={() => onAdvance(order.id, 'completed')}
-          className="w-full py-2.5 rounded-2xl text-center text-sm font-bold text-white"
-          style={{ background: '#2D3561', boxShadow: '8px 8px 16px rgba(45,53,97,0.3),-4px -4px 12px rgba(255,255,255,0.5)' }}
-        >
-          🛎️ Entregar al mesero
+        <motion.button whileTap={{ scale: 0.97 }} onClick={() => onAdvance(order.id, 'completed')}
+          style={{ width: '100%', padding: '0.625rem', borderRadius: '0.875rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 700, color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', background: 'var(--w-ink)' }}>
+          Entregar al mesero
         </motion.button>
       )}
     </motion.div>
@@ -141,7 +119,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
 })
 OrderCard.displayName = 'OrderCard'
 
-// ─── Board principal ──────────────────────────────────────────
+// ─── Board ────────────────────────────────────────────────────
 export const KitchenBoard = memo(() => {
   const [orders,   setOrders]  = useState<Order[]>([])
   const [loading,  setLoading] = useState(true)
@@ -152,10 +130,6 @@ export const KitchenBoard = memo(() => {
     items: (() => { try { const p = typeof o.items === 'string' ? JSON.parse(o.items) : o.items; return Array.isArray(p) ? p : [] } catch { return [] } })()
   })
 
-  // BUG FIX #2: [orders] en el dep array causaba que fetchOrders se recreara
-  // cada vez que llegaba una orden nueva → useEffect re-suscribía Realtime en loop.
-  // Solución: usar setOrders con función de actualización para comparar contra el
-  // estado previo sin declarar orders como dependencia.
   const fetchOrders = useCallback(async () => {
     const { data, error } = await supabase
       .from('orders')
@@ -165,7 +139,6 @@ export const KitchenBoard = memo(() => {
     if (!error) {
       const parsed = (data || []).map(parseOrder)
       setOrders(prev => {
-        // Notificar si llegó orden nueva (usando el estado previo, no el closure)
         if (prevCount.current > 0 && parsed.filter(o => o.status === 'pending').length >
             prev.filter(o => o.status === 'pending').length) {
           if ('vibrate' in navigator) navigator.vibrate([200, 100, 200])
@@ -175,7 +148,7 @@ export const KitchenBoard = memo(() => {
       })
     }
     setLoading(false)
-  }, []) // sin [orders] — estable para siempre
+  }, [])
 
   useEffect(() => {
     fetchOrders()
@@ -192,12 +165,9 @@ export const KitchenBoard = memo(() => {
     if (error) { message.error('Error al actualizar: ' + error.message); return }
     fetchOrders()
     if (nextStatus === 'ready') {
-      message.success({
-        content: `🔔 Mesa ${order?.table_num ?? '?'} — ¡Pedido listo! Notificando al mesero...`,
-        duration: 5,
-      })
+      message.success({ content: `Mesa ${order?.table_num ?? '?'} — pedido listo. Notificando al mesero...`, duration: 5 })
     }
-    if (nextStatus === 'completed') message.success('✅ Pedido entregado')
+    if (nextStatus === 'completed') message.success('Pedido entregado')
   }, [fetchOrders])
 
   const pending = orders.filter(o => o.status === 'pending')
@@ -205,67 +175,60 @@ export const KitchenBoard = memo(() => {
   const ready   = orders.filter(o => o.status === 'ready')
 
   const COLS = [
-    { key: 'pending', label: '⏳ Pendientes', orders: pending, color: 'text-amber-600',  bg: 'bg-amber-50',   border: 'border-amber-200' },
-    { key: 'cooking', label: '🍳 En cocina',  orders: cooking, color: 'text-blue-600',   bg: 'bg-blue-50',    border: 'border-blue-200'  },
-    { key: 'ready',   label: '✅ Listas',      orders: ready,   color: 'text-emerald-600',bg: 'bg-emerald-50', border: 'border-emerald-200'},
+    { key: 'pending', label: 'Pendientes', orders: pending, color: 'var(--w-saffron)' },
+    { key: 'cooking', label: 'En cocina',  orders: cooking, color: 'var(--w-terra)'   },
+    { key: 'ready',   label: 'Listas',     orders: ready,   color: 'var(--w-olive)'   },
   ]
 
   if (loading) return (
-    <div className="flex justify-center items-center py-20">
-      <div className="w-8 h-8 rounded-full border-4 border-[#FF5722] border-t-transparent animate-spin" />
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '5rem 0' }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '4px solid var(--w-terra)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
     </div>
   )
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h2 className="text-2xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-            👨‍🍳 Tablero de Cocina
-          </h2>
-          <p className="text-sm text-[#9CA3AF]">{orders.length} órdenes activas · tiempo real</p>
+          <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', margin: 0 }}>Cocina</h2>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>{orders.length} órdenes activas · tiempo real</p>
         </div>
-        <button onClick={fetchOrders} className="p-2.5 rounded-2xl text-[#6B7280]" style={S.neoOutSm}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+        <button onClick={fetchOrders} className="w-press" style={{ padding: '0.625rem', borderRadius: '0.75rem', color: 'var(--w-ink-soft)', background: 'var(--w-surface)', border: '1px solid var(--w-line)', cursor: 'pointer', display: 'flex' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}>
             <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
         </button>
       </div>
 
-      {/* Columnas Kanban */}
       {orders.length === 0 ? (
-        <div className="bg-[#D8DAE4] rounded-3xl p-16 text-center" style={S.neoIn}>
-          <p className="text-5xl mb-3">🍽️</p>
-          <p className="font-bold text-[#2D3561] text-lg">Sin órdenes activas</p>
-          <p className="text-sm text-[#9CA3AF] mt-1">Las nuevas órdenes aparecerán aquí al instante</p>
+        <div style={{ background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '4rem 1rem', textAlign: 'center', border: '1px solid var(--w-line)' }}>
+          <p className="ed-display" style={{ fontSize: '1.5rem', color: 'var(--w-ink)', margin: 0 }}>Sin órdenes activas</p>
+          <p style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', marginTop: '0.5rem', fontFamily: 'var(--w-sans)' }}>Las nuevas órdenes aparecerán aquí al instante</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '1rem' }} className="kitchen-cols">
           {COLS.map(col => (
-            <div key={col.key} className={`${col.bg} rounded-3xl p-4 border-2 ${col.border} min-h-[200px]`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className={`font-bold text-sm ${col.color}`}>{col.label}</h3>
-                <span className={`${col.color} text-xs font-bold bg-white rounded-full w-6 h-6 flex items-center justify-center`} style={S.neoOutSm}>
+            <div key={col.key} style={{ background: tint(col.color, 10), borderRadius: '1.25rem', padding: '0.875rem', border: `1px solid ${tint(col.color, 35)}`, minHeight: 200 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
+                <h3 style={{ fontWeight: 700, fontSize: '0.8125rem', color: col.color, margin: 0, fontFamily: 'var(--w-sans)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{col.label}</h3>
+                <span style={{ color: '#fff', background: col.color, fontSize: '0.75rem', fontWeight: 700, borderRadius: '9999px', minWidth: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--w-sans)' }}>
                   {col.orders.length}
                 </span>
               </div>
-              <div className="flex flex-col gap-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <AnimatePresence>
-                  {col.orders.map(order => (
-                    <OrderCard key={order.id} order={order} onAdvance={handleAdvance} />
-                  ))}
+                  {col.orders.map(order => <OrderCard key={order.id} order={order} onAdvance={handleAdvance} />)}
                 </AnimatePresence>
                 {col.orders.length === 0 && (
-                  <div className="text-center py-8 text-sm text-gray-400">
-                    Sin órdenes
-                  </div>
+                  <div style={{ textAlign: 'center', padding: '2rem 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)', fontFamily: 'var(--w-sans)' }}>Sin órdenes</div>
                 )}
               </div>
             </div>
           ))}
         </div>
       )}
+      <style>{`@media (min-width: 768px) { .kitchen-cols { grid-template-columns: repeat(3, 1fr) !important; } }`}</style>
     </div>
   )
 })

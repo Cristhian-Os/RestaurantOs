@@ -13,44 +13,46 @@
 @tailwind utilities;
 
 /* ── Variables CSS — Tema Claro (default) ─────────────────── */
+/* MIGRADO a paleta cálida editorial. Los nombres legacy se conservan
+   para que los componentes aún no reescritos adopten el tema cálido. */
 :root, [data-theme="light"] {
-  --bg:              #D8DAE4;
-  --bg-surface:      #CDD0DC;
-  --bg-raised:       #E2E4EC;
-  --text-primary:    #2D3561;
-  --text-secondary:  #5A617A;
-  --text-muted:      #8B92AA;
-  --accent:          #FF5722;
-  --accent-dk:       #E64A19;
-  --accent-rgb:      255, 87, 34;
-  --green:           #10B981;
-  --amber:           #F59E0B;
-  --blue:            #3B82F6;
+  --bg:              #F4EEE4;  /* lino cálido (base/cards) */
+  --bg-surface:      #FBF6EE;  /* crema (inputs/insets)    */
+  --bg-raised:       #FDFAF4;  /* crema elevada            */
+  --text-primary:    #2B2018;  /* espresso                 */
+  --text-secondary:  #5C5147;
+  --text-muted:      #8C8073;
+  --accent:          #C2553D;  /* terracota                */
+  --accent-dk:       #A8472F;
+  --accent-rgb:      194, 85, 61;
+  --green:           #6E7538;  /* oliva                    */
+  --amber:           #D69A4A;  /* azafrán                  */
+  --blue:            #7C8AA0;  /* azul apagado cálido      */
 
-  /* Neumorphic shadows */
-  --shadow-out:    8px 8px 16px rgba(130,142,170,0.55), -8px -8px 16px rgba(255,255,255,0.55);
-  --shadow-out-sm: 4px 4px 10px rgba(130,142,170,0.5),  -4px -4px 10px rgba(255,255,255,0.5);
-  --shadow-out-lg: 12px 12px 24px rgba(130,142,170,0.6),-12px -12px 24px rgba(255,255,255,0.6);
-  --shadow-in:     inset 5px 5px 10px rgba(130,142,170,0.5),  inset -5px -5px 10px rgba(255,255,255,0.5);
-  --shadow-in-sm:  inset 3px 3px 6px rgba(130,142,170,0.45),  inset -3px -3px 6px rgba(255,255,255,0.45);
-  --shadow-coral:  8px 8px 16px rgba(255,87,34,0.32),  -4px -4px 12px rgba(255,255,255,0.45);
-  --shadow-green:  8px 8px 16px rgba(16,185,129,0.28), -4px -4px 12px rgba(255,255,255,0.45);
-  --shadow-amber:  8px 8px 16px rgba(245,158,11,0.30), -4px -4px 12px rgba(255,255,255,0.60);
+  /* Sombras cálidas suaves (sin neumorfismo) */
+  --shadow-out:    0 4px 12px rgba(70,50,35,0.10), 0 8px 24px rgba(70,50,35,0.08);
+  --shadow-out-sm: 0 1px 2px rgba(70,50,35,0.06),  0 2px 6px rgba(70,50,35,0.08);
+  --shadow-out-lg: 0 12px 32px rgba(70,50,35,0.14),0 24px 60px rgba(70,50,35,0.12);
+  --shadow-in:     inset 0 1px 2px rgba(70,50,35,0.08);
+  --shadow-in-sm:  inset 0 1px 2px rgba(70,50,35,0.06);
+  --shadow-coral:  0 6px 20px rgba(194,85,61,0.30);
+  --shadow-green:  0 6px 20px rgba(110,117,56,0.26);
+  --shadow-amber:  0 6px 20px rgba(214,154,74,0.28);
 
-  /* Glass system */
-  --glass-bg:         rgba(228, 230, 240, 0.78);
-  --glass-bg-inner:   rgba(208, 212, 228, 0.65);
-  --glass-border:     rgba(255, 255, 255, 0.82);
-  --glass-border-sub: rgba(255, 255, 255, 0.42);
-  --glass-shadow:     0 8px 32px rgba(130,142,170,0.18), 0 2px 8px rgba(130,142,170,0.08);
-  --glass-highlight:  rgba(255, 255, 255, 0.75);
+  /* Glass system — cálido */
+  --glass-bg:         rgba(251, 246, 238, 0.72);
+  --glass-bg-inner:   rgba(244, 238, 228, 0.65);
+  --glass-border:     rgba(255, 255, 255, 0.65);
+  --glass-border-sub: rgba(255, 255, 255, 0.40);
+  --glass-shadow:     0 8px 32px rgba(70,50,35,0.12), 0 2px 8px rgba(70,50,35,0.08);
+  --glass-highlight:  rgba(255, 255, 255, 0.70);
 
   /* Divider */
-  --divider: rgba(130, 142, 170, 0.18);
+  --divider: rgba(70, 50, 35, 0.12);
 
   /* Subtle bg gradient for depth */
-  --bg-gradient: radial-gradient(ellipse at 20% 5%,  rgba(255,255,255,0.45) 0%, transparent 50%),
-                 radial-gradient(ellipse at 80% 95%, rgba(255,87,34,0.04)    0%, transparent 50%);
+  --bg-gradient: radial-gradient(ellipse at 20% 5%,  rgba(255,255,255,0.40) 0%, transparent 50%),
+                 radial-gradient(ellipse at 80% 95%, rgba(194,85,61,0.05)   0%, transparent 50%);
 
   /* Theme-aware tag/badge colors */
   --tag-red-bg:       rgba(220, 38,  38,  0.10); --tag-red-text:       #B91C1C;
@@ -71,40 +73,40 @@
 
 /* ── Variables CSS — Tema Oscuro ──────────────────────────── */
 [data-theme="dark"] {
-  --bg:              #0F1118;
-  --bg-surface:      #161923;
-  --bg-raised:       #1C2130;
-  --text-primary:    #E2E5F4;
-  --text-secondary:  #A0A8C0;
-  --text-muted:      #6B7280;
-  --accent:          #FF6835;
-  --accent-dk:       #FF5722;
-  --accent-rgb:      255, 104, 53;
-  --green:           #10B981;
-  --amber:           #F59E0B;
-  --blue:            #60A5FA;
+  --bg:              #211C17;  /* marrón oscuro cálido */
+  --bg-surface:      #2A241E;
+  --bg-raised:       #2A241E;
+  --text-primary:    #ECE5DA;  /* crema */
+  --text-secondary:  #B9AE9F;
+  --text-muted:      #8A7E6F;
+  --accent:          #D97A5A;  /* terracota brillante */
+  --accent-dk:       #C2553D;
+  --accent-rgb:      217, 122, 90;
+  --green:           #8A9450;  /* oliva claro */
+  --amber:           #E0A458;  /* azafrán */
+  --blue:            #93A0B5;
 
-  --shadow-out:    8px 8px 20px rgba(0,0,0,0.65),    -3px -3px 8px rgba(40,55,100,0.18);
-  --shadow-out-sm: 4px 4px 12px rgba(0,0,0,0.60),    -2px -2px 6px rgba(40,55,100,0.15);
-  --shadow-out-lg: 12px 12px 28px rgba(0,0,0,0.70),  -4px -4px 12px rgba(40,55,100,0.20);
-  --shadow-in:     inset 4px 4px 12px rgba(0,0,0,0.60), inset -2px -2px 6px rgba(40,55,100,0.15);
-  --shadow-in-sm:  inset 3px 3px 8px rgba(0,0,0,0.55),  inset -2px -2px 4px rgba(40,55,100,0.10);
-  --shadow-coral:  8px 8px 20px rgba(255,104,53,0.40), -4px -4px 12px rgba(40,55,100,0.18);
-  --shadow-green:  8px 8px 20px rgba(16,185,129,0.32), -4px -4px 12px rgba(40,55,100,0.15);
-  --shadow-amber:  8px 8px 20px rgba(245,158,11,0.40), -4px -4px 12px rgba(40,55,100,0.18);
+  --shadow-out:    0 4px 14px rgba(0,0,0,0.42), 0 10px 28px rgba(0,0,0,0.36);
+  --shadow-out-sm: 0 1px 2px rgba(0,0,0,0.30),  0 2px 8px rgba(0,0,0,0.32);
+  --shadow-out-lg: 0 16px 40px rgba(0,0,0,0.52),0 28px 64px rgba(0,0,0,0.40);
+  --shadow-in:     inset 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-in-sm:  inset 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-coral:  0 6px 22px rgba(217,122,90,0.42);
+  --shadow-green:  0 6px 22px rgba(138,148,80,0.34);
+  --shadow-amber:  0 6px 22px rgba(224,164,88,0.38);
 
-  /* Glass system — dark: visible panels with subtle border */
-  --glass-bg:         rgba(22,  26,  40,  0.90);
-  --glass-bg-inner:   rgba(15,  17,  24,  0.80);
+  /* Glass system — dark cálido */
+  --glass-bg:         rgba(42, 36, 30, 0.85);
+  --glass-bg-inner:   rgba(33, 28, 23, 0.80);
   --glass-border:     rgba(255, 255, 255, 0.10);
   --glass-border-sub: rgba(255, 255, 255, 0.05);
-  --glass-shadow:     0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.35);
-  --glass-highlight:  rgba(255, 255, 255, 0.04);
+  --glass-shadow:     0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.35);
+  --glass-highlight:  rgba(255, 255, 255, 0.05);
 
-  --divider: rgba(255, 255, 255, 0.08);
+  --divider: rgba(255, 255, 255, 0.09);
 
-  --bg-gradient: radial-gradient(ellipse at 15% 10%, rgba(59,130,246,0.08)  0%, transparent 45%),
-                 radial-gradient(ellipse at 85% 90%, rgba(255,104,53,0.05)  0%, transparent 45%);
+  --bg-gradient: radial-gradient(ellipse at 15% 10%, rgba(217,122,90,0.06)  0%, transparent 45%),
+                 radial-gradient(ellipse at 85% 90%, rgba(224,164,88,0.05)  0%, transparent 45%);
 
   /* Tag colors — bright enough to read on dark backgrounds */
   --tag-red-bg:       rgba(248, 113, 113, 0.18); --tag-red-text:       #FCA5A5;
@@ -668,3 +670,20 @@
 /* Contenedor de ancho del menú (se ensancha en desktop) */
 .menu-wrap { max-width: 760px; }
 @media (min-width: 1024px) { .menu-wrap { max-width: 1100px; } }
+
+/* ── Remap de clases hex hardcodeadas → variables temáticas ──
+   Hace que componentes legacy (no reescritos) adopten la paleta
+   cálida en claro y oscuro sin editar cada archivo. */
+.bg-\[\#D8DAE4\] { background-color: var(--bg) !important; }
+.bg-\[\#CDD0DC\] { background-color: var(--bg-surface) !important; }
+.bg-\[\#E2E4EC\] { background-color: var(--bg-raised) !important; }
+.text-\[\#2D3561\] { color: var(--text-primary) !important; }
+.text-\[\#5A617A\] { color: var(--text-secondary) !important; }
+.text-\[\#6B7280\] { color: var(--text-secondary) !important; }
+.text-\[\#8B92AA\] { color: var(--text-muted) !important; }
+.text-\[\#9CA3AF\] { color: var(--text-muted) !important; }
+.bg-\[\#FF5722\] { background-color: var(--accent) !important; }
+.text-\[\#FF5722\] { color: var(--accent) !important; }
+.border-\[\#FF5722\] { border-color: var(--accent) !important; }
+.text-\[\#E64A19\] { color: var(--accent-dk) !important; }
+.hover\:text-\[\#FF5722\]:hover { color: var(--accent) !important; }
