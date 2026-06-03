@@ -7,10 +7,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import QRCode from 'qrcode'
 
 const S = {
-  out:   { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
-  outSm: { boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
-  in:    { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
-  coral: { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  out:   { boxShadow: 'var(--shadow-out)' },
+  outSm: { boxShadow: 'var(--shadow-out-sm)' },
+  in:    { boxShadow: 'var(--shadow-in)' },
+  coral: { boxShadow: 'var(--shadow-coral)' },
 } as const
 
 const BASE_URL = window.location.origin
@@ -282,7 +282,7 @@ export function QRMenu() {
                 backgroundColor: 'var(--bg)', borderRadius: '1.5rem',
                 padding: '2rem', textAlign: 'center',
                 width: '100%', maxWidth: '340px',
-                boxShadow: '12px 12px 32px rgba(163,177,198,0.7),-12px -12px 32px rgba(255,255,255,0.8)',
+                boxShadow: 'var(--shadow-out-lg)',
               }}>
               {/* Logo */}
               <div style={{ width: 56, height: 56, borderRadius: '1rem', overflow: 'hidden', margin: '0 auto 0.75rem', ...S.outSm }}>

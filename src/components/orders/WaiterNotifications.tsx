@@ -112,7 +112,7 @@ export const WaiterNotifications = memo(() => {
               padding: '0.875rem 1rem',
               display: 'flex', alignItems: 'center', gap: '0.875rem',
               border: '2.5px solid #10B981',
-              boxShadow: '0 8px 24px rgba(16,185,129,0.25), 8px 8px 16px rgba(130,142,170,0.45),-8px -8px 16px rgba(255,255,255,0.55)',
+              boxShadow: 'var(--shadow-green)',
             }}>
               {/* Ícono animado */}
               <motion.div
@@ -122,7 +122,7 @@ export const WaiterNotifications = memo(() => {
                   width: 42, height: 42, borderRadius: '0.875rem',
                   backgroundColor: 'var(--green)', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem',
-                  boxShadow: '4px 4px 8px rgba(16,185,129,0.3),-2px -2px 6px rgba(255,255,255,0.5)',
+                  boxShadow: 'var(--shadow-green)',
                 }}></motion.div>
 
               <div style={{ flex: 1, minWidth: 0 }}>

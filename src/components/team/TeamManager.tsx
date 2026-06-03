@@ -15,10 +15,10 @@ import { ScheduleCalendar } from './ScheduleCalendar'
 import message from 'antd/es/message'
 
 const S = {
-  out:   { boxShadow: 'var(--shadow-out,   8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55))' },
-  outSm: { boxShadow: 'var(--shadow-out-sm,4px 4px 10px rgba(130,142,170,0.5), -4px -4px 10px rgba(255,255,255,0.5))' },
-  in:    { boxShadow: 'var(--shadow-in,    inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5))' },
-  coral: { boxShadow: 'var(--shadow-coral, 8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45))' },
+  out:   { boxShadow: 'var(--shadow-out)' },
+  outSm: { boxShadow: 'var(--shadow-out)' },
+  in:    { boxShadow: 'var(--shadow-in)' },
+  coral: { boxShadow: 'var(--shadow-coral)' },
 } as const
 
 type Role = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
@@ -577,7 +577,7 @@ export const TeamManager = memo(() => {
                   Cancelar
                 </button>
                 <button onClick={() => handleHardDelete(confirmDeleteId)} disabled={hardDeleting}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: hardDeleting ? 'wait' : 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: '#EF4444', color: '#fff', boxShadow: '8px 8px 16px rgba(239,68,68,0.3),-4px -4px 12px rgba(255,255,255,0.4)', opacity: hardDeleting ? 0.7 : 1 }}>
+                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: hardDeleting ? 'wait' : 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: '#EF4444', color: '#fff', boxShadow: 'var(--shadow-out)', opacity: hardDeleting ? 0.7 : 1 }}>
                   {hardDeleting ? 'Eliminando...' : 'Sí, eliminar'}
                 </button>
               </div>

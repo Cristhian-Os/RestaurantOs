@@ -188,7 +188,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                 fontFamily: 'inherit', position: 'relative',
                 outline: isSelected ? `3px solid #FF5722` : 'none',
                 outlineOffset: 2,
-                ...(isReady ? { boxShadow: '0 0 0 3px #10B981, 8px 8px 16px rgba(130,142,170,0.4),-8px -8px 16px rgba(255,255,255,0.5)' } : S.neoOut),
+                ...(isReady ? { boxShadow: 'var(--shadow-out)' } : S.neoOut),
               }}>
               {isReady && (
                 <div style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18,

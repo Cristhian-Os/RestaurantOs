@@ -57,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
         padding: '1.5rem', fontFamily: 'Nunito, sans-serif', gap: '1rem',
       }}>
         <div style={{ width: 56, height: 56, borderRadius: '1rem', overflow: 'hidden',
-          boxShadow: '8px 8px 16px rgba(130,142,170,0.5),-8px -8px 16px rgba(255,255,255,0.5)' }}>
+          boxShadow: 'var(--shadow-out)' }}>
           <img src="/logo.jpg" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
 
@@ -93,7 +93,7 @@ export class ErrorBoundary extends Component<Props, State> {
             padding: '0.75rem 1.5rem', backgroundColor: 'var(--accent)', color: '#fff',
             fontWeight: 700, border: 'none', borderRadius: '1rem', cursor: 'pointer',
             fontSize: '0.875rem',
-            boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)',
+            boxShadow: 'var(--shadow-coral)',
           }}>
             Recargar
           </button>
@@ -109,7 +109,7 @@ export class ErrorBoundary extends Component<Props, State> {
             padding: '0.75rem 1.5rem', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)',
             fontWeight: 700, border: 'none', borderRadius: '1rem', cursor: 'pointer',
             fontSize: '0.875rem',
-            boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)',
+            boxShadow: 'var(--shadow-out-sm)',
           }}>
             Limpiar y recargar
           </button>

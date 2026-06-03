@@ -144,7 +144,7 @@ function EmojiPortal({ anchorRef, onSelect, onClose }: EmojiPortalProps) {
         maxHeight: 280,
         overflowY: 'auto',
         boxShadow: 'var(--shadow-out)',
-        border: '1px solid var(--glass-border, rgba(255,255,255,0.5))',
+        border: 'var(--shadow-out)',
       }}
     >
       {EMOJI_OPTIONS.map(e => (

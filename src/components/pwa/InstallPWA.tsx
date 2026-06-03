@@ -8,10 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import QRCode from 'qrcode'
 
 const S = {
-  out:   { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
-  outSm: { boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
-  in:    { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
-  coral: { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  out:   { boxShadow: 'var(--shadow-out)' },
+  outSm: { boxShadow: 'var(--shadow-out-sm)' },
+  in:    { boxShadow: 'var(--shadow-in)' },
+  coral: { boxShadow: 'var(--shadow-coral)' },
 } as const
 
 // Icono descarga
@@ -348,7 +348,7 @@ function InstallModal({
               borderRadius: '1.5rem',
               padding: '1.75rem',
               fontFamily: '"Nunito", sans-serif',
-              boxShadow: '12px 12px 32px rgba(163,177,198,0.7),-12px -12px 32px rgba(255,255,255,0.8)',
+              boxShadow: 'var(--shadow-out-lg)',
             }}
           >
             {/* Header */}
@@ -366,7 +366,7 @@ function InstallModal({
                 border: 'none', backgroundColor: 'var(--bg)',
                 color: 'var(--text-muted)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '3px 3px 6px rgba(163,177,198,0.5),-3px -3px 6px rgba(255,255,255,0.6)',
+                boxShadow: 'var(--shadow-out-sm)',
               }}>
                 <CloseIcon />
               </button>
@@ -378,7 +378,7 @@ function InstallModal({
               gap: '0.5rem', marginBottom: '1.25rem',
               backgroundColor: 'var(--bg-surface)',
               borderRadius: '0.875rem', padding: '0.25rem',
-              boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.5),inset -4px -4px 8px rgba(255,255,255,0.6)',
+              boxShadow: 'var(--shadow-in)',
             }}>
               {(['desktop', 'qr'] as const).map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
@@ -392,7 +392,7 @@ function InstallModal({
                   transition: 'all 0.2s ease',
                   ...(tab === t
                     ? { backgroundColor: 'var(--accent)', color: '#fff',
-                        boxShadow: '4px 4px 10px rgba(255,87,34,0.3),-2px -2px 6px rgba(255,255,255,0.5)' }
+                        boxShadow: 'var(--shadow-coral)' }
                     : { backgroundColor: 'transparent', color: 'var(--text-muted)' }
                   ),
                 }}>
@@ -412,7 +412,7 @@ function InstallModal({
                   {/* Instrucciones Chrome/Edge */}
                   <div style={{
                     backgroundColor: 'var(--bg-surface)', borderRadius: '1rem', padding: '1rem',
-                    boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.5),inset -4px -4px 8px rgba(255,255,255,0.6)',
+                    boxShadow: 'var(--shadow-in)',
                   }}>
                     <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
                       Chrome / Edge (recomendado)
@@ -449,7 +449,7 @@ function InstallModal({
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         gap: '0.5rem', fontFamily: 'inherit',
                         opacity: installing ? 0.7 : 1,
-                        boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)',
+                        boxShadow: 'var(--shadow-coral)',
                       }}
                     >
                       {installing ? (
@@ -491,7 +491,7 @@ function InstallModal({
                   <div style={{
                     backgroundColor: 'var(--bg-surface)', borderRadius: '1.25rem',
                     padding: '1.25rem', display: 'inline-flex',
-                    boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)',
+                    boxShadow: 'var(--shadow-in)',
                   }}>
                     {qrDataUrl
                       ? <img src={qrDataUrl} alt="QR RestaurantOS"
@@ -516,7 +516,7 @@ function InstallModal({
                     width: '100%', backgroundColor: 'var(--bg-surface)', borderRadius: '0.875rem',
                     padding: '0.75rem 1rem', display: 'flex', alignItems: 'center',
                     justifyContent: 'space-between', gap: '0.5rem',
-                    boxShadow: 'inset 3px 3px 6px rgba(130,142,170,0.45),inset -3px -3px 6px rgba(255,255,255,0.45)',
+                    boxShadow: 'var(--shadow-in-sm)',
                   }}>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600,
                       margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -529,7 +529,7 @@ function InstallModal({
                         backgroundColor: 'var(--bg)', border: 'none',
                         fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)',
                         cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit',
-                        boxShadow: '3px 3px 6px rgba(163,177,198,0.5),-3px -3px 6px rgba(255,255,255,0.6)',
+                        boxShadow: 'var(--shadow-out-sm)',
                       }}
                     >
                       Copiar
@@ -539,7 +539,7 @@ function InstallModal({
                   {/* Instrucciones iOS */}
                   <div style={{
                     width: '100%', backgroundColor: 'var(--bg-surface)', borderRadius: '1rem', padding: '0.875rem',
-                    boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.5),inset -4px -4px 8px rgba(255,255,255,0.6)',
+                    boxShadow: 'var(--shadow-in)',
                   }}>
                     <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>
                       iPhone / iPad (Safari)

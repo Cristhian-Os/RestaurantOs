@@ -3,8 +3,8 @@ import Spin from 'antd/es/spin'
 import Alert from 'antd/es/alert'
 
 const S = {
-  neoOut: { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
-  neoOutLg: { boxShadow: '12px 12px 24px rgba(163,177,198,0.7),-12px -12px 24px rgba(255,255,255,0.8)' },
+  neoOut: { boxShadow: 'var(--shadow-out)' },
+  neoOutLg: { boxShadow: 'var(--shadow-out-lg)' },
 }
 
 export default function BusinessAssistant() {

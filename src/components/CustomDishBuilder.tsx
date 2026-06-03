@@ -25,10 +25,10 @@ interface SelectedIngredient {
 }
 
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
-  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  neoOut:  { boxShadow: 'var(--shadow-out)' },
+  neoIn:   { boxShadow: 'var(--shadow-in)' },
+  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
+  coral:   { boxShadow: 'var(--shadow-coral)' },
 }
 
 interface CustomDishBuilderProps {

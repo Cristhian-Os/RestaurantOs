@@ -15,10 +15,10 @@ import type { Dish } from '../types'
 
 // ─── Constantes de estilo (fuera del componente para evitar recreación) ─
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
-  neoIn:   { boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.55),inset -4px -4px 8px rgba(255,255,255,0.65)' },
-  coral:   { boxShadow: '6px 6px 12px rgba(255,87,34,0.3),-3px -3px 8px rgba(255,255,255,0.5)' },
+  neoOut:  { boxShadow: 'var(--shadow-out)' },
+  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
+  neoIn:   { boxShadow: 'var(--shadow-in)' },
+  coral:   { boxShadow: 'var(--shadow-coral)' },
 } as const
 
 // ─── Configuración visual por categoría ──────────────────────

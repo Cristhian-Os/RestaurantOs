@@ -7,6 +7,8 @@
  */
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { supabase } from '../services/supabaseClient'
+import ConfigProvider from 'antd/es/config-provider'
+import antdTheme from 'antd/es/theme'
 
 export type Theme = 'light' | 'dark'
 
@@ -99,9 +101,27 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Theming de Ant Design — sigue el tema (claro/oscuro) y la paleta verde.
+  const isDark = theme === 'dark'
   return (
     <ThemeContext.Provider value={{ theme, setTheme, saving }}>
-      {children}
+      <ConfigProvider
+        theme={{
+          algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+          token: {
+            colorPrimary:     isDark ? '#84C25E' : '#4F7A47',
+            colorInfo:        isDark ? '#84C25E' : '#4F7A47',
+            colorBgBase:      isDark ? '#16171A' : '#F4EEE4',
+            colorBgContainer: isDark ? '#202227' : '#FBF6EE',
+            colorBgElevated:  isDark ? '#202227' : '#FDFAF4',
+            colorTextBase:    isDark ? '#F4F5F7' : '#2B2018',
+            borderRadius:     12,
+            fontFamily:       "'Inter', ui-sans-serif, system-ui, sans-serif",
+          },
+        }}
+      >
+        {children}
+      </ConfigProvider>
     </ThemeContext.Provider>
   )
 }

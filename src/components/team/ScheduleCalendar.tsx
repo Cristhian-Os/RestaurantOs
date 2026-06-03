@@ -63,9 +63,9 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
   const txtMut = 'var(--text-muted, #8B92AA)'
   const acc    = 'var(--accent, #FF5722)'
 
-  const shadowOut  = 'var(--shadow-out-sm, 4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5))'
-  const shadowIn   = 'var(--shadow-in-sm, inset 3px 3px 6px rgba(130,142,170,0.45),inset -3px -3px 6px rgba(255,255,255,0.45))'
-  const shadowOutLg= 'var(--shadow-out-lg, 12px 12px 24px rgba(130,142,170,0.6),-12px -12px 24px rgba(255,255,255,0.6))'
+  const shadowOut  = 'var(--shadow-out)'
+  const shadowIn   = 'var(--shadow-in-sm)'
+  const shadowOutLg= 'var(--shadow-out)'
 
   const fetchSchedules = useCallback(async () => {
     setLoading(true)

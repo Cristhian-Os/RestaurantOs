@@ -27,10 +27,10 @@ interface CustomDish {
 }
 
 const S = {
-  neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
-  neoIn:   { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
-  neoOutSm:{ boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
-  coral:   { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  neoOut:  { boxShadow: 'var(--shadow-out)' },
+  neoIn:   { boxShadow: 'var(--shadow-in)' },
+  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
+  coral:   { boxShadow: 'var(--shadow-coral)' },
 }
 
 export const ClientMenuSection = memo(() => {
@@ -170,7 +170,7 @@ export const ClientMenuSection = memo(() => {
     <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
       className="flex flex-col items-center justify-center py-20 gap-4">
       <div className="w-20 h-20 rounded-3xl bg-emerald-500 flex items-center justify-center text-4xl"
-        style={{ boxShadow: '8px 8px 16px rgba(16,185,129,0.3),-8px -8px 16px rgba(255,255,255,0.75)' }}>
+        style={{ boxShadow: 'var(--shadow-green)' }}>
        
       </div>
       <h2 className="text-xl font-bold text-[#2D3561]">¡Pedido enviado!</h2>

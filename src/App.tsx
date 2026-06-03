@@ -20,7 +20,7 @@ function SplashScreen() {
       <div style={{
         width: 80, height: 80, borderRadius: '1.25rem', overflow: 'hidden',
         flexShrink: 0, backgroundColor: 'var(--bg)',
-        boxShadow: '8px 8px 16px rgba(130,142,170,0.5),-8px -8px 16px rgba(255,255,255,0.5)',
+        boxShadow: 'var(--shadow-out)',
       }}>
         <img src="/logo.jpg" alt="RestaurantOS"
           style={{ width:'100%', height:'100%', objectFit:'contain', display:'block' }}

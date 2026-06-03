@@ -14,9 +14,9 @@ import Card from 'antd/es/card'
 import type { ListaCompras } from '../../types/inventory'
 
 const S = {
-  neoOut: { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
-  neoOutSm: { boxShadow: '4px 4px 10px rgba(130,142,170,0.5),-4px -4px 10px rgba(255,255,255,0.5)' },
-  coral: { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
+  neoOut: { boxShadow: 'var(--shadow-out)' },
+  neoOutSm: { boxShadow: 'var(--shadow-out-sm)' },
+  coral: { boxShadow: 'var(--shadow-coral)' },
 }
 
 export function ShoppingList() {
