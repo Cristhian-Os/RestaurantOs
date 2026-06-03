@@ -99,7 +99,7 @@ export const offlineService = {
       mutationFn: () => this.syncOfflineOrders(),
       onSuccess: (result: { synced: OfflineOrder[]; conflicts: OfflineOrder[] }) => {
         if (result.conflicts.length > 0) {
-          console.warn('⚠️ Conflictos detectados:', result.conflicts)
+          console.warn('Conflictos detectados:', result.conflicts)
         }
       },
     })
@@ -109,7 +109,7 @@ export const offlineService = {
 // Sincronizar cuando vuelve la conexión
 export function initializeOfflineSync() {
   window.addEventListener('online', async () => {
-    console.log('📡 Conexión restaurada. Sincronizando órdenes...')
+    console.log('Conexión restaurada. Sincronizando órdenes...')
     await offlineService.syncOfflineOrders()
   })
 }

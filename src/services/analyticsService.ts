@@ -136,16 +136,16 @@ export const analyticsService = {
 
         if (dish.units_sold >= avgPopularity && dish.profit_margin >= avgMargin) {
           bcg = 'star'
-          recommendation = '⭐ ESTRELLA: Alto volumen + Alta rentabilidad. Promocionar y mantener calidad.'
+          recommendation = 'ESTRELLA: Alto volumen + Alta rentabilidad. Promocionar y mantener calidad.'
         } else if (dish.units_sold < avgPopularity && dish.profit_margin >= avgMargin) {
           bcg = 'cash_cow'
-          recommendation = '🐄 VACA LECHERA: Bajo volumen + Alta rentabilidad. Perfecto para márgenes, mantener el precio.'
+          recommendation = 'VACA LECHERA: Bajo volumen + Alta rentabilidad. Perfecto para márgenes, mantener el precio.'
         } else if (dish.units_sold >= avgPopularity && dish.profit_margin < avgMargin) {
           bcg = 'question_mark'
-          recommendation = '❓ INTERROGANTE: Alto volumen + Baja rentabilidad. Subir precio o reducir costos.'
+          recommendation = 'INTERROGANTE: Alto volumen + Baja rentabilidad. Subir precio o reducir costos.'
         } else {
           bcg = 'dog'
-          recommendation = '🐕 PERRO: Bajo volumen + Baja rentabilidad. Considerar retirar del menú.'
+          recommendation = 'PERRO: Bajo volumen + Baja rentabilidad. Considerar retirar del menú.'
         }
 
         return { ...dish, bcg_quadrant: bcg, recommendation }
