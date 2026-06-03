@@ -41,6 +41,9 @@ interface CustomDishBuilderProps {
   onClose: () => void
 }
 
+// Formato de precio en pesos colombianos (sin decimales, con separador de miles)
+const fmtCOP = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
+
 export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBuilderProps) => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [selected, setSelected] = useState<Record<string, SelectedIngredient>>({})
@@ -96,22 +99,42 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
       }
     }
 
-    return { totalPrice: Math.max(total, 5), isValid: selectedIds.size > 0 && dishName.trim().length > 0 }
+    return { totalPrice: total, isValid: selectedIds.size > 0 && dishName.trim().length > 0 }
   }, [selected, ingredients, dishName])
+
+  // Incremento por defecto según la unidad de medida del ingrediente
+  const getStep = useCallback((unidad: string): number => {
+    switch (unidad) {
+      case 'kg':
+      case 'litro':   return 0.1   // 100 g / 100 ml
+      case 'gramo':
+      case 'ml':      return 50     // 50 g / 50 ml
+      case 'pieza':
+      case 'paquete': return 1
+      default:        return 1
+    }
+  }, [])
 
   // Agregar/actualizar ingrediente
   const handleAddIngredient = useCallback((ing: Ingredient) => {
-    setSelected(prev => ({
-      ...prev,
-      [ing.id]: {
-        id: ing.id,
-        nombre: ing.nombre,
-        cantidad: (prev[ing.id]?.cantidad ?? 0) + (ing.unidad_medida === 'pieza' ? 1 : 50), // 50g/ml por defecto
-        unidad_medida: ing.unidad_medida,
-        costo: ing.costo_unitario * (ing.unidad_medida === 'pieza' ? 1 : 50),
-      },
-    }))
-  }, [])
+    const step = getStep(ing.unidad_medida)
+    setSelected(prev => {
+      const nuevaCantidad = Math.min(
+        (prev[ing.id]?.cantidad ?? 0) + step,
+        ing.stock_actual, // nunca exceder el stock
+      )
+      return {
+        ...prev,
+        [ing.id]: {
+          id: ing.id,
+          nombre: ing.nombre,
+          cantidad: nuevaCantidad,
+          unidad_medida: ing.unidad_medida,
+          costo: ing.costo_unitario * nuevaCantidad,
+        },
+      }
+    })
+  }, [getStep])
 
   // Actualizar cantidad de ingrediente
   const handleUpdateQuantity = useCallback((id: string, cantidad: number) => {
@@ -244,7 +267,7 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
                   <div>
                     <p className="font-medium text-gray-900 text-sm">{ing.nombre}</p>
                     <p className="text-xs text-gray-600">
-                      ${ing.costo_unitario} / {ing.unidad_medida}
+                      {fmtCOP(ing.costo_unitario)} / {ing.unidad_medida}
                     </p>
                   </div>
                   <span className="text-xs bg-gray-200 px-2 py-1 rounded font-semibold">
@@ -278,11 +301,12 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
                         type="number"
                         value={ing.cantidad}
                         onChange={e => handleUpdateQuantity(id, parseFloat(e.target.value) || 0)}
-                        className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
-                        min="1"
+                        className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                        min="0"
+                        step={['kg', 'litro'].includes(ing.unidad_medida) ? '0.1' : '1'}
                       />
                       <span className="text-xs text-gray-600">{ing.unidad_medida}</span>
-                      <span className="ml-auto font-semibold text-orange-500">${ing.costo.toFixed(2)}</span>
+                      <span className="ml-auto font-semibold text-orange-500">{fmtCOP(ing.costo)}</span>
                     </div>
                   </div>
                   <button
@@ -302,7 +326,7 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
       <motion.div className="space-y-4 p-4 rounded-2xl" style={S.coral}>
         <div className="flex justify-between items-baseline">
           <span className="text-gray-700 font-semibold">Precio estimado:</span>
-          <span className="text-3xl font-bold text-orange-600">${totalPrice.toFixed(2)}</span>
+          <span className="text-3xl font-bold text-orange-600">{fmtCOP(totalPrice)}</span>
         </div>
 
         <div className="flex gap-3">

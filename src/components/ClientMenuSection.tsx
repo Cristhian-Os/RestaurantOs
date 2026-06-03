@@ -105,7 +105,7 @@ export const ClientMenuSection = memo(() => {
       image_url: undefined,
       available: true,
       availability_status: 'available',
-      tags: ['custom', ...Object.keys(customDish.ingredients)],
+      tags: ['custom'],
       sort_order: 999,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -128,62 +128,33 @@ export const ClientMenuSection = memo(() => {
     if (!tableNum.trim()) { alert('Ingresa tu número de mesa'); return }
     setSubmitting(true)
     try {
-      // Crear la orden primero (para obtener order_id)
-      let orderId: string
-      {
-        const { data, error } = await supabase.rpc('crear_orden_completa', {
-          p_mesa_id:     null,
-          p_items:       [], // Items vacíos por ahora
-          p_tipo_pedido: 'LOCAL',
-          p_table_num:   parseInt(tableNum),
-          p_notes:       null,
-        })
-        if (error) throw error
-        orderId = data.order_id
-      }
+      // Separar el carrito en items normales (del catálogo) y platos custom
+      const itemsNormales = cart
+        .filter(i => !i.dish.id.startsWith('custom-'))
+        .map(i => ({
+          id: i.dish.id, name: i.dish.name,
+          price: i.dish.price, quantity: i.quantity,
+        }))
 
-      // Procesar cada item (normal o custom)
-      const items: any[] = []
-      for (const cartItem of cart) {
-        if (cartItem.dish.id.startsWith('custom-')) {
-          // Es un plato custom: crear en BD y obtener ID real
-          const { createCustomDish } = await import('../services/customDishService')
-          const customDishId = await createCustomDish(orderId, {
-            name: cartItem.dish.name,
-            description: cartItem.dish.description,
-            price: cartItem.dish.price,
-            ingredients: cartItem.dish._customIngredients || {},
-          })
+      const platosCustom = cart
+        .filter(i => i.dish.id.startsWith('custom-'))
+        .map(i => ({
+          name: i.dish.name,
+          description: i.dish.description,
+          quantity: i.quantity,
+          ingredients: i.dish._customIngredients || {},
+        }))
 
-          items.push({
-            id: customDishId,
-            name: cartItem.dish.name,
-            price: cartItem.dish.price,
-            quantity: cartItem.quantity,
-          })
-        } else {
-          // Es un plato normal
-          items.push({
-            id: cartItem.dish.id,
-            name: cartItem.dish.name,
-            price: cartItem.dish.price,
-            quantity: cartItem.quantity,
-          })
-        }
-      }
-
-      // Insertar los detalles en la orden creada
-      for (const item of items) {
-        const { error } = await supabase
-          .from('detalles_pedidos')
-          .insert({
-            order_id: orderId,
-            dish_id: item.id,
-            cantidad: item.quantity,
-            precio_unit: item.price,
-          })
-        if (error) throw error
-      }
+      // Una sola RPC atómica: crea la orden, descuenta stock de ambos tipos
+      const { error } = await supabase.rpc('crear_orden_con_custom', {
+        p_items_normales: itemsNormales,
+        p_platos_custom:  platosCustom,
+        p_tipo_pedido:    'LOCAL',
+        p_table_num:      parseInt(tableNum),
+        p_mesa_id:        null,
+        p_notes:          null,
+      })
+      if (error) throw error
 
       setSubmitted(true)
       setCart([])

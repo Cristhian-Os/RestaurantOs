@@ -1,71 +1,57 @@
-# ⚙️ Configuración: Platos Personalizados (Custom Dishes)
+# 🍽️ Platos Personalizados (Custom Dishes)
 
-## 📋 Requisitos
+Funcionalidad que permite al cliente armar su propio plato eligiendo ingredientes
+del stock disponible. El precio se calcula con el costo real de los ingredientes
+y el stock se descuenta automáticamente al enviar el pedido.
 
-La funcionalidad de "platos custom" necesita las siguientes migraciones en Supabase.
+## ✅ Estado
 
-## 🚀 Pasos de instalación
+**La migración de base de datos YA está aplicada en Supabase** (proyecto `RestaurantOs`),
+aplicada vía MCP y verificada con pruebas end-to-end. No necesitas ejecutar SQL manualmente.
 
-### 1️⃣ Aplicar migración SQL en Supabase
+El archivo `schema_custom_dishes.sql` queda en el repo como **referencia/respaldo**
+por si se reconstruye la base de datos desde cero.
 
-1. Abre tu proyecto en **Supabase Dashboard**: https://supabase.com/
-2. Ve a **SQL Editor**
-3. Copia TODO el contenido del archivo `schema_custom_dishes.sql`
-4. Pégalo en el editor SQL
-5. Haz clic en **"Run"** para ejecutar la migración
+## 🧩 Qué se creó en la base de datos
 
-Esto creará:
-- Tabla `custom_dishes`
-- Tabla `custom_dish_ingredients`
-- Función `crear_plato_custom()`
-- Vista `ingredientes_disponibles`
-- Políticas RLS
+| Objeto | Tipo | Función |
+|--------|------|---------|
+| `custom_dishes` | tabla | Cabecera del plato personalizado (nombre, precio, orden) |
+| `custom_dish_ingredients` | tabla | Ingredientes elegidos para cada plato custom |
+| `ingredientes_disponibles` | vista | Ingredientes con `stock_actual > 0` para el selector |
+| `crear_plato_custom()` | función | Crea el plato custom y descuenta su stock (atómico) |
+| `crear_orden_con_custom()` | función | **RPC principal**: crea la orden con items normales + custom |
 
-### 2️⃣ Verificar que la migración funcionó
+Todas las tablas tienen **RLS habilitado** y la vista usa `security_invoker`.
 
-En SQL Editor, ejecuta:
+## 🖥️ Qué se agregó en el frontend
 
-```sql
-SELECT * FROM public.ingredientes_disponibles LIMIT 5;
-```
+- `src/components/CustomDishBuilder.tsx` — modal para armar el plato
+- `src/components/ClientMenuSection.tsx` — botón "🎨 Crear mi propio plato" + integración
+- `src/types/index.ts` — campos extra en `Dish`
 
-Deberías ver ingredientes con `stock_actual > 0`.
+## 🔄 Cómo funciona el flujo
 
-### 3️⃣ Instalar dependencias (si es necesario)
+1. El cliente abre el menú y pulsa **"🎨 Crear mi propio plato"**.
+2. Elige ingredientes disponibles y sus cantidades (la cantidad nunca excede el stock).
+3. El precio se calcula en vivo: `costo_unitario × cantidad` de cada ingrediente.
+4. El plato se agrega al carrito como un item más (marcado como custom).
+5. Al enviar el pedido, una sola RPC atómica (`crear_orden_con_custom`):
+   - crea la orden,
+   - descuenta el stock de los platos normales (vía receta) **y** de los custom (vía ingredientes elegidos),
+   - guarda el plato custom en `orders.items` para que la cocina lo vea.
 
-```bash
-npm install
-```
+## 💰 Notas
 
-### 4️⃣ Testear la app
+- Los precios están en **pesos colombianos** (sin decimales).
+- Para ingredientes en `kg`/`litro`, el incremento por defecto es 0.1 (100 g/ml);
+  para `pieza`/`paquete`, es 1 unidad.
+- Si no hay stock suficiente, la RPC aborta toda la orden (transacción atómica) y
+  el cliente ve el error.
 
-```bash
-npm run dev
-```
+## 🧪 Verificación realizada
 
-Luego:
-1. Abre el menú (ClientMenuSection)
-2. Verás el botón **"🎨 Crear mi propio plato"**
-3. Haz clic para abrir el builder
-4. Selecciona ingredientes
-5. Agrega al carrito
-6. Envía la orden
-
-## ⚠️ Notas importantes
-
-- Los platos custom usan los **mismos ingredientes que el stock**
-- El stock se descuenta **automáticamente** cuando se crea el plato custom
-- Los platos custom se guardañ en `custom_dishes` y `custom_dish_ingredients`
-- El desayuno se calcula basándose en el costo de los ingredientes
-
-## 🔧 Si algo falla
-
-Si ves un error en la app:
-
-1. **"Ingredientes no encontrados"** → Verifica que hay ingredientes en la BD con `stock_actual > 0`
-2. **"Error al crear plato"** → Revisa la consola del navegador (F12)
-3. **Stock no descuenta** → Verifica que el trigger en `detalles_pedidos` se activó
-
----
-
-**Status:** ✅ Listo para usar después de ejecutar la migración SQL
+- ✅ Vista `ingredientes_disponibles` devuelve ingredientes reales.
+- ✅ `crear_plato_custom`: descuenta stock exacto y calcula precio correcto.
+- ✅ `crear_orden_con_custom`: orden con item normal + custom → total y stock correctos.
+- ✅ `npm run build` compila sin errores.
