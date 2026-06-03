@@ -12,9 +12,21 @@ export interface Ingrediente {
 export interface Receta {
   id: string
   producto_id: string
-  ingrediente_id: string
+  ingrediente_id?: string | null   // opcional: las líneas manuales no enlazan al catálogo
+  nombre?: string | null           // nombre libre de la materia prima (flujo manual)
+  costo_unitario: number           // precio unitario manual
+  unidad?: string | null           // unidad libre (opcional)
   cantidad_necesaria: number
   created_at: string
+}
+
+// Línea de receta en edición (flujo manual, estado local del editor)
+export interface RecetaLine {
+  id?: string
+  nombre: string
+  costo_unitario: number
+  cantidad_necesaria: number
+  unidad?: string | null
 }
 
 export interface DetallesPedido {

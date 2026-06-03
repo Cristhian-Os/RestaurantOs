@@ -1,23 +1,18 @@
-import { useState, useEffect } from 'react'
+/**
+ * RecipeBuilder.tsx — Flujo 100% manual y dinámico
+ * El admin escribe libremente cada materia prima, su precio unitario y la
+ * cantidad. Subtotal por línea y costo total se recalculan en tiempo real.
+ * Sin selectores de ingredientes preestablecidos.
+ */
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../../services/supabaseClient'
 import { inventoryService } from '../../services/inventoryService'
 import message from 'antd/es/message'
 import Button from 'antd/es/button'
 import Modal from 'antd/es/modal'
-import Table from 'antd/es/table'
 import Select from 'antd/es/select'
-import InputNumber from 'antd/es/input-number'
-import Space from 'antd/es/space'
 import Spin from 'antd/es/spin'
-import Popconfirm from 'antd/es/popconfirm'
-import type { Ingrediente, Receta } from '../../types/inventory'
-
-const S = {
-  neoOut: { boxShadow: 'var(--shadow-out)' },
-  neoOutSm: { boxShadow: 'var(--shadow-out-sm)' },
-  coral: { boxShadow: 'var(--shadow-coral)' },
-}
+import type { RecetaLine } from '../../types/inventory'
 
 interface RecipeBuilderProps {
   productId?: string
@@ -25,19 +20,28 @@ interface RecipeBuilderProps {
   onClose?: () => void
 }
 
+const fmtCOP = (n: number) => '$' + Math.round(n || 0).toLocaleString('es-CO')
+
+const emptyLine = (): RecetaLine => ({ nombre: '', costo_unitario: 0, cantidad_necesaria: 1, unidad: '' })
+
+// — estilos de input cálidos (siguen el tema claro/oscuro) —
+const inputBase: React.CSSProperties = {
+  background: 'var(--bg-surface)', border: '1px solid var(--divider)', borderRadius: '0.625rem',
+  padding: '0.55rem 0.7rem', color: 'var(--text-primary)', fontFamily: 'var(--w-sans, inherit)',
+  fontSize: '0.875rem', outline: 'none', width: '100%', boxSizing: 'border-box',
+}
+
 export function RecipeBuilder({ productId: propProductId = '', productName: propProductName = 'Producto', onClose }: RecipeBuilderProps) {
   const queryClient = useQueryClient()
   const [isModalVisible, setIsModalVisible] = useState(false)
-  const [selectedIngrediente, setSelectedIngrediente] = useState<string | null>(null)
-  const [cantidad, setCantidad] = useState<number | null>(1)
-  const [totalRecipeCost, setTotalRecipeCost] = useState(0)
   const [selectedProductId, setSelectedProductId] = useState<string>(propProductId)
   const [selectedProductName, setSelectedProductName] = useState<string>(propProductName)
+  const [lines, setLines] = useState<RecetaLine[]>([emptyLine()])
 
   const productId = selectedProductId
   const productName = selectedProductName
 
-  // ─── Query: Productos disponibles (para seleccionar a cuál editar receta) ─
+  // ─── Productos disponibles (para elegir a cuál editar receta) ─
   const productosQuery = useQuery({
     queryKey: ['productos_disponibles'],
     queryFn: () => inventoryService.getProductosDisponibles(),
@@ -45,178 +49,93 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
     enabled: isModalVisible && !propProductId,
   })
 
-  // ─── Query: Ingredientes disponibles ──────────────────────
-  const ingredientesQuery = useQuery({
-    queryKey: ['ingredientes'],
-    queryFn: () => inventoryService.getIngredientes(),
-    staleTime: 1000 * 60 * 5,
-  })
-
-  // ─── Query: Receta actual ─────────────────────────────────
+  // ─── Receta actual del producto ───────────────────────────
   const recetaQuery = useQuery({
     queryKey: ['receta', productId],
     queryFn: () => inventoryService.getRecetasByProducto(productId),
     staleTime: 1000 * 60 * 5,
-    enabled: !!productId,
+    enabled: !!productId && isModalVisible,
   })
 
-  // ─── Mutation: Agregar ingrediente ────────────────────────
-  const addIngredienteMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedIngrediente || !cantidad) {
-        throw new Error('Selecciona ingrediente y cantidad')
-      }
-      return await inventoryService.addIngredienteToReceta({
-        producto_id: productId,
-        ingrediente_id: selectedIngrediente,
-        cantidad_necesaria: cantidad,
-      })
-    },
-    onSuccess: () => {
-      message.success('Ingrediente agregado a receta')
-      setSelectedIngrediente(null)
-      setCantidad(1)
-      queryClient.invalidateQueries({ queryKey: ['receta', productId] })
-    },
-    onError: (error) => {
-      message.error(
-        `Error: ${error instanceof Error ? error.message : 'Desconocido'}`
-      )
-    },
-  })
-
-  // ─── Mutation: Remover ingrediente ───────────────────────
-  const removeIngredienteMutation = useMutation({
-    mutationFn: (recetaId: string) =>
-      inventoryService.removeIngredienteFromReceta(recetaId),
-    onSuccess: () => {
-      message.success('Ingrediente removido')
-      queryClient.invalidateQueries({ queryKey: ['receta', productId] })
-    },
-    onError: (error) => {
-      message.error(
-        `Error: ${error instanceof Error ? error.message : 'Desconocido'}`
-      )
-    },
-  })
-
-  // ─── Calcular costo total de la receta ────────────────────
+  // Cargar las líneas guardadas al estado editable (o una fila vacía)
   useEffect(() => {
-    if (!recetaQuery.data || !ingredientesQuery.data) return
+    if (!productId) { setLines([emptyLine()]); return }
+    if (recetaQuery.data) {
+      const loaded: RecetaLine[] = recetaQuery.data.map(r => ({
+        id: r.id,
+        nombre: r.nombre ?? '',
+        costo_unitario: Number(r.costo_unitario) || 0,
+        cantidad_necesaria: Number(r.cantidad_necesaria) || 0,
+        unidad: r.unidad ?? '',
+      }))
+      setLines(loaded.length > 0 ? loaded : [emptyLine()])
+    }
+  }, [recetaQuery.data, productId])
 
-    const totalCost = recetaQuery.data.reduce((sum, receta) => {
-      const ing = ingredientesQuery.data.find((i) => i.id === receta.ingrediente_id)
-      return sum + (ing ? ing.costo_unitario * receta.cantidad_necesaria : 0)
-    }, 0)
+  // ─── Total en vivo ────────────────────────────────────────
+  const total = useMemo(
+    () => lines.reduce((s, l) => s + (Number(l.costo_unitario) || 0) * (Number(l.cantidad_necesaria) || 0), 0),
+    [lines],
+  )
+  const validLines = useMemo(
+    () => lines.filter(l => l.nombre.trim() !== '' && l.cantidad_necesaria > 0).length,
+    [lines],
+  )
 
-    setTotalRecipeCost(totalCost)
-  }, [recetaQuery.data, ingredientesQuery.data])
+  // ─── Handlers de filas ────────────────────────────────────
+  const updateLine = useCallback((idx: number, field: keyof RecetaLine, value: string | number) => {
+    setLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l))
+  }, [])
+  const addLine = useCallback(() => setLines(prev => [...prev, emptyLine()]), [])
+  const removeLine = useCallback((idx: number) => {
+    setLines(prev => {
+      const next = prev.filter((_, i) => i !== idx)
+      return next.length > 0 ? next : [emptyLine()]
+    })
+  }, [])
 
-  // ─── Columnas de tabla ────────────────────────────────────
-  const columns = [
-    {
-      title: 'Ingrediente',
-      dataIndex: 'ingrediente_id',
-      key: 'nombre',
-      render: (id: string) => {
-        const ing = ingredientesQuery.data?.find((i) => i.id === id)
-        return ing ? (
-          <span className="font-semibold text-neo-dark">{ing.nombre}</span>
-        ) : (
-          'Desconocido'
-        )
-      },
+  // ─── Guardar ──────────────────────────────────────────────
+  const saveMutation = useMutation({
+    mutationFn: () => inventoryService.saveRecetaLines(productId, lines),
+    onSuccess: () => {
+      message.success('Receta guardada')
+      queryClient.invalidateQueries({ queryKey: ['receta', productId] })
+      queryClient.invalidateQueries({ queryKey: ['productos_disponibles'] })
     },
-    {
-      title: 'Unidad',
-      dataIndex: 'ingrediente_id',
-      key: 'unidad',
-      render: (id: string) => {
-        const ing = ingredientesQuery.data?.find((i) => i.id === id)
-        return ing ? <span className="text-sm text-neo-mid">{ing.unidad_medida}</span> : '-'
-      },
-    },
-    {
-      title: 'Cantidad',
-      dataIndex: 'cantidad_necesaria',
-      key: 'cantidad',
-      render: (val: number) => (
-        <span className="font-bold text-neo-dark">{val.toFixed(3)}</span>
-      ),
-    },
-    {
-      title: 'Costo Unitario',
-      dataIndex: 'ingrediente_id',
-      key: 'costo_unit',
-      render: (id: string) => {
-        const ing = ingredientesQuery.data?.find((i) => i.id === id)
-        return ing ? (
-          <span className="text-neo-dark">${ing.costo_unitario.toFixed(2)}</span>
-        ) : (
-          '-'
-        )
-      },
-    },
-    {
-      title: 'Subtotal',
-      key: 'subtotal',
-      render: (_: any, record: Receta) => {
-        const ing = ingredientesQuery.data?.find((i) => i.id === record.ingrediente_id)
-        const subtotal = ing ? ing.costo_unitario * record.cantidad_necesaria : 0
-        return <span className="font-bold text-neo-coral">${subtotal.toFixed(2)}</span>
-      },
-    },
-    {
-      title: 'Acción',
-      key: 'action',
-      width: 100,
-      render: (_: any, record: Receta) => (
-        <Popconfirm
-          title="Eliminar ingrediente"
-          description="¿Seguro? Esta acción es irreversible."
-          onConfirm={() => removeIngredienteMutation.mutate(record.id)}
-          okText="Sí"
-          cancelText="No"
-        >
-          <Button
-            danger
-            size="small"
-            loading={removeIngredienteMutation.isPending}
-          >
-           
-          </Button>
-        </Popconfirm>
-      ),
-    },
-  ]
+    onError: (error) => message.error(`Error: ${error instanceof Error ? error.message : 'Desconocido'}`),
+  })
+
+  const resetAndClose = () => {
+    setIsModalVisible(false)
+    if (!propProductId) { setSelectedProductId(''); setSelectedProductName('Producto') }
+    onClose?.()
+  }
 
   // ─── Render ───────────────────────────────────────────────
   return (
     <>
-      <Button
-        type="primary"
-        onClick={() => setIsModalVisible(true)}
-        className="bg-neo-coral hover:bg-neo-coralDark"
-      >
+      <Button type="primary" onClick={() => setIsModalVisible(true)}>
         Editar Receta
       </Button>
 
       <Modal
-        title={`Receta: ${productName}`}
+        title={`Receta manual: ${productName}`}
         open={isModalVisible}
-        onCancel={() => {
-          setIsModalVisible(false)
-          onClose?.()
-        }}
-        width={900}
+        onCancel={resetAndClose}
+        width={720}
+        style={{ maxWidth: '94vw' }}
         footer={null}
+        destroyOnClose
       >
-        <Spin spinning={recetaQuery.isLoading}>
-          <div className="space-y-6">
-            {/* Sección: Seleccionar Producto (cuando no se pasa productId por props) */}
+        <Spin spinning={recetaQuery.isFetching && !!productId}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans, inherit)' }}>
+
+            {/* Seleccionar producto (si no viene por props) */}
             {!propProductId && (
-              <div className="p-4 bg-neo-surface rounded-3xl border-2 border-neo-light" style={S.neoOutSm}>
-                <h4 className="text-base font-bold text-neo-dark mb-3">Seleccionar Producto</h4>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.4rem' }}>
+                  Producto
+                </label>
                 <Select
                   placeholder="Elige el producto para editar su receta..."
                   value={selectedProductId || undefined}
@@ -224,14 +143,9 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                     const prod = productosQuery.data?.find(p => p.id === val)
                     setSelectedProductId(val)
                     setSelectedProductName(prod?.name ?? 'Producto')
-                    setSelectedIngrediente(null)
-                    setCantidad(1)
                   }}
                   loading={productosQuery.isLoading}
-                  options={(productosQuery.data || []).map(p => ({
-                    value: p.id,
-                    label: `${p.name}`,
-                  }))}
+                  options={(productosQuery.data || []).map(p => ({ value: p.id, label: p.name }))}
                   style={{ width: '100%' }}
                   showSearch
                   filterOption={(input, option) =>
@@ -241,90 +155,111 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
               </div>
             )}
 
-            {/* Sección: Agregar Ingrediente */}
-            <div
-              className="p-5 bg-neo-surface rounded-3xl border-2 border-neo-light"
-              style={S.neoOut}
-            >
-              <h4 className="text-lg font-bold text-neo-dark mb-4">Agregar Ingrediente</h4>
-
-              <Space.Compact style={{ width: '100%' }}>
-                <div style={{ flex: 2 }}>
-                  <Select
-                    placeholder="Selecciona ingrediente..."
-                    value={selectedIngrediente}
-                    onChange={setSelectedIngrediente}
-                    options={(ingredientesQuery.data || []).map((ing) => ({
-                      value: ing.id,
-                      label: `${ing.nombre} (${ing.unidad_medida}) • $${ing.costo_unitario.toFixed(2)}/u`,
-                    }))}
-                    status={!selectedIngrediente && selectedIngrediente !== null ? 'error' : ''}
-                  />
+            {!productId ? (
+              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+                Selecciona un producto para escribir su receta.
+              </div>
+            ) : (
+              <>
+                {/* Encabezado + total en vivo */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h4 style={{ margin: 0, fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem' }}>
+                    Materias primas
+                  </h4>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '1px solid var(--divider)', padding: '0.35rem 0.75rem', borderRadius: '0.625rem' }}>
+                    Costo total:{' '}
+                    <span style={{ color: 'var(--accent)', fontSize: '1.0625rem' }}>{fmtCOP(total)}</span>
+                  </span>
                 </div>
 
-                <div style={{ flex: 1 }}>
-                  <InputNumber
-                    placeholder="Cantidad"
-                    value={cantidad}
-                    onChange={(v) => setCantidad(typeof v === "number" ? v : Number(v) || 1)}
-                    min={0.01}
-                    step={0.1}
-                    precision={3}
-                    style={{ width: '100%' }}
-                  />
+                {/* Cabecera de columnas (desktop) */}
+                <div className="recipe-head" style={{ display: 'none', gap: '0.5rem', padding: '0 0.25rem', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <span style={{ flex: 3 }}>Materia prima</span>
+                  <span style={{ flex: 1.4, textAlign: 'right' }}>Precio unit.</span>
+                  <span style={{ flex: 1.2, textAlign: 'right' }}>Cantidad</span>
+                  <span style={{ flex: 1.4, textAlign: 'right' }}>Subtotal</span>
+                  <span style={{ width: 32 }} />
                 </div>
 
-                <Button
-                  type="primary"
-                  onClick={() => addIngredienteMutation.mutate()}
-                  loading={addIngredienteMutation.isPending}
-                  disabled={!productId}
-                  className="bg-neo-coral hover:bg-neo-coralDark"
-                  title={!productId ? 'Selecciona un producto primero' : ''}
+                {/* Filas editables */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                  {lines.map((line, idx) => {
+                    const subtotal = (Number(line.costo_unitario) || 0) * (Number(line.cantidad_necesaria) || 0)
+                    return (
+                      <div key={idx} className="recipe-row" style={{
+                        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem',
+                        background: 'var(--bg)', border: '1px solid var(--divider)', borderRadius: '0.875rem', padding: '0.625rem',
+                      }}>
+                        {/* Nombre libre */}
+                        <input
+                          type="text"
+                          value={line.nombre}
+                          onChange={e => updateLine(idx, 'nombre', e.target.value)}
+                          placeholder="Ej: Harina, Leche, Fresa..."
+                          style={{ ...inputBase, flex: 3, minWidth: 140 }}
+                        />
+                        {/* Precio unitario */}
+                        <input
+                          type="number" min={0} step={50} inputMode="decimal"
+                          value={line.costo_unitario === 0 ? '' : line.costo_unitario}
+                          onChange={e => updateLine(idx, 'costo_unitario', parseFloat(e.target.value) || 0)}
+                          placeholder="Precio"
+                          style={{ ...inputBase, flex: 1.4, minWidth: 90, textAlign: 'right' }}
+                        />
+                        {/* Cantidad */}
+                        <input
+                          type="number" min={0} step={0.1} inputMode="decimal"
+                          value={line.cantidad_necesaria === 0 ? '' : line.cantidad_necesaria}
+                          onChange={e => updateLine(idx, 'cantidad_necesaria', parseFloat(e.target.value) || 0)}
+                          placeholder="Cant."
+                          style={{ ...inputBase, flex: 1.2, minWidth: 76, textAlign: 'right' }}
+                        />
+                        {/* Subtotal (vivo) */}
+                        <span style={{ flex: 1.4, minWidth: 80, textAlign: 'right', fontWeight: 700, color: 'var(--accent)', fontSize: '0.9375rem' }}>
+                          {fmtCOP(subtotal)}
+                        </span>
+                        {/* Quitar */}
+                        <button
+                          onClick={() => removeLine(idx)}
+                          title="Quitar"
+                          style={{ width: 32, height: 32, flexShrink: 0, borderRadius: '0.5rem', border: '1px solid var(--divider)', background: 'transparent', color: 'var(--w-wine, #b34)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Agregar fila */}
+                <button
+                  onClick={addLine}
+                  style={{ alignSelf: 'flex-start', padding: '0.55rem 1rem', borderRadius: '0.75rem', border: '1px dashed var(--accent)', background: 'transparent', color: 'var(--accent)', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
-                  Agregar
-                </Button>
-              </Space.Compact>
-            </div>
+                  + Agregar materia prima
+                </button>
 
-            {/* Tabla: Ingredientes Actuales */}
-            <div>
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="text-lg font-bold text-neo-dark">Ingredientes</h4>
-                <span className="text-sm bg-neo-base px-3 py-1 rounded-xl text-neo-dark font-bold">
-                  Costo Total: <span className="text-neo-coral">${totalRecipeCost.toFixed(2)}</span>
-                </span>
-              </div>
-
-              <div
-                className="rounded-3xl overflow-hidden"
-                style={S.neoOutSm}
-              >
-                <Table
-                  columns={columns}
-                  dataSource={productId ? (recetaQuery.data || []) : []}
-                  rowKey="id"
-                  pagination={{ pageSize: 8, simple: true }}
-                  loading={recetaQuery.isLoading}
-                  locale={{
-                    emptyText: !productId
-                      ? 'Selecciona un producto para ver su receta.'
-                      : 'Sin ingredientes. Agrega algunos arriba.',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Resumen */}
-            {(recetaQuery.data?.length || 0) > 0 && (
-              <div className="p-4 bg-neo-light rounded-2xl text-sm text-neo-mid">
-                Esta receta usa <strong>{recetaQuery.data?.length || 0}</strong> ingredientes
-                y tiene un costo total de <strong className="text-neo-coral">${totalRecipeCost.toFixed(2)}</strong>
-              </div>
+                {/* Resumen + guardar */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--divider)' }}>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                    {validLines} materia(s) prima(s) · total <strong style={{ color: 'var(--accent)' }}>{fmtCOP(total)}</strong>
+                  </p>
+                  <Button
+                    type="primary"
+                    onClick={() => saveMutation.mutate()}
+                    loading={saveMutation.isPending}
+                    disabled={validLines === 0}
+                  >
+                    Guardar receta
+                  </Button>
+                </div>
+              </>
             )}
           </div>
         </Spin>
       </Modal>
+
+      <style>{`@media (min-width: 640px) { .recipe-head { display: flex !important; } .recipe-row { flex-wrap: nowrap !important; } }`}</style>
     </>
   )
 }
