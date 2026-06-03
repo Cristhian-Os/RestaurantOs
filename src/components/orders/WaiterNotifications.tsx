@@ -123,7 +123,7 @@ export const WaiterNotifications = memo(() => {
                   backgroundColor: 'var(--green)', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem',
                   boxShadow: '4px 4px 8px rgba(16,185,129,0.3),-2px -2px 6px rgba(255,255,255,0.5)',
-                }}>🔔</motion.div>
+                }}></motion.div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontSize: '0.9375rem', fontFamily: 'DM Sans, sans-serif' }}>

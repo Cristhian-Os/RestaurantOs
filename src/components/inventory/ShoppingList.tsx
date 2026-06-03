@@ -44,7 +44,7 @@ export function ShoppingList() {
   // Descargar como CSV
   const handleDownloadCSV = () => {
     if (!filteredData.length) {
-      message.warning('⚠️ No hay datos para descargar')
+      message.warning('No hay datos para descargar')
       return
     }
 
@@ -83,13 +83,13 @@ export function ShoppingList() {
     link.click()
     document.body.removeChild(link)
 
-    message.success('✅ Lista descargada como CSV')
+    message.success('Lista descargada como CSV')
   }
 
   // Descargar como JSON
   const handleDownloadJSON = () => {
     if (!filteredData.length) {
-      message.warning('⚠️ No hay datos para descargar')
+      message.warning('No hay datos para descargar')
       return
     }
 
@@ -117,7 +117,7 @@ export function ShoppingList() {
     link.click()
     document.body.removeChild(link)
 
-    message.success('✅ Lista descargada como JSON')
+    message.success('Lista descargada como JSON')
   }
 
   // Columnas de tabla
@@ -190,7 +190,7 @@ export function ShoppingList() {
       width: 100,
       render: (val: 'URGENTE' | 'ALTO' | 'NORMAL') => {
         const colors = { URGENTE: 'red', ALTO: 'orange', NORMAL: 'green' }
-        const icons = { URGENTE: '🔴', ALTO: '🟠', NORMAL: '🟢' }
+        const icons = { URGENTE: '', ALTO: '', NORMAL: '' }
         return (
           <Tag color={colors[val]} className="cursor-pointer">
             {icons[val]} {val}
@@ -198,9 +198,9 @@ export function ShoppingList() {
         )
       },
       filters: [
-        { text: '🔴 Urgente', value: 'URGENTE' },
-        { text: '🟠 Alto', value: 'ALTO' },
-        { text: '🟢 Normal', value: 'NORMAL' },
+        { text: 'Urgente', value: 'URGENTE' },
+        { text: 'Alto', value: 'ALTO' },
+        { text: 'Normal', value: 'NORMAL' },
       ],
       onFilter: (value: any, record: ListaCompras) => record.prioridad === value,
     },
@@ -212,19 +212,19 @@ export function ShoppingList() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-neo-dark mb-1">📦 Lista de Compras Automática</h2>
+          <h2 className="text-3xl font-bold text-neo-dark mb-1">Lista de Compras Automática</h2>
           <p className="text-sm text-neo-mid">Generada automáticamente según stock de ingredientes</p>
         </div>
 
         <div className="flex gap-2">
           <Button onClick={handleDownloadCSV} className="bg-neo-base text-neo-dark">
-            📥 CSV
+            CSV
           </Button>
           <Button onClick={handleDownloadJSON} className="bg-neo-base text-neo-dark">
-            📋 JSON
+            JSON
           </Button>
           <Button type="primary" onClick={() => listaQuery.refetch()} className="bg-neo-coral hover:bg-neo-coralDark">
-            🔄 Refrescar
+            Refrescar
           </Button>
         </div>
       </div>
@@ -236,7 +236,7 @@ export function ShoppingList() {
             <Statistic
               title="Items a Comprar"
               value={totalItems}
-              prefix="📦"
+              prefix=""
               valueStyle={{ color: 'var(--text-primary)' }}
             />
           </Card>
@@ -246,7 +246,7 @@ export function ShoppingList() {
             <Statistic
               title="Costo Total"
               value={totalCost}
-              prefix="💰 $"
+              prefix="$"
               precision={2}
               valueStyle={{ color: 'var(--accent)' }}
             />
@@ -257,7 +257,7 @@ export function ShoppingList() {
             <Statistic
               title="Urgentes"
               value={urgenteCount}
-              prefix="🔴"
+              prefix=""
               valueStyle={{ color: '#dc2626' }}
             />
           </Card>
@@ -267,7 +267,7 @@ export function ShoppingList() {
             <Statistic
               title="Prioritarios"
               value={altoCount}
-              prefix="🟠"
+              prefix=""
               valueStyle={{ color: '#ea580c' }}
             />
           </Card>
@@ -287,10 +287,10 @@ export function ShoppingList() {
                 : 'bg-neo-base text-neo-dark'
             }
           >
-            {priority === 'TODOS' && '📋 Todos'}
-            {priority === 'URGENTE' && '🔴 Urgentes'}
-            {priority === 'ALTO' && '🟠 Altos'}
-            {priority === 'NORMAL' && '🟢 Normales'}
+            {priority === 'TODOS' && 'Todos'}
+            {priority === 'URGENTE' && 'Urgentes'}
+            {priority === 'ALTO' && 'Altos'}
+            {priority === 'NORMAL' && 'Normales'}
             <span className="ml-1 font-bold">
               ({(listaQuery.data || []).filter((i) =>
                 priority === 'TODOS' ? true : i.prioridad === priority
@@ -310,7 +310,7 @@ export function ShoppingList() {
             pagination={{ pageSize: 15, showSizeChanger: true }}
             loading={listaQuery.isLoading}
             locale={{
-              emptyText: <Empty description="📭 Sin items para comprar" />,
+              emptyText: <Empty description="Sin items para comprar" />,
             }}
             scroll={{ x: true }}
           />
@@ -323,7 +323,7 @@ export function ShoppingList() {
           className="p-4 rounded-2xl bg-neo-light text-sm text-neo-mid"
           style={S.neoOutSm}
         >
-          ℹ️ <strong>Total:</strong> {totalItems} ingredientes •{' '}
+          <strong>Total:</strong> {totalItems} ingredientes •{' '}
           <strong>Inversión:</strong> ${totalCost.toFixed(2)} • Fecha:{' '}
           {new Date().toLocaleDateString('es-ES')}
         </div>

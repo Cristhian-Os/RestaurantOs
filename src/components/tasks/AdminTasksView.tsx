@@ -217,7 +217,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
           >
             <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
               <h2 className="font-bold text-[#2D3561] mb-5" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-                📋 Nueva tarea
+                Nueva tarea
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 {/* Título */}
@@ -269,7 +269,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                   </select>
                   {!loadingEmployees && employees.length === 0 && (
                     <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                      ⚠️ No se encontraron empleados.{' '}
+                      No se encontraron empleados.{' '}
                       <button
                         type="button"
                         onClick={() => loadEmployees(true)}
@@ -289,10 +289,10 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                     className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none"
                     style={S.neoIn}
                   >
-                    <option value="low">🟢 Baja</option>
-                    <option value="medium">🔵 Media</option>
-                    <option value="high">🟠 Alta</option>
-                    <option value="urgent">🔴 Urgente</option>
+                    <option value="low">Baja</option>
+                    <option value="medium">Media</option>
+                    <option value="high">Alta</option>
+                    <option value="urgent">Urgente</option>
                   </select>
                 </div>
                 {/* Fecha límite */}
@@ -310,7 +310,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
 
               {formError && (
                 <p className="text-xs text-red-500 font-medium mb-4 flex items-center gap-1.5">
-                  <span>⚠️</span> {formError}
+                  <span></span> {formError}
                 </p>
               )}
 
@@ -329,7 +329,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                   className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-[#FF5722] ${creating ? 'opacity-70' : ''}`}
                   style={S.coral}
                 >
-                  {creating ? 'Creando...' : '✅ Crear tarea'}
+                  {creating ? 'Creando...' : 'Crear tarea'}
                 </motion.button>
               </div>
             </div>
@@ -362,7 +362,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
-          <p className="text-4xl mb-3">📋</p>
+          <p className="text-4xl mb-3"></p>
           <p className="font-bold text-[#2D3561]">Sin tareas</p>
           <p className="text-sm text-[#9CA3AF] mt-1">Crea la primera tarea para tu equipo</p>
         </div>
@@ -435,10 +435,10 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
 
           {/* Asignado a */}
           <p className="text-xs text-[#9CA3AF] mb-2">
-            👤 {(task as { assignee_name?: string }).assignee_name ?? 'Sin asignar'} · {pri.label}
+            {(task as { assignee_name?: string }).assignee_name ?? 'Sin asignar'} · {pri.label}
             {task.due_date && (
               <span className="ml-2">
-                · 📅 {new Date(task.due_date).toLocaleDateString('es', { day: '2-digit', month: 'short' })}
+                · {new Date(task.due_date).toLocaleDateString('es', { day: '2-digit', month: 'short' })}
               </span>
             )}
           </p>
@@ -456,7 +456,7 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
                 className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-[#D8DAE4] px-3 py-1.5 rounded-xl"
                 style={S.neoOutSm}
               >
-                📸 Ver evidencia ({evidenceCount})
+                Ver evidencia ({evidenceCount})
               </button>
             )}
 
@@ -466,7 +466,7 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
                 className="text-xs font-bold text-red-500 bg-[#D8DAE4] px-3 py-1.5 rounded-xl"
                 style={S.neoOutSm}
               >
-                ❌ Rechazar
+                Rechazar
               </button>
             )}
 
@@ -475,7 +475,7 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
               className="text-xs font-bold text-[#9CA3AF] bg-[#D8DAE4] px-3 py-1.5 rounded-xl ml-auto"
               style={S.neoOutSm}
             >
-              🗑️
+             
             </button>
           </div>
         </div>
@@ -520,7 +520,7 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
               {task.title}
             </h3>
             <p className="text-xs text-[#9CA3AF] mt-0.5">
-              👤 {(task as { assignee_name?: string }).assignee_name ?? '—'}
+              {(task as { assignee_name?: string }).assignee_name ?? '—'}
             </p>
           </div>
           <button onClick={onClose} className="text-[#9CA3AF] p-1">
@@ -550,7 +550,7 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
                 </div>
                 {/* Metadata */}
                 <div className="flex justify-between text-xs text-[#9CA3AF]">
-                  <span>📅 {new Date(ev.submitted_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                  <span>{new Date(ev.submitted_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</span>
                   <a
                     href={ev.photo_url}
                     download
@@ -558,12 +558,12 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    ⬇️ Descargar
+                    ⬇Descargar
                   </a>
                 </div>
                 {ev.notes && (
                   <p className="text-xs text-[#6B7280] bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
-                    💬 {ev.notes}
+                    {ev.notes}
                   </p>
                 )}
               </div>
@@ -579,14 +579,14 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
               className="flex-1 py-3 rounded-2xl text-sm font-bold text-red-500 bg-[#D8DAE4]"
               style={S.neoOut}
             >
-              ❌ Rechazar evidencia
+              Rechazar evidencia
             </button>
             <button
               onClick={onClose}
               className="flex-1 py-3 rounded-2xl text-sm font-bold text-emerald-600 bg-[#D8DAE4]"
               style={S.neoOut}
             >
-              ✅ Aceptar
+              Aceptar
             </button>
           </div>
         )}

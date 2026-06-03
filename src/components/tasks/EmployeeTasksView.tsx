@@ -20,10 +20,10 @@ const S = {
 
 // ─── Configuración visual por estado y prioridad ─────────────
 const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; emoji: string }> = {
-  pending:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   emoji: '⏳' },
-  in_progress: { label: 'En progreso', color: 'bg-blue-100 text-blue-700',     emoji: '🔵' },
-  completed:   { label: 'Completada',  color: 'bg-emerald-100 text-emerald-700', emoji: '✅' },
-  rejected:    { label: 'Rechazada',   color: 'bg-red-100 text-red-600',       emoji: '❌' },
+  pending:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   emoji: '' },
+  in_progress: { label: 'En progreso', color: 'bg-blue-100 text-blue-700',     emoji: '' },
+  completed:   { label: 'Completada',  color: 'bg-emerald-100 text-emerald-700', emoji: '' },
+  rejected:    { label: 'Rechazada',   color: 'bg-red-100 text-red-600',       emoji: '' },
 }
 
 const PRIORITY_CONFIG = {
@@ -38,10 +38,10 @@ function formatDueDate(due: string | null): string {
   const d    = new Date(due)
   const now  = new Date()
   const diff = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  if (diff < 0)  return `⚠️ Venció hace ${Math.abs(diff)} días`
-  if (diff === 0) return '🔴 Vence hoy'
-  if (diff === 1) return '🟡 Vence mañana'
-  return `📅 Vence en ${diff} días`
+  if (diff < 0)  return `Venció hace ${Math.abs(diff)} días`
+  if (diff === 0) return 'Vence hoy'
+  if (diff === 1) return 'Vence mañana'
+  return `Vence en ${diff} días`
 }
 
 function getErrorMessage(e: unknown): string {
@@ -131,7 +131,7 @@ export const EmployeeTasksView = memo<EmployeeTasksViewProps>(({ profile }) => {
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
-          <p className="text-4xl mb-3">🎉</p>
+          <p className="text-4xl mb-3"></p>
           <p className="font-bold text-[#2D3561]">Sin tareas</p>
           <p className="text-sm text-[#9CA3AF] mt-1">
             {filter === 'all' ? 'No tienes tareas asignadas' : 'Sin tareas en este estado'}
@@ -235,7 +235,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
             className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-white bg-[#FF5722]"
             style={S.coral}
           >
-            🚀 Iniciar tarea
+            Iniciar tarea
           </motion.button>
         )}
 
@@ -246,7 +246,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
             className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-white bg-[#FF5722] flex items-center justify-center gap-2"
             style={S.coral}
           >
-            📸 Enviar evidencia
+            Enviar evidencia
           </motion.button>
         )}
 
@@ -257,13 +257,13 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
             className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-orange-600 bg-[#D8DAE4]"
             style={S.neoOut}
           >
-            🔄 Reintentar
+            Reintentar
           </motion.button>
         )}
 
         {task.status === 'completed' && (
           <div className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-emerald-600 bg-[#D8DAE4] flex items-center justify-center gap-2" style={S.neoOut}>
-            ✅ Completada con evidencia
+            Completada con evidencia
           </div>
         )}
       </div>

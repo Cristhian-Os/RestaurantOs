@@ -127,13 +127,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       if (error) throw error
       message.success(
         payMethod === 'efectivo' && data.change > 0
-          ? `✅ Cobrado · Cambio: $${data.change.toFixed(2)}`
-          : '✅ Cobrado exitosamente'
+          ? `Cobrado · Cambio: $${data.change.toFixed(2)}`
+          : 'Cobrado exitosamente'
       )
       setPayingOrder(null)
       fetchData()
     } catch (e) {
-      message.error(`❌ ${e instanceof Error ? e.message : 'Error al cobrar'}`)
+      message.error(`${e instanceof Error ? e.message : 'Error al cobrar'}`)
     } finally {
       setProcessing(false)
     }
@@ -149,7 +149,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       setShowCorte(true)
       fetchData()
     } catch (e) {
-      message.error(`❌ ${e instanceof Error ? e.message : 'Error en corte'}`)
+      message.error(`${e instanceof Error ? e.message : 'Error en corte'}`)
     } finally {
       setCortingLoading(false)
     }
@@ -186,7 +186,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-            🏷️ Órdenes para cobrar
+            Órdenes para cobrar
             <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({readyOrders.length})</span>
           </h2>
           <button onClick={fetchData} className="p-2.5 rounded-2xl text-[#6B7280]" style={S.neoOutSm}>
@@ -198,7 +198,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
         {readyOrders.length === 0 ? (
           <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
-            <p className="text-4xl mb-3">✅</p>
+            <p className="text-4xl mb-3"></p>
             <p className="font-bold text-[#2D3561]">Todo al día</p>
             <p className="text-sm text-[#9CA3AF] mt-1">Sin órdenes pendientes de cobro</p>
           </div>
@@ -235,7 +235,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <p className="text-xs text-[#9CA3AF]">+{order.items.length - 4} platos más</p>
                   )}
                   {order.notes && (
-                    <p className="text-xs text-[#6B7280] italic mt-1">💬 {order.notes}</p>
+                    <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>
                   )}
                 </div>
 
@@ -245,7 +245,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   className="w-full py-3 rounded-2xl font-bold text-white bg-[#FF5722] text-sm"
                   style={S.coral}
                 >
-                  💳 Cobrar ${order.total.toFixed(2)}
+                  Cobrar ${order.total.toFixed(2)}
                 </motion.button>
               </motion.div>
             ))}
@@ -261,7 +261,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           className={`w-full py-3.5 rounded-2xl font-bold text-sm text-[#2D3561] ${cortingLoading || daySummary.total_ordenes === 0 ? 'opacity-50' : ''}`}
           style={S.neoOut}
         >
-          {cortingLoading ? '⏳ Generando corte...' : `📊 Hacer corte de caja · ${daySummary.total_ordenes} órdenes`}
+          {cortingLoading ? 'Generando corte...' : `Hacer corte de caja · ${daySummary.total_ordenes} órdenes`}
         </button>
       </div>
 
@@ -307,7 +307,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     className="py-3 rounded-2xl text-sm font-bold capitalize"
                     style={payMethod === m ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
                   >
-                    {m === 'efectivo' ? '💵 Efectivo' : '📲 Transferencia'}
+                    {m === 'efectivo' ? 'Efectivo' : 'Transferencia'}
                   </button>
                 ))}
               </div>
@@ -340,7 +340,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   )}
                   {pagoInsuficiente && (
                     <p className="mt-2 text-xs text-red-500 font-medium">
-                      ⚠️ Falta ${(payingOrder.total - parseFloat(amountPaid)).toFixed(2)}
+                      Falta ${(payingOrder.total - parseFloat(amountPaid)).toFixed(2)}
                     </p>
                   )}
                 </div>
@@ -348,7 +348,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
               {payMethod === 'transferencia' && (
                 <div className="mb-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
-                  <p className="text-sm font-bold text-blue-700">📲 Confirmar transferencia</p>
+                  <p className="text-sm font-bold text-blue-700">Confirmar transferencia</p>
                   <p className="text-xs text-blue-600 mt-0.5">Total: ${payingOrder.total.toFixed(2)}</p>
                 </div>
               )}
@@ -370,7 +370,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-[#FF5722] ${processing || pagoInsuficiente ? 'opacity-60' : ''}`}
                   style={S.coral}
                 >
-                  {processing ? 'Procesando...' : '✅ Cobrar'}
+                  {processing ? 'Procesando...' : 'Cobrar'}
                 </motion.button>
               </div>
             </motion.div>
@@ -394,7 +394,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
             >
               <div className="text-center mb-5">
                 <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl mx-auto mb-3" style={S.green}>
-                  📊
+                 
                 </div>
                 <h3 className="font-bold text-[#2D3561] text-xl">Corte de Caja</h3>
                 <p className="text-xs text-[#9CA3AF]">
@@ -404,10 +404,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
               <div className="flex flex-col gap-3 mb-5">
                 {[
-                  { label: '💵 Efectivo',     val: corteResult.total_efectivo },
-                  { label: '📲 Transferencia', val: corteResult.total_transferencia },
-                  { label: '📦 Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
-                  { label: '🏦 Destino',       val: fondosDestino === 'cuenta_principal' ? 'Cuenta Principal' : 'Cuenta Secundaria', isCurrency: false },
+                  { label: 'Efectivo',     val: corteResult.total_efectivo },
+                  { label: 'Transferencia', val: corteResult.total_transferencia },
+                  { label: 'Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
+                  { label: 'Destino',       val: fondosDestino === 'cuenta_principal' ? 'Cuenta Principal' : 'Cuenta Secundaria', isCurrency: false },
                 ].map(item => (
                   <div key={item.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
                     <span className="text-sm text-[#6B7280]">{item.label}</span>
@@ -417,7 +417,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   </div>
                 ))}
                 <div className="flex justify-between items-center bg-[#FF5722] rounded-2xl px-4 py-3" style={S.coral}>
-                  <span className="text-sm font-bold text-white">💰 TOTAL</span>
+                  <span className="text-sm font-bold text-white">TOTAL</span>
                   <span className="text-xl font-bold text-white">${Number(corteResult.total_general).toFixed(2)}</span>
                 </div>
               </div>
@@ -427,7 +427,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
                 style={S.neoOut}
               >
-                ✅ Cerrar
+                Cerrar
               </button>
             </motion.div>
           </motion.div>

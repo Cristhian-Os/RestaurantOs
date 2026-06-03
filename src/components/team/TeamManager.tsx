@@ -35,11 +35,11 @@ interface Profile {
 }
 
 const ROLE_CONFIG: Record<Role, { label: string; emoji: string; bg: string; txt: string }> = {
-  admin:   { label: 'Administrador', emoji: '👑', bg: 'var(--tag-purple-bg)', txt: 'var(--tag-purple-text)' },
-  waiter:  { label: 'Mesero',        emoji: '🛎️', bg: 'var(--tag-blue-bg)',   txt: 'var(--tag-blue-text)'  },
-  kitchen: { label: 'Cocina',        emoji: '👨‍🍳', bg: 'var(--tag-orange-bg)', txt: 'var(--tag-orange-text)'},
-  cashier: { label: 'Caja',          emoji: '💰', bg: 'var(--tag-green-bg)',  txt: 'var(--tag-green-text)' },
-  client:  { label: 'Cliente',       emoji: '🧑', bg: 'var(--tag-gray-bg)',   txt: 'var(--tag-gray-text)'  },
+  admin:   { label: 'Administrador', emoji: '', bg: 'var(--tag-purple-bg)', txt: 'var(--tag-purple-text)' },
+  waiter:  { label: 'Mesero',        emoji: '', bg: 'var(--tag-blue-bg)',   txt: 'var(--tag-blue-text)'  },
+  kitchen: { label: 'Cocina',        emoji: '', bg: 'var(--tag-orange-bg)', txt: 'var(--tag-orange-text)'},
+  cashier: { label: 'Caja',          emoji: '', bg: 'var(--tag-green-bg)',  txt: 'var(--tag-green-text)' },
+  client:  { label: 'Cliente',       emoji: '', bg: 'var(--tag-gray-bg)',   txt: 'var(--tag-gray-text)'  },
 }
 
 interface NewEmployeeForm {
@@ -153,7 +153,7 @@ export const TeamManager = memo(() => {
       if (rpcError) throw new Error(rpcError.message)
 
       const profileId: string | null = rpcData?.profile_id ?? null
-      message.success(`✅ ${form.full_name.trim()} agregado como ${ROLE_CONFIG[form.role].label}`)
+      message.success(`${form.full_name.trim()} agregado como ${ROLE_CONFIG[form.role].label}`)
 
       if (avatarFile && profileId) {
         const url = await uploadAvatar(profileId, avatarFile)
@@ -197,7 +197,7 @@ export const TeamManager = memo(() => {
         message.success('Contraseña actualizada')
       }
 
-      message.success('Perfil actualizado ✅')
+      message.success('Perfil actualizado')
       setShowEditMe(false)
       fetchProfiles()
     } catch (e) {
@@ -276,7 +276,7 @@ export const TeamManager = memo(() => {
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: 0 }}>👥 Equipo</h2>
+          <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: 0 }}>Equipo</h2>
           <p style={{ fontSize: '0.875rem', color: txtMut, marginTop: '0.125rem' }}>
             {profiles.filter(p => p.active && p.full_name !== DELETED_NAME).length} activos · {profiles.filter(p => p.full_name !== DELETED_NAME).length} total
           </p>
@@ -286,7 +286,7 @@ export const TeamManager = memo(() => {
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 700, padding: '0.625rem 1rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', backgroundColor: bg, color: txtSec, fontFamily: 'inherit', ...S.outSm }}>
             {myProfile?.avatar_url
               ? <img src={myProfile.avatar_url} alt="" style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
-              : '👤'
+              : ''
             }
             Mi perfil
           </button>
@@ -300,7 +300,7 @@ export const TeamManager = memo(() => {
 
       {/* ── Search ── */}
       <div style={{ borderRadius: '1rem', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: bg, ...S.in }}>
-        <span style={{ color: txtMut }}>🔍</span>
+        <span style={{ color: txtMut }}></span>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar por nombre, email o rol..."
           style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, fontFamily: 'inherit' }} />
@@ -313,13 +313,13 @@ export const TeamManager = memo(() => {
             initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
             <div className="glass-card no-hover" style={{ padding: '1.5rem' }}>
-              <h3 style={{ fontWeight: 700, color: txt, marginBottom: '1.25rem', margin: '0 0 1.25rem', fontFamily: 'DM Sans, sans-serif' }}>➕ Nuevo empleado</h3>
+              <h3 style={{ fontWeight: 700, color: txt, marginBottom: '1.25rem', margin: '0 0 1.25rem', fontFamily: 'DM Sans, sans-serif' }}>Nuevo empleado</h3>
 
               {/* Avatar upload */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
                 <div onClick={() => avatarRef.current?.click()}
                   style={{ width: 64, height: 64, borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0, backgroundColor: bgSurf, ...S.in }}>
-                  {avatarPreview ? <img src={avatarPreview} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '1.5rem' }}>📷</span>}
+                  {avatarPreview ? <img src={avatarPreview} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '1.5rem' }}></span>}
                 </div>
                 <div>
                   <p style={{ fontSize: '0.75rem', fontWeight: 700, color: txt }}>Foto de perfil</p>
@@ -373,7 +373,7 @@ export const TeamManager = memo(() => {
                 </div>
               </div>
 
-              {formError && <p style={{ fontSize: '0.75rem', color: '#EF4444', fontWeight: 600, marginTop: '0.75rem' }}>⚠️ {formError}</p>}
+              {formError && <p style={{ fontSize: '0.75rem', color: '#EF4444', fontWeight: 600, marginTop: '0.75rem' }}>{formError}</p>}
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
                 <button onClick={() => { setShowForm(false); setForm(FORM_INITIAL); setFormError(null); setAvatarFile(null); setPreview(null) }}
@@ -382,7 +382,7 @@ export const TeamManager = memo(() => {
                 </button>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleCreate} disabled={creating}
                   style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: '#fff', opacity: creating ? 0.7 : 1, ...S.coral }}>
-                  {creating ? 'Creando...' : '✅ Crear empleado'}
+                  {creating ? 'Creando...' : 'Crear empleado'}
                 </motion.button>
               </div>
             </div>
@@ -394,7 +394,7 @@ export const TeamManager = memo(() => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
         {filtered.length === 0 && (
           <div style={{ borderRadius: '1.5rem', padding: '3rem 1rem', textAlign: 'center', backgroundColor: bg, ...S.in }}>
-            <p style={{ fontSize: '2.5rem', margin: '0 0 0.5rem' }}>👥</p>
+            <p style={{ fontSize: '2.5rem', margin: '0 0 0.5rem' }}></p>
             <p style={{ fontWeight: 700, color: txt }}>Sin empleados</p>
           </div>
         )}
@@ -429,21 +429,21 @@ export const TeamManager = memo(() => {
                     {/* Edit role */}
                     <button onClick={() => { setEditingId(isEditing ? null : profile.id); setEditRole(profile.role) }}
                       style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: txtSec, backgroundColor: bg, fontSize: '0.875rem', ...S.outSm }}
-                      title="Cambiar rol">✏️</button>
+                      title="Cambiar rol"></button>
                     {/* Toggle active */}
                     <button onClick={() => handleToggleActive(profile)}
                       style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: txtSec, backgroundColor: bg, fontSize: '0.875rem', ...S.outSm }}
                       title={profile.active ? 'Desactivar' : 'Activar'}>
-                      {profile.active ? '🔒' : '🔓'}
+                      {profile.active ? '' : ''}
                     </button>
                     {/* Schedule */}
                     <button onClick={() => setScheduleEmp({ id: profile.id, name: profile.full_name ?? 'Empleado' })}
                       style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: txtSec, backgroundColor: bg, fontSize: '0.875rem', ...S.outSm }}
-                      title="Ver horario">📅</button>
+                      title="Ver horario"></button>
                     {/* Delete */}
                     <button onClick={() => setConfirmDeleteId(profile.id)}
                       style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: '#EF4444', backgroundColor: bg, fontSize: '0.875rem', ...S.outSm }}
-                      title="Eliminar empleado">🗑️</button>
+                      title="Eliminar empleado"></button>
                   </div>
                 )}
               </div>
@@ -491,13 +491,13 @@ export const TeamManager = memo(() => {
               onClick={e => e.stopPropagation()}
               className="glass-modal"
               style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', borderRadius: '1.75rem', padding: '1.5rem' }}>
-              <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1.25rem' }}>✏️ Mi perfil</h3>
+              <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1.25rem' }}>Mi perfil</h3>
 
               {/* Avatar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
                 <div onClick={() => meAvatarRef.current?.click()}
                   style={{ width: 72, height: 72, borderRadius: '1.25rem', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: bgSurf, ...S.in }}>
-                  {meAvatarPreview ? <img src={meAvatarPreview} alt="me" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '2rem' }}>👤</span>}
+                  {meAvatarPreview ? <img src={meAvatarPreview} alt="me" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '2rem' }}></span>}
                 </div>
                 <div>
                   <p style={{ fontWeight: 700, color: txt, fontSize: '0.9375rem', margin: 0 }}>{myProfile?.full_name ?? 'Admin'}</p>
@@ -522,7 +522,7 @@ export const TeamManager = memo(() => {
 
                 {/* Separator */}
                 <div style={{ borderTop: `1px solid ${bgSurf}`, paddingTop: '0.875rem' }}>
-                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, margin: '0 0 0.75rem' }}>🔒 Cambiar credenciales (dejar en blanco para no cambiar)</p>
+                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, margin: '0 0 0.75rem' }}>Cambiar credenciales (dejar en blanco para no cambiar)</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nuevo email de acceso</label>
@@ -547,7 +547,7 @@ export const TeamManager = memo(() => {
                 </button>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleSaveMe} disabled={savingMe}
                   style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: '#fff', opacity: savingMe ? 0.7 : 1, ...S.coral }}>
-                  {savingMe ? 'Guardando...' : '✅ Guardar'}
+                  {savingMe ? 'Guardando...' : 'Guardar'}
                 </motion.button>
               </div>
             </motion.div>
@@ -566,7 +566,7 @@ export const TeamManager = memo(() => {
               onClick={e => e.stopPropagation()}
               className="glass-modal"
               style={{ width: '100%', maxWidth: 340, borderRadius: '1.75rem', padding: '1.5rem', textAlign: 'center' }}>
-              <p style={{ fontSize: '2.5rem', margin: '0 0 0.75rem' }}>⚠️</p>
+              <p style={{ fontSize: '2.5rem', margin: '0 0 0.75rem' }}></p>
               <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.0625rem', margin: '0 0 0.5rem' }}>¿Eliminar empleado?</h3>
               <p style={{ fontSize: '0.8125rem', color: txtSec, margin: '0 0 1.25rem', lineHeight: 1.5 }}>
                 Se anonimizará su cuenta y se eliminarán sus turnos. Esta acción no se puede deshacer fácilmente.
@@ -578,7 +578,7 @@ export const TeamManager = memo(() => {
                 </button>
                 <button onClick={() => handleHardDelete(confirmDeleteId)} disabled={hardDeleting}
                   style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: hardDeleting ? 'wait' : 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: '#EF4444', color: '#fff', boxShadow: '8px 8px 16px rgba(239,68,68,0.3),-4px -4px 12px rgba(255,255,255,0.4)', opacity: hardDeleting ? 0.7 : 1 }}>
-                  {hardDeleting ? 'Eliminando...' : '🗑️ Sí, eliminar'}
+                  {hardDeleting ? 'Eliminando...' : 'Sí, eliminar'}
                 </button>
               </div>
             </motion.div>

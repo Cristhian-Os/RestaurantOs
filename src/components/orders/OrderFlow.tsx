@@ -29,11 +29,11 @@ const S = {
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 
 const CATEGORY_LABELS: Record<DishCategory, string> = {
-  entrada:   '🥗 Entradas',
-  principal: '🍽️ Principales',
-  postre:    '🍰 Postres',
-  bebida:    '🥤 Bebidas',
-  especial:  '⭐ Especiales',
+  entrada:   'Entradas',
+  principal: 'Principales',
+  postre:    'Postres',
+  bebida:    'Bebidas',
+  especial:  'Especiales',
 }
 
 // ─── Tipos ────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           p_table_num:   selectedMesa?.numero ?? null,
         })
         if (error) throw error
-        message.success(`✅ Orden enviada a cocina — Total: $${cartTotal.toFixed(2)}`)
+        message.success(`Orden enviada a cocina — Total: $${cartTotal.toFixed(2)}`)
         onOrderCreated?.(data.order_id, data.total)
       } else {
         const { data: { user: offlineUser } } = await supabase.auth.getUser()
@@ -187,7 +187,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        message.warning('📡 Sin conexión — Orden guardada localmente')
+        message.warning('Sin conexión — Orden guardada localmente')
       }
 
       // Reset
@@ -196,7 +196,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       setMesa(null)
       setOrderNotes('')
     } catch (e) {
-      message.error(`❌ ${e instanceof Error ? e.message : 'Error al enviar orden'}`)
+      message.error(`${e instanceof Error ? e.message : 'Error al enviar orden'}`)
     } finally {
       setSubmitting(false)
     }
@@ -209,7 +209,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       {/* Indicador offline */}
       {!isOnline && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-xs font-medium text-amber-700 flex items-center gap-2">
-          📡 Modo offline — Las órdenes se sincronizarán al recuperar conexión
+          Modo offline — Las órdenes se sincronizarán al recuperar conexión
         </div>
       )}
 
@@ -245,16 +245,16 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           >
             <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
               <h3 className="font-bold text-[#2D3561] mb-4" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-                📋 Tipo de pedido
+                Tipo de pedido
               </h3>
 
               {/* Tipo de pedido */}
               <div className="grid grid-cols-2 gap-2 mb-5">
                 {[
-                  { val: 'LOCAL',     label: '🍽️ En mesa',   show: true },
-                  { val: 'LLEVAR',    label: '📦 Para llevar', show: true },
-                  { val: 'DOMICILIO', label: '🚚 Domicilio',  show: true },
-                  { val: 'RAPPI',     label: '🛵 Rappi',      show: ['admin','cashier'].includes(profile.role) },
+                  { val: 'LOCAL',     label: 'En mesa',   show: true },
+                  { val: 'LLEVAR',    label: 'Para llevar', show: true },
+                  { val: 'DOMICILIO', label: 'Domicilio',  show: true },
+                  { val: 'RAPPI',     label: 'Rappi',      show: ['admin','cashier'].includes(profile.role) },
                 ].filter(o => o.show).map(opt => (
                   <button key={opt.val}
                     onClick={() => { setTipo(opt.val as TipoPedido); if (opt.val !== 'LOCAL') setMesa(null) }}
@@ -293,8 +293,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                         >
                           <div className="text-lg font-bold">{mesa.numero}</div>
                           <div className="text-[10px] font-medium">
-                            {mesa.estado === 'libre' ? `👥 ${mesa.capacidad}` :
-                             mesa.estado === 'ocupada' ? '🔴 Ocupada' : '⏳'}
+                            {mesa.estado === 'libre' ? `${mesa.capacidad}` :
+                             mesa.estado === 'ocupada' ? 'Ocupada' : ''}
                           </div>
                         </button>
                       ))}
@@ -302,7 +302,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   )}
                   {selectedMesa && (
                     <div className="mt-3 text-xs text-emerald-600 font-bold">
-                      ✅ Mesa {selectedMesa.numero} · {selectedMesa.zona} · {selectedMesa.capacidad} personas
+                      Mesa {selectedMesa.numero} · {selectedMesa.zona} · {selectedMesa.capacidad} personas
                     </div>
                   )}
                 </div>
@@ -335,7 +335,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           >
             {/* Buscador */}
             <div className="bg-[#D8DAE4] rounded-2xl px-4 py-3 flex items-center gap-3" style={S.neoIn}>
-              <span className="text-[#9CA3AF]">🔍</span>
+              <span className="text-[#9CA3AF]"></span>
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -354,7 +354,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
                 style={activeCategory === 'all' ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
               >
-                🍴 Todo
+                Todo
               </button>
               {categories.map(cat => (
                 <button key={cat}
@@ -372,7 +372,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               <div className="text-center py-8 text-[#9CA3AF]">Cargando menú...</div>
             ) : filteredDishes.length === 0 ? (
               <div className="bg-[#D8DAE4] rounded-3xl p-8 text-center" style={S.neoIn}>
-                <p className="text-2xl mb-2">🍽️</p>
+                <p className="text-2xl mb-2"></p>
                 <p className="text-sm font-bold text-[#2D3561]">Sin platos encontrados</p>
               </div>
             ) : (
@@ -385,7 +385,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                       <div className="w-full h-20 rounded-xl flex items-center justify-center text-3xl" style={S.neoIn}>
                         {dish.image_url
                           ? <img src={dish.image_url} alt={dish.name} className="w-full h-full object-cover rounded-xl" loading="lazy" />
-                          : { entrada:'🥗', principal:'🍽️', postre:'🍰', bebida:'🥤', especial:'⭐' }[dish.category]
+                          : { entrada:'', principal:'', postre:'', bebida:'', especial:'' }[dish.category]
                         }
                       </div>
                       <p className="text-xs font-bold text-[#2D3561] leading-tight line-clamp-2">{dish.name}</p>
@@ -429,7 +429,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                     className="w-full py-4 rounded-2xl font-bold text-white bg-[#FF5722] flex items-center justify-between px-6"
                     style={S.coral}
                   >
-                    <span>🛒 Ver pedido ({cartCount})</span>
+                    <span>Ver pedido ({cartCount})</span>
                     <span>${cartTotal.toFixed(2)}</span>
                   </button>
                 </motion.div>
@@ -521,7 +521,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                     </svg>
                     Enviando a cocina...
                   </span>
-                : `✅ Confirmar orden · $${cartTotal.toFixed(2)}`
+                : `Confirmar orden · $${cartTotal.toFixed(2)}`
               }
             </motion.button>
 

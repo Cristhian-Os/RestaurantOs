@@ -69,14 +69,14 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
   // Opciones de tipo de pedido según rol
   const getTipoPedidoOptions = () => {
     const base = [
-      { value: 'LOCAL', label: '🍽️ Comer en el lugar' },
-      { value: 'LLEVAR', label: '📦 Para llevar' },
-      { value: 'DOMICILIO', label: '🚚 Domicilio' },
+      { value: 'LOCAL', label: 'Comer en el lugar' },
+      { value: 'LLEVAR', label: 'Para llevar' },
+      { value: 'DOMICILIO', label: 'Domicilio' },
     ]
 
     // Solo admin y cashier pueden seleccionar RAPPI
     if (userRole === 'admin' || userRole === 'cashier') {
-      base.push({ value: 'RAPPI', label: '🛵 Rappi' })
+      base.push({ value: 'RAPPI', label: 'Rappi' })
     }
 
     return base
@@ -119,13 +119,13 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
 
         if (error) throw error
 
-        message.success(`✅ Orden ${tipoPedido} creada correctamente`)
+        message.success(`Orden ${tipoPedido} creada correctamente`)
         onOrderCreated?.(data)
       } else {
         // Guardar offline
         await offlineService.saveOrderLocally(newOrder as Order)
         message.warning(
-          '📡 Orden guardada offline. Se sincronizará cuando vuelva la conexión.'
+          'Orden guardada offline. Se sincronizará cuando vuelva la conexión.'
         )
       }
 
@@ -135,7 +135,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
       setNotes('')
     } catch (error) {
       message.error(
-        `❌ Error: ${error instanceof Error ? error.message : 'Desconocido'}`
+        `Error: ${error instanceof Error ? error.message : 'Desconocido'}`
       )
     } finally {
       setLoading(false)
@@ -147,7 +147,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
       {/* Estado de conectividad */}
       {!isOnline && (
         <Alert
-          message="📡 Modo Offline"
+          message="Modo Offline"
           description="Estás trabajando sin conexión. Las órdenes se sincronizarán automáticamente."
           type="warning"
           showIcon
@@ -156,7 +156,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
 
       {/* Formulario */}
       <div className="p-6 bg-neo-surface rounded-3xl space-y-4" style={S.neoOut}>
-        <h3 className="text-xl font-bold text-neo-dark">📋 Nueva Orden</h3>
+        <h3 className="text-xl font-bold text-neo-dark">Nueva Orden</h3>
 
         {/* Tipo de Pedido */}
         <div>
@@ -171,7 +171,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
           />
           {userRole === 'waiter' && (
             <p className="text-xs text-neo-mid mt-2">
-              ℹ️ Como mesero, solo puedes crear órdenes locales, para llevar o a domicilio.
+              Como mesero, solo puedes crear órdenes locales, para llevar o a domicilio.
             </p>
           )}
         </div>
@@ -216,13 +216,13 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
           className="bg-neo-coral hover:bg-neo-coralDark h-10 text-lg font-bold"
           style={loading ? undefined : S.coral}
         >
-          {isOnline ? '✅ Crear Orden' : '📡 Guardar Offline'}
+          {isOnline ? 'Crear Orden' : 'Guardar Offline'}
         </Button>
       </div>
 
       {/* Info */}
       <div className="p-3 bg-neo-light rounded-2xl text-xs text-neo-mid">
-        💡 La orden se puede editar después de crear. Ten cuidado con RAPPI — requiere permisos de administrador.
+        La orden se puede editar después de crear. Ten cuidado con RAPPI — requiere permisos de administrador.
       </div>
     </div>
   )

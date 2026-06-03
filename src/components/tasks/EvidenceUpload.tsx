@@ -172,7 +172,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
       <div className="flex items-start justify-between mb-5">
         <div>
           <p className="text-xs font-bold text-[#FF5722] uppercase tracking-wider mb-1">
-            📎 Evidencia requerida
+            Evidencia requerida
           </p>
           <h3
             className="font-bold text-[#2D3561] text-sm leading-snug"
@@ -207,7 +207,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
               className="w-full h-40 rounded-2xl flex flex-col items-center justify-center gap-3 border-2 border-dashed border-[#C5CAD8] hover:border-[#FF5722] transition-colors"
               style={S.neoIn}
             >
-              <span className="text-4xl">📸</span>
+              <span className="text-4xl"></span>
               <div className="text-center">
                 <p className="text-sm font-bold text-[#2D3561]">Tomar foto o elegir de galería</p>
                 <p className="text-xs text-[#9CA3AF] mt-0.5">JPG, PNG, WebP · Máx 5MB</p>
@@ -226,7 +226,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
 
             {error && (
               <p className="text-xs text-red-500 font-medium flex items-center gap-1.5">
-                <span>⚠️</span> {error}
+                <span></span> {error}
               </p>
             )}
           </motion.div>
@@ -274,7 +274,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
 
             {error && (
               <p className="text-xs text-red-500 font-medium flex items-center gap-1.5">
-                <span>⚠️</span> {error}
+                <span></span> {error}
               </p>
             )}
 
@@ -307,7 +307,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
             className="flex flex-col items-center gap-5 py-6"
           >
             <div className="w-16 h-16 rounded-3xl bg-[#FF5722] flex items-center justify-center text-2xl" style={S.coral}>
-              📤
+             
             </div>
             <div className="w-full">
               <div className="flex justify-between text-xs font-bold text-[#6B7280] mb-2">
@@ -340,7 +340,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
               className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl"
               style={S.green}
             >
-              ✅
+             
             </div>
             <p className="font-bold text-emerald-600 text-lg">¡Evidencia enviada!</p>
             <p className="text-xs text-[#9CA3AF]">Tarea marcada como completada</p>

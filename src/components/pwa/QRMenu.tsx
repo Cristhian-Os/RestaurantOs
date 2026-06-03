@@ -96,7 +96,7 @@ export function QRMenu() {
     ${mesa ? `<p class="mesa">Mesa ${mesa}</p>` : '<p class="mesa">Menú Digital</p>'}
     <div class="line"></div>
     <img class="qr" src="${qrUrl}" alt="QR Menú" />
-    <p>📱 Escanea con tu cámara para ver el menú y hacer tu pedido</p>
+    <p>Escanea con tu cámara para ver el menú y hacer tu pedido</p>
     <p class="url">${menuUrl}</p>
   </div>
   <script>
@@ -209,7 +209,7 @@ export function QRMenu() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
               ...S.outSm,
             }}>
-            📋 Ver menú general
+            Ver menú general
           </motion.button>
           <motion.button whileTap={{ scale: 0.97 }}
             onClick={handleDownload}
@@ -220,7 +220,7 @@ export function QRMenu() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
               ...S.outSm,
             }}>
-            ⬇️ Descargar QR
+            ⬇Descargar QR
           </motion.button>
           <motion.button whileTap={{ scale: 0.97 }}
             onClick={handlePrint}
@@ -233,7 +233,7 @@ export function QRMenu() {
               gridColumn: '1 / -1',
               ...S.outSm,
             }}>
-            🖨️ {printing ? 'Abriendo impresión...' : 'Imprimir QR de mesa'}
+            {printing ? 'Abriendo impresión...' : 'Imprimir QR de mesa'}
           </motion.button>
         </div>
 
@@ -245,7 +245,7 @@ export function QRMenu() {
         }}>
           <p style={{ fontSize: '0.7rem', color: 'var(--text-primary)', fontWeight: 600,
             margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            🔗 {BASE_URL}/menu
+            {BASE_URL}/menu
           </p>
           <button
             onClick={() => navigator.clipboard.writeText(`${BASE_URL}/menu`)}
@@ -305,7 +305,7 @@ export function QRMenu() {
               </div>
 
               <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-                📱 Escanea con la cámara para ver el menú y pedir desde tu mesa
+                Escanea con la cámara para ver el menú y pedir desde tu mesa
               </p>
 
               {/* Acciones */}
@@ -318,7 +318,7 @@ export function QRMenu() {
                     fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
                     ...S.outSm,
                   }}>
-                  ⬇️ Descargar
+                  ⬇Descargar
                 </motion.button>
                 <motion.button whileTap={{ scale: 0.95 }}
                   onClick={handlePrint}
@@ -328,7 +328,7 @@ export function QRMenu() {
                     fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
                     ...S.coral,
                   }}>
-                  🖨️ Imprimir
+                  Imprimir
                 </motion.button>
               </div>
               <button onClick={() => setShowModal(false)}

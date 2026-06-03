@@ -208,10 +208,10 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
           display: 'flex', flexDirection: 'column', gap: '0.5rem',
           ...S.in,
         }}>
-          {['⚡ Carga instantánea sin abrir el browser',
-            '📴 Funciona offline en horas pico',
-            '🔔 Notificaciones de nuevas órdenes',
-            '📱 Ícono en pantalla de inicio del dispositivo',
+          {['Carga instantánea sin abrir el browser',
+            'Funciona offline en horas pico',
+            'Notificaciones de nuevas órdenes',
+            'Ícono en pantalla de inicio del dispositivo',
           ].map((item, i) => (
             <p key={i} style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', margin: 0 }}>
               {item}
@@ -255,7 +255,7 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
                     Instalando...
                   </>
                 : installed
-                  ? '✅ ¡Instalada!'
+                  ? '¡Instalada!'
                   : <><DownloadIcon /> Instalar en este dispositivo</>
               }
             </motion.button>
@@ -396,7 +396,7 @@ function InstallModal({
                     : { backgroundColor: 'transparent', color: 'var(--text-muted)' }
                   ),
                 }}>
-                  {t === 'desktop' ? '💻 Escritorio' : '📱 Móvil / QR'}
+                  {t === 'desktop' ? 'Escritorio' : 'Móvil / QR'}
                 </button>
               ))}
             </div>
@@ -415,7 +415,7 @@ function InstallModal({
                     boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.5),inset -4px -4px 8px rgba(255,255,255,0.6)',
                   }}>
                     <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-                      🌐 Chrome / Edge (recomendado)
+                      Chrome / Edge (recomendado)
                     </p>
                     {['Haz clic en el botón ⊕ en la barra de direcciones',
                       'O usa el menú ⋮ → "Instalar RestaurantOS"',
@@ -462,7 +462,7 @@ function InstallModal({
                           Instalando...
                         </>
                       ) : installed ? (
-                        '✅ ¡Instalada correctamente!'
+                        '¡Instalada correctamente!'
                       ) : (
                         <><DownloadIcon /> Instalar ahora en este dispositivo</>
                       )}
@@ -473,7 +473,7 @@ function InstallModal({
                       border: '1px solid #FDE68A',
                     }}>
                       <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>
-                        ℹ️ La instalación directa no está disponible en este browser. Usa las instrucciones de arriba o el QR para móvil.
+                        La instalación directa no está disponible en este browser. Usa las instrucciones de arriba o el QR para móvil.
                       </p>
                     </div>
                   )}
@@ -542,10 +542,10 @@ function InstallModal({
                     boxShadow: 'inset 4px 4px 8px rgba(163,177,198,0.5),inset -4px -4px 8px rgba(255,255,255,0.6)',
                   }}>
                     <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>
-                      📱 iPhone / iPad (Safari)
+                      iPhone / iPad (Safari)
                     </p>
                     {['Abre la URL en Safari',
-                      'Toca el ícono de compartir ⬆️',
+                      'Toca el ícono de compartir ⬆',
                       'Selecciona "Agregar a pantalla de inicio"',
                     ].map((s, i) => (
                       <p key={i} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>

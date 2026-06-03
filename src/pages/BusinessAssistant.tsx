@@ -15,13 +15,13 @@ export default function BusinessAssistant() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-neo-dark mb-2">🤖 Asistente de Negocio</h1>
+          <h1 className="text-4xl font-bold text-neo-dark mb-2">Asistente de Negocio</h1>
           <p className="text-neo-mid">Analytics inteligente en tiempo real para optimizar tu restaurante</p>
         </div>
 
         {/* Matriz BCG */}
         <section className="mb-8">
-          <h2 className="text-2xl font-bold text-neo-dark mb-4">📊 Matriz BCG (Análisis de Menú)</h2>
+          <h2 className="text-2xl font-bold text-neo-dark mb-4">Matriz BCG (Análisis de Menú)</h2>
           {metrics.bcg.isLoading ? (
             <Spin />
           ) : metrics.bcg.error ? (
@@ -46,10 +46,10 @@ export default function BusinessAssistant() {
                   </div>
                   <div className="p-3 bg-neo-base rounded-2xl mb-3" style={S.neoOut}>
                     <p className="text-xs font-bold text-neo-coral mb-1">
-                      {dish.bcg_quadrant === 'star' && '⭐ ESTRELLA'}
-                      {dish.bcg_quadrant === 'cash_cow' && '🐄 VACA LECHERA'}
-                      {dish.bcg_quadrant === 'question_mark' && '❓ INTERROGANTE'}
-                      {dish.bcg_quadrant === 'dog' && '🐕 PERRO'}
+                      {dish.bcg_quadrant === 'star' && 'ESTRELLA'}
+                      {dish.bcg_quadrant === 'cash_cow' && 'VACA LECHERA'}
+                      {dish.bcg_quadrant === 'question_mark' && 'INTERROGANTE'}
+                      {dish.bcg_quadrant === 'dog' && 'PERRO'}
                     </p>
                     <p className="text-xs text-neo-mid">{dish.recommendation}</p>
                   </div>
@@ -61,11 +61,11 @@ export default function BusinessAssistant() {
 
         {/* Alertas Food Cost */}
         <section className="mb-8">
-          <h2 className="text-2xl font-bold text-neo-dark mb-4">⚠️ Alertas de Food Cost</h2>
+          <h2 className="text-2xl font-bold text-neo-dark mb-4">Alertas de Food Cost</h2>
           {metrics.foodCost.isLoading ? (
             <Spin />
           ) : metrics.foodCost.data.length === 0 ? (
-            <Alert message="✅ Todos los márgenes están óptimos" type="success" />
+            <Alert message="Todos los márgenes están óptimos" type="success" />
           ) : (
             <div className="space-y-3">
               {metrics.foodCost.data.map((alert) => (
@@ -82,11 +82,11 @@ export default function BusinessAssistant() {
 
         {/* Auditoría Anti-Fraude */}
         <section className="mb-8">
-          <h2 className="text-2xl font-bold text-neo-dark mb-4">🔍 Auditoría Anti-Fraude</h2>
+          <h2 className="text-2xl font-bold text-neo-dark mb-4">Auditoría Anti-Fraude</h2>
           {metrics.fraud.isLoading ? (
             <Spin />
           ) : metrics.fraud.data.length === 0 ? (
-            <Alert message="✅ Sin patrones sospechosos detectados" type="success" />
+            <Alert message="Sin patrones sospechosos detectados" type="success" />
           ) : (
             <div className="space-y-3">
               {metrics.fraud.data.map((pattern) => (
@@ -109,7 +109,7 @@ export default function BusinessAssistant() {
 
         {/* Predicción de Demanda */}
         <section className="mb-8">
-          <h2 className="text-2xl font-bold text-neo-dark mb-4">📈 Predicción de Demanda</h2>
+          <h2 className="text-2xl font-bold text-neo-dark mb-4">Predicción de Demanda</h2>
           {metrics.demand.isLoading ? (
             <Spin />
           ) : (

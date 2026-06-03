@@ -53,17 +53,17 @@ function ElapsedTimer({ createdAt }: { createdAt: string }) {
   const isUrgent = secs > 900
   return (
     <span style={{ color: isUrgent ? '#DC2626' : '#D97706', fontWeight: 700, fontSize: '0.875rem' }}>
-      ⏱ {t} {isUrgent ? '⚠️' : ''}
+      {t} {isUrgent ? '' : ''}
     </span>
   )
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  pending:   '⏳ En espera',
-  cooking:   '🍳 En cocina',
-  ready:     '✅ Listo para entregar',
-  completed: '💰 Entregado',
-  cancelled: '❌ Cancelado',
+  pending:   'En espera',
+  cooking:   'En cocina',
+  ready:     'Listo para entregar',
+  completed: 'Entregado',
+  cancelled: 'Cancelado',
 }
 
 export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => void }>(({ profile }) => {
@@ -108,7 +108,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
           const mesa = newRow?.table_num
           message.open({
             type: 'success',
-            content: `🔔 ¡Mesa ${mesa ?? '?'} — pedido listo para entregar!`,
+            content: `¡Mesa ${mesa ?? '?'} — pedido listo para entregar!`,
             duration: 8,
             style: { fontWeight: 700, fontSize: '1rem' },
           })
@@ -143,14 +143,14 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h2 style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1.5rem', color: 'var(--text-primary)', margin: 0 }}>🗺️ Mesas</h2>
+          <h2 style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1.5rem', color: 'var(--text-primary)', margin: 0 }}>Mesas</h2>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
             {mesas.filter(m => m.estado === 'ocupada').length} ocupadas · {mesas.filter(m => m.estado === 'libre').length} libres
-            {readyOrders.size > 0 && <span style={{ color: 'var(--green)', fontWeight: 700, marginLeft: 8 }}>· 🔔 {readyOrders.size} listas</span>}
+            {readyOrders.size > 0 && <span style={{ color: 'var(--green)', fontWeight: 700, marginLeft: 8 }}>· {readyOrders.size} listas</span>}
           </p>
         </div>
         <button onClick={fetchData} style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer', ...S.neoOutSm }}>
-          🔄
+         
         </button>
       </div>
 
@@ -262,13 +262,13 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                   <div>
                     <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Pago</p>
                     <p style={{ fontWeight: 700, fontSize: '0.875rem', margin: 0, color: selectedOrder.paid_at ? 'var(--green)' : '#D97706' }}>
-                      {selectedOrder.paid_at ? '✅ Pagado' : '⏳ Pendiente'}
+                      {selectedOrder.paid_at ? 'Pagado' : 'Pendiente'}
                     </p>
                   </div>
                   {selectedOrder.customer_name && (
                     <div style={{ gridColumn: '1/-1' }}>
                       <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Cliente</p>
-                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', margin: 0 }}>👤 {selectedOrder.customer_name}</p>
+                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', margin: 0 }}>{selectedOrder.customer_name}</p>
                     </div>
                   )}
                 </div>
@@ -283,7 +283,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                           <span style={{ color: 'var(--accent)', fontWeight: 700, marginRight: 6 }}>{item.quantity}×</span>
                           {item.name}
                         </span>
-                        {item.notes && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>📝 {item.notes}</span>}
+                        {item.notes && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{item.notes}</span>}
                       </div>
                     ))}
                   </div>
@@ -292,14 +292,14 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                 {/* Alerta si está listo */}
                 {selectedOrder.status === 'ready' && (
                   <div style={{ backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: '1rem', padding: '0.75rem 1rem', border: '2px solid #10B981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '1.25rem' }}>🔔</span>
+                    <span style={{ fontSize: '1.25rem' }}></span>
                     <p style={{ fontWeight: 700, color: 'var(--green)', margin: 0 }}>¡Este pedido está listo para entregar!</p>
                   </div>
                 )}
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--text-muted)' }}>
-                <p style={{ fontSize: '1.5rem', margin: 0 }}>🪑</p>
+                <p style={{ fontSize: '1.5rem', margin: 0 }}></p>
                 <p style={{ fontWeight: 600, margin: '0.5rem 0 0' }}>Sin pedido activo</p>
               </div>
             )}

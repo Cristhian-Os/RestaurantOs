@@ -11,11 +11,11 @@ import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from './ScrollReveal
 import type { Dish, DishCategory } from '../types'
 
 const CATEGORY_LABELS: Record<DishCategory, string> = {
-  entrada:   '🥗 Entradas',
-  principal: '🍽️ Principales',
-  postre:    '🍰 Postres',
-  bebida:    '🥤 Bebidas',
-  especial:  '⭐ Especiales',
+  entrada:   'Entradas',
+  principal: 'Principales',
+  postre:    'Postres',
+  bebida:    'Bebidas',
+  especial:  'Especiales',
 }
 
 interface CartItem { dish: Dish; quantity: number }
@@ -171,7 +171,7 @@ export const ClientMenuSection = memo(() => {
       className="flex flex-col items-center justify-center py-20 gap-4">
       <div className="w-20 h-20 rounded-3xl bg-emerald-500 flex items-center justify-center text-4xl"
         style={{ boxShadow: '8px 8px 16px rgba(16,185,129,0.3),-8px -8px 16px rgba(255,255,255,0.75)' }}>
-        ✅
+       
       </div>
       <h2 className="text-xl font-bold text-[#2D3561]">¡Pedido enviado!</h2>
       <p className="text-sm text-[#9CA3AF] text-center">Tu orden ya está en cocina. En breve llega a tu mesa.</p>
@@ -203,7 +203,7 @@ export const ClientMenuSection = memo(() => {
 
       {/* Buscador */}
       <div className="bg-[#D8DAE4] rounded-2xl px-4 py-3 flex items-center gap-3" style={S.neoIn}>
-        <span className="text-[#9CA3AF]">🔍</span>
+        <span className="text-[#9CA3AF]"></span>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar plato..."
           className="flex-1 bg-transparent text-sm text-[#2D3561] outline-none placeholder-[#9CA3AF]" />
@@ -219,7 +219,7 @@ export const ClientMenuSection = memo(() => {
           className="w-full py-3 rounded-2xl font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 text-sm"
           style={S.coral}
         >
-          🎨 Crear mi propio plato (con ingredientes disponibles)
+          Crear mi propio plato (con ingredientes disponibles)
         </motion.button>
       </ScrollReveal>
 
@@ -257,7 +257,7 @@ export const ClientMenuSection = memo(() => {
             style={activeCategory === 'all'
               ? { background: 'var(--accent)', color: 'white', ...S.coral }
               : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
-            🍴 Todo
+            Todo
           </button>
           {availableCategories.map(cat => (
             <button key={cat} onClick={() => setCategory(cat)}
@@ -280,7 +280,7 @@ export const ClientMenuSection = memo(() => {
         </div>
       ) : filteredDishes.length === 0 ? (
         <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
-          <p className="text-3xl mb-2">🍽️</p>
+          <p className="text-3xl mb-2"></p>
           <p className="text-sm font-bold text-[#2D3561]">Sin platos encontrados</p>
         </div>
       ) : (
@@ -299,7 +299,7 @@ export const ClientMenuSection = memo(() => {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }} className="mt-4">
             <div className="bg-[#D8DAE4] rounded-3xl p-5" style={S.neoOut}>
-              <h3 className="font-bold text-[#2D3561] mb-3">🛒 Tu pedido</h3>
+              <h3 className="font-bold text-[#2D3561] mb-3">Tu pedido</h3>
 
               {cart.map(item => (
                 <div key={item.dish.id} className="flex items-center justify-between py-2 border-b border-[#E0E3EC] last:border-0">
@@ -339,7 +339,7 @@ export const ClientMenuSection = memo(() => {
                 disabled={submitting || !tableNum}
                 className={`w-full py-3.5 rounded-2xl font-bold text-white bg-[#FF5722] mt-4 text-sm ${submitting || !tableNum ? 'opacity-60' : ''}`}
                 style={S.coral}>
-                {submitting ? '⏳ Enviando...' : '✅ Enviar pedido a cocina'}
+                {submitting ? 'Enviando...' : 'Enviar pedido a cocina'}
               </motion.button>
             </div>
           </motion.div>

@@ -23,11 +23,11 @@ const S = {
 
 // ─── Configuración visual por categoría ──────────────────────
 const CATEGORY_CONFIG = {
-  entrada:   { emoji: '🥗', label: 'Entrada',   color: 'bg-emerald-100 text-emerald-700' },
-  principal: { emoji: '🍽️', label: 'Principal', color: 'bg-blue-100 text-blue-700'     },
-  postre:    { emoji: '🍰', label: 'Postre',    color: 'bg-pink-100 text-pink-700'      },
-  bebida:    { emoji: '🥤', label: 'Bebida',    color: 'bg-cyan-100 text-cyan-700'      },
-  especial:  { emoji: '⭐', label: 'Especial',  color: 'bg-amber-100 text-amber-700'    },
+  entrada:   { emoji: '', label: 'Entrada',   color: 'bg-emerald-100 text-emerald-700' },
+  principal: { emoji: '', label: 'Principal', color: 'bg-blue-100 text-blue-700'     },
+  postre:    { emoji: '', label: 'Postre',    color: 'bg-pink-100 text-pink-700'      },
+  bebida:    { emoji: '', label: 'Bebida',    color: 'bg-cyan-100 text-cyan-700'      },
+  especial:  { emoji: '', label: 'Especial',  color: 'bg-amber-100 text-amber-700'    },
 } as const
 
 // ─── Transiciones tipadas para FM v12 ────────────────────────

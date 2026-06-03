@@ -210,7 +210,7 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
     >
       {/* Header */}
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-gray-900">🍽️ Crear Plato Personalizado</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Crear Plato Personalizado</h2>
         <p className="text-sm text-gray-600">Elige ingredientes del stock para crear tu plato</p>
       </div>
 
@@ -237,7 +237,7 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
       {/* Search */}
       <input
         type="text"
-        placeholder="🔍 Buscar ingrediente..."
+        placeholder="Buscar ingrediente..."
         value={search}
         onChange={e => setSearch(e.target.value)}
         className="w-full px-4 py-3 rounded-2xl border-2 border-gray-300 focus:border-orange-400 focus:outline-none transition"

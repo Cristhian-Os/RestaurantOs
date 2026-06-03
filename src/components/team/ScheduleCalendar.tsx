@@ -107,7 +107,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
           .insert({ employee_id: employeeId, work_date: iso, shift_start: form.start, shift_end: form.end, notes: form.notes || null })
         if (error) throw error
       }
-      message.success('Turno guardado ✅')
+      message.success('Turno guardado')
       setEditing(null)
       await fetchSchedules()
     } catch (e) {
@@ -159,7 +159,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
         {/* ── Header ── */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
           <div>
-            <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.125rem', color: txt, margin: 0 }}>📅 Horario semanal</h3>
+            <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.125rem', color: txt, margin: 0 }}>Horario semanal</h3>
             <p style={{ fontSize: '0.875rem', color: acc, fontWeight: 700, margin: '0.125rem 0 0' }}>{employeeName}</p>
           </div>
           <button onClick={onClose}
@@ -233,7 +233,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
                         {shift ? (
                           <div>
                             <p style={{ fontSize: '0.875rem', fontWeight: 700, color: txt, margin: 0 }}>
-                              🕐 {shift.shift_start.slice(0, 5)} – {shift.shift_end.slice(0, 5)}
+                              {shift.shift_start.slice(0, 5)} – {shift.shift_end.slice(0, 5)}
                             </p>
                             {shift.notes && (
                               <p style={{ fontSize: '0.7rem', color: txtMut, margin: '0.125rem 0 0', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
@@ -251,12 +251,12 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
                         <button
                           onClick={() => isEditing ? setEditing(null) : openEdit(iso)}
                           style={{ padding: '0.375rem 0.625rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', backgroundColor: isEditing ? bgSurf : bg, color: acc, fontWeight: 700, fontSize: '0.75rem', fontFamily: 'inherit', boxShadow: isEditing ? shadowIn : shadowOut, transition: 'box-shadow 0.15s ease' }}>
-                          {isEditing ? 'Cancelar' : shift ? '✏️' : '+ Turno'}
+                          {isEditing ? 'Cancelar' : shift ? '' : '+ Turno'}
                         </button>
                         {shift && !isEditing && (
                           <button onClick={() => handleDelete(iso)} disabled={deleting === iso}
                             style={{ padding: '0.375rem 0.5rem', borderRadius: '0.625rem', border: 'none', cursor: deleting === iso ? 'wait' : 'pointer', backgroundColor: bg, color: '#EF4444', fontWeight: 700, fontSize: '0.75rem', boxShadow: shadowOut, opacity: deleting === iso ? 0.45 : 1 }}>
-                            🗑️
+                           
                           </button>
                         )}
                       </div>
@@ -287,7 +287,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
                             style={{ width: '100%', padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: bgSurf, color: txt, fontSize: '0.8125rem', fontFamily: 'inherit', boxShadow: shadowIn, outline: 'none', marginBottom: '0.625rem', boxSizing: 'border-box' }} />
                           <button onClick={() => handleSave(iso)} disabled={saving}
                             style={{ width: '100%', padding: '0.625rem', borderRadius: '0.75rem', border: 'none', cursor: saving ? 'wait' : 'pointer', backgroundColor: acc, color: '#fff', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}>
-                            {saving ? 'Guardando...' : '✅ Guardar turno'}
+                            {saving ? 'Guardando...' : 'Guardar turno'}
                           </button>
                         </motion.div>
                       )}

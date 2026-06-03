@@ -73,14 +73,14 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
       })
     },
     onSuccess: () => {
-      message.success('✅ Ingrediente agregado a receta')
+      message.success('Ingrediente agregado a receta')
       setSelectedIngrediente(null)
       setCantidad(1)
       queryClient.invalidateQueries({ queryKey: ['receta', productId] })
     },
     onError: (error) => {
       message.error(
-        `❌ Error: ${error instanceof Error ? error.message : 'Desconocido'}`
+        `Error: ${error instanceof Error ? error.message : 'Desconocido'}`
       )
     },
   })
@@ -90,12 +90,12 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
     mutationFn: (recetaId: string) =>
       inventoryService.removeIngredienteFromReceta(recetaId),
     onSuccess: () => {
-      message.success('✅ Ingrediente removido')
+      message.success('Ingrediente removido')
       queryClient.invalidateQueries({ queryKey: ['receta', productId] })
     },
     onError: (error) => {
       message.error(
-        `❌ Error: ${error instanceof Error ? error.message : 'Desconocido'}`
+        `Error: ${error instanceof Error ? error.message : 'Desconocido'}`
       )
     },
   })
@@ -183,7 +183,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
             size="small"
             loading={removeIngredienteMutation.isPending}
           >
-            🗑️
+           
           </Button>
         </Popconfirm>
       ),
@@ -198,11 +198,11 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
         onClick={() => setIsModalVisible(true)}
         className="bg-neo-coral hover:bg-neo-coralDark"
       >
-        📝 Editar Receta
+        Editar Receta
       </Button>
 
       <Modal
-        title={`📋 Receta: ${productName}`}
+        title={`Receta: ${productName}`}
         open={isModalVisible}
         onCancel={() => {
           setIsModalVisible(false)
@@ -216,7 +216,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
             {/* Sección: Seleccionar Producto (cuando no se pasa productId por props) */}
             {!propProductId && (
               <div className="p-4 bg-neo-surface rounded-3xl border-2 border-neo-light" style={S.neoOutSm}>
-                <h4 className="text-base font-bold text-neo-dark mb-3">🍽️ Seleccionar Producto</h4>
+                <h4 className="text-base font-bold text-neo-dark mb-3">Seleccionar Producto</h4>
                 <Select
                   placeholder="Elige el producto para editar su receta..."
                   value={selectedProductId || undefined}
@@ -246,7 +246,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
               className="p-5 bg-neo-surface rounded-3xl border-2 border-neo-light"
               style={S.neoOut}
             >
-              <h4 className="text-lg font-bold text-neo-dark mb-4">➕ Agregar Ingrediente</h4>
+              <h4 className="text-lg font-bold text-neo-dark mb-4">Agregar Ingrediente</h4>
 
               <Space.Compact style={{ width: '100%' }}>
                 <div style={{ flex: 2 }}>
@@ -282,7 +282,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                   className="bg-neo-coral hover:bg-neo-coralDark"
                   title={!productId ? 'Selecciona un producto primero' : ''}
                 >
-                  ✅ Agregar
+                  Agregar
                 </Button>
               </Space.Compact>
             </div>
@@ -290,7 +290,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
             {/* Tabla: Ingredientes Actuales */}
             <div>
               <div className="flex justify-between items-center mb-3">
-                <h4 className="text-lg font-bold text-neo-dark">📦 Ingredientes</h4>
+                <h4 className="text-lg font-bold text-neo-dark">Ingredientes</h4>
                 <span className="text-sm bg-neo-base px-3 py-1 rounded-xl text-neo-dark font-bold">
                   Costo Total: <span className="text-neo-coral">${totalRecipeCost.toFixed(2)}</span>
                 </span>
@@ -308,8 +308,8 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                   loading={recetaQuery.isLoading}
                   locale={{
                     emptyText: !productId
-                      ? '⬆️ Selecciona un producto para ver su receta.'
-                      : '📭 Sin ingredientes. Agrega algunos arriba.',
+                      ? '⬆Selecciona un producto para ver su receta.'
+                      : 'Sin ingredientes. Agrega algunos arriba.',
                   }}
                 />
               </div>
@@ -318,7 +318,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
             {/* Resumen */}
             {(recetaQuery.data?.length || 0) > 0 && (
               <div className="p-4 bg-neo-light rounded-2xl text-sm text-neo-mid">
-                ℹ️ Esta receta usa <strong>{recetaQuery.data?.length || 0}</strong> ingredientes
+                Esta receta usa <strong>{recetaQuery.data?.length || 0}</strong> ingredientes
                 y tiene un costo total de <strong className="text-neo-coral">${totalRecipeCost.toFixed(2)}</strong>
               </div>
             )}
