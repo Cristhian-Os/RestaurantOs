@@ -103,7 +103,7 @@ export default function Login({ onLogin }: LoginProps) {
 
         {/* ── Encabezado editorial ── */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ width: 88, height: 88, borderRadius: '1.5rem', overflow: 'hidden', margin: '0 auto 1.25rem', boxShadow: 'var(--w-shadow-md)', border: '1px solid var(--w-line)' }}>
+          <div style={{ width: 88, height: 88, borderRadius: '1.25rem', overflow: 'hidden', margin: '0 auto 1.25rem', boxShadow: 'var(--w-shadow-md)', border: '1px solid var(--w-line)', background: 'var(--w-surface)' }}>
             <img src="/logo.jpg" alt="RestaurantOS" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </div>
           <p className="ed-kicker" style={{ marginBottom: '0.5rem' }}>Bienvenido</p>

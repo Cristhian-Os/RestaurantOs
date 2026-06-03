@@ -616,3 +616,55 @@
   .w-rise, .w-fade, .w-scale { animation: none; opacity: 1; transform: none; }
   .w-lift, .w-press { transition: none; }
 }
+
+/* ── Tema oscuro cálido (noche en la cocina, no negro frío) ── */
+[data-theme="dark"] {
+  --w-bg:        oklch(0.205 0.014 60);   /* marrón muy oscuro cálido */
+  --w-bg-2:      oklch(0.170 0.012 55);
+  --w-surface:   oklch(0.258 0.016 58);   /* tarjetas elevadas        */
+  --w-ink:       oklch(0.940 0.012 82);   /* crema (texto)            */
+  --w-ink-soft:  oklch(0.800 0.018 75);
+  --w-ink-mut:   oklch(0.640 0.022 70);
+  --w-line:      oklch(0.95 0.02 80 / 0.12);
+
+  --w-terra:     oklch(0.670 0.140 42);   /* terracota más brillante  */
+  --w-terra-dk:  oklch(0.585 0.140 40);
+  --w-olive:     oklch(0.640 0.095 120);
+  --w-saffron:   oklch(0.785 0.110 72);
+  --w-wine:      oklch(0.620 0.150 22);
+  --w-terra-rgb: 224, 122, 90;
+
+  --w-shadow-sm: 0 1px 2px oklch(0 0 0 / 0.30), 0 2px 8px oklch(0 0 0 / 0.32);
+  --w-shadow-md: 0 4px 14px oklch(0 0 0 / 0.42), 0 10px 28px oklch(0 0 0 / 0.36);
+  --w-shadow-lg: 0 16px 40px oklch(0 0 0 / 0.52), 0 28px 64px oklch(0 0 0 / 0.40);
+  --w-shadow-terra: 0 6px 22px oklch(0.67 0.14 42 / 0.42);
+}
+/* Liquid glass en oscuro — panel translúcido oscuro */
+[data-theme="dark"] .lg {
+  background: oklch(0.258 0.016 58 / 0.55);
+  border-color: oklch(1 0 0 / 0.10);
+  box-shadow: var(--w-shadow-md), inset 0 1px 1px oklch(1 0 0 / 0.10), inset 0 -1px 1px oklch(0 0 0 / 0.20);
+}
+[data-theme="dark"] .lg::before {
+  background: linear-gradient(135deg, oklch(1 0 0 / 0.18) 0%, oklch(1 0 0 / 0.04) 30%, transparent 55%, oklch(0.67 0.14 42 / 0.12) 100%);
+}
+[data-theme="dark"] .lg::after {
+  background: radial-gradient(120% 80% at 18% 0%, oklch(1 0 0 / 0.07) 0%, transparent 50%);
+}
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(90deg, var(--w-bg-2) 25%, var(--w-surface) 50%, var(--w-bg-2) 75%);
+  background-size: 200% 100%;
+}
+
+/* ── Grid de menú responsivo (móvil → tablet → desktop) ── */
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+@media (min-width: 640px)  { .menu-grid { grid-template-columns: repeat(3, 1fr); gap: 1.25rem; } }
+@media (min-width: 1024px) { .menu-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* Contenedor de ancho del menú (se ensancha en desktop) */
+.menu-wrap { max-width: 760px; }
+@media (min-width: 1024px) { .menu-wrap { max-width: 1100px; } }

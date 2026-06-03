@@ -395,7 +395,7 @@ export default function PublicMenu() {
     <div style={{ minHeight: '100vh', background: 'var(--w-bg)', fontFamily: 'var(--w-sans)', paddingBottom: '6rem' }}>
 
       {/* ── Editorial hero ── */}
-      <header style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', maxWidth: 760, margin: '0 auto', overflow: 'hidden' }}>
+      <header className="menu-wrap" style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', margin: '0 auto', overflow: 'hidden' }}>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.875rem' }}>
             <span className="ed-kicker">Menú</span>
@@ -412,7 +412,7 @@ export default function PublicMenu() {
       </header>
 
       {/* ── Sticky category nav (liquid glass) ── */}
-      <div style={{ position: 'sticky', top: 12, zIndex: 30, padding: '0 1rem', margin: '0.5rem auto 1.5rem', maxWidth: 760 }}>
+      <div className="menu-wrap" style={{ position: 'sticky', top: 12, zIndex: 30, padding: '0 1rem', margin: '0.5rem auto 1.5rem' }}>
         <div className="lg no-scrollbar" style={{ display: 'flex', gap: '0.375rem', overflowX: 'auto', padding: '0.5rem', borderRadius: '1rem' }}>
           {categoryNavItems.map(({ key, label }) => {
             const active = activeCat === key
@@ -433,7 +433,7 @@ export default function PublicMenu() {
         </div>
       </div>
 
-      <div style={{ padding: '0 1.5rem', maxWidth: 760, margin: '0 auto' }}>
+      <div className="menu-wrap" style={{ padding: '0 1.5rem', margin: '0 auto' }}>
 
         {/* ── Order tracking ── */}
         <AnimatePresence>
@@ -503,7 +503,7 @@ export default function PublicMenu() {
 
         {/* ── Content ── */}
         {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+          <div className="menu-grid">
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : isSearching ? (
@@ -513,7 +513,7 @@ export default function PublicMenu() {
               <p className="ed-body" style={{ color: 'var(--w-ink-mut)', marginTop: '0.5rem' }}>No encontramos ese plato.</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+            <div className="menu-grid">
               {filteredFlat.map((dish, i) => {
                 const inCart = cart.filter(ci => ci.dish.id === dish.id).reduce((s, ci) => s + ci.qty, 0)
                 return <DishCard key={dish.id} dish={dish} inCart={inCart} onCustomize={() => setCustomizing(dish)} index={i} />
@@ -534,7 +534,7 @@ export default function PublicMenu() {
                     <div style={{ flex: 1, height: 1, background: 'var(--w-line)' }} />
                     <span className="ed-kicker" style={{ color: 'var(--w-ink-mut)' }}>{catDishes.length}</span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                  <div className="menu-grid">
                     {catDishes.map((dish, i) => {
                       const inCart = cart.filter(ci => ci.dish.id === dish.id).reduce((s, ci) => s + ci.qty, 0)
                       return <DishCard key={dish.id} dish={dish} inCart={inCart} onCustomize={() => setCustomizing(dish)} index={i} />
