@@ -53,7 +53,7 @@ function ElapsedTimer({ createdAt }: { createdAt: string }) {
   const isUrgent = secs > 900
   return (
     <span style={{ color: isUrgent ? '#DC2626' : '#D97706', fontWeight: 700, fontSize: '0.875rem' }}>
-      {t} {isUrgent ? '' : ''}
+      {t}{isUrgent ? ' · urgente' : ''}
     </span>
   )
 }
@@ -149,8 +149,8 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
             {readyOrders.size > 0 && <span style={{ color: 'var(--green)', fontWeight: 700, marginLeft: 8 }}>· {readyOrders.size} listas</span>}
           </p>
         </div>
-        <button onClick={fetchData} style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer', ...S.neoOutSm }}>
-         
+        <button onClick={fetchData} title="Refrescar" aria-label="Refrescar" style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...S.neoOutSm }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
         </button>
       </div>
 

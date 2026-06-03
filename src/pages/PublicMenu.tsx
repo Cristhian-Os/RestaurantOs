@@ -242,6 +242,7 @@ export default function PublicMenu() {
   const [showCart,      setShowCart]      = useState(false)
   const [sent,          setSent]          = useState(false)
   const [sending,       setSending]       = useState(false)
+  const [sendError,     setSendError]     = useState<string | null>(null)
   const [customizing,   setCustomizing]   = useState<Dish | null>(null)
   const [orderId,       setOrderId]       = useState<string | null>(null)
   const [orderStatus,   setOrderStatus]   = useState<string | null>(null)
@@ -330,7 +331,8 @@ export default function PublicMenu() {
         clientName.trim() ? `Cliente: ${clientName.trim()}` : null,
         !mesa.trim() ? 'Pedido en mostrador / sin mesa' : null,
       ].filter(Boolean)
-      const { data: newOrder } = await supabase.from('orders').insert({
+      const { data: userData } = await supabase.auth.getUser()
+      const { data: newOrder, error } = await supabase.from('orders').insert({
         table_num:     tableNum,
         items:         JSON.stringify(items),
         total:         cartTotal,
@@ -338,15 +340,29 @@ export default function PublicMenu() {
         status:        'pending',
         customer_name: clientName.trim() || null,
         notes:         noteParts.length ? noteParts.join(' · ') : null,
-        user_id:       (await supabase.auth.getUser()).data.user?.id ?? '00000000-0000-0000-0000-000000000000',
+        user_id:       userData.user?.id ?? '00000000-0000-0000-0000-000000000000',
       }).select('id').single()
 
-      if (newOrder?.id) {
-        setOrderId(newOrder.id)
-        setOrderStatus('pending')
-        setShowTracking(true)
+      // Solo confirmamos y vaciamos el carrito si el pedido SE GUARDÓ de verdad
+      if (error || !newOrder?.id) {
+        throw new Error(error?.message || 'No se pudo registrar el pedido')
       }
-      setSent(true); setCart([]); setShowCart(false)
+
+      setOrderId(newOrder.id)
+      setOrderStatus('pending')
+      setShowTracking(true)
+      setSent(true)
+      setCart([])
+      setShowCart(false)
+    } catch (e) {
+      // Falló (red o servidor): NO perdemos el carrito y avisamos al cliente
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+      setSendError(
+        offline
+          ? 'Parece que no tienes conexión. Tu pedido NO se envió — revisa tu internet e intenta otra vez. Tu carrito sigue aquí.'
+          : 'No pudimos enviar tu pedido. Intenta de nuevo o pide ayuda a un mesero. Tu carrito sigue aquí.'
+      )
+      console.error('Error al enviar pedido:', e)
     } finally { setSending(false) }
   }, [cart, mesa, clientName, cartTotal, canConfirm])
 
@@ -644,8 +660,14 @@ export default function PublicMenu() {
                 <span className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', color: 'var(--w-terra)' }}>{fmtCOP(cartTotal)}</span>
               </div>
 
+              {sendError && (
+                <div style={{ background: 'color-mix(in oklch, var(--w-wine) 12%, var(--w-surface))', border: '1px solid var(--w-wine)', color: 'var(--w-wine)', borderRadius: '0.875rem', padding: '0.75rem 1rem', marginBottom: '0.875rem', fontSize: '0.8125rem', fontWeight: 500 }}>
+                  {sendError}
+                </div>
+              )}
+
               <button className="lg-accent w-press"
-                onClick={sendOrder} disabled={sending || !canConfirm}
+                onClick={() => { setSendError(null); sendOrder() }} disabled={sending || !canConfirm}
                 style={{ width: '100%', padding: '1.05rem', border: 'none', fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--w-sans)', cursor: !canConfirm ? 'not-allowed' : 'pointer', opacity: !canConfirm ? 0.5 : 1 }}>
                 {sending ? 'Enviando...' : !canConfirm ? 'Ingresa nombre o mesa' : `Pedir · ${fmtCOP(cartTotal)}`}
               </button>

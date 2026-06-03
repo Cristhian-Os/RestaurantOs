@@ -106,10 +106,13 @@ export const offlineService = {
   },
 }
 
-// Sincronizar cuando vuelve la conexión
+// Sincronizar cuando vuelve la conexión.
+// Guard para registrar el listener UNA sola vez (Dashboard puede remontarse).
+let offlineSyncInitialized = false
 export function initializeOfflineSync() {
+  if (offlineSyncInitialized) return
+  offlineSyncInitialized = true
   window.addEventListener('online', async () => {
-    console.log('Conexión restaurada. Sincronizando órdenes...')
     await offlineService.syncOfflineOrders()
   })
 }

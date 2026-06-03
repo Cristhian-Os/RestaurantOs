@@ -174,6 +174,8 @@ export const analyticsService = {
         })
 
         const recipe_cost = cost || 0
+        // Guard contra división por cero (platos con precio 0 → sin alerta de margen)
+        if (!dish.price || dish.price <= 0) continue
         const new_margin = ((dish.price - recipe_cost) / dish.price) * 100
 
         // Si margen < 60%, generar alerta

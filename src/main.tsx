@@ -16,7 +16,6 @@ async function registerSW() {
       const url = reg.active?.scriptURL ?? reg.installing?.scriptURL ?? ''
       if (!url.endsWith('/sw.js')) {
         await reg.unregister()
-        console.log('SW viejo eliminado:', url)
       }
     }
 
@@ -25,13 +24,11 @@ async function registerSW() {
     for (const key of keys) {
       if (key !== 'ros-v5') {
         await caches.delete(key)
-        console.log('Caché viejo eliminado:', key)
       }
     }
 
     // Registrar el SW actual
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-    console.log('SW registrado:', reg.scope)
 
     // Activar inmediatamente si hay uno esperando
     if (reg.waiting) {

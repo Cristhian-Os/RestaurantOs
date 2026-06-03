@@ -251,12 +251,13 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
                         <button
                           onClick={() => isEditing ? setEditing(null) : openEdit(iso)}
                           style={{ padding: '0.375rem 0.625rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', backgroundColor: isEditing ? bgSurf : bg, color: acc, fontWeight: 700, fontSize: '0.75rem', fontFamily: 'inherit', boxShadow: isEditing ? shadowIn : shadowOut, transition: 'box-shadow 0.15s ease' }}>
-                          {isEditing ? 'Cancelar' : shift ? '' : '+ Turno'}
+                          {isEditing ? 'Cancelar' : shift ? 'Editar' : '+ Turno'}
                         </button>
                         {shift && !isEditing && (
                           <button onClick={() => handleDelete(iso)} disabled={deleting === iso}
-                            style={{ padding: '0.375rem 0.5rem', borderRadius: '0.625rem', border: 'none', cursor: deleting === iso ? 'wait' : 'pointer', backgroundColor: bg, color: '#EF4444', fontWeight: 700, fontSize: '0.75rem', boxShadow: shadowOut, opacity: deleting === iso ? 0.45 : 1 }}>
-                           
+                            title="Eliminar turno" aria-label="Eliminar turno"
+                            style={{ padding: '0.375rem 0.5rem', borderRadius: '0.625rem', border: 'none', cursor: deleting === iso ? 'wait' : 'pointer', backgroundColor: bg, color: '#EF4444', fontWeight: 700, fontSize: '0.75rem', boxShadow: shadowOut, opacity: deleting === iso ? 0.45 : 1, display: 'flex', alignItems: 'center' }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 14, height: 14 }}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                           </button>
                         )}
                       </div>

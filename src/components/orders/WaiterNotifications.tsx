@@ -78,9 +78,7 @@ export const WaiterNotifications = memo(() => {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('WaiterNotifications canal:', status)
-      })
+      .subscribe()
 
     return () => {
       clearInterval(poll)
