@@ -1,20 +1,13 @@
 /**
- * Login.tsx — Pantalla de inicio de sesión neomórfica
- * Mobile-first, logo controlado, fuentes garantizadas
+ * Login.tsx — Warm Editorial + Liquid Glass
+ * Primera impresión: fondo lino cálido, tarjeta liquid glass,
+ * tipografía Fraunces. Lógica de autenticación intacta.
  */
 import { useState, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
 
 interface LoginProps { onLogin: () => void }
-
-// Sombras neomórficas (inline para independencia de Tailwind)
-const S = {
-  neoOut: { boxShadow: '12px 12px 24px rgba(163,177,198,0.7),-12px -12px 24px rgba(255,255,255,0.8)' },
-  neoIn:  { boxShadow: 'inset 5px 5px 10px rgba(130,142,170,0.5),inset -5px -5px 10px rgba(255,255,255,0.5)' },
-  coral:  { boxShadow: '8px 8px 16px rgba(255,87,34,0.32),-4px -4px 12px rgba(255,255,255,0.45)' },
-  green:  { boxShadow: '8px 8px 16px rgba(16,185,129,0.28),-4px -4px 12px rgba(255,255,255,0.45)' },
-} as const
 
 type Mode = 'login' | 'forgot' | 'forgot_sent'
 
@@ -28,6 +21,23 @@ function getAuthError(code: string | undefined): string {
   }
 }
 
+const ICON = { width: 16, height: 16 } as const
+
+const inputBase: React.CSSProperties = {
+  width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem',
+  paddingTop: '0.8rem', paddingBottom: '0.8rem',
+  fontSize: '0.9375rem', color: 'var(--w-ink)', border: '1px solid var(--w-line)',
+  outline: 'none', fontFamily: 'var(--w-sans)', boxSizing: 'border-box',
+  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+}
+
+const errorBox: React.CSSProperties = {
+  background: 'color-mix(in oklch, var(--w-wine) 10%, var(--w-surface))',
+  border: '1px solid color-mix(in oklch, var(--w-wine) 35%, transparent)',
+  color: 'var(--w-wine)', fontSize: '0.8125rem', fontWeight: 500,
+  padding: '0.75rem 1rem', borderRadius: '0.875rem',
+}
+
 export default function Login({ onLogin }: LoginProps) {
   const [mode,     setMode]    = useState<Mode>('login')
   const [email,    setEmail]   = useState('')
@@ -39,19 +49,12 @@ export default function Login({ onLogin }: LoginProps) {
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!email.trim())   { setError('El email es requerido');     return }
-    if (!password.trim()){ setError('La contraseña es requerida'); return }
+    if (!email.trim())    { setError('El email es requerido');      return }
+    if (!password.trim()) { setError('La contraseña es requerida'); return }
     setLoading(true)
     try {
       const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-      if (err) {
-        setError(getAuthError(err.code))
-        setLoading(false)
-        return
-      }
-      // No llamar setLoading(false) aquí — App.tsx tomará el control
-      // al recibir el evento onAuthStateChange con la nueva sesión.
-      // onLogin() ya no hace nada — el estado de App se actualiza solo.
+      if (err) { setError(getAuthError(err.code)); setLoading(false); return }
       onLogin()
     } catch {
       setError('Error de conexión. Verifica tu internet')
@@ -74,61 +77,38 @@ export default function Login({ onLogin }: LoginProps) {
     finally  { setLoading(false) }
   }
 
+  const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = 'var(--w-terra)'
+    e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in oklch, var(--w-terra) 16%, transparent)'
+  }
+  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = 'var(--w-line)'
+    e.currentTarget.style.boxShadow = 'none'
+  }
+
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        backgroundColor: '#D8DAE4',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.5rem',
-        fontFamily: '"Nunito", ui-sans-serif, sans-serif',
-      }}
-    >
+    <div style={{
+      minHeight: '100vh', position: 'relative', overflow: 'hidden',
+      background: 'var(--w-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '1.5rem', fontFamily: 'var(--w-sans)',
+    }}>
+      {/* Calidez ambiental de fondo */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(120% 80% at 50% -10%, color-mix(in oklch, var(--w-terra) 14%, transparent) 0%, transparent 55%), radial-gradient(80% 60% at 100% 100%, color-mix(in oklch, var(--w-saffron) 12%, transparent) 0%, transparent 50%)' }} />
+
       <motion.div
-        initial={{ opacity: 0, y: 32 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-        style={{ width: '100%', maxWidth: '380px' }}
-      >
-        {/* ── Logo: tamaño fijo w-24 h-24 rounded-3xl object-contain ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2.5rem' }}>
-          <div
-            style={{
-              width: '96px',       /* w-24 */
-              height: '96px',      /* h-24 */
-              borderRadius: '1.5rem', /* rounded-3xl */
-              overflow: 'hidden',
-              flexShrink: 0,
-              marginBottom: '1rem',
-              ...S.neoOut,
-              backgroundColor: '#D8DAE4',
-            }}
-          >
-            <img
-              src="/logo.jpg"
-              alt="RestaurantOS"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',  /* No distorsionar — mantiene proporción */
-                display: 'block',
-              }}
-            />
+        initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1 }}>
+
+        {/* ── Encabezado editorial ── */}
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{ width: 88, height: 88, borderRadius: '1.5rem', overflow: 'hidden', margin: '0 auto 1.25rem', boxShadow: 'var(--w-shadow-md)', border: '1px solid var(--w-line)' }}>
+            <img src="/logo.jpg" alt="RestaurantOS" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </div>
-          <h1
-            style={{
-              fontFamily: '"DM Sans", ui-sans-serif, sans-serif',
-              fontWeight: 700,
-              fontSize: '1.5rem',
-              color: '#2D3561',
-              margin: 0,
-            }}
-          >
-            RestaurantOS
-          </h1>
-          <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
+          <p className="ed-kicker" style={{ marginBottom: '0.5rem' }}>Bienvenido</p>
+          <h1 className="ed-display" style={{ fontSize: '2.5rem', fontWeight: 600, margin: 0 }}>RestaurantOS</h1>
+          <p className="ed-body" style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', marginTop: '0.5rem' }}>
             Sistema de gestión gastronómica
           </p>
         </div>
@@ -138,155 +118,68 @@ export default function Login({ onLogin }: LoginProps) {
           {/* ── LOGIN ── */}
           {mode === 'login' && (
             <motion.div key="login"
-              initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}
-            >
-              <div
-                style={{
-                  backgroundColor: '#D8DAE4',
-                  borderRadius: '1.5rem',
-                  padding: '2rem',
-                  ...S.neoOut,
-                }}
-              >
-                <h2 style={{ fontWeight: 700, color: '#2D3561', fontSize: '1.125rem', marginBottom: '1.5rem' }}>
-                  Iniciar sesión
-                </h2>
+              initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 16 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}>
+              <div className="lg" style={{ padding: '1.75rem', borderRadius: '1.5rem' }}>
+                <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.375rem', margin: '0 0 1.5rem' }}>Iniciar sesión</h2>
 
                 <form onSubmit={handleLogin} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {/* Email */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
-                      Email
-                    </label>
+                    <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>Email</label>
                     <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}>
-                          <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                        </svg>
+                      <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--w-ink-mut)' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={ICON}><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                       </span>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={e => { setEmail(e.target.value); setError(null) }}
-                        placeholder="tu@email.com"
-                        autoComplete="email"
-                        autoCapitalize="none"
-                        style={{
-                          width: '100%',
-                          backgroundColor: '#CDD0DC',
-                          borderRadius: '1rem',
-                          paddingLeft: '2.75rem',
-                          paddingRight: '1rem',
-                          paddingTop: '0.75rem',
-                          paddingBottom: '0.75rem',
-                          fontSize: '0.875rem',
-                          color: '#2D3561',
-                          border: 'none',
-                          outline: 'none',
-                          fontFamily: 'inherit',
-                          ...S.neoIn,
-                        }}
-                      />
+                      <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(null) }}
+                        placeholder="tu@email.com" autoComplete="email" autoCapitalize="none"
+                        onFocus={onFocus} onBlur={onBlur}
+                        style={{ ...inputBase, paddingLeft: '2.75rem', paddingRight: '1rem' }} />
                     </div>
                   </div>
 
                   {/* Contraseña */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                        Contraseña
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => { setMode('forgot'); setError(null) }}
-                        style={{ fontSize: '0.75rem', color: '#FF5722', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0, minHeight: 'auto' }}
-                      >
+                      <label className="ed-kicker">Contraseña</label>
+                      <button type="button" onClick={() => { setMode('forgot'); setError(null) }}
+                        style={{ fontSize: '0.75rem', color: 'var(--w-terra)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                         ¿Olvidaste tu contraseña?
                       </button>
                     </div>
                     <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}>
-                          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-                        </svg>
+                      <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--w-ink-mut)' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={ICON}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                       </span>
-                      <input
-                        type={showPass ? 'text' : 'password'}
-                        value={password}
-                        onChange={e => { setPass(e.target.value); setError(null) }}
-                        placeholder="••••••••"
-                        autoComplete="current-password"
-                        style={{
-                          width: '100%',
-                          backgroundColor: '#CDD0DC',
-                          borderRadius: '1rem',
-                          paddingLeft: '2.75rem',
-                          paddingRight: '3rem',
-                          paddingTop: '0.75rem',
-                          paddingBottom: '0.75rem',
-                          fontSize: '0.875rem',
-                          color: '#2D3561',
-                          border: 'none',
-                          outline: 'none',
-                          fontFamily: 'inherit',
-                          ...S.neoIn,
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShow(p => !p)}
-                        style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0, minHeight: 'auto', minWidth: 'auto' }}
-                      >
+                      <input type={showPass ? 'text' : 'password'} value={password} onChange={e => { setPass(e.target.value); setError(null) }}
+                        placeholder="••••••••" autoComplete="current-password"
+                        onFocus={onFocus} onBlur={onBlur}
+                        style={{ ...inputBase, paddingLeft: '2.75rem', paddingRight: '3rem' }} />
+                      <button type="button" onClick={() => setShow(p => !p)}
+                        style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                         {showPass
-                          ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
-                          : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        }
+                          ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={ICON}><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
+                          : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={ICON}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
                       </button>
                     </div>
                   </div>
 
-                  {/* Error */}
                   {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                      style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: '0.75rem', fontWeight: 500, padding: '0.75rem 1rem', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                    >
-                      ⚠️ {error}
-                    </motion.div>
+                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} style={errorBox}>{error}</motion.div>
                   )}
 
-                  {/* Botón ingresar */}
-                  <motion.button
-                    type="submit"
-                    disabled={loading}
-                    whileTap={!loading ? { scale: 0.97 } : {}}
-                    style={{
-                      width: '100%',
-                      padding: '0.875rem',
-                      borderRadius: '1rem',
-                      backgroundColor: '#FF5722',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: '0.9375rem',
-                      border: 'none',
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      opacity: loading ? 0.7 : 1,
-                      fontFamily: 'inherit',
-                      ...S.coral,
-                    }}
-                  >
+                  <button type="submit" disabled={loading} className="lg-accent w-press"
+                    style={{ width: '100%', padding: '0.95rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
                     {loading
                       ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                          <svg style={{ animation: 'spin 0.8s linear infinite', width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none">
+                          <svg style={{ animation: 'spin 0.8s linear infinite', width: 16, height: 16 }} viewBox="0 0 24 24" fill="none">
                             <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                             <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                           </svg>
                           Ingresando...
                         </span>
-                      : 'Ingresar'
-                    }
-                  </motion.button>
+                      : 'Ingresar'}
+                  </button>
                 </form>
               </div>
             </motion.div>
@@ -295,44 +188,26 @@ export default function Login({ onLogin }: LoginProps) {
           {/* ── FORGOT ── */}
           {mode === 'forgot' && (
             <motion.div key="forgot"
-              initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}
-            >
-              <div style={{ backgroundColor: '#D8DAE4', borderRadius: '1.5rem', padding: '2rem', ...S.neoOut }}>
-                <button
-                  onClick={() => { setMode('login'); setError(null) }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '1.25rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, minHeight: 'auto' }}
-                >
+              initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}>
+              <div className="lg" style={{ padding: '1.75rem', borderRadius: '1.5rem' }}>
+                <button onClick={() => { setMode('login'); setError(null) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', color: 'var(--w-ink-mut)', marginBottom: '1.25rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                   ← Volver
                 </button>
-                <h2 style={{ fontWeight: 700, color: '#2D3561', fontSize: '1.125rem', marginBottom: '0.5rem' }}>
-                  Recuperar contraseña
-                </h2>
-                <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', marginBottom: '1.5rem' }}>
+                <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.375rem', margin: '0 0 0.5rem' }}>Recuperar contraseña</h2>
+                <p className="ed-body" style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', marginBottom: '1.5rem' }}>
                   Te enviaremos un enlace para crear una nueva contraseña.
                 </p>
                 <form onSubmit={handleForgot} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => { setEmail(e.target.value); setError(null) }}
-                    placeholder="tu@email.com"
-                    autoComplete="email"
-                    style={{ width: '100%', backgroundColor: '#CDD0DC', borderRadius: '1rem', padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#2D3561', border: 'none', outline: 'none', fontFamily: 'inherit', ...S.neoIn }}
-                  />
-                  {error && (
-                    <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: '0.75rem', padding: '0.75rem 1rem', borderRadius: '1rem' }}>
-                      ⚠️ {error}
-                    </div>
-                  )}
-                  <motion.button
-                    type="submit"
-                    disabled={loading}
-                    whileTap={{ scale: 0.97 }}
-                    style={{ width: '100%', padding: '0.875rem', borderRadius: '1rem', backgroundColor: '#FF5722', color: '#fff', fontWeight: 700, fontSize: '0.875rem', border: 'none', cursor: 'pointer', opacity: loading ? 0.7 : 1, fontFamily: 'inherit', ...S.coral }}
-                  >
+                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(null) }}
+                    placeholder="tu@email.com" autoComplete="email" onFocus={onFocus} onBlur={onBlur}
+                    style={{ ...inputBase, padding: '0.8rem 1rem' }} />
+                  {error && <div style={errorBox}>{error}</div>}
+                  <button type="submit" disabled={loading} className="lg-accent w-press"
+                    style={{ width: '100%', padding: '0.95rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
                     {loading ? 'Enviando...' : 'Enviar enlace de recuperación'}
-                  </motion.button>
+                  </button>
                 </form>
               </div>
             </motion.div>
@@ -341,25 +216,18 @@ export default function Login({ onLogin }: LoginProps) {
           {/* ── SENT ── */}
           {mode === 'forgot_sent' && (
             <motion.div key="sent"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            >
-              <div style={{ backgroundColor: '#D8DAE4', borderRadius: '1.5rem', padding: '2rem', textAlign: 'center', ...S.neoOut }}>
-                <div style={{ width: '64px', height: '64px', borderRadius: '1rem', backgroundColor: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', margin: '0 auto 1rem', boxShadow: '8px 8px 16px rgba(16,185,129,0.28),-4px -4px 12px rgba(255,255,255,0.45)' }}>
-                  📧
+              initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 26 }}>
+              <div className="lg" style={{ padding: '2rem', borderRadius: '1.5rem', textAlign: 'center' }}>
+                <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--w-olive)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', color: '#fff', boxShadow: 'var(--w-shadow-md)' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 26, height: 26 }}><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                 </div>
-                <h2 style={{ fontWeight: 700, color: '#2D3561', fontSize: '1.125rem', marginBottom: '0.5rem' }}>
-                  Revisa tu correo
-                </h2>
-                <p style={{ fontSize: '0.875rem', color: '#9CA3AF', marginBottom: '1.5rem' }}>
-                  Enviamos un enlace a <strong style={{ color: '#2D3561' }}>{email}</strong>.
-                  Revisa también tu carpeta de spam.
+                <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.375rem', margin: '0 0 0.5rem' }}>Revisa tu correo</h2>
+                <p className="ed-body" style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', marginBottom: '1.5rem' }}>
+                  Enviamos un enlace a <strong style={{ color: 'var(--w-ink)' }}>{email}</strong>. Revisa también tu carpeta de spam.
                 </p>
-                <button
-                  onClick={() => { setMode('login'); setError(null) }}
-                  style={{ width: '100%', padding: '0.875rem', borderRadius: '1rem', backgroundColor: '#FF5722', color: '#fff', fontWeight: 700, fontSize: '0.875rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', ...S.coral }}
-                >
+                <button onClick={() => { setMode('login'); setError(null) }} className="lg-accent w-press"
+                  style={{ width: '100%', padding: '0.95rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer' }}>
                   Volver al inicio de sesión
                 </button>
               </div>
@@ -368,7 +236,7 @@ export default function Login({ onLogin }: LoginProps) {
 
         </AnimatePresence>
 
-        <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#9CA3AF', marginTop: '1.5rem' }}>
+        <p className="ed-kicker" style={{ textAlign: 'center', color: 'var(--w-ink-mut)', marginTop: '1.5rem', letterSpacing: '0.14em' }}>
           RestaurantOS · Sistema Multi-Rol
         </p>
       </motion.div>
