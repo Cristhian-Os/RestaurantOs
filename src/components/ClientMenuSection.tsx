@@ -1,11 +1,12 @@
 /**
- * ClientMenuSection.tsx — v2 (conectado a Supabase)
- * Menú digital real con datos de la BD + carrito + self-ordering
+ * ClientMenuSection.tsx — v3 (con platos custom)
+ * Menú digital real con datos de la BD + carrito + self-ordering + custom dishes
  */
 import { useState, useCallback, useMemo, memo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }        from '../services/supabaseClient'
 import { DishCard }        from './DishCard'
+import { CustomDishBuilder } from './CustomDishBuilder'
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from './ScrollReveal'
 import type { Dish, DishCategory } from '../types'
 
@@ -18,6 +19,12 @@ const CATEGORY_LABELS: Record<DishCategory, string> = {
 }
 
 interface CartItem { dish: Dish; quantity: number }
+interface CustomDish {
+  name: string
+  description?: string
+  price: number
+  ingredients: Record<string, number>
+}
 
 const S = {
   neoOut:  { boxShadow: '8px 8px 16px rgba(130,142,170,0.55),-8px -8px 16px rgba(255,255,255,0.55)' },
@@ -27,14 +34,15 @@ const S = {
 }
 
 export const ClientMenuSection = memo(() => {
-  const [dishes,          setDishes]     = useState<Dish[]>([])
-  const [loading,         setLoading]    = useState(true)
-  const [cart,            setCart]       = useState<CartItem[]>([])
-  const [activeCategory,  setCategory]   = useState<DishCategory | 'all'>('all')
-  const [search,          setSearch]     = useState('')
-  const [tableNum,        setTableNum]   = useState('')
-  const [submitting,      setSubmitting] = useState(false)
-  const [submitted,       setSubmitted]  = useState(false)
+  const [dishes,            setDishes]       = useState<Dish[]>([])
+  const [loading,           setLoading]      = useState(true)
+  const [cart,              setCart]         = useState<CartItem[]>([])
+  const [activeCategory,    setCategory]     = useState<DishCategory | 'all'>('all')
+  const [search,            setSearch]       = useState('')
+  const [tableNum,          setTableNum]     = useState('')
+  const [submitting,        setSubmitting]   = useState(false)
+  const [submitted,         setSubmitted]    = useState(false)
+  const [showCustomBuilder, setShowCustom]   = useState(false)
 
   // Cargar menú real desde Supabase
   useEffect(() => {
@@ -85,28 +93,103 @@ export const ClientMenuSection = memo(() => {
   const getQuantity = useCallback((id: string) =>
     cart.find(i => i.dish.id === id)?.quantity ?? 0, [cart])
 
-  // Self-ordering: el cliente envía su propio pedido
+  // Manejar creación de plato custom
+  const handleCustomDishCreated = useCallback((customDish: CustomDish) => {
+    // Crear un "plato virtual" con ID único basado en timestamp
+    const virtualDish: Dish = {
+      id: `custom-${Date.now()}`,
+      name: customDish.name,
+      description: customDish.description || 'Plato personalizado',
+      price: customDish.price,
+      category: 'especial',
+      image_url: undefined,
+      available: true,
+      availability_status: 'available',
+      tags: ['custom', ...Object.keys(customDish.ingredients)],
+      sort_order: 999,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      has_sizes: false,
+      // Guardar ingredientes en el objeto custom para referencia
+      _customIngredients: customDish.ingredients,
+    } as any
+
+    setCart(prev => {
+      const exists = prev.find(i => i.dish.id === virtualDish.id)
+      return exists
+        ? prev.map(i => i.dish.id === virtualDish.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...prev, { dish: virtualDish, quantity: 1 }]
+    })
+  }, [])
+
+  // Self-ordering: el cliente envía su propio pedido (con soporte para platos custom)
   const handleOrder = useCallback(async () => {
     if (cart.length === 0) return
     if (!tableNum.trim()) { alert('Ingresa tu número de mesa'); return }
     setSubmitting(true)
     try {
-      const items = cart.map(i => ({
-        id: i.dish.id, name: i.dish.name,
-        price: i.dish.price, quantity: i.quantity
-      }))
-      const { error } = await supabase.rpc('crear_orden_completa', {
-        p_mesa_id:     null,
-        p_items:       items,
-        p_tipo_pedido: 'LOCAL',
-        p_table_num:   parseInt(tableNum),
-        p_notes:       null,
-      })
-      if (error) throw error
+      // Crear la orden primero (para obtener order_id)
+      let orderId: string
+      {
+        const { data, error } = await supabase.rpc('crear_orden_completa', {
+          p_mesa_id:     null,
+          p_items:       [], // Items vacíos por ahora
+          p_tipo_pedido: 'LOCAL',
+          p_table_num:   parseInt(tableNum),
+          p_notes:       null,
+        })
+        if (error) throw error
+        orderId = data.order_id
+      }
+
+      // Procesar cada item (normal o custom)
+      const items: any[] = []
+      for (const cartItem of cart) {
+        if (cartItem.dish.id.startsWith('custom-')) {
+          // Es un plato custom: crear en BD y obtener ID real
+          const { createCustomDish } = await import('../services/customDishService')
+          const customDishId = await createCustomDish(orderId, {
+            name: cartItem.dish.name,
+            description: cartItem.dish.description,
+            price: cartItem.dish.price,
+            ingredients: cartItem.dish._customIngredients || {},
+          })
+
+          items.push({
+            id: customDishId,
+            name: cartItem.dish.name,
+            price: cartItem.dish.price,
+            quantity: cartItem.quantity,
+          })
+        } else {
+          // Es un plato normal
+          items.push({
+            id: cartItem.dish.id,
+            name: cartItem.dish.name,
+            price: cartItem.dish.price,
+            quantity: cartItem.quantity,
+          })
+        }
+      }
+
+      // Insertar los detalles en la orden creada
+      for (const item of items) {
+        const { error } = await supabase
+          .from('detalles_pedidos')
+          .insert({
+            order_id: orderId,
+            dish_id: item.id,
+            cantidad: item.quantity,
+            precio_unit: item.price,
+          })
+        if (error) throw error
+      }
+
       setSubmitted(true)
       setCart([])
     } catch (e) {
-      alert('Error al enviar pedido. Llama al mesero.')
+      console.error('Error al enviar pedido:', e)
+      alert(`Error al enviar pedido: ${(e as Error).message || 'Llama al mesero.'}`)
     } finally {
       setSubmitting(false)
     }
@@ -155,6 +238,45 @@ export const ClientMenuSection = memo(() => {
           className="flex-1 bg-transparent text-sm text-[#2D3561] outline-none placeholder-[#9CA3AF]" />
         {search && <button onClick={() => setSearch('')} className="text-[#9CA3AF] text-xs">✕</button>}
       </div>
+
+      {/* Botón para crear plato custom */}
+      <ScrollReveal delay={0.08} y={16}>
+        <motion.button
+          onClick={() => setShowCustom(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full py-3 rounded-2xl font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 text-sm"
+          style={S.coral}
+        >
+          🎨 Crear mi propio plato (con ingredientes disponibles)
+        </motion.button>
+      </ScrollReveal>
+
+      {/* Modal CustomDishBuilder */}
+      <AnimatePresence>
+        {showCustomBuilder && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowCustom(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <CustomDishBuilder
+                onDishCreated={handleCustomDishCreated}
+                onClose={() => setShowCustom(false)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Categorías */}
       <ScrollReveal delay={0.1} y={16}>

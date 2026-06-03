@@ -33,6 +33,10 @@ export interface Dish {
   availability_status?: 'available' | 'out_of_stock' | 'discontinued'
   tags?:       string[]     // ej: ['vegano', 'sin gluten', 'picante']
   has_sizes?:  boolean      // true = el cliente puede elegir tamaño (Pequeño/Mediano/Grande)
+  created_at?: string       // timestamp de creación
+  updated_at?: string       // timestamp de actualización
+  sort_order?: number       // orden de visualización
+  _customIngredients?: Record<string, number> // para platos custom: { ingrediente_id: cantidad }
 }
 
 // ─── Tipos del Sistema de Tareas ─────────────────────────────
