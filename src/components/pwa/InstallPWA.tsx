@@ -545,7 +545,7 @@ function InstallModal({
                       iPhone / iPad (Safari)
                     </p>
                     {['Abre la URL en Safari',
-                      'Toca el ícono de compartir ⬆',
+                      'Toca el ícono de compartir',
                       'Selecciona "Agregar a pantalla de inicio"',
                     ].map((s, i) => (
                       <p key={i} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>

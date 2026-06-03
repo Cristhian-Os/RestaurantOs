@@ -558,7 +558,7 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    ⬇Descargar
+                   Descargar
                   </a>
                 </div>
                 {ev.notes && (

@@ -308,7 +308,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                   loading={recetaQuery.isLoading}
                   locale={{
                     emptyText: !productId
-                      ? '⬆Selecciona un producto para ver su receta.'
+                      ? 'Selecciona un producto para ver su receta.'
                       : 'Sin ingredientes. Agrega algunos arriba.',
                   }}
                 />

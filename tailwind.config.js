@@ -73,27 +73,28 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Apuntan a variables temáticas → adoptan paleta cálida en claro/oscuro
         neo: {
-          base:      '#D8DAE4',   // atenuado
-          surface:   '#CDD0DC',   // atenuado
-          raised:    '#E2E4EC',
-          coral:     '#FF5722',
-          coralDark: '#E64A19',
-          dark:      '#2D3561',
-          mid:       '#5A617A',
-          light:     '#8B92AA',
-          green:     '#10B981',
-          amber:     '#F59E0B',
-          blue:      '#3B82F6',
+          base:      'var(--bg)',
+          surface:   'var(--bg-surface)',
+          raised:    'var(--bg-raised)',
+          coral:     'var(--accent)',
+          coralDark: 'var(--accent-dk)',
+          dark:      'var(--text-primary)',
+          mid:       'var(--text-secondary)',
+          light:     'var(--text-muted)',
+          green:     'var(--green)',
+          amber:     'var(--amber)',
+          blue:      'var(--blue)',
         },
       },
       boxShadow: {
-        'neo-out':    '8px 8px 16px rgba(163,177,198,0.65), -8px -8px 16px rgba(255,255,255,0.75)',
-        'neo-out-sm': '4px 4px 10px rgba(163,177,198,0.6), -4px -4px 10px rgba(255,255,255,0.7)',
-        'neo-out-lg': '12px 12px 24px rgba(163,177,198,0.7), -12px -12px 24px rgba(255,255,255,0.8)',
-        'neo-in':     'inset 6px 6px 12px rgba(163,177,198,0.6), inset -6px -6px 12px rgba(255,255,255,0.7)',
-        'neo-in-sm':  'inset 3px 3px 7px rgba(163,177,198,0.55), inset -3px -3px 7px rgba(255,255,255,0.65)',
-        'neo-coral':  '8px 8px 16px rgba(255,87,34,0.35), -4px -4px 12px rgba(255,255,255,0.6)',
+        'neo-out':    'var(--shadow-out)',
+        'neo-out-sm': 'var(--shadow-out-sm)',
+        'neo-out-lg': 'var(--shadow-out-lg)',
+        'neo-in':     'var(--shadow-in)',
+        'neo-in-sm':  'var(--shadow-in-sm)',
+        'neo-coral':  'var(--shadow-coral)',
       },
       fontFamily: {
         display: ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],

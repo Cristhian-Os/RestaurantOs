@@ -20,10 +20,12 @@ function buildMenuUrl(mesa?: string) {
 }
 
 async function generateQR(url: string): Promise<string> {
+  // El QR necesita colores HEX reales y alto contraste (oscuro sobre blanco)
+  // para ser escaneable. No usar variables CSS aquí.
   return QRCode.toDataURL(url, {
     width: 300,
     margin: 2,
-    color: { dark: 'var(--text-primary)', light: '#FFFFFF' },
+    color: { dark: '#1F1813', light: '#FFFFFF' },
     errorCorrectionLevel: 'H',
   })
 }
@@ -220,7 +222,7 @@ export function QRMenu() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
               ...S.outSm,
             }}>
-            ⬇Descargar QR
+           Descargar QR
           </motion.button>
           <motion.button whileTap={{ scale: 0.97 }}
             onClick={handlePrint}
@@ -318,7 +320,7 @@ export function QRMenu() {
                     fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
                     ...S.outSm,
                   }}>
-                  ⬇Descargar
+                 Descargar
                 </motion.button>
                 <motion.button whileTap={{ scale: 0.95 }}
                   onClick={handlePrint}
