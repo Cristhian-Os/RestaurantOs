@@ -51,8 +51,7 @@
   --divider: rgba(70, 50, 35, 0.12);
 
   /* Subtle bg gradient for depth */
-  --bg-gradient: radial-gradient(ellipse at 20% 5%,  rgba(255,255,255,0.40) 0%, transparent 50%),
-                 radial-gradient(ellipse at 80% 95%, rgba(79,122,71,0.05)   0%, transparent 50%);
+  --bg-gradient: none;
 
   /* Theme-aware tag/badge colors */
   --tag-red-bg:       rgba(220, 38,  38,  0.10); --tag-red-text:       #B91C1C;
@@ -73,13 +72,13 @@
 
 /* ── Variables CSS — Tema Oscuro ──────────────────────────── */
 [data-theme="dark"] {
-  --bg:              #211C17;  /* marrón oscuro cálido */
-  --bg-surface:      #2A241E;
-  --bg-raised:       #2A241E;
-  --text-primary:    #ECE5DA;  /* crema */
-  --text-secondary:  #B9AE9F;
-  --text-muted:      #8A7E6F;
-  --accent:          #7CA85E;  /* verde brillante (oscuro) */
+  --bg:              #16171A;  /* negro neutro */
+  --bg-surface:      #202227;
+  --bg-raised:       #202227;
+  --text-primary:    #F4F5F7;  /* casi blanco */
+  --text-secondary:  #C2C4C9;
+  --text-muted:      #8A8D94;
+  --accent:          #84C25E;  /* verde brillante (oscuro) */
   --accent-dk:       #5E8246;
   --accent-rgb:      124, 168, 94;
   --green:           #8FBF63;  /* verde éxito */
@@ -95,9 +94,9 @@
   --shadow-green:  0 6px 22px rgba(143,191,99,0.34);
   --shadow-amber:  0 6px 22px rgba(217,140,85,0.38);
 
-  /* Glass system — dark cálido */
-  --glass-bg:         rgba(42, 36, 30, 0.85);
-  --glass-bg-inner:   rgba(33, 28, 23, 0.80);
+  /* Glass system — dark neutro */
+  --glass-bg:         rgba(28, 30, 34, 0.85);
+  --glass-bg-inner:   rgba(18, 19, 22, 0.80);
   --glass-border:     rgba(255, 255, 255, 0.10);
   --glass-border-sub: rgba(255, 255, 255, 0.05);
   --glass-shadow:     0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.35);
@@ -105,8 +104,7 @@
 
   --divider: rgba(255, 255, 255, 0.09);
 
-  --bg-gradient: radial-gradient(ellipse at 15% 10%, rgba(124,168,94,0.07)  0%, transparent 45%),
-                 radial-gradient(ellipse at 85% 90%, rgba(217,140,85,0.05)  0%, transparent 45%);
+  --bg-gradient: none;
 
   /* Tag colors — bright enough to read on dark backgrounds */
   --tag-red-bg:       rgba(248, 113, 113, 0.18); --tag-red-text:       #FCA5A5;
@@ -545,16 +543,8 @@
   pointer-events: none;
   z-index: 2;
 }
-/* Velo de luz difusa interior */
-.lg::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(120% 80% at 18% 0%, oklch(1 0 0 / 0.30) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 1;
-}
+/* (Velo de luz radial eliminado — el usuario no quiere halos) */
+.lg::after { content: none; }
 .lg > * { position: relative; z-index: 3; }
 
 /* Variante oscura translúcida (para overlays sobre foto) */
@@ -622,13 +612,13 @@
 
 /* ── Tema oscuro cálido (noche en la cocina, no negro frío) ── */
 [data-theme="dark"] {
-  --w-bg:        oklch(0.205 0.014 60);   /* marrón muy oscuro cálido */
-  --w-bg-2:      oklch(0.170 0.012 55);
-  --w-surface:   oklch(0.258 0.016 58);   /* tarjetas elevadas        */
-  --w-ink:       oklch(0.940 0.012 82);   /* crema (texto)            */
-  --w-ink-soft:  oklch(0.800 0.018 75);
-  --w-ink-mut:   oklch(0.640 0.022 70);
-  --w-line:      oklch(0.95 0.02 80 / 0.12);
+  --w-bg:        oklch(0.155 0.002 250);  /* negro neutro (fondo)     */
+  --w-bg-2:      oklch(0.115 0.002 250);  /* casi negro               */
+  --w-surface:   oklch(0.205 0.003 250);  /* tarjetas elevadas        */
+  --w-ink:       oklch(0.965 0.002 250);  /* casi blanco (texto)      */
+  --w-ink-soft:  oklch(0.800 0.004 250);
+  --w-ink-mut:   oklch(0.640 0.005 250);
+  --w-line:      oklch(1 0 0 / 0.12);
 
   --w-terra:     oklch(0.640 0.125 148);  /* verde más brillante (oscuro) */
   --w-terra-dk:  oklch(0.560 0.115 148);
@@ -644,9 +634,9 @@
 }
 /* Liquid glass en oscuro — panel translúcido oscuro */
 [data-theme="dark"] .lg {
-  background: oklch(0.258 0.016 58 / 0.55);
+  background: oklch(0.205 0.003 250 / 0.60);
   border-color: oklch(1 0 0 / 0.10);
-  box-shadow: var(--w-shadow-md), inset 0 1px 1px oklch(1 0 0 / 0.10), inset 0 -1px 1px oklch(0 0 0 / 0.20);
+  box-shadow: var(--w-shadow-md), inset 0 1px 1px oklch(1 0 0 / 0.08), inset 0 -1px 1px oklch(0 0 0 / 0.20);
 }
 [data-theme="dark"] .lg::before {
   background: linear-gradient(135deg, oklch(1 0 0 / 0.18) 0%, oklch(1 0 0 / 0.04) 30%, transparent 55%, oklch(0.64 0.125 148 / 0.12) 100%);

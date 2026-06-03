@@ -92,10 +92,6 @@ export default function Login({ onLogin }: LoginProps) {
       background: 'var(--w-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '1.5rem', fontFamily: 'var(--w-sans)',
     }}>
-      {/* Calidez ambiental de fondo */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(120% 80% at 50% -10%, color-mix(in oklch, var(--w-terra) 14%, transparent) 0%, transparent 55%), radial-gradient(80% 60% at 100% 100%, color-mix(in oklch, var(--w-saffron) 12%, transparent) 0%, transparent 50%)' }} />
-
       <motion.div
         initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
