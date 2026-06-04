@@ -75,7 +75,7 @@
         if ('caches' in window) {
           caches.keys().then(function(keys) {
             keys.forEach(function(key) {
-              if (key !== 'ros-v5') caches.delete(key);
+              if (key !== 'ros-v6') caches.delete(key);
             });
           });
         }

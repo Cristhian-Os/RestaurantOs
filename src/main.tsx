@@ -22,7 +22,7 @@ async function registerSW() {
     // Limpiar cachés de versiones anteriores
     const keys = await caches.keys()
     for (const key of keys) {
-      if (key !== 'ros-v5') {
+      if (key !== 'ros-v6') {
         await caches.delete(key)
       }
     }

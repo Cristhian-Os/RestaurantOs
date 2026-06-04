@@ -1,38 +1,73 @@
 import { supabase } from './supabaseClient'
-import message from 'antd/es/message'  // FIX: static import, no require()
+import message from 'antd/es/message'
+
+// Clave VAPID pública (segura de exponer, igual que la anon key).
+// La privada vive como secret en la Edge Function `send-push`.
+const VAPID_PUBLIC_KEY = 'BGY-1TXDcSOVLs_Ll7sT5c9sTnSuuGz_3H-rFZL8zOc9QCVdzgtryAUldNeM8LAqM8mmxIDJwW2wVo23EFeRXjs'
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = window.atob(base64)
+  const arr = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; ++i) arr[i] = raw.charCodeAt(i)
+  return arr
+}
+
+// ArrayBuffer → base64url (formato que espera web-push para p256dh/auth)
+function bufToBase64url(buf: ArrayBuffer | null): string {
+  if (!buf) return ''
+  const bytes = new Uint8Array(buf)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return window.btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+export type PushTarget = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
 
 export const pushNotificationService = {
+  // Pide permiso y suscribe el dispositivo (idempotente)
   async initializePushNotifications(): Promise<void> {
-    // Service Worker ya se registra en main.tsx — no registrar de nuevo aquí
-    // Solo pedir permiso de notificaciones si el navegador lo soporta
     try {
-      if ('Notification' in window && Notification.permission === 'default') {
-        // No bloquear el hilo principal con await — hacerlo en background
-        Notification.requestPermission().catch(() => {/* silencioso */})
+      if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return
+      if (Notification.permission === 'default') {
+        const perm = await Notification.requestPermission()
+        if (perm !== 'granted') return
+      }
+      if (Notification.permission === 'granted') {
+        await this.subscribeToPush()
       }
     } catch {
-      // iOS Safari puede lanzar excepción — ignorar silenciosamente
+      // iOS Safari antiguo / navegador sin soporte — ignorar
     }
   },
 
-  async subscribeToPush(vapidPublicKey: string): Promise<string | null> {
-    if (!('serviceWorker' in navigator)) {
-      console.warn('Service Workers no soportados')
-      return null
-    }
+  async subscribeToPush(): Promise<string | null> {
     try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null
+      if (Notification.permission !== 'granted') return null
+
       const registration = await navigator.serviceWorker.ready
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: this.urlBase64ToUint8Array(vapidPublicKey),
-      })
-      const { error } = await supabase.from('push_subscriptions').insert([{
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+      let subscription = await registration.pushManager.getSubscription()
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+        })
+      }
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return null
+
+      // Guardar suscripción (upsert por endpoint para no duplicar dispositivos)
+      const { error } = await supabase.from('push_subscriptions').upsert({
+        user_id:  user.id,
         endpoint: subscription.endpoint,
-        auth: JSON.stringify(subscription.getKey('auth')),
-        p256dh: JSON.stringify(subscription.getKey('p256dh')),
-      }])
+        p256dh:   bufToBase64url(subscription.getKey('p256dh')),
+        auth:     bufToBase64url(subscription.getKey('auth')),
+      }, { onConflict: 'endpoint' })
       if (error) throw error
+
       return subscription.endpoint
     } catch (error) {
       console.error('Error suscribiendo a push:', error)
@@ -40,36 +75,31 @@ export const pushNotificationService = {
     }
   },
 
-  // FIX SEC#1 — usa import estático en lugar de require()
+  // Notificación in-app (cuando la app está abierta)
   showInAppNotification(
     _title: string,
     body: string,
-    type: 'success' | 'error' | 'warning' | 'info' = 'info'
+    type: 'success' | 'error' | 'warning' | 'info' = 'info',
   ): void {
     if (typeof window === 'undefined') return
     message[type]({ content: body, duration: 4 })
   },
 
-  async sendPushToAdmin(title: string, body: string, data?: Record<string, string>): Promise<void> {
+  // Enviar push a todos los dispositivos de uno o varios roles, vía Edge Function.
+  // Funciona aunque la app del destinatario esté cerrada.
+  async notify(
+    target: PushTarget | PushTarget[],
+    title: string,
+    body: string,
+    url = '/',
+  ): Promise<void> {
     try {
-      await fetch('/api/send-push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, data: data || {}, target_role: 'admin' }),
+      const roles = Array.isArray(target) ? target : [target]
+      await supabase.functions.invoke('send-push', {
+        body: { roles, title, body, url },
       })
     } catch (error) {
       console.error('Error enviando push:', error)
     }
-  },
-
-  urlBase64ToUint8Array(base64String: string): Uint8Array {
-    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-    const rawData = window.atob(base64)
-    const outputArray = new Uint8Array(rawData.length)
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i)
-    }
-    return outputArray
   },
 }

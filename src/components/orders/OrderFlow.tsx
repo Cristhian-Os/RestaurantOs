@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { offlineService } from '../../services/offlineService'
+import { pushNotificationService } from '../../services/pushNotificationService'
 import message from 'antd/es/message'
 import type { Dish, DishCategory } from '../../types'
 import type { Profile } from '../../pages/Dashboard'
@@ -169,6 +170,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         })
         if (error) throw error
         message.success(`Orden enviada a cocina — Total: $${cartTotal.toFixed(2)}`)
+        const dest = selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : 'Mostrador'
+        pushNotificationService.notify(['kitchen', 'admin'], 'Nuevo pedido', `${dest} — ${items.length} ítem(s)`, '/')
         onOrderCreated?.(data.order_id, data.total)
       } else {
         const { data: { user: offlineUser } } = await supabase.auth.getUser()

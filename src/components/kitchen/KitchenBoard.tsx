@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
+import { pushNotificationService } from '../../services/pushNotificationService'
 import message from 'antd/es/message'
 
 interface OrderItem { id: string; name: string; price: number; quantity: number; notes?: string }
@@ -165,7 +166,10 @@ export const KitchenBoard = memo(() => {
     if (error) { message.error('Error al actualizar: ' + error.message); return }
     fetchOrders()
     if (nextStatus === 'ready') {
-      message.success({ content: `Mesa ${order?.table_num ?? '?'} — pedido listo. Notificando al mesero...`, duration: 5 })
+      const dest = order?.table_num ? `Mesa ${order.table_num}` : 'Pedido'
+      message.success({ content: `${dest} — pedido listo. Notificando al mesero...`, duration: 5 })
+      // Push a meseros y admin (suena aunque tengan la app cerrada)
+      pushNotificationService.notify(['waiter', 'admin'], 'Pedido listo', `${dest} está listo para entregar`, '/')
     }
     if (nextStatus === 'completed') message.success('Pedido entregado')
   }, [fetchOrders])

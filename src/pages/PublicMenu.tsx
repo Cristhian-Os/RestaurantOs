@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
+import { pushNotificationService } from '../services/pushNotificationService'
 import type { Dish, DishCategory } from '../types'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
@@ -354,6 +355,13 @@ export default function PublicMenu() {
       setSent(true)
       setCart([])
       setShowCart(false)
+      // Avisar a cocina y admin (push, suena con la app cerrada)
+      pushNotificationService.notify(
+        ['kitchen', 'admin'],
+        'Nuevo pedido',
+        tableNum ? `Mesa ${tableNum} hizo un pedido` : `${clientName.trim() || 'Un cliente'} hizo un pedido`,
+        '/',
+      )
     } catch (e) {
       // Falló (red o servidor): NO perdemos el carrito y avisamos al cliente
       const offline = typeof navigator !== 'undefined' && navigator.onLine === false
