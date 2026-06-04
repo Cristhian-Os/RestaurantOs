@@ -1,8 +1,8 @@
-// RestaurantOS Service Worker v6
-const CACHE = 'ros-v6'
+// RestaurantOS Service Worker v7 — offline real (cachea la app)
+const CACHE = 'ros-v7'
 const OFFLINE_URL = '/index.html'
 
-// Install: cachear solo el HTML de entrada
+// Install: cachear el HTML de entrada
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE)
@@ -10,6 +10,30 @@ self.addEventListener('install', (e) => {
       .then(() => self.skipWaiting())
   )
 })
+
+// Helper: stale-while-revalidate (sirve de caché y actualiza en segundo plano)
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE)
+  const cached = await cache.match(request)
+  const network = fetch(request)
+    .then(res => { if (res && res.ok) cache.put(request, res.clone()); return res })
+    .catch(() => cached)  // sin conexión → lo cacheado
+  return cached || network
+}
+
+// Helper: cache-first (para fuentes — no cambian)
+async function cacheFirst(request) {
+  const cache = await caches.open(CACHE)
+  const cached = await cache.match(request)
+  if (cached) return cached
+  try {
+    const res = await fetch(request)
+    if (res && res.ok) cache.put(request, res.clone())
+    return res
+  } catch {
+    return cached || Response.error()
+  }
+}
 
 // Activate: borrar cachés viejos y tomar control inmediato
 self.addEventListener('activate', (e) => {
@@ -29,24 +53,23 @@ self.addEventListener('fetch', (e) => {
 
   // Ignorar requests que no son HTTP/HTTPS (chrome-extension, etc.)
   if (!url.protocol.startsWith('http')) return
+  // Solo cacheamos GET; el resto va directo a la red
+  if (request.method !== 'GET') return
 
-  // Ignorar peticiones a Supabase y APIs externas — ir directo a la red
+  // Datos en vivo (Supabase REST/Auth/Realtime/Functions): SIEMPRE red, sin caché
   if (
     url.hostname.includes('supabase.co') ||
-    url.hostname.includes('googleapis.com') ||
-    url.hostname.includes('gstatic.com') ||
-    url.hostname.includes('fonts.') ||
     url.pathname.startsWith('/rest/') ||
     url.pathname.startsWith('/auth/') ||
-    url.pathname.startsWith('/realtime/')
-  ) return  // ← dejar que el browser maneje estas requests normal
+    url.pathname.startsWith('/realtime/') ||
+    url.pathname.startsWith('/functions/')
+  ) return  // ← el browser la maneja normal (online-only)
 
-  // Navegación (cargar la app): intentar red, fallback al index.html cacheado
+  // Navegación (cargar la app): red primero, fallback al index.html cacheado
   if (request.mode === 'navigate') {
     e.respondWith(
       fetch(request)
         .then(res => {
-          // Actualizar el caché del index.html si la red responde
           if (res.ok) {
             const clone = res.clone()
             caches.open(CACHE).then(c => c.put(OFFLINE_URL, clone))
@@ -64,9 +87,20 @@ self.addEventListener('fetch', (e) => {
     return
   }
 
-  // Todo lo demás (JS, CSS, imágenes, fuentes locales): red directa
-  // NO interceptamos — el browser las maneja normalmente
-  // Esto evita el bug donde el SW deja requests sin respuesta
+  // Fuentes de Google (Fraunces/Inter): cache-first → disponibles offline
+  if (url.hostname.includes('gstatic.com') || url.hostname.includes('fonts.googleapis.com')) {
+    e.respondWith(cacheFirst(request))
+    return
+  }
+
+  // Assets de la app (JS, CSS, imágenes, fuentes locales) y mismo origen:
+  // stale-while-revalidate → la app ARRANCA offline (no solo el shell).
+  if (url.origin === self.location.origin) {
+    e.respondWith(staleWhileRevalidate(request))
+    return
+  }
+
+  // Cualquier otro origen externo: red directa
 })
 
 // Mensajes desde la app
