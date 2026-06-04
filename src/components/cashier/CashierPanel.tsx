@@ -56,9 +56,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [showCorte,    setShowCorte] = useState(false)
   const [corteResult,  setCorteResult] = useState<any>(null)
   const [cortingLoading, setCortingLoading] = useState(false)
-  // Destino de fondos — obligatorio en el corte de caja
-  const [fondosDestino, setFondosDestino] = useState<'cuenta_principal' | 'cuenta_secundaria' | ''>('')
-  const [notasCorte,    setNotasCorte]    = useState('')
 
   const fetchData = useCallback(async () => {
     const [ordersRes, completedRes] = await Promise.all([
@@ -143,7 +140,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const handleCorte = useCallback(async () => {
     setCortingLoading(true)
     try {
-      const { data, error } = await supabase.rpc('hacer_corte_caja', { p_notas: notasCorte.trim() || `Destino: ${fondosDestino}` })
+      const { data, error } = await supabase.rpc('hacer_corte_caja', { p_notas: null })
       if (error) throw error
       setCorteResult(data)
       setShowCorte(true)
@@ -407,7 +404,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   { label: 'Efectivo',     val: corteResult.total_efectivo },
                   { label: 'Transferencia', val: corteResult.total_transferencia },
                   { label: 'Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
-                  { label: 'Destino',       val: fondosDestino === 'cuenta_principal' ? 'Cuenta Principal' : 'Cuenta Secundaria', isCurrency: false },
                 ].map(item => (
                   <div key={item.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
                     <span className="text-sm text-[#6B7280]">{item.label}</span>
