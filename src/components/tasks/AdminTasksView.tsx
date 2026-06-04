@@ -7,6 +7,7 @@ import { useState, useCallback, useMemo, memo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }          from '../../services/supabaseClient'
 import message               from 'antd/es/message'
+import Popconfirm            from 'antd/es/popconfirm'
 import { useRealtimeTasks }  from './useRealtimeTasks'
 import type { Task, TaskStatus, TaskPriority, Profile } from '../../types'
 
@@ -131,12 +132,10 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
   }, [refetch])
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
-    if (!confirm('¿Eliminar esta tarea? Esta acción no se puede deshacer.')) return
-    // FIX SEC#2 — manejo de error en eliminación
+    // La confirmación la maneja el Popconfirm del botón (estilo de la app)
     const { error } = await supabase.from('tasks').delete().eq('id', taskId)
     if (error) {
       console.error('Error deleting task:', error)
-      // message import needed — use browser alert as fallback
       message.error('Error al eliminar: ' + error.message)
     } else {
       refetch()
@@ -470,15 +469,23 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
               </button>
             )}
 
-            <button
-              onClick={onDelete}
-              title="Eliminar tarea"
-              aria-label="Eliminar tarea"
-              className="text-xs font-bold text-[#9CA3AF] bg-[#D8DAE4] px-3 py-1.5 rounded-xl ml-auto flex items-center"
-              style={S.neoOutSm}
+            <Popconfirm
+              title="¿Eliminar esta tarea?"
+              description="Esta acción no se puede deshacer."
+              onConfirm={onDelete}
+              okText="Sí, eliminar"
+              cancelText="Cancelar"
+              okButtonProps={{ danger: true }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 14, height: 14 }}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/></svg>
-            </button>
+              <button
+                title="Eliminar tarea"
+                aria-label="Eliminar tarea"
+                className="text-xs font-bold text-[#9CA3AF] bg-[#D8DAE4] px-3 py-1.5 rounded-xl ml-auto flex items-center"
+                style={S.neoOutSm}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 14, height: 14 }}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/></svg>
+              </button>
+            </Popconfirm>
           </div>
         </div>
       </div>

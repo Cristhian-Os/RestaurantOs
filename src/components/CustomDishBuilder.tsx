@@ -210,8 +210,8 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
     >
       {/* Header */}
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-gray-900">Crear Plato Personalizado</h2>
-        <p className="text-sm text-gray-600">Elige ingredientes del stock para crear tu plato</p>
+        <h2 className="text-2xl font-bold text-[var(--text-primary)]">Crear Plato Personalizado</h2>
+        <p className="text-sm text-[var(--text-secondary)]">Elige ingredientes del stock para crear tu plato</p>
       </div>
 
       {/* Nombre y descripción */}
@@ -221,14 +221,14 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
           placeholder="Nombre del plato (ej: Ensalada de la Casa)"
           value={dishName}
           onChange={e => setDishName(e.target.value)}
-          className="w-full px-4 py-3 rounded-2xl border-2 border-gray-300 focus:border-orange-400 focus:outline-none transition"
+          className="w-full px-4 py-3 rounded-2xl border-2 border-[var(--divider)] focus:border-[var(--accent)] focus:outline-none transition"
           maxLength={100}
         />
         <textarea
           placeholder="Descripción (opcional)"
           value={description}
           onChange={e => setDescription(e.target.value)}
-          className="w-full px-4 py-3 rounded-2xl border-2 border-gray-300 focus:border-orange-400 focus:outline-none transition resize-none"
+          className="w-full px-4 py-3 rounded-2xl border-2 border-[var(--divider)] focus:border-[var(--accent)] focus:outline-none transition resize-none"
           rows={2}
           maxLength={200}
         />
@@ -240,18 +240,18 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
         placeholder="Buscar ingrediente..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="w-full px-4 py-3 rounded-2xl border-2 border-gray-300 focus:border-orange-400 focus:outline-none transition"
+        className="w-full px-4 py-3 rounded-2xl border-2 border-[var(--divider)] focus:border-[var(--accent)] focus:outline-none transition"
       />
 
       {/* Ingredientes disponibles */}
       <div className="space-y-2">
-        <h3 className="font-semibold text-gray-700">Ingredientes disponibles</h3>
+        <h3 className="font-semibold text-[var(--text-secondary)]">Ingredientes disponibles</h3>
         <div
           className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-2"
           style={S.neoIn}
         >
           {filteredIngredients.length === 0 ? (
-            <p className="text-gray-500 text-sm col-span-full text-center py-4">
+            <p className="text-[var(--text-muted)] text-sm col-span-full text-center py-4">
               {search ? 'No hay ingredientes que coincidan' : 'No hay ingredientes disponibles'}
             </p>
           ) : (
@@ -261,16 +261,16 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
                 onClick={() => handleAddIngredient(ing)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="p-3 rounded-lg bg-white border-2 border-gray-300 hover:border-orange-400 hover:bg-orange-50 transition text-left"
+                className="p-3 rounded-lg bg-[var(--bg-raised)] border-2 border-[var(--divider)] hover:border-[var(--accent)] hover:bg-[var(--bg-surface)] transition text-left"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">{ing.nombre}</p>
-                    <p className="text-xs text-gray-600">
+                    <p className="font-medium text-[var(--text-primary)] text-sm">{ing.nombre}</p>
+                    <p className="text-xs text-[var(--text-secondary)]">
                       {fmtCOP(ing.costo_unitario)} / {ing.unidad_medida}
                     </p>
                   </div>
-                  <span className="text-xs bg-gray-200 px-2 py-1 rounded font-semibold">
+                  <span className="text-xs bg-[var(--bg-surface)] px-2 py-1 rounded font-semibold">
                     {ing.stock_actual} {ing.unidad_medida}
                   </span>
                 </div>
@@ -283,8 +283,8 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
       {/* Ingredientes seleccionados */}
       {Object.keys(selected).length > 0 && (
         <motion.div className="space-y-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <h3 className="font-semibold text-gray-700">Ingredientes seleccionados</h3>
-          <div className="space-y-2 p-4 rounded-2xl bg-gray-50 border-2 border-gray-200">
+          <h3 className="font-semibold text-[var(--text-secondary)]">Ingredientes seleccionados</h3>
+          <div className="space-y-2 p-4 rounded-2xl bg-[var(--bg-surface)] border-2 border-[var(--divider)]">
             <AnimatePresence>
               {Object.entries(selected).map(([id, ing]) => (
                 <motion.div
@@ -292,21 +292,21 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className="flex items-center justify-between gap-3 p-3 bg-white rounded-lg border border-gray-200"
+                  className="flex items-center justify-between gap-3 p-3 bg-[var(--bg-raised)] rounded-lg border border-[var(--divider)]"
                 >
                   <div className="flex-1">
-                    <p className="font-medium text-sm text-gray-900">{ing.nombre}</p>
+                    <p className="font-medium text-sm text-[var(--text-primary)]">{ing.nombre}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <input
                         type="number"
                         value={ing.cantidad}
                         onChange={e => handleUpdateQuantity(id, parseFloat(e.target.value) || 0)}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                        className="w-20 px-2 py-1 border border-[var(--divider)] rounded text-sm"
                         min="0"
                         step={['kg', 'litro'].includes(ing.unidad_medida) ? '0.1' : '1'}
                       />
-                      <span className="text-xs text-gray-600">{ing.unidad_medida}</span>
-                      <span className="ml-auto font-semibold text-orange-500">{fmtCOP(ing.costo)}</span>
+                      <span className="text-xs text-[var(--text-secondary)]">{ing.unidad_medida}</span>
+                      <span className="ml-auto font-semibold text-[var(--accent)]">{fmtCOP(ing.costo)}</span>
                     </div>
                   </div>
                   <button
@@ -325,21 +325,21 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
       {/* Summary y botones */}
       <motion.div className="space-y-4 p-4 rounded-2xl" style={S.coral}>
         <div className="flex justify-between items-baseline">
-          <span className="text-gray-700 font-semibold">Precio estimado:</span>
-          <span className="text-3xl font-bold text-orange-600">{fmtCOP(totalPrice)}</span>
+          <span className="text-[var(--text-secondary)] font-semibold">Precio estimado:</span>
+          <span className="text-3xl font-bold text-[var(--accent)]">{fmtCOP(totalPrice)}</span>
         </div>
 
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-3 rounded-2xl border-2 border-gray-400 text-gray-700 font-semibold hover:bg-gray-100 transition"
+            className="flex-1 px-4 py-3 rounded-2xl border-2 border-[var(--divider)] text-[var(--text-secondary)] font-semibold hover:bg-[var(--bg-surface)] transition"
           >
             Cancelar
           </button>
           <button
             onClick={handleCreateDish}
             disabled={!isValid || submitting}
-            className="flex-1 px-4 py-3 rounded-2xl bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="flex-1 px-4 py-3 rounded-2xl bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-dk)] disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             {submitting ? 'Creando...' : '✓ Agregar al carrito'}
           </button>

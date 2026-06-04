@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }        from '../services/supabaseClient'
 import { DishCard }        from './DishCard'
 import { CustomDishBuilder } from './CustomDishBuilder'
+import message from 'antd/es/message'
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from './ScrollReveal'
 import type { Dish, DishCategory } from '../types'
 
@@ -125,7 +126,7 @@ export const ClientMenuSection = memo(() => {
   // Self-ordering: el cliente envía su propio pedido (con soporte para platos custom)
   const handleOrder = useCallback(async () => {
     if (cart.length === 0) return
-    if (!tableNum.trim()) { alert('Ingresa tu número de mesa'); return }
+    if (!tableNum.trim()) { message.warning('Ingresa tu número de mesa'); return }
     setSubmitting(true)
     try {
       // Separar el carrito en items normales (del catálogo) y platos custom
@@ -160,7 +161,7 @@ export const ClientMenuSection = memo(() => {
       setCart([])
     } catch (e) {
       console.error('Error al enviar pedido:', e)
-      alert(`Error al enviar pedido: ${(e as Error).message || 'Llama al mesero.'}`)
+      message.error(`Error al enviar pedido: ${(e as Error).message || 'Llama al mesero.'}`)
     } finally {
       setSubmitting(false)
     }

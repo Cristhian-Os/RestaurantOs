@@ -96,7 +96,8 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
     QRCode.toDataURL(APP_URL, {
       width: 220,
       margin: 2,
-      color: { dark: 'var(--text-primary)', light: 'var(--bg)' },
+      // El QR necesita colores HEX reales y alto contraste (no variables CSS)
+      color: { dark: '#1F1813', light: '#FFFFFF' },
       errorCorrectionLevel: 'H',
     }).then(setQrDataUrl).catch(console.error)
   }, [showModal, APP_URL])
@@ -176,6 +177,8 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
         display: 'flex',
         flexDirection: 'column',
         gap: '1rem',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
         ...S.out,
       }}>
         {/* Título */}
@@ -220,14 +223,15 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
         </div>
 
         {/* Botones */}
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           {deferredPrompt && (
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={handleInstallClick}
               disabled={installing}
               style={{
-                flex: 1,
+                flex: '1 1 12rem',
+                minWidth: 0,
                 padding: '0.75rem',
                 backgroundColor: 'var(--accent)',
                 borderRadius: '1rem',
@@ -264,7 +268,8 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
             whileTap={{ scale: 0.97 }}
             onClick={() => setShowModal(true)}
             style={{
-              flex: deferredPrompt ? '0 0 auto' : 1,
+              flex: deferredPrompt ? '1 1 auto' : '1 1 12rem',
+              minWidth: 0,
               padding: '0.75rem 1rem',
               backgroundColor: 'var(--bg)',
               borderRadius: '1rem',
@@ -276,6 +281,7 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               gap: '0.5rem',
               fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
               ...S.outSm,
             }}
           >

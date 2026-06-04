@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }       from '../../services/supabaseClient'
 import { EvidenceUpload } from './EvidenceUpload'
 import { useRealtimeTasks } from './useRealtimeTasks'
+import message from 'antd/es/message'
 import type { Task, TaskStatus, Profile } from '../../types'
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
@@ -57,13 +58,14 @@ export const EmployeeTasksView = memo<EmployeeTasksViewProps>(({ profile }) => {
   const [filter, setFilter] = useState<TaskStatus | 'all'>('all')
 
   const startTask = useCallback(async (taskId: string) => {
+    // Acepta tareas pendientes Y rechazadas (para el botón "Reintentar")
     const { error } = await supabase
       .from('tasks')
       .update({ status: 'in_progress' })
       .eq('id', taskId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'rejected'])
       .eq('assigned_to', profile.id)
-    if (error) alert(getErrorMessage(error))
+    if (error) message.error(getErrorMessage(error))
     else refetch()
   }, [profile.id, refetch])
 
