@@ -1,5 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { supabase } from './supabaseClient'
+import { queryClient } from './queryClient'
+import message from 'antd/es/message'
 import type { Order } from '../types'
 
 export interface OfflineOrder extends Order {
@@ -42,24 +44,29 @@ export const offlineService = {
       if (order.sync_status === 'synced') continue
 
       try {
-        const { error } = await supabase.from('orders').insert([
-          {
-            id: order.id,
-            user_id: order.user_id,
-            items: order.items,
-            total: order.total,
-            status: order.status,
-            table_num: order.table_num,
-            notes: order.notes,
-            tipo_pedido: order.tipo_pedido,
-          },
-        ])
+        // Parsear items (se guardan como string JSON al crear offline)
+        let items: unknown = order.items
+        if (typeof items === 'string') {
+          try { items = JSON.parse(items) } catch { items = [] }
+        }
+
+        // IMPORTANTE: usar el MISMO RPC que el flujo online (crear_orden_completa)
+        // para que la orden sincronizada pase por toda la lógica (detalles,
+        // descuento de inventario, etc.) y use el auth.uid() del usuario YA
+        // autenticado al volver la conexión (no el user_id offline).
+        const { error } = await supabase.rpc('crear_orden_completa', {
+          p_mesa_id:     null,
+          p_items:       items,
+          p_tipo_pedido: order.tipo_pedido ?? 'LOCAL',
+          p_notes:       order.notes ?? null,
+          p_table_num:   order.table_num ?? null,
+        })
 
         if (error) {
-          // CHECK constraint violation (stock insuficiente)
-          if (error.code === '23514') {
+          // Stock insuficiente / conflicto de inventario
+          if (error.code === '23514' || /stock|insuficiente|inventario/i.test(error.message)) {
             order.sync_status = 'conflict'
-            order.conflict_reason = 'Desajuste de Inventario: El stock ha cambiado desde que se creó la orden offline.'
+            order.conflict_reason = 'Desajuste de inventario: el stock cambió desde que se creó la orden offline.'
             conflicts.push(order)
           } else {
             throw error
@@ -70,25 +77,18 @@ export const offlineService = {
         }
       } catch (error) {
         console.error('Sync error:', error)
-        // Reintentar más tarde
+        // Reintentar más tarde (se queda pendiente en localStorage)
       }
     }
 
-    // BUG FIX #5: .includes() compara por referencia de objeto, no por id.
-    // Como los objetos en synced/conflicts son referencias distintas a offlineOrders,
-    // el filter siempre incluía TODOS, triplicando entradas en localStorage.
-    const syncedIds    = new Set(synced.map(o => o.id))
-    const conflictIds  = new Set(conflicts.map(o => o.id))
+    // Quitar las sincronizadas de localStorage; conservar pendientes y conflictos.
+    const syncedIds   = new Set(synced.map(o => o.id))
+    const conflictIds = new Set(conflicts.map(o => o.id))
+    const remaining = offlineOrders
+      .filter(o => !syncedIds.has(o.id))
+      .map(o => conflictIds.has(o.id) ? (conflicts.find(c => c.id === o.id) ?? o) : o)
 
-    const updatedOrders = [
-      ...offlineOrders.map(o => {
-        if (syncedIds.has(o.id))   return { ...o, sync_status: 'synced' as const }
-        if (conflictIds.has(o.id)) return conflicts.find(c => c.id === o.id)!
-        return o
-      }),
-    ]
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrders))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining))
 
     return { synced, conflicts }
   },
@@ -113,6 +113,28 @@ export function initializeOfflineSync() {
   if (offlineSyncInitialized) return
   offlineSyncInitialized = true
   window.addEventListener('online', async () => {
-    await offlineService.syncOfflineOrders()
+    try {
+      const { synced, conflicts } = await offlineService.syncOfflineOrders()
+      if (synced.length > 0) {
+        // Refrescar las vistas que dependen de órdenes
+        queryClient.invalidateQueries()
+        message.success(
+          `Conexión restaurada — ${synced.length} pedido(s) offline sincronizado(s) y enviado(s) a cocina`,
+        )
+      }
+      if (conflicts.length > 0) {
+        message.warning(
+          `${conflicts.length} pedido(s) offline no se pudieron sincronizar por inventario. Revísalos manualmente.`,
+        )
+      }
+    } catch (e) {
+      console.error('Error en sincronización offline:', e)
+    }
   })
+  // Intento inicial por si quedó algo pendiente de una sesión anterior
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    offlineService.syncOfflineOrders().then(({ synced }) => {
+      if (synced.length > 0) queryClient.invalidateQueries()
+    }).catch(() => {})
+  }
 }
