@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
-import type { Dish, DishCategory } from '../../types'
+import type { Dish, DishCategory, DishOptionGroup } from '../../types'
 
 const S = {
   neoOut:  { boxShadow: 'var(--shadow-out)' },
@@ -61,6 +61,8 @@ interface DishForm {
   available:     boolean
   has_sizes:     boolean
   sizes:         SizeRow[]
+  heladoCount:   string   // nº de bolas de helado a elegir (0/'' = ninguna)
+  quesoHelado:   boolean  // opción "Con queso / Con helado"
   image_file?:   File | null
   image_preview? :string | null
 }
@@ -68,11 +70,31 @@ interface DishForm {
 const FORM_EMPTY: DishForm = {
   name:'', description:'', price:'', category:'principal',
   tags:'', available:true, has_sizes:false, sizes:[{ nombre:'', precio:'' }],
+  heladoCount:'', quesoHelado:false,
   image_file:null, image_preview:null,
+}
+
+// Construye el array de grupos de opciones a partir de los campos del formulario
+function buildOptions(heladoCount: string, quesoHelado: boolean): DishOptionGroup[] {
+  const out: DishOptionGroup[] = []
+  if (quesoHelado) {
+    out.push({
+      tipo: 'opcion', nombre: '¿Con qué lo quieres?',
+      opciones: [{ label: 'Con queso' }, { label: 'Con helado', helado: 1 }],
+    })
+  }
+  const n = parseInt(heladoCount, 10)
+  if (!quesoHelado && Number.isFinite(n) && n > 0) {
+    out.push({ tipo: 'helado', nombre: n > 1 ? `Elige ${n} sabores de helado` : 'Elige el sabor del helado', cantidad: n })
+  }
+  return out
 }
 
 function dishToForm(d: Dish): DishForm {
   const sizes = (d.sizes ?? []).map(s => ({ nombre: s.nombre, precio: String(s.precio) }))
+  const opts = d.options ?? []
+  const heladoGroup = opts.find(o => o.tipo === 'helado')
+  const quesoHeladoGroup = opts.find(o => o.tipo === 'opcion' && (o.opciones ?? []).some(c => c.helado))
   return {
     name:          d.name,
     description:   d.description ?? '',
@@ -82,6 +104,8 @@ function dishToForm(d: Dish): DishForm {
     available:     d.available,
     has_sizes:     d.has_sizes ?? false,
     sizes:         sizes.length > 0 ? sizes : [{ nombre:'', precio:'' }],
+    heladoCount:   heladoGroup?.cantidad ? String(heladoGroup.cantidad) : '',
+    quesoHelado:   !!quesoHeladoGroup,
     image_file:    null,
     image_preview: d.image_url ?? null,
   }
@@ -195,6 +219,9 @@ export const MenuManager = memo(() => {
   const [savingCat,   setSavingCat]   = useState(false)
   const [editingCat,  setEditingCat]  = useState<string | null>(null)
   const [catLabel,    setCatLabel]    = useState('')
+  // Sabores de helado disponibles (config)
+  const [flavors,     setFlavors]     = useState<string[]>([])
+  const [newFlavor,   setNewFlavor]   = useState('')
   // Confirmación de borrado inline (reemplaza window.confirm)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -223,6 +250,9 @@ export const MenuManager = memo(() => {
         if (modules && Array.isArray(modules['categories'])) {
           const saved = modules['categories'] as Category[]
           if (saved.length > 0) setCategories(saved)
+        }
+        if (modules && Array.isArray(modules['helado_flavors'])) {
+          setFlavors((modules['helado_flavors'] as string[]).filter(Boolean))
         }
       })
   }, [fetchDishes])
@@ -276,6 +306,7 @@ export const MenuManager = memo(() => {
         available:           form.available,
         has_sizes:           form.has_sizes,
         sizes:               sizesPayload,
+        options:             buildOptions(form.heladoCount, form.quesoHelado),
         availability_status: form.available ? 'available' : 'out_of_stock',
         updated_at:          new Date().toISOString(),
       }
@@ -398,6 +429,35 @@ export const MenuManager = memo(() => {
     await persistCategories(updated)
     setEditEmojiForCat(null)
     message.success('Emoji actualizado')
+  }
+
+  // ── Sabores de helado (config.helado_flavors) ──────────────
+  const persistFlavors = async (list: string[]) => {
+    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
+    if (!cfg) return
+    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
+    await supabase.from('restaurant_config')
+      .update({ modules_enabled: { ...modules, helado_flavors: list } })
+      .eq('id', cfg.id)
+  }
+
+  const handleAddFlavor = async () => {
+    const name = newFlavor.trim()
+    if (!name) return
+    if (flavors.some(f => f.toLowerCase() === name.toLowerCase())) {
+      message.warning('Ese sabor ya está en la lista'); return
+    }
+    const updated = [...flavors, name]
+    setFlavors(updated); setNewFlavor('')
+    await persistFlavors(updated)
+    message.success(`Sabor "${name}" agregado`)
+  }
+
+  const handleDeleteFlavor = async (name: string) => {
+    const updated = flavors.filter(f => f !== name)
+    setFlavors(updated)
+    await persistFlavors(updated)
+    message.success('Sabor eliminado')
   }
 
   const handleSaveBizName = async () => {
@@ -618,6 +678,49 @@ export const MenuManager = memo(() => {
                   </div>
                 </div>
               </div>
+
+              {/* Sabores de helado */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                  Sabores de helado
+                </label>
+                <p className="text-xs mb-2" style={{ color: txtLt }}>
+                  Estos sabores aparecen para que el cliente elija en los platos que llevan helado.
+                </p>
+                {flavors.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {flavors.map(f => (
+                      <span key={f}
+                        className="flex items-center gap-2 rounded-full pl-3 pr-2 py-1.5 text-sm font-semibold"
+                        style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }}>
+                        {f}
+                        <button onClick={() => handleDeleteFlavor(f)} title="Eliminar"
+                          style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1 }}>✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="rounded-xl p-3 space-y-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                  <p className="text-xs font-bold" style={{ color: txtLt }}>+ Nuevo sabor</p>
+                  <div className="flex gap-2">
+                    <input value={newFlavor} onChange={e => setNewFlavor(e.target.value)}
+                      placeholder="Ej: Ron con pasas"
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddFlavor() }}
+                      className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
+                      style={{ backgroundColor: bg, color: txt, border: 'none', ...S.neoIn }} />
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleAddFlavor}
+                      disabled={!newFlavor.trim()}
+                      className="px-3 py-2 rounded-xl text-sm font-bold text-white shrink-0"
+                      style={{
+                        backgroundColor: !newFlavor.trim() ? bg : acc,
+                        border: 'none', cursor: !newFlavor.trim() ? 'not-allowed' : 'pointer',
+                        ...(!newFlavor.trim() ? S.neoIn : S.coral)
+                      }}>
+                      ✓
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -817,6 +920,46 @@ export const MenuManager = memo(() => {
                       </button>
                     </div>
                   )}
+
+                  {/* ── Opciones: helado / queso ── */}
+                  <div className="pt-3 mt-1 border-t" style={{ borderColor: bgSurf }}>
+                    <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: txtLt }}>Opciones del plato</p>
+                    <p className="text-[11px] mb-3" style={{ color: txtLt }}>
+                      Los sabores de helado se gestionan en ⚙️ Ajustes → “Sabores de helado”.
+                    </p>
+
+                    {/* Opción Queso / Helado */}
+                    <label className="flex items-center gap-3 cursor-pointer mb-3">
+                      <div className="relative w-11 h-6 rounded-full transition-colors shrink-0"
+                        style={{ backgroundColor: form.quesoHelado ? acc : bgSurf }}
+                        onClick={() => setForm(p => ({ ...p, quesoHelado: !p.quesoHelado }))}>
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.quesoHelado ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium" style={{ color: txt }}>Opción “Con queso / Con helado”</span>
+                        <p className="text-[11px]" style={{ color: txtLt }}>
+                          El cliente elige queso o helado; si elige helado, escoge 1 sabor (ej: el Mix).
+                        </p>
+                      </div>
+                    </label>
+
+                    {/* Bolas de helado a elegir (solo si no usa la opción queso/helado) */}
+                    {!form.quesoHelado && (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium" style={{ color: txt }}>Sabores de helado a elegir</span>
+                          <p className="text-[11px]" style={{ color: txtLt }}>
+                            Ej: Banana Split = 3 · Vaso Doble = 2 · Cono Sencillo = 1 · (0 = sin helado)
+                          </p>
+                        </div>
+                        <input type="number" min="0" max="6" value={form.heladoCount}
+                          onChange={e => setForm(p => ({ ...p, heladoCount: e.target.value }))}
+                          placeholder="0"
+                          className="w-20 rounded-xl px-3 py-2 text-sm outline-none text-center shrink-0"
+                          style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -870,6 +1013,7 @@ export const MenuManager = memo(() => {
                     <p className="font-bold text-sm truncate" style={{ color: txt }}>{dish.name}</p>
                     {!dish.available && <span className="tag-sm tag-red shrink-0">OFF</span>}
                     {dish.has_sizes   && <span className="tag-sm tag-blue shrink-0">📏</span>}
+                    {(dish.options ?? []).length > 0 && <span className="tag-sm tag-blue shrink-0">🍦</span>}
                   </div>
                   {(dish.tags ?? []).length > 0 && (
                     <div className="flex gap-1 mt-0.5 flex-wrap">
