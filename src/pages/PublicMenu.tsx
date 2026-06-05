@@ -122,7 +122,7 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
         transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
         onClick={e => e.stopPropagation()}
         className="lg"
-        style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
+        style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}>
 
         <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
 
@@ -599,8 +599,10 @@ export default function PublicMenu() {
       </div>
 
       {/* ── Floating cart (liquid glass accent) ── */}
+      {/* Se oculta cuando el carrito o un modal están abiertos, para no
+          chocar con el botón de confirmar. */}
       <AnimatePresence>
-        {cartCount > 0 && (
+        {cartCount > 0 && !showCart && !customizing && (
           <motion.button
             initial={{ scale: 0, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -637,7 +639,7 @@ export default function PublicMenu() {
               transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
               onClick={e => e.stopPropagation()}
               className="lg"
-              style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', maxHeight: '88vh', overflowY: 'auto' }}>
+              style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}>
 
               <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
               <h3 className="ed-display" style={{ fontWeight: 600, fontSize: '1.5rem', margin: '0 0 1.25rem' }}>Tu pedido</h3>
