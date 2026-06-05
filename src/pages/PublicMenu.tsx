@@ -253,6 +253,7 @@ export default function PublicMenu() {
   const [dishes,        setDishes]        = useState<Dish[]>([])
   const [loading,       setLoading]       = useState(true)
   const [bizName,       setBizName]       = useState('RestaurantOS')
+  const [catLabels,     setCatLabels]     = useState<Record<string, string>>({})
   const [activeCat,     setActiveCat]     = useState<DishCategory | 'all'>('all')
   const [search,        setSearch]        = useState('')
   const [cart,          setCart]          = useState<CartItem[]>([])
@@ -283,10 +284,17 @@ export default function PublicMenu() {
     Promise.all([
       supabase.from('dishes').select('*').eq('available', true)
         .neq('availability_status', 'discontinued').order('sort_order').order('name'),
-      supabase.from('restaurant_config').select('display_name').single(),
+      supabase.from('restaurant_config').select('display_name, modules_enabled').single(),
     ]).then(([dr, cr]) => {
       setDishes(dr.data || [])
       if (cr.data?.display_name) setBizName(cr.data.display_name)
+      // Etiquetas de categoría personalizadas (definidas en el panel admin)
+      const cats = (cr.data?.modules_enabled as { categories?: { value: string; label: string }[] } | null)?.categories
+      if (Array.isArray(cats)) {
+        const map: Record<string, string> = {}
+        for (const c of cats) if (c?.value) map[c.value] = c.label
+        setCatLabels(map)
+      }
       setLoading(false)
     })
   }, [])
@@ -431,7 +439,8 @@ export default function PublicMenu() {
     else    sectionRefs.current.delete(cat)
   }
 
-  const categoryNavItems = [{ key: 'all' as const, label: 'Todo' }, ...categories.map(c => ({ key: c, label: CATEGORY_LABELS[c] ?? c }))]
+  const catLabel = (c: string) => catLabels[c] ?? CATEGORY_LABELS[c] ?? c
+  const categoryNavItems = [{ key: 'all' as const, label: 'Todo' }, ...categories.map(c => ({ key: c, label: catLabel(c) }))]
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--w-bg)', fontFamily: 'var(--w-sans)', paddingBottom: '6rem' }}>
@@ -571,7 +580,7 @@ export default function PublicMenu() {
                 <section key={cat} ref={setSectionRef(cat)} data-cat={cat}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginBottom: '1.125rem' }}>
                     <h2 className="ed-display" style={{ fontSize: '1.625rem', fontWeight: 600, margin: 0 }}>
-                      {CATEGORY_LABELS[cat] ?? cat}
+                      {catLabel(cat)}
                     </h2>
                     <div style={{ flex: 1, height: 1, background: 'var(--w-line)' }} />
                     <span className="ed-kicker" style={{ color: 'var(--w-ink-mut)' }}>{catDishes.length}</span>
