@@ -50,6 +50,8 @@ const EMOJI_OPTIONS = [
   '⭐','✨','🔥','💎','🏆','🎉','👑','💫','🎊','🌟','🍽️',
 ]
 
+interface SizeRow { nombre: string; precio: string }
+
 interface DishForm {
   name:          string
   description:   string
@@ -58,16 +60,19 @@ interface DishForm {
   tags:          string
   available:     boolean
   has_sizes:     boolean
+  sizes:         SizeRow[]
   image_file?:   File | null
   image_preview? :string | null
 }
 
 const FORM_EMPTY: DishForm = {
   name:'', description:'', price:'', category:'principal',
-  tags:'', available:true, has_sizes:false, image_file:null, image_preview:null,
+  tags:'', available:true, has_sizes:false, sizes:[{ nombre:'', precio:'' }],
+  image_file:null, image_preview:null,
 }
 
 function dishToForm(d: Dish): DishForm {
+  const sizes = (d.sizes ?? []).map(s => ({ nombre: s.nombre, precio: String(s.precio) }))
   return {
     name:          d.name,
     description:   d.description ?? '',
@@ -76,6 +81,7 @@ function dishToForm(d: Dish): DishForm {
     tags:          (d.tags ?? []).join(', '),
     available:     d.available,
     has_sizes:     d.has_sizes ?? false,
+    sizes:         sizes.length > 0 ? sizes : [{ nombre:'', precio:'' }],
     image_file:    null,
     image_preview: d.image_url ?? null,
   }
@@ -242,8 +248,21 @@ export const MenuManager = memo(() => {
 
   const handleSave = useCallback(async () => {
     if (!form.name.trim())    { setFormError('El nombre es requerido'); return }
-    const price = parseFloat(form.price)
-    if (isNaN(price) || price < 0) { setFormError('El precio debe ser un número válido'); return }
+
+    // Precio: por tamaños (cada uno con su precio) o precio único
+    let price = parseFloat(form.price)
+    let sizesPayload: { nombre: string; precio: number }[] = []
+    if (form.has_sizes) {
+      sizesPayload = form.sizes
+        .map(s => ({ nombre: s.nombre.trim(), precio: parseFloat(s.precio) }))
+        .filter(s => s.nombre !== '' && !isNaN(s.precio) && s.precio >= 0)
+      if (sizesPayload.length === 0) {
+        setFormError('Agrega al menos un tamaño con nombre y precio'); return
+      }
+      price = Math.min(...sizesPayload.map(s => s.precio))  // precio base = el menor (para "desde $X")
+    } else {
+      if (isNaN(price) || price < 0) { setFormError('El precio debe ser un número válido'); return }
+    }
     setSaving(true); setFormError(null)
 
     try {
@@ -256,6 +275,7 @@ export const MenuManager = memo(() => {
         tags:                tagsArray,
         available:           form.available,
         has_sizes:           form.has_sizes,
+        sizes:               sizesPayload,
         availability_status: form.available ? 'available' : 'out_of_stock',
         updated_at:          new Date().toISOString(),
       }
@@ -694,14 +714,16 @@ export const MenuManager = memo(() => {
                     className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
                     style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>Precio *</label>
-                  <input type="number" step="0.01" min="0" value={form.price}
-                    onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
-                    placeholder="0.00"
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
-                </div>
+                {!form.has_sizes && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>Precio *</label>
+                    <input type="number" step="0.01" min="0" value={form.price}
+                      onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
+                      placeholder="0"
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                      style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
                     Tags <span style={{ color: txtLt, fontWeight: 400, textTransform: 'none' }}>(separados por coma)</span>
@@ -762,10 +784,39 @@ export const MenuManager = memo(() => {
                         {form.has_sizes ? '📏 Tiene tamaños (Pequeño / Mediano / Grande)' : '1️⃣ Tamaño único'}
                       </span>
                       <p className="text-[11px]" style={{ color: txtLt }}>
-                        {form.has_sizes ? 'El cliente podrá elegir tamaño al pedir' : 'Sin selector de tamaño para el cliente'}
+                        {form.has_sizes ? 'El cliente elige tamaño y paga el precio de ese tamaño' : 'Sin selector de tamaño para el cliente'}
                       </p>
                     </div>
                   </label>
+
+                  {/* Editor de tamaños con precio */}
+                  {form.has_sizes && (
+                    <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Tamaños y precios</p>
+                      {form.sizes.map((s, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          <input value={s.nombre}
+                            onChange={e => setForm(p => ({ ...p, sizes: p.sizes.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x) }))}
+                            placeholder="Tamaño (ej: Pequeño)"
+                            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none min-w-0"
+                            style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
+                          <input type="number" min="0" value={s.precio}
+                            onChange={e => setForm(p => ({ ...p, sizes: p.sizes.map((x, j) => j === i ? { ...x, precio: e.target.value } : x) }))}
+                            placeholder="Precio"
+                            className="w-24 rounded-xl px-3 py-2 text-sm outline-none text-right"
+                            style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
+                          <button onClick={() => setForm(p => ({ ...p, sizes: p.sizes.length > 1 ? p.sizes.filter((_, j) => j !== i) : p.sizes }))}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" title="Quitar"
+                            style={{ color: '#EF4444', backgroundColor: bg, ...S.neoOutSm }}>✕</button>
+                        </div>
+                      ))}
+                      <button onClick={() => setForm(p => ({ ...p, sizes: [...p.sizes, { nombre: '', precio: '' }] }))}
+                        className="self-start text-xs font-bold px-3 py-1.5 rounded-xl"
+                        style={{ color: acc, backgroundColor: bg, ...S.neoOutSm }}>
+                        + Agregar tamaño
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

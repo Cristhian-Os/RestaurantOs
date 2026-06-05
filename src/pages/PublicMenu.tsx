@@ -31,7 +31,6 @@ const CAT_TINT: Record<string, string> = {
   especial:  'var(--w-terra-dk)',
 }
 
-const SIZES = ['Pequeño', 'Mediano', 'Grande']
 
 function fmtCOP(n: number) {
   return '$' + n.toLocaleString('es-CO')
@@ -43,6 +42,7 @@ interface CartItem {
   qty:    number
   notes:  string
   size:   string
+  price:  number   // precio unitario elegido (según tamaño, o el del plato)
   extras: string[]
 }
 
@@ -88,10 +88,18 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
   onAdd:   (item: Omit<CartItem, 'uid'>) => void
   onClose: () => void
 }) => {
+  const sizes = dish.sizes ?? []
+  const hasSizes = !!dish.has_sizes && sizes.length > 0
+
   const [qty,    setQty]    = useState(1)
   const [notes,  setNotes]  = useState('')
-  const [size,   setSize]   = useState('')
+  const [size,   setSize]   = useState(hasSizes ? sizes[0].nombre : '')
   const [extras, setExtras] = useState<string[]>([])
+
+  // Precio unitario: el del tamaño elegido, o el precio único del plato
+  const unitPrice = hasSizes
+    ? (sizes.find(s => s.nombre === size)?.precio ?? sizes[0].precio)
+    : dish.price
 
   const toggleExtra = (e: string) =>
     setExtras(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e])
@@ -123,16 +131,22 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
           <div>
             <h3 className="ed-display" style={{ fontSize: '1.375rem', margin: 0 }}>{dish.name}</h3>
             {dish.description && <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.25rem 0 0', color: 'var(--w-ink-mut)' }}>{dish.description}</p>}
-            <p style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', margin: '0.375rem 0 0', fontSize: '1rem' }}>{fmtCOP(dish.price)}</p>
+            <p style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', margin: '0.375rem 0 0', fontSize: '1rem' }}>
+              {hasSizes ? `desde ${fmtCOP(Math.min(...sizes.map(s => s.precio)))}` : fmtCOP(dish.price)}
+            </p>
           </div>
         </div>
 
-        {dish.has_sizes && (
+        {hasSizes && (
           <div style={{ marginBottom: '1.25rem' }}>
             <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Tamaño</p>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {SIZES.map(s => (
-                <button key={s} onClick={() => setSize(size === s ? '' : s)} style={{ flex: 1, ...chip(size === s) }}>{s}</button>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {sizes.map(s => (
+                <button key={s.nombre} onClick={() => setSize(s.nombre)}
+                  style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...chip(size === s.nombre) }}>
+                  <span>{s.nombre}</span>
+                  <span style={{ fontSize: '0.6875rem', opacity: 0.9 }}>{fmtCOP(s.precio)}</span>
+                </button>
               ))}
             </div>
           </div>
@@ -168,9 +182,9 @@ const CustomizeModal = memo(({ dish, onAdd, onClose }: {
               style={{ width: 30, height: 30, borderRadius: '0.625rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, fontSize: '1.125rem' }}>+</button>
           </div>
           <button className="lg-accent w-press"
-            onClick={() => { onAdd({ dish, qty, notes, size, extras }); onClose() }}
+            onClick={() => { onAdd({ dish, qty, notes, size, price: unitPrice, extras }); onClose() }}
             style={{ flex: 1, padding: '0.95rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none' }}>
-            Agregar {qty > 1 ? `×${qty}` : ''} · {fmtCOP(dish.price * qty)}
+            Agregar {qty > 1 ? `×${qty}` : ''} · {fmtCOP(unitPrice * qty)}
           </button>
         </div>
       </motion.div>
@@ -208,7 +222,11 @@ const DishCard = memo(({ dish, inCart, onCustomize, index = 0 }: {
     )}
 
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '0.375rem' }}>
-      <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', fontSize: '1.0625rem' }}>{fmtCOP(dish.price)}</span>
+      <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', fontSize: '1.0625rem' }}>
+        {dish.has_sizes && (dish.sizes?.length ?? 0) > 0
+          ? `desde ${fmtCOP(Math.min(...dish.sizes!.map(s => s.precio)))}`
+          : fmtCOP(dish.price)}
+      </span>
       <button className="w-press" aria-label="Agregar"
         style={{
           width: 36, height: 36, borderRadius: '50%', border: 'none', flexShrink: 0,
@@ -305,7 +323,7 @@ export default function PublicMenu() {
     return map
   }, [dishes, categories])
 
-  const cartTotal = cart.reduce((s, i) => s + i.dish.price * i.qty, 0)
+  const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
   const cartCount = cart.reduce((s, i) => s + i.qty, 0)
 
   // ── cart actions ───────────────────────────────────────────────
@@ -324,7 +342,7 @@ export default function PublicMenu() {
     setSending(true)
     try {
       const items = cart.map(i => ({
-        id: i.dish.id, name: i.dish.name, price: i.dish.price, quantity: i.qty,
+        id: i.dish.id, name: i.dish.name, price: i.price, quantity: i.qty,
         notes: [i.size && `Tamaño: ${i.size}`, ...(i.extras.length ? [`Adicionales: ${i.extras.join(', ')}`] : []), i.notes].filter(Boolean).join(' | ') || null,
       }))
       const tableNum = mesa.trim() ? parseInt(mesa) : null
@@ -629,7 +647,7 @@ export default function PublicMenu() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                        <p style={{ fontWeight: 700, color: 'var(--w-ink)', fontSize: '0.875rem', margin: 0, fontFamily: 'var(--w-sans)' }}>{fmtCOP(item.dish.price * item.qty)}</p>
+                        <p style={{ fontWeight: 700, color: 'var(--w-ink)', fontSize: '0.875rem', margin: 0, fontFamily: 'var(--w-sans)' }}>{fmtCOP(item.price * item.qty)}</p>
                         <button onClick={() => removeCartItem(item.uid)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-wine)', fontSize: '1rem', padding: 0 }}>✕</button>
                       </div>
                     </div>

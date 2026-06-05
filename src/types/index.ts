@@ -22,6 +22,12 @@ export interface User {
 // String abierto para soportar categorías personalizadas creadas por el admin
 export type DishCategory = string
 
+// Tamaño con su propio precio (ej: Pequeño $9.000, Grande $14.000)
+export interface DishSize {
+  nombre: string
+  precio: number
+}
+
 export interface Dish {
   id:          string
   name:        string
@@ -32,7 +38,8 @@ export interface Dish {
   available:   boolean
   availability_status?: 'available' | 'out_of_stock' | 'discontinued'
   tags?:       string[]     // ej: ['vegano', 'sin gluten', 'picante']
-  has_sizes?:  boolean      // true = el cliente puede elegir tamaño (Pequeño/Mediano/Grande)
+  has_sizes?:  boolean      // true = el plato se vende por tamaños, cada uno con su precio
+  sizes?:      DishSize[]   // tamaños con precio propio cuando has_sizes = true
   created_at?: string       // timestamp de creación
   updated_at?: string       // timestamp de actualización
   sort_order?: number       // orden de visualización
