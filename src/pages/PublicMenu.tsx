@@ -298,6 +298,185 @@ const CustomizeModal = memo(({ dish, flavors, onAdd, onClose }: {
 })
 CustomizeModal.displayName = 'CustomizeModal'
 
+// ── Plato personalizado (bottom-sheet) ────────────────────────────
+interface PublicIngredient {
+  id:                    string
+  nombre:                string
+  unidad_medida:         string
+  precio_venta_unitario: number   // ya incluye el margen (costo / 0.65)
+  disponible:            boolean
+}
+interface CustomSel { id: string; nombre: string; unidad: string; cantidad: number; precioUnit: number }
+
+// Incremento por unidad de medida
+function stepFor(unidad: string): number {
+  switch (unidad) {
+    case 'kg': case 'litro': return 0.1
+    case 'gramo': case 'ml': return 50
+    default: return 1
+  }
+}
+
+const CustomDishSheet = memo(({ onAdd, onClose }: {
+  onAdd:   (item: Omit<CartItem, 'uid'>) => void
+  onClose: () => void
+}) => {
+  const [ings,    setIngs]    = useState<PublicIngredient[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search,  setSearch]  = useState('')
+  const [sel,     setSel]     = useState<Record<string, CustomSel>>({})
+  const [notes,   setNotes]   = useState('')
+
+  useEffect(() => {
+    supabase.from('ingredientes_menu_publico').select('*').then(({ data }) => {
+      setIngs((data as PublicIngredient[] | null)?.filter(i => i.disponible) ?? [])
+      setLoading(false)
+    })
+  }, [])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return ings
+    const q = search.toLowerCase()
+    return ings.filter(i => i.nombre.toLowerCase().includes(q))
+  }, [ings, search])
+
+  const add = (ing: PublicIngredient) => {
+    const step = stepFor(ing.unidad_medida)
+    setSel(prev => {
+      const cur = prev[ing.id]
+      const cantidad = Math.round(((cur?.cantidad ?? 0) + step) * 100) / 100
+      return { ...prev, [ing.id]: { id: ing.id, nombre: ing.nombre, unidad: ing.unidad_medida, cantidad, precioUnit: ing.precio_venta_unitario } }
+    })
+  }
+  const bump = (id: string, dir: 1 | -1) => {
+    setSel(prev => {
+      const cur = prev[id]; if (!cur) return prev
+      const step = stepFor(cur.unidad)
+      const cantidad = Math.round((cur.cantidad + dir * step) * 100) / 100
+      if (cantidad <= 0) { const n = { ...prev }; delete n[id]; return n }
+      return { ...prev, [id]: { ...cur, cantidad } }
+    })
+  }
+  const remove = (id: string) => setSel(prev => { const n = { ...prev }; delete n[id]; return n })
+
+  const chosen = Object.values(sel)
+  // Precio = suma con margen, redondeado hacia ARRIBA al múltiplo de 100 más cercano
+  const rawTotal = chosen.reduce((s, c) => s + c.precioUnit * c.cantidad, 0)
+  const total = Math.ceil(rawTotal / 100) * 100
+  const isValid = chosen.length > 0
+
+  const fmtQty = (c: CustomSel) =>
+    ['pieza', 'paquete'].includes(c.unidad) ? `×${c.cantidad}` : `${c.cantidad} ${c.unidad}`
+  const summary = chosen.map(c => `${c.nombre} ${fmtQty(c)}`).join(' · ')
+
+  const chip = (active: boolean): React.CSSProperties => ({
+    padding: '0.5rem 0.9rem', borderRadius: '0.75rem', cursor: 'pointer', fontFamily: 'var(--w-sans)',
+    fontWeight: 600, fontSize: '0.8125rem', border: active ? '1px solid transparent' : '1px solid var(--w-line)',
+    background: active ? 'var(--w-terra)' : 'var(--w-surface)', color: active ? '#fff' : 'var(--w-ink-soft)',
+    boxShadow: active ? 'var(--w-shadow-terra)' : 'none',
+  })
+
+  const handleAdd = () => {
+    if (!isValid) return
+    const customDish: Dish = {
+      id:          `custom-${crypto.randomUUID()}`,
+      name:        'Plato personalizado',
+      description: summary,
+      price:       total,
+      category:    'custom',
+      available:   true,
+    }
+    onAdd({ dish: customDish, qty: 1, notes, size: '', price: total, extras: [], optsText: summary })
+    onClose()
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'oklch(0.25 0.03 55 / 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <motion.div
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
+        onClick={e => e.stopPropagation()}
+        className="lg"
+        style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}>
+
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
+
+        <h3 className="ed-display" style={{ fontSize: '1.5rem', margin: '0 0 0.25rem' }}>Arma tu propio plato</h3>
+        <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 1.25rem', color: 'var(--w-ink-mut)' }}>
+          Elige los ingredientes y arma algo único. El precio se calcula al instante.
+        </p>
+
+        {/* Seleccionados */}
+        {chosen.length > 0 && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Tu plato</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {chosen.map(c => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.625rem 0.875rem', border: '1px solid var(--w-line)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 600, color: 'var(--w-ink)', fontSize: '0.875rem', margin: 0, fontFamily: 'var(--w-display)' }}>{c.nombre}</p>
+                    <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>{fmtQty(c)} · {fmtCOP(Math.round(c.precioUnit * c.cantidad))}</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button className="w-press" onClick={() => bump(c.id, -1)}
+                      style={{ width: 28, height: 28, borderRadius: '0.5rem', border: '1px solid var(--w-line)', background: 'var(--w-surface)', fontWeight: 700, fontSize: '1rem', color: 'var(--w-ink)' }}>−</button>
+                    <button className="w-press" onClick={() => bump(c.id, 1)}
+                      style={{ width: 28, height: 28, borderRadius: '0.5rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, fontSize: '1rem' }}>+</button>
+                    <button onClick={() => remove(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-wine)', fontSize: '1rem', padding: '0 0.25rem' }}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Buscar ingrediente */}
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar ingrediente..."
+          style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', marginBottom: '0.875rem' }} />
+
+        {/* Ingredientes disponibles */}
+        <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Ingredientes disponibles</p>
+        {loading ? (
+          <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Cargando...</p>
+        ) : filtered.length === 0 ? (
+          <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>
+            {search ? 'No hay ingredientes que coincidan' : 'No hay ingredientes disponibles por ahora.'}
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+            {filtered.map(ing => (
+              <button key={ing.id} onClick={() => add(ing)} style={{ ...chip(!!sel[ing.id]) }}>
+                {sel[ing.id] ? '✓ ' : '+ '}{ing.nombre}
+                <span style={{ opacity: 0.7, marginLeft: 6, fontWeight: 500 }}>
+                  {fmtCOP(Math.round(ing.precio_venta_unitario))}/{ing.unidad_medida}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Comentario */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Comentario</p>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="Algún detalle especial..."
+            rows={2} maxLength={200}
+            style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
+        </div>
+
+        <button className="lg-accent w-press" disabled={!isValid} onClick={handleAdd}
+          style={{ width: '100%', padding: '0.95rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: isValid ? 1 : 0.5, cursor: isValid ? 'pointer' : 'not-allowed' }}>
+          {isValid ? `Agregar al pedido · ${fmtCOP(total)}` : 'Elige al menos un ingrediente'}
+        </button>
+      </motion.div>
+    </motion.div>
+  )
+})
+CustomDishSheet.displayName = 'CustomDishSheet'
+
 // ── Dish card (editorial, solid warm) ─────────────────────────────
 const DishCard = memo(({ dish, inCart, onCustomize, index = 0 }: {
   dish:        Dish
@@ -370,6 +549,7 @@ export default function PublicMenu() {
   const [sending,       setSending]       = useState(false)
   const [sendError,     setSendError]     = useState<string | null>(null)
   const [customizing,   setCustomizing]   = useState<Dish | null>(null)
+  const [showCustom,    setShowCustom]    = useState(false)
   const [orderId,       setOrderId]       = useState<string | null>(null)
   const [orderStatus,   setOrderStatus]   = useState<string | null>(null)
   const [showTracking,  setShowTracking]  = useState(false)
@@ -660,6 +840,21 @@ export default function PublicMenu() {
             style={{ width: '100%', background: 'var(--w-surface)', borderRadius: '1rem', padding: '0.875rem 1.125rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', boxShadow: 'var(--w-shadow-sm)' }} />
         </div>
 
+        {/* ── Arma tu propio plato ── */}
+        {!loading && !isSearching && (
+          <motion.button
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => setShowCustom(true)}
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: '1.75rem', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem 1.25rem', background: 'linear-gradient(135deg, color-mix(in oklch, var(--w-terra) 16%, var(--w-surface)) 0%, var(--w-surface) 70%)', boxShadow: 'var(--w-shadow-sm)', display: 'flex', alignItems: 'center', gap: '1rem', fontFamily: 'var(--w-sans)' }}>
+            <div style={{ flex: 1 }}>
+              <p className="ed-display" style={{ fontSize: '1.1875rem', fontWeight: 600, margin: 0, color: 'var(--w-ink)' }}>Arma tu propio plato</p>
+              <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.1875rem 0 0', color: 'var(--w-ink-mut)' }}>Elige los ingredientes y crea algo único.</p>
+            </div>
+            <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: '50%', background: 'var(--w-terra)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem', fontWeight: 700, boxShadow: 'var(--w-shadow-terra)' }}>+</span>
+          </motion.button>
+        )}
+
         {/* ── Content ── */}
         {loading ? (
           <div className="menu-grid">
@@ -710,7 +905,7 @@ export default function PublicMenu() {
       {/* Se oculta cuando el carrito o un modal están abiertos, para no
           chocar con el botón de confirmar. */}
       <AnimatePresence>
-        {cartCount > 0 && !showCart && !customizing && (
+        {cartCount > 0 && !showCart && !customizing && !showCustom && (
           <motion.button
             initial={{ scale: 0, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -734,6 +929,11 @@ export default function PublicMenu() {
       {/* ── Customize modal ── */}
       <AnimatePresence>
         {customizing && <CustomizeModal dish={customizing} flavors={flavors} onAdd={addToCart} onClose={() => setCustomizing(null)} />}
+      </AnimatePresence>
+
+      {/* ── Plato personalizado ── */}
+      <AnimatePresence>
+        {showCustom && <CustomDishSheet onAdd={addToCart} onClose={() => setShowCustom(false)} />}
       </AnimatePresence>
 
       {/* ── Cart bottom-sheet (liquid glass) ── */}
