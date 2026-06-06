@@ -85,8 +85,6 @@ export const TeamManager = memo(() => {
   const [form,        setForm]      = useState<NewEmployeeForm>(FORM_INITIAL)
   const [creating,    setCreating]  = useState(false)
   const [formError,   setFormError] = useState<string | null>(null)
-  const [editingId,   setEditingId] = useState<string | null>(null)
-  const [editRole,    setEditRole]  = useState<Role>('waiter')
   const [search,      setSearch]    = useState('')
   const [avatarFile,  setAvatarFile]= useState<File | null>(null)
   const [avatarPreview, setPreview] = useState<string | null>(null)
@@ -100,6 +98,12 @@ export const TeamManager = memo(() => {
   const [meAvatarPreview, setMePreview]  = useState<string | null>(null)
   const avatarRef   = useRef<HTMLInputElement>(null)
   const meAvatarRef = useRef<HTMLInputElement>(null)
+
+  // Editar empleado (modal completo: nombre, email, contraseña, teléfono, rol)
+  const [editEmp,  setEditEmp]  = useState<Profile | null>(null)
+  const [editForm, setEditForm] = useState({ full_name: '', email: '', new_password: '', phone: '', role: 'waiter' as Role })
+  const [savingEmp, setSavingEmp] = useState(false)
+  const [editErr,  setEditErr]  = useState<string | null>(null)
 
   // Hard delete confirm
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -205,14 +209,46 @@ export const TeamManager = memo(() => {
     } finally { setSavingMe(false) }
   }, [myProfile, myForm, meAvatarFile, fetchProfiles])
 
-  // ── change role ───────────────────────────────────────────────
-  const handleChangeRole = useCallback(async (profileId: string, newRole: Role) => {
-    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', profileId)
-    if (error) { message.error('Error: ' + error.message); return }
-    message.success('Rol actualizado')
-    setEditingId(null)
-    fetchProfiles()
-  }, [fetchProfiles])
+  // ── edit employee (full) ──────────────────────────────────────
+  const openEditEmp = useCallback((p: Profile) => {
+    setEditErr(null)
+    setEditForm({
+      full_name:    p.full_name ?? '',
+      email:        p.email ?? '',
+      new_password: '',
+      phone:        p.phone ?? '',
+      role:         p.role,
+    })
+    setEditEmp(p)
+  }, [])
+
+  const handleSaveEmployee = useCallback(async () => {
+    if (!editEmp) return
+    setEditErr(null)
+    if (!editForm.full_name.trim()) { setEditErr('El nombre es requerido'); return }
+    if (!editForm.email.trim())     { setEditErr('El email es requerido'); return }
+    if (editForm.new_password.trim() && editForm.new_password.trim().length < 6) {
+      setEditErr('La contraseña debe tener al menos 6 caracteres'); return
+    }
+    setSavingEmp(true)
+    try {
+      const emailChanged = editForm.email.trim().toLowerCase() !== (editEmp.email ?? '').toLowerCase()
+      const { error } = await supabase.rpc('admin_update_employee', {
+        p_user_id:   editEmp.id,
+        p_email:     emailChanged ? editForm.email.trim().toLowerCase() : null,
+        p_password:  editForm.new_password.trim() || null,
+        p_full_name: editForm.full_name.trim(),
+        p_phone:     editForm.phone.trim(),
+        p_role:      editForm.role,
+      })
+      if (error) throw new Error(error.message)
+      message.success('Empleado actualizado')
+      setEditEmp(null)
+      fetchProfiles()
+    } catch (e) {
+      setEditErr(e instanceof Error ? e.message : 'Error al guardar')
+    } finally { setSavingEmp(false) }
+  }, [editEmp, editForm, fetchProfiles])
 
   // ── toggle active ─────────────────────────────────────────────
   const handleToggleActive = useCallback(async (profile: Profile) => {
@@ -400,7 +436,6 @@ export const TeamManager = memo(() => {
         )}
         {filtered.map(profile => {
           const roleCfg   = ROLE_CONFIG[profile.role]
-          const isEditing = editingId === profile.id
           return (
             <motion.div key={profile.id} layout
               className="glass-card-sm no-hover"
@@ -426,10 +461,10 @@ export const TeamManager = memo(() => {
                 {/* Actions */}
                 {profile.role !== 'admin' && (
                   <div style={{ display: 'flex', gap: '0.3125rem' }}>
-                    {/* Edit role */}
-                    <button onClick={() => { setEditingId(isEditing ? null : profile.id); setEditRole(profile.role) }}
+                    {/* Edit employee (full) */}
+                    <button onClick={() => openEditEmp(profile)}
                       style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: txtSec, backgroundColor: bg, display: 'flex', ...S.outSm }}
-                      title="Cambiar rol" aria-label="Cambiar rol">
+                      title="Editar empleado" aria-label="Editar empleado">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 15, height: 15 }}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
                     {/* Toggle active */}
@@ -453,34 +488,6 @@ export const TeamManager = memo(() => {
                   </div>
                 )}
               </div>
-
-              {/* Role edit sub-panel */}
-              <AnimatePresence>
-                {isEditing && (
-                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}
-                    style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: `1px solid ${bgSurf}` }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginBottom: '0.625rem' }}>
-                      {(['waiter', 'kitchen', 'cashier', 'admin'] as Role[]).map(r => (
-                        <button key={r} onClick={() => setEditRole(r)}
-                          style={{ padding: '0.5rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', ...(editRole === r ? { backgroundColor: acc, color: '#fff', ...S.coral } : { backgroundColor: bg, color: txtSec, ...S.outSm }) }}>
-                          {ROLE_CONFIG[r].emoji} {ROLE_CONFIG[r].label}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => setEditingId(null)}
-                        style={{ flex: 1, padding: '0.5rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.75rem', backgroundColor: bg, color: txtSec, ...S.out }}>
-                        Cancelar
-                      </button>
-                      <button onClick={() => handleChangeRole(profile.id, editRole)}
-                        style={{ flex: 1, padding: '0.5rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.75rem', backgroundColor: acc, color: '#fff', ...S.coral }}>
-                        Guardar
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </motion.div>
           )
         })}
@@ -554,6 +561,76 @@ export const TeamManager = memo(() => {
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleSaveMe} disabled={savingMe}
                   style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: '#fff', opacity: savingMe ? 0.7 : 1, ...S.coral }}>
                   {savingMe ? 'Guardando...' : 'Guardar'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Edit employee modal ── */}
+      <AnimatePresence>
+        {editEmp && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => !savingEmp && setEditEmp(null)}
+            style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(45,53,97,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'Nunito, sans-serif' }}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 480, damping: 32 }}
+              onClick={e => e.stopPropagation()}
+              className="glass-modal"
+              style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', borderRadius: '1.75rem', padding: '1.5rem' }}>
+              <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1.25rem' }}>Editar empleado</h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nombre completo</label>
+                  <input value={editForm.full_name} onChange={e => setEditForm(p => ({ ...p, full_name: e.target.value }))}
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Email de acceso</label>
+                  <input type="email" value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))}
+                    placeholder="acceso@restaurante.com"
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Teléfono</label>
+                  <input type="tel" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))}
+                    placeholder="+57 300 000 0000"
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.5rem' }}>Rol</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                    {(['waiter', 'kitchen', 'cashier', 'admin'] as Role[]).map(r => (
+                      <button key={r} onClick={() => setEditForm(p => ({ ...p, role: r }))}
+                        style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.8125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', ...(editForm.role === r ? { backgroundColor: acc, color: '#fff', ...S.coral } : { backgroundColor: bg, color: txtSec, ...S.outSm }) }}>
+                        {ROLE_CONFIG[r].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cambiar contraseña */}
+                <div style={{ borderTop: `1px solid ${bgSurf}`, paddingTop: '0.875rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nueva contraseña (dejar en blanco para no cambiar)</label>
+                  <input type="password" value={editForm.new_password} onChange={e => setEditForm(p => ({ ...p, new_password: e.target.value }))}
+                    placeholder="Mínimo 6 caracteres"
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              {editErr && <p style={{ fontSize: '0.75rem', color: '#EF4444', fontWeight: 600, marginTop: '0.75rem' }}>{editErr}</p>}
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+                <button onClick={() => setEditEmp(null)} disabled={savingEmp}
+                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
+                  Cancelar
+                </button>
+                <motion.button whileTap={{ scale: 0.97 }} onClick={handleSaveEmployee} disabled={savingEmp}
+                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: '#fff', opacity: savingEmp ? 0.7 : 1, ...S.coral }}>
+                  {savingEmp ? 'Guardando...' : 'Guardar cambios'}
                 </motion.button>
               </div>
             </motion.div>
