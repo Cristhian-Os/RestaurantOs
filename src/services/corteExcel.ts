@@ -4,9 +4,16 @@
  */
 export interface CorteProducto {
   producto:    string
+  metodo_pago: string
   cantidad:    number
   precio_unit: number
   subtotal:    number
+}
+
+const METODO_LABEL: Record<string, string> = {
+  efectivo:      'Efectivo',
+  transferencia: 'Transferencia',
+  tarjeta:       'Tarjeta',
 }
 
 export interface CorteTotales {
@@ -30,33 +37,35 @@ export async function descargarCorteExcel(opts: {
   const totalUnidades  = productos.reduce((s, p) => s + n(p.cantidad), 0)
   const totalProductos = productos.reduce((s, p) => s + n(p.subtotal), 0)
 
+  const metodoLabel = (m: string) => METODO_LABEL[m] ?? (m || 'Sin especificar')
+
   const rows: (string | number)[][] = []
   rows.push([restauranteNombre])
   rows.push([`Corte de caja · ${fecha}`])
   rows.push([])
-  rows.push(['Producto', 'Cantidad', 'Precio unit.', 'Subtotal'])
+  rows.push(['Producto', 'Método de pago', 'Cantidad', 'Precio unit.', 'Subtotal'])
   for (const p of productos) {
-    rows.push([p.producto, n(p.cantidad), n(p.precio_unit), n(p.subtotal)])
+    rows.push([p.producto, metodoLabel(p.metodo_pago), n(p.cantidad), n(p.precio_unit), n(p.subtotal)])
   }
-  rows.push(['TOTAL PRODUCTOS', totalUnidades, '', totalProductos])
+  rows.push(['TOTAL PRODUCTOS', '', totalUnidades, '', totalProductos])
   rows.push([])
-  rows.push(['RESUMEN DE PAGOS', '', '', ''])
-  rows.push(['Efectivo',       '', '', n(totales.total_efectivo)])
-  rows.push(['Transferencia',  '', '', n(totales.total_transferencia)])
-  rows.push(['Total general',  '', '', n(totales.total_general)])
-  rows.push(['Órdenes',        n(totales.total_ordenes), '', ''])
+  rows.push(['RESUMEN DE PAGOS', '', '', '', ''])
+  rows.push(['Efectivo',       '', '', '', n(totales.total_efectivo)])
+  rows.push(['Transferencia',  '', '', '', n(totales.total_transferencia)])
+  rows.push(['Total general',  '', '', '', n(totales.total_general)])
+  rows.push(['Órdenes',        '', n(totales.total_ordenes), '', ''])
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 34 }, { wch: 12 }, { wch: 14 }, { wch: 16 }]
+  ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 10 }, { wch: 14 }, { wch: 16 }]
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
   ]
 
-  // Formato de moneda para columnas de precio/subtotal
+  // Formato de moneda para columnas de precio/subtotal (col 3 y 4)
   const money = '#,##0'
   for (let r = 4; r < rows.length; r++) {
-    for (const c of [2, 3]) {
+    for (const c of [3, 4]) {
       const ref = XLSX.utils.encode_cell({ r, c })
       const cell = ws[ref]
       if (cell && typeof cell.v === 'number') cell.z = money
