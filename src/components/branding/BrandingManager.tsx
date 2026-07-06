@@ -52,14 +52,19 @@ export default function BrandingManager() {
     if (!rid) return
     setSaving(true)
     try {
-      const { error } = await supabase.from('restaurant_config').update({
-        display_name:   cfg.display_name.trim() || 'Mi Restaurante',
+      const nombre = cfg.display_name.trim() || 'Mi Restaurante'
+      // upsert: funciona aunque el restaurante aún no tenga fila de config
+      const { error } = await supabase.from('restaurant_config').upsert({
+        restaurant_id:  rid,
+        display_name:   nombre,
         slogan:         cfg.slogan?.trim() || null,
         color_primario: cfg.color_primario,
         color_acento:   cfg.color_acento,
-      }).eq('restaurant_id', rid)
+      }, { onConflict: 'restaurant_id' })
       if (error) throw error
       applyBranding(cfg.color_primario)
+      // Avisar a la app (encabezado, etc.) para que se actualice al instante
+      window.dispatchEvent(new CustomEvent('branding-updated', { detail: { name: nombre, color: cfg.color_primario } }))
       message.success('Personalización guardada')
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Error al guardar')
@@ -79,6 +84,7 @@ export default function BrandingManager() {
       const { error } = await supabase.from('restaurant_config').update({ logo_url: url }).eq('restaurant_id', rid)
       if (error) throw error
       setCfg(c => ({ ...c, logo_url: url }))
+      window.dispatchEvent(new CustomEvent('branding-updated', { detail: { logo: url } }))
       message.success('Logo actualizado')
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Error al subir el logo')

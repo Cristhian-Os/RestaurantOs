@@ -202,6 +202,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       })
   }, [])
 
+  // Actualizar el encabezado al instante cuando el admin cambia la marca
+  useEffect(() => {
+    const onBrand = (e: Event) => {
+      const d = (e as CustomEvent).detail ?? {}
+      setBrand(b => ({ name: d.name ?? b.name, logo: d.logo ?? b.logo }))
+      if (d.color) applyBranding(d.color)
+    }
+    window.addEventListener('branding-updated', onBrand)
+    return () => window.removeEventListener('branding-updated', onBrand)
+  }, [])
+
   useEffect(() => {
     // Variable local — cada ejecución del efecto tiene su propio 'active'
     let active = true
