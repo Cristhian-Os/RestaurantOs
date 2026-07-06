@@ -16,6 +16,7 @@ const EMPRESA = {
   correo: 'soporte@restaurantos.com',
 }
 const GRACE_DAYS = 7
+const PURGE_DAYS = 30
 
 interface Sec { h: string; p: string[]; warn?: boolean }
 
@@ -40,9 +41,10 @@ const TERMINOS: Sec[] = [
     'Los precios pueden cambiar avisando con antelación razonable. Salvo que la ley aplicable exija lo contrario, los pagos de periodos ya iniciados no son reembolsables.',
   ]},
   { h: '6. Mora, suspensión y eliminación de la cuenta', warn: true, p: [
-    `Si un pago no se realiza en la fecha correspondiente, el Cliente contará con un periodo de gracia de ${GRACE_DAYS} días (una semana) para ponerse al día.`,
-    `Si transcurrido ese periodo de gracia el pago sigue pendiente, el acceso a la Plataforma será suspendido y la cuenta del restaurante —junto con TODOS sus datos— podrá ser ELIMINADA de forma permanente e irreversible.`,
-    'EL CLIENTE DECLARA CONOCER Y ACEPTAR EXPRESAMENTE que la falta de pago dentro del periodo de gracia conlleva la pérdida de acceso y la eliminación definitiva de su restaurante y su información. Se recomienda al Cliente exportar sus datos con anticipación.',
+    `Si un pago no se realiza en la fecha correspondiente, el Cliente contará con un periodo de gracia de ${GRACE_DAYS} días (una semana) para ponerse al día, durante el cual conserva el acceso a la Plataforma.`,
+    `Si transcurrido ese periodo de gracia el pago sigue pendiente, el acceso a la Plataforma será SUSPENDIDO. A partir de la suspensión, los datos del restaurante se conservarán durante ${PURGE_DAYS} días adicionales para permitir la reactivación mediante el pago pendiente.`,
+    `Si al cabo de esos ${PURGE_DAYS} días la cuenta continúa sin regularizarse, la cuenta del restaurante —junto con TODOS sus datos— será ELIMINADA de forma permanente e irreversible.`,
+    `EL CLIENTE DECLARA CONOCER Y ACEPTAR EXPRESAMENTE que la falta de pago conlleva primero la suspensión del acceso y, tras ${PURGE_DAYS} días sin regularizar, la eliminación definitiva de su restaurante y su información. Se recomienda al Cliente exportar sus datos con anticipación.`,
   ]},
   { h: '7. Cancelación', p: [
     'El Cliente puede cancelar su plan en cualquier momento, sin permanencia. El servicio se mantiene activo hasta el final del periodo ya pagado.',
@@ -84,7 +86,7 @@ const PRIVACIDAD: Sec[] = [
     `Para ejercer estos derechos, escriba a ${EMPRESA.correo}.`,
   ]},
   { h: '6. Conservación y eliminación', p: [
-    'Conservamos los datos mientras la cuenta esté activa. En caso de cancelación o de eliminación por falta de pago, los datos podrán borrarse de forma permanente conforme a los Términos y Condiciones.',
+    `Conservamos los datos mientras la cuenta esté activa. En caso de falta de pago, tras la suspensión los datos se conservan ${PURGE_DAYS} días para permitir la reactivación y luego se eliminan de forma permanente. En caso de cancelación voluntaria, los datos podrán borrarse conforme a los Términos y Condiciones.`,
   ]},
   { h: '7. Cambios', p: [
     'Podemos actualizar esta política. Los cambios se publicarán en la Plataforma con su fecha de vigencia.',

@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
 import { pushNotificationService } from '../services/pushNotificationService'
 import type { Dish, DishCategory } from '../types'
+import { openWompiCheckout } from '../config/billing'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
   all:       'Todo',
@@ -557,6 +558,8 @@ export default function PublicMenu() {
   const [orderId,       setOrderId]       = useState<string | null>(null)
   const [orderStatus,   setOrderStatus]   = useState<string | null>(null)
   const [showTracking,  setShowTracking]  = useState(false)
+  const [onlinePay,     setOnlinePay]     = useState(false)   // ¿el restaurante acepta pagos en línea?
+  const [payingOnline,  setPayingOnline]  = useState(false)
 
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -625,6 +628,9 @@ export default function PublicMenu() {
       if (Array.isArray(mods?.helado_flavors)) setFlavors(mods!.helado_flavors!)
       setLoading(false)
     })
+    // ¿Este restaurante acepta pagos en línea de comensales?
+    supabase.rpc('online_payments_enabled', { p_restaurant_id: restaurantId })
+      .then(({ data }) => setOnlinePay(data === true))
   }, [restaurantId])
 
   // ── real-time order tracking ───────────────────────────────────
@@ -860,6 +866,30 @@ export default function PublicMenu() {
                   {orderStatus === 'cancelled' && 'Tu pedido fue cancelado. Consulta con el mesero.'}
                 </p>
               </div>
+
+              {/* Pago en línea (si el restaurante lo tiene activo) */}
+              {onlinePay && orderStatus !== 'cancelled' && orderStatus !== 'completed' && (
+                <button
+                  disabled={payingOnline}
+                  onClick={async () => {
+                    if (!orderId) return
+                    setPayingOnline(true)
+                    try {
+                      const { data, error } = await supabase.functions.invoke('wompi-init', {
+                        body: { kind: 'diner', order_id: orderId, redirect_url: window.location.href },
+                      })
+                      if (error) throw error
+                      if (data?.error) { alert(data.error); return }
+                      openWompiCheckout(data)
+                    } catch {
+                      alert('No se pudo iniciar el pago. Intenta de nuevo o paga con el mesero.')
+                    } finally { setPayingOnline(false) }
+                  }}
+                  className="w-press"
+                  style={{ marginTop: '1rem', width: '100%', padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-terra)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: payingOnline ? 'not-allowed' : 'pointer', opacity: payingOnline ? 0.7 : 1 }}>
+                  {payingOnline ? 'Abriendo pago…' : '💳 Pagar en línea'}
+                </button>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

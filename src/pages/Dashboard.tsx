@@ -30,9 +30,11 @@ import { QRMenu }            from '../components/pwa/QRMenu'
 import { WaiterNotifications } from '../components/orders/WaiterNotifications'
 import SupportChat            from '../components/SupportChat'
 import BrandingManager, { applyBranding } from '../components/branding/BrandingManager'
+import SubscriptionPanel from '../components/billing/SubscriptionPanel'
+import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 
 export type Role    = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu' | 'branding'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu' | 'branding' | 'billing'
 
 export interface Profile {
   id:          string
@@ -91,6 +93,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'team',      icon:<Icons.Team />,      label:'Equipo'     },
     { view:'menu',      icon:<Icons.Menu />,      label:'Menú'       },
     { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
+    { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
   ],
   waiter:  [
     { view:'orders', icon:<Icons.Orders />, label:'Pedidos' },
@@ -301,6 +304,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'team':      return <TeamManager />
       case 'menu':      return profile.role === 'admin' ? <MenuManager /> : <ClientMenuSection />
       case 'branding':  return <BrandingManager />
+      case 'billing':   return <SubscriptionPanel />
       default:          return null
     }
   }
@@ -436,6 +440,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </nav>
 
         <main style={{flex:1,padding:'1.25rem',overflowX:'hidden',minWidth:0}}>
+          {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
           {renderContent()}
           <div style={{height:'2rem'}} />
         </main>
