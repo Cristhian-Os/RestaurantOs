@@ -6,6 +6,7 @@ import PublicMenu    from './pages/PublicMenu'
 import Landing       from './pages/Landing'
 import Signup        from './pages/Signup'
 import Legal         from './pages/Legal'
+import ResetPassword from './pages/ResetPassword'
 import { ThemeProvider } from './contexts/ThemeContext'
 import type { Session } from '@supabase/supabase-js'
 
@@ -14,6 +15,7 @@ const IS_PUBLIC_MENU = PATH.startsWith('/menu')
 const IS_REGISTER    = PATH.startsWith('/registro')
 const IS_LOGIN       = PATH.startsWith('/login')
 const IS_LEGAL       = PATH.startsWith('/terminos') || PATH.startsWith('/privacidad')
+const IS_RESET_PASSWORD = PATH.startsWith('/reset-password')
 // App instalada (PWA en pantalla completa): nunca mostrar la landing de marketing
 const IS_STANDALONE  = typeof window !== 'undefined' &&
   ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
@@ -95,6 +97,9 @@ export default function App() {
   if (IS_PUBLIC_MENU) return <ThemeProvider><PublicMenu /></ThemeProvider>
   if (IS_LEGAL)       return <ThemeProvider><Legal /></ThemeProvider>
   if (!ready)         return <SplashScreen />
+  // Enlace de recuperación de contraseña: siempre pedir la nueva contraseña primero,
+  // incluso si Supabase ya dejó una sesión de recuperación activa (no saltar al panel).
+  if (IS_RESET_PASSWORD) return <ThemeProvider><ResetPassword /></ThemeProvider>
   // Con sesión activa → siempre el panel (aunque la URL sea /, /login o /registro)
   if (session)        return <ThemeProvider><Dashboard onLogout={handleLogout} /></ThemeProvider>
   // Sin sesión: rutas públicas de marketing / auth

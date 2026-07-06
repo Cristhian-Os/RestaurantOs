@@ -73,6 +73,12 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
   const [loading,      setLoading]     = useState(true)
   const [selected,     setSelected]    = useState<Mesa | null>(null)
   const [zona,         setZona]        = useState('all')
+  const [showAddForm,  setShowAddForm] = useState(false)
+  const [newNumero,    setNewNumero]   = useState('')
+  const [newCapacidad, setNewCapacidad]= useState('4')
+  const [newZona,      setNewZona]     = useState('principal')
+  const [savingMesa,   setSavingMesa]  = useState(false)
+  const [editCapacidad,setEditCapacidad] = useState('')
   const isAdmin = profile.role === 'admin'
 
   const fetchData = useCallback(async () => {
@@ -127,6 +133,50 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
     setSelected(prev => prev?.id === mesa.id ? { ...prev, estado } : prev)
   }, [])
 
+  const siguienteNumero = mesas.length ? Math.max(...mesas.map(m => m.numero)) + 1 : 1
+
+  const handleAddMesa = useCallback(async () => {
+    const numero = parseInt(newNumero || String(siguienteNumero), 10)
+    const capacidad = parseInt(newCapacidad, 10)
+    if (!numero || numero < 1 || numero > 100) { message.error('Número de mesa inválido (1-100)'); return }
+    if (!capacidad || capacidad < 1) { message.error('Capacidad inválida'); return }
+    setSavingMesa(true)
+    const { data, error } = await supabase.from('mesas')
+      .insert({ numero, capacidad, zona: newZona.trim() || 'principal', estado: 'libre', activa: true })
+      .select().single()
+    setSavingMesa(false)
+    if (error) { message.error(error.code === '23505' ? `Ya existe la mesa ${numero}` : 'Error: ' + error.message); return }
+    setMesas(prev => [...prev, data as Mesa].sort((a, b) => a.numero - b.numero))
+    setShowAddForm(false)
+    setNewNumero(''); setNewCapacidad('4')
+    message.success(`Mesa ${numero} creada`)
+  }, [newNumero, newCapacidad, newZona, siguienteNumero])
+
+  const handleDeleteMesa = useCallback(async (mesa: Mesa) => {
+    if (activeOrders.some(o => o.mesa_id === mesa.id)) { message.error('No se puede eliminar: tiene un pedido activo'); return }
+    if (!window.confirm(`¿Eliminar la mesa ${mesa.numero}? Esta acción no se puede deshacer.`)) return
+    const { error } = await supabase.from('mesas').delete().eq('id', mesa.id)
+    if (error) { message.error('Error: ' + error.message); return }
+    setMesas(prev => prev.filter(m => m.id !== mesa.id))
+    setSelected(prev => prev?.id === mesa.id ? null : prev)
+    message.success(`Mesa ${mesa.numero} eliminada`)
+  }, [activeOrders])
+
+  const handleUpdateCapacidad = useCallback(async (mesa: Mesa) => {
+    const capacidad = parseInt(editCapacidad, 10)
+    if (!capacidad || capacidad < 1) { message.error('Capacidad inválida'); return }
+    if (capacidad === mesa.capacidad) return
+    const { error } = await supabase.from('mesas').update({ capacidad }).eq('id', mesa.id)
+    if (error) { message.error('Error: ' + error.message); return }
+    setMesas(prev => prev.map(m => m.id === mesa.id ? { ...m, capacidad } : m))
+    setSelected(prev => prev?.id === mesa.id ? { ...prev, capacidad } : prev)
+    message.success('Capacidad actualizada')
+  }, [editCapacidad])
+
+  useEffect(() => {
+    if (selected) setEditCapacidad(String(selected.capacidad))
+  }, [selected])
+
   const zonas = ['all', ...Array.from(new Set(mesas.map(m => m.zona)))]
   const filtered = zona === 'all' ? mesas : mesas.filter(m => m.zona === zona)
   const selectedOrder = selected ? activeOrders.find(o => o.mesa_id === selected.id) : null
@@ -149,10 +199,44 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
             {readyOrders.size > 0 && <span style={{ color: 'var(--green)', fontWeight: 700, marginLeft: 8 }}>· {readyOrders.size} listas</span>}
           </p>
         </div>
-        <button onClick={fetchData} title="Refrescar" aria-label="Refrescar" style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...S.neoOutSm }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {isAdmin && (
+            <button onClick={() => setShowAddForm(v => !v)}
+              style={{ padding: '0.625rem 1rem', borderRadius: '0.75rem', border: 'none', backgroundColor: showAddForm ? 'var(--accent)' : 'var(--bg)', color: showAddForm ? '#fff' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 700, fontSize: '0.8125rem', fontFamily: 'inherit', ...(showAddForm ? S.coral : S.neoOutSm) }}>
+              + Agregar mesa
+            </button>
+          )}
+          <button onClick={fetchData} title="Refrescar" aria-label="Refrescar" style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...S.neoOutSm }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+        </div>
       </div>
+
+      {/* Formulario agregar mesa (solo admin) */}
+      {isAdmin && showAddForm && (
+        <div style={{ backgroundColor: 'var(--bg)', borderRadius: '1.25rem', padding: '1rem 1.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end', ...S.neoOut }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>Número</label>
+            <input type="number" min={1} max={100} placeholder={String(siguienteNumero)} value={newNumero}
+              onChange={e => setNewNumero(e.target.value)}
+              style={{ width: 90, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>Capacidad</label>
+            <input type="number" min={1} value={newCapacidad} onChange={e => setNewCapacidad(e.target.value)}
+              style={{ width: 90, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>Zona</label>
+            <input type="text" value={newZona} onChange={e => setNewZona(e.target.value)}
+              style={{ width: 130, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+          </div>
+          <button onClick={handleAddMesa} disabled={savingMesa}
+            style={{ padding: '0.625rem 1.25rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.8125rem', cursor: savingMesa ? 'default' : 'pointer', opacity: savingMesa ? 0.6 : 1, fontFamily: 'inherit', ...S.coral }}>
+            {savingMesa ? 'Creando…' : 'Crear mesa'}
+          </button>
+        </div>
+      )}
 
       {/* Filtro zonas */}
       {zonas.length > 2 && (
@@ -322,6 +406,27 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Editar capacidad + eliminar mesa (solo admin) */}
+            {isAdmin && (
+              <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Capacidad</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input type="number" min={1} value={editCapacidad} onChange={e => setEditCapacidad(e.target.value)}
+                      style={{ width: 80, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+                    <button onClick={() => handleUpdateCapacidad(selected)}
+                      style={{ padding: '0.5rem 0.875rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', ...S.neoOutSm }}>
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+                <button onClick={() => handleDeleteMesa(selected)}
+                  style={{ padding: '0.5rem 0.875rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'rgba(239,68,68,0.12)', color: '#DC2626', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Eliminar mesa
+                </button>
               </div>
             )}
           </motion.div>
