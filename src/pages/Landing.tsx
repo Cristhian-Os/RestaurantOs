@@ -11,6 +11,7 @@ import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from '../components/
 import { PLANS, TRIAL_DAYS, type Plan } from '../config/plans'
 import { TESTIMONIALS, FAQS, PROMO_SLOTS } from '../config/content'
 import { supabase } from '../services/supabaseClient'
+import SupportChat from '../components/SupportChat'
 
 const go = (path: string) => { window.location.href = path }
 
@@ -423,6 +424,8 @@ export default function Landing() {
           © {new Date().getFullYear()} RestaurantOS
         </p>
       </footer>
+
+      <SupportChat />
     </div>
   )
 }

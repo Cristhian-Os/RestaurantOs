@@ -28,6 +28,7 @@ import BusinessAssistant     from './BusinessAssistant'
 import { InstallPWA }        from '../components/pwa/InstallPWA'
 import { QRMenu }            from '../components/pwa/QRMenu'
 import { WaiterNotifications } from '../components/orders/WaiterNotifications'
+import SupportChat            from '../components/SupportChat'
 
 export type Role    = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
 export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu'
@@ -416,6 +417,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       </div>
 
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
+      <SupportChat />
     </div>
   )
 }
