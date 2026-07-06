@@ -22,10 +22,17 @@ interface Sub {
 
 interface PayCfg {
   enabled: boolean
+  wompi_public_key: string          // no es secreta (Wompi la llama "public key"), se puede ver/editar libremente
+  wompi_private_key: string         // estos 3 son SECRETOS: nunca se leen de vuelta del servidor,
+  wompi_events_secret: string       // solo se mandan si el admin escribe un valor nuevo — ver
+  wompi_integrity_secret: string    // restaurant_payment_config_status (solo trae booleanos "has_X")
+}
+interface PayStatus {
+  enabled: boolean
   wompi_public_key: string | null
-  wompi_private_key: string | null
-  wompi_events_secret: string | null
-  wompi_integrity_secret: string | null
+  has_private_key: boolean
+  has_events_secret: boolean
+  has_integrity_secret: boolean
 }
 
 const STATUS_META: Record<SubStatus, { label: string; color: string; bg: string }> = {
@@ -41,6 +48,7 @@ export default function SubscriptionPanel() {
   const [rid,   setRid]   = useState<string | null>(null)
   const [sub,   setSub]   = useState<Sub | null>(null)
   const [cfg,   setCfg]   = useState<PayCfg>({ enabled: false, wompi_public_key: '', wompi_private_key: '', wompi_events_secret: '', wompi_integrity_secret: '' })
+  const [status, setStatus] = useState<PayStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [paying,  setPaying]  = useState(false)
   const [savingCfg, setSavingCfg] = useState(false)
@@ -57,16 +65,14 @@ export default function SubscriptionPanel() {
         .maybeSingle()
       if (s) setSub(s as Sub)
 
-      const { data: c } = await supabase.from('restaurant_payment_config')
-        .select('enabled, wompi_public_key, wompi_private_key, wompi_events_secret, wompi_integrity_secret')
+      // Solo booleanos "ya configurado" — nunca los secretos reales de vuelta al navegador.
+      const { data: st } = await supabase.from('restaurant_payment_config_status')
+        .select('enabled, wompi_public_key, has_private_key, has_events_secret, has_integrity_secret')
         .maybeSingle()
-      if (c) setCfg({
-        enabled: c.enabled ?? false,
-        wompi_public_key: c.wompi_public_key ?? '',
-        wompi_private_key: c.wompi_private_key ?? '',
-        wompi_events_secret: c.wompi_events_secret ?? '',
-        wompi_integrity_secret: c.wompi_integrity_secret ?? '',
-      })
+      if (st) {
+        setStatus(st as PayStatus)
+        setCfg(c => ({ ...c, enabled: st.enabled ?? false, wompi_public_key: st.wompi_public_key ?? '' }))
+      }
       setLoading(false)
     })()
   }, [])
@@ -89,17 +95,27 @@ export default function SubscriptionPanel() {
     if (!rid) return
     setSavingCfg(true)
     try {
-      const { error } = await supabase.from('restaurant_payment_config').upsert({
+      // Los 3 secretos solo se incluyen si el admin realmente escribió un valor
+      // nuevo — así nunca se sobreescribe lo ya guardado con un campo vacío
+      // (los inputs empiezan vacíos a propósito, ver comentario en el estado).
+      const payload: Record<string, unknown> = {
         restaurant_id: rid,
         provider: 'wompi',
         enabled: cfg.enabled,
         wompi_public_key: cfg.wompi_public_key?.trim() || null,
-        wompi_private_key: cfg.wompi_private_key?.trim() || null,
-        wompi_events_secret: cfg.wompi_events_secret?.trim() || null,
-        wompi_integrity_secret: cfg.wompi_integrity_secret?.trim() || null,
-      }, { onConflict: 'restaurant_id' })
+      }
+      if (cfg.wompi_private_key.trim())      payload.wompi_private_key = cfg.wompi_private_key.trim()
+      if (cfg.wompi_events_secret.trim())    payload.wompi_events_secret = cfg.wompi_events_secret.trim()
+      if (cfg.wompi_integrity_secret.trim()) payload.wompi_integrity_secret = cfg.wompi_integrity_secret.trim()
+
+      const { error } = await supabase.from('restaurant_payment_config').upsert(payload, { onConflict: 'restaurant_id' })
       if (error) throw error
       message.success('Configuración de pagos guardada')
+      setCfg(c => ({ ...c, wompi_private_key: '', wompi_events_secret: '', wompi_integrity_secret: '' }))
+      const { data: st } = await supabase.from('restaurant_payment_config_status')
+        .select('enabled, wompi_public_key, has_private_key, has_events_secret, has_integrity_secret')
+        .maybeSingle()
+      if (st) setStatus(st as PayStatus)
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Error al guardar')
     } finally { setSavingCfg(false) }
@@ -168,15 +184,19 @@ export default function SubscriptionPanel() {
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div>
+            <label style={label}>Llave pública (pub_…)</label>
+            <input value={cfg.wompi_public_key} onChange={e => setCfg(c => ({ ...c, wompi_public_key: e.target.value }))} style={inputBox} placeholder="pub_..." />
+          </div>
           {([
-            ['wompi_public_key', 'Llave pública (pub_…)'],
-            ['wompi_private_key', 'Llave privada (prv_…)'],
-            ['wompi_events_secret', 'Secreto de eventos'],
-            ['wompi_integrity_secret', 'Secreto de integridad'],
-          ] as const).map(([k, txt]) => (
+            ['wompi_private_key', 'Llave privada (prv_…)', status?.has_private_key],
+            ['wompi_events_secret', 'Secreto de eventos', status?.has_events_secret],
+            ['wompi_integrity_secret', 'Secreto de integridad', status?.has_integrity_secret],
+          ] as const).map(([k, txt, has]) => (
             <div key={k}>
               <label style={label}>{txt}</label>
-              <input value={(cfg as any)[k] ?? ''} onChange={e => setCfg(c => ({ ...c, [k]: e.target.value }))} style={inputBox} placeholder="•••" />
+              <input value={cfg[k]} onChange={e => setCfg(c => ({ ...c, [k]: e.target.value }))} style={inputBox}
+                placeholder={has ? '•••• ya configurado — déjalo vacío para no cambiarlo' : 'pega aquí tu llave/secreto de Wompi'} />
             </div>
           ))}
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.9rem', color: 'var(--w-ink)', cursor: 'pointer', marginTop: '0.25rem' }}>

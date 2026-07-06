@@ -43,9 +43,11 @@ interface CartItem {
   qty:     number
   notes:   string
   size:    string
-  price:   number   // precio unitario elegido (según tamaño, o el del plato)
+  price:   number   // precio unitario ESTIMADO en el cliente, solo para mostrar — el
+                     // precio real que se cobra siempre se recalcula en el servidor (create_public_order)
   extras:  string[]
   optsText: string  // resumen de opciones elegidas (sabores de helado, queso/helado…)
+  customIngredients?: { id: string; cantidad: number }[]  // solo para "plato personalizado"
 }
 
 // ── Skeleton card (warm) ──────────────────────────────────────────
@@ -390,7 +392,10 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
       category:    'custom',
       available:   true,
     }
-    onAdd({ dish: customDish, qty: 1, notes, size: '', price: total, extras: [], optsText: summary })
+    onAdd({
+      dish: customDish, qty: 1, notes, size: '', price: total, extras: [], optsText: summary,
+      customIngredients: chosen.map(c => ({ id: c.id, cantidad: c.cantidad })),
+    })
     onClose()
   }
 
@@ -689,36 +694,37 @@ export default function PublicMenu() {
   const canConfirm = mesa.trim() !== '' || clientName.trim() !== ''
 
   const sendOrder = useCallback(async () => {
-    if (!canConfirm || cart.length === 0) return
+    if (!canConfirm || cart.length === 0 || !restaurantId) return
     setSending(true)
     try {
-      const items = cart.map(i => ({
-        id: i.dish.id, name: i.dish.name, price: i.price, quantity: i.qty,
-        notes: [i.size && `Tamaño: ${i.size}`, i.optsText || null, ...(i.extras.length ? [`Adicionales: ${i.extras.join(', ')}`] : []), i.notes].filter(Boolean).join(' | ') || null,
-      }))
+      // El precio de cada línea NUNCA se manda desde aquí — create_public_order
+      // lo recalcula en el servidor a partir de dishes/ingredientes reales, para
+      // que nadie pueda manipular el total del pedido (y lo que luego cobra Wompi).
+      const items = cart.map(i => {
+        const line_notes = [i.size && `Tamaño: ${i.size}`, i.optsText || null, ...(i.extras.length ? [`Adicionales: ${i.extras.join(', ')}`] : []), i.notes].filter(Boolean).join(' | ') || null
+        return i.customIngredients
+          ? { kind: 'custom', quantity: i.qty, line_notes, ingredients: i.customIngredients }
+          : { kind: 'dish', dish_id: i.dish.id, quantity: i.qty, size: i.size || null, line_notes }
+      })
       const tableNum = mesa.trim() ? parseInt(mesa) : null
       const noteParts = [
         clientName.trim() ? `Cliente: ${clientName.trim()}` : null,
         !mesa.trim() ? 'Pedido en mostrador / sin mesa' : null,
       ].filter(Boolean)
-      const { data: userData } = await supabase.auth.getUser()
-      const { data: newOrder, error } = await supabase.from('orders').insert({
-        table_num:     tableNum,
-        items:         JSON.stringify(items),
-        total:         cartTotal,
-        tipo_pedido:   'LOCAL',
-        status:        'pending',
-        customer_name: clientName.trim() || null,
-        notes:         noteParts.length ? noteParts.join(' · ') : null,
-        user_id:       userData.user?.id ?? '00000000-0000-0000-0000-000000000000',
-      }).select('id').single()
+      const { data: newOrderId, error } = await supabase.rpc('create_public_order', {
+        p_restaurant_id:  restaurantId,
+        p_table_num:      tableNum,
+        p_customer_name:  clientName.trim() || null,
+        p_notes:          noteParts.length ? noteParts.join(' · ') : null,
+        p_items:          items,
+      })
 
       // Solo confirmamos y vaciamos el carrito si el pedido SE GUARDÓ de verdad
-      if (error || !newOrder?.id) {
+      if (error || !newOrderId) {
         throw new Error(error?.message || 'No se pudo registrar el pedido')
       }
 
-      setOrderId(newOrder.id)
+      setOrderId(newOrderId)
       setOrderStatus('pending')
       setShowTracking(true)
       setSent(true)
@@ -741,7 +747,7 @@ export default function PublicMenu() {
       )
       console.error('Error al enviar pedido:', e)
     } finally { setSending(false) }
-  }, [cart, mesa, clientName, cartTotal, canConfirm])
+  }, [cart, mesa, clientName, canConfirm, restaurantId])
 
   // ── scrollspy ──────────────────────────────────────────────────
   useEffect(() => {

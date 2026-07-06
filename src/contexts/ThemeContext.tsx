@@ -47,37 +47,52 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setThemeState(local)
     }
 
-    // 2. Fuente de verdad: Supabase
-    supabase.from('restaurant_config')
-      .select('id, modules_enabled')
-      .single()
-      .then(({ data }) => {
-        if (!data) return
-        const modules = data.modules_enabled as Record<string, unknown> | null
-        const dbTheme = modules?.theme as Theme | undefined
-        if (dbTheme === 'light' || dbTheme === 'dark') {
-          applyTheme(dbTheme)
-          setThemeState(dbTheme)
-          localStorage.setItem('ros_theme', dbTheme)
-        }
-      })
+    // Este contexto envuelve tanto el Dashboard (admin autenticado, RLS ya
+    // scoped a su propio restaurante) como páginas públicas/anónimas
+    // (PublicMenu, Landing, Signup...). Sin sesión, `restaurant_config` no
+    // tiene forma de filtrar por restaurante desde aquí (el slug se resuelve
+    // más abajo, dentro de PublicMenu) y una consulta sin filtro le pega a
+    // TODAS las filas de TODOS los restaurantes → con más de uno, `.single()`
+    // truena con 406. Como ningún consumidor anónimo usa el tema sincronizado
+    // (solo el Dashboard lo hace), simplemente no sincronizamos sin sesión.
+    let cancelled = false
+    let ch: ReturnType<typeof supabase.channel> | null = null
 
-    // 3. Suscripción realtime — para que PublicMenu refleje cambio del admin
-    const ch = supabase.channel('ros-theme-sync')
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'restaurant_config',
-      }, (payload) => {
-        const mods = (payload.new as Record<string, unknown>)?.modules_enabled as Record<string, unknown> | null
-        const t = mods?.theme as Theme | undefined
-        if (t === 'light' || t === 'dark') {
-          applyTheme(t)
-          setThemeState(t)
-          localStorage.setItem('ros_theme', t)
-        }
-      })
-      .subscribe()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled || !session) return
 
-    return () => { supabase.removeChannel(ch) }
+      // 2. Fuente de verdad: Supabase (scopeado por RLS al restaurante del admin)
+      supabase.from('restaurant_config')
+        .select('id, modules_enabled')
+        .single()
+        .then(({ data }) => {
+          if (!data) return
+          const modules = data.modules_enabled as Record<string, unknown> | null
+          const dbTheme = modules?.theme as Theme | undefined
+          if (dbTheme === 'light' || dbTheme === 'dark') {
+            applyTheme(dbTheme)
+            setThemeState(dbTheme)
+            localStorage.setItem('ros_theme', dbTheme)
+          }
+        })
+
+      // 3. Suscripción realtime — para que otras pestañas del mismo admin reflejen el cambio
+      ch = supabase.channel('ros-theme-sync')
+        .on('postgres_changes', {
+          event: 'UPDATE', schema: 'public', table: 'restaurant_config',
+        }, (payload) => {
+          const mods = (payload.new as Record<string, unknown>)?.modules_enabled as Record<string, unknown> | null
+          const t = mods?.theme as Theme | undefined
+          if (t === 'light' || t === 'dark') {
+            applyTheme(t)
+            setThemeState(t)
+            localStorage.setItem('ros_theme', t)
+          }
+        })
+        .subscribe()
+    })
+
+    return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }
   }, [])
 
   const setTheme = useCallback(async (t: Theme) => {
