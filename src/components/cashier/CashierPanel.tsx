@@ -212,14 +212,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           total_transferencia: Number(corteResult.total_transferencia),
           total_general:       Number(corteResult.total_general),
           total_ordenes:       Number(corteResult.total_ordenes),
+          total_gastos:        Number(corteResult.total_gastos ?? 0),
+          total_neto:          Number(corteResult.total_neto ?? corteResult.total_general),
           fecha:               corteResult.fecha,
         },
         productos: corteProductos,
+        gastos: gastos.map(g => ({ concepto: g.concepto, monto: Number(g.monto) })),
       })
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
     }
-  }, [corteResult, corteProductos])
+  }, [corteResult, corteProductos, gastos])
 
   const totalDia = daySummary.total_efectivo + daySummary.total_transferencia
   const netoDia  = totalDia - totalGastosHoy
@@ -529,7 +532,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
               <div className="flex flex-col gap-3 mb-5">
                 {[
-                  { label: 'Efectivo',     val: corteResult.total_efectivo },
+                  { label: 'Efectivo',      val: corteResult.total_efectivo },
                   { label: 'Transferencia', val: corteResult.total_transferencia },
                   { label: 'Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
                 ].map(item => (
@@ -541,8 +544,16 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   </div>
                 ))}
                 <div className="flex justify-between items-center bg-[#FF5722] rounded-2xl px-4 py-3" style={S.coral}>
-                  <span className="text-sm font-bold text-white">TOTAL</span>
+                  <span className="text-sm font-bold text-white">Ganancias (ventas)</span>
                   <span className="text-xl font-bold text-white">${Number(corteResult.total_general).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+                  <span className="text-sm font-bold text-red-600">Gastos del día</span>
+                  <span className="font-bold text-red-600">−${Number(corteResult.total_gastos ?? 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
+                  <span className="text-sm font-bold text-white">Beneficio neto</span>
+                  <span className="text-xl font-bold text-white">${Number(corteResult.total_neto ?? corteResult.total_general).toFixed(2)}</span>
                 </div>
               </div>
 

@@ -16,11 +16,18 @@ const METODO_LABEL: Record<string, string> = {
   tarjeta:       'Tarjeta',
 }
 
+export interface CorteGasto {
+  concepto: string
+  monto:    number
+}
+
 export interface CorteTotales {
   total_efectivo:      number
   total_transferencia: number
   total_general:       number
   total_ordenes:       number
+  total_gastos?:       number
+  total_neto?:         number
   fecha?:              string
 }
 
@@ -28,9 +35,10 @@ export async function descargarCorteExcel(opts: {
   restauranteNombre: string
   totales:           CorteTotales
   productos:         CorteProducto[]
+  gastos?:           CorteGasto[]
 }) {
   const XLSX = await import('xlsx')
-  const { restauranteNombre, totales, productos } = opts
+  const { restauranteNombre, totales, productos, gastos = [] } = opts
   const fecha = totales.fecha ?? new Date().toISOString().slice(0, 10)
 
   const n = (v: unknown) => Number(v ?? 0)
@@ -52,8 +60,20 @@ export async function descargarCorteExcel(opts: {
   rows.push(['RESUMEN DE PAGOS', '', '', '', ''])
   rows.push(['Efectivo',       '', '', '', n(totales.total_efectivo)])
   rows.push(['Transferencia',  '', '', '', n(totales.total_transferencia)])
-  rows.push(['Total general',  '', '', '', n(totales.total_general)])
+  rows.push(['Ganancias (ventas)', '', '', '', n(totales.total_general)])
   rows.push(['Órdenes',        '', n(totales.total_ordenes), '', ''])
+
+  const totalGastos = totales.total_gastos ?? gastos.reduce((s, g) => s + n(g.monto), 0)
+  const totalNeto = totales.total_neto ?? n(totales.total_general) - totalGastos
+
+  if (gastos.length > 0) {
+    rows.push([])
+    rows.push(['GASTOS DEL DÍA', '', '', '', ''])
+    for (const g of gastos) rows.push([g.concepto, '', '', '', -n(g.monto)])
+  }
+  rows.push([])
+  rows.push(['Total gastos', '', '', '', -totalGastos])
+  rows.push(['BENEFICIO NETO', '', '', '', totalNeto])
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 10 }, { wch: 14 }, { wch: 16 }]
