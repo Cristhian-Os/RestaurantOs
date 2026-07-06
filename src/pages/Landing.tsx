@@ -10,8 +10,15 @@ import { motion, useScroll, useTransform, useReducedMotion, AnimatePresence } fr
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from '../components/ScrollReveal'
 import { PLANS, TRIAL_DAYS, type Plan } from '../config/plans'
 import { TESTIMONIALS, FAQS, PROMO_SLOTS } from '../config/content'
+import { supabase } from '../services/supabaseClient'
 
 const go = (path: string) => { window.location.href = path }
+
+// Entra a la cuenta demo (datos de ejemplo, aislada por restaurante)
+const enterDemo = async () => {
+  await supabase.auth.signInWithPassword({ email: 'demo@demo.com', password: 'demo1234' })
+  // onAuthStateChange en App detecta la sesión y renderiza el Dashboard
+}
 
 /* ── Ícono de check ── */
 const Check = ({ color = 'var(--w-terra)' }: { color?: string }) => (
@@ -89,9 +96,9 @@ function Hero() {
             style={{ padding: '1rem 1.75rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}>
             Comienza gratis
           </button>
-          <button onClick={() => go('#planes')} className="lg w-press"
+          <button onClick={enterDemo} className="lg w-press"
             style={{ padding: '1rem 1.75rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', color: 'var(--w-ink)', background: 'transparent' }}>
-            Ver planes
+            Ver demo
           </button>
         </motion.div>
       </motion.div>
@@ -370,6 +377,10 @@ export default function Landing() {
           <span className="ed-display" style={{ fontSize: '1.25rem', fontWeight: 600 }}>RestaurantOS</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button onClick={enterDemo} className="w-press"
+            style={{ padding: '0.6rem 1rem', border: 'none', background: 'transparent', color: 'var(--w-terra)', fontFamily: 'var(--w-sans)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+            Ver demo
+          </button>
           <button onClick={() => go('/login')} className="w-press"
             style={{ padding: '0.6rem 1rem', border: 'none', background: 'transparent', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
             Iniciar sesión
