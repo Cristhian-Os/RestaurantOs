@@ -594,8 +594,17 @@ export default function PublicMenu() {
       if (all && all.length === 1) {
         setRestaurantId(all[0].id)
         if (all[0].name) setBizName(all[0].name)
+        return
+      }
+      // Varios restaurantes y sin slug válido: compatibilidad con los QR físicos
+      // ya impresos de Cholaos (creados antes del multi-tenant, sin slug en la URL).
+      const LEGACY_DEFAULT_ID = 'cdd99ebf-c8b7-43b1-b437-1d136e283212'
+      const { data: legacy } = await supabase.from('restaurants_public')
+        .select('id, name').eq('id', LEGACY_DEFAULT_ID).maybeSingle()
+      if (legacy) {
+        setRestaurantId(legacy.id)
+        if (legacy.name) setBizName(legacy.name)
       } else {
-        // Varios restaurantes y sin slug válido → no cargar datos ajenos
         setRestaurantId(null)
         setLoading(false)
       }

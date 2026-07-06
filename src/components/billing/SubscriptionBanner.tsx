@@ -15,14 +15,19 @@ const daysLeft = (iso: string | null): number | null =>
 
 export default function SubscriptionBanner({ onNavigate }: { onNavigate?: (v: NavView) => void }) {
   const [info, setInfo] = useState<{ status: SubStatus; trial_ends_at: string | null; grace_ends_at: string | null; is_promo: boolean } | null>(null)
+  const [billingActive, setBillingActive] = useState(false)
 
   useEffect(() => {
     supabase.from('subscriptions')
       .select('status, trial_ends_at, grace_ends_at, is_promo')
       .maybeSingle()
       .then(({ data }) => { if (data) setInfo(data as any) })
+    supabase.rpc('platform_billing_active').then(({ data }) => setBillingActive(data === true))
   }, [])
 
+  // Mientras la plataforma no tenga Wompi activo, nada de esto se aplica de
+  // verdad todavía (ver enforce_subscription_lifecycle) — no alarmar a nadie.
+  if (!billingActive) return null
   if (!info || info.is_promo) return null
   if (info.status === 'active') return null
 

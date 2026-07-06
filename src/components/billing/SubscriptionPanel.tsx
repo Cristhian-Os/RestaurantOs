@@ -111,7 +111,6 @@ export default function SubscriptionPanel() {
   const label: React.CSSProperties = { display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--w-ink-soft)', marginBottom: '0.4rem' }
   const inputBox: React.CSSProperties = { width: '100%', padding: '0.7rem 0.9rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }
   const st = sub ? STATUS_META[sub.status] : STATUS_META.trialing
-  const isPremium = sub?.plan === 'premium'
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans)' }}>
@@ -161,14 +160,14 @@ export default function SubscriptionPanel() {
         )}
       </div>
 
-      {/* Pagos en línea para comensales (Premium) */}
+      {/* Pagos en línea para comensales — disponible para todos los restaurantes */}
       <div style={card}>
-        <span style={label}>Pagos en línea de tus clientes {isPremium ? '' : '(solo Premium)'}</span>
+        <span style={label}>Pagos en línea de tus clientes</span>
         <p style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', margin: '0 0 1rem' }}>
-          Conecta tu propia cuenta de Wompi para que tus comensales paguen su cuenta desde el menú y el dinero llegue a <b>tu</b> banco.
+          Conecta tu propia cuenta de Wompi para que tus comensales paguen su cuenta desde el menú y el dinero llegue directo a <b>tu</b> banco.
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', opacity: isPremium ? 1 : 0.5, pointerEvents: isPremium ? 'auto' : 'none' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {([
             ['wompi_public_key', 'Llave pública (pub_…)'],
             ['wompi_private_key', 'Llave privada (prv_…)'],
@@ -189,11 +188,6 @@ export default function SubscriptionPanel() {
             {savingCfg ? 'Guardando…' : 'Guardar configuración de pagos'}
           </button>
         </div>
-        {!isPremium && (
-          <p style={{ fontSize: '0.8rem', color: 'var(--w-ink-mut)', margin: '0.9rem 0 0' }}>
-            Sube a <b>Premium</b> para habilitar los pagos en línea de tus clientes.
-          </p>
-        )}
       </div>
     </div>
   )
