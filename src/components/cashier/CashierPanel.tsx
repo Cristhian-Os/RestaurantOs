@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
+import { descargarCorteExcel, type CorteProducto } from '../../services/corteExcel'
 import message from 'antd/es/message'
 import type { Profile } from '../../pages/Dashboard'
 
@@ -55,6 +56,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [processing,   setProcessing]= useState(false)
   const [showCorte,    setShowCorte] = useState(false)
   const [corteResult,  setCorteResult] = useState<any>(null)
+  const [corteProductos, setCorteProductos] = useState<CorteProducto[]>([])
   const [cortingLoading, setCortingLoading] = useState(false)
 
   const fetchData = useCallback(async () => {
@@ -140,9 +142,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const handleCorte = useCallback(async () => {
     setCortingLoading(true)
     try {
+      // Desglose de productos ANTES del corte (mientras las órdenes del día siguen visibles)
+      const { data: prods } = await supabase.rpc('get_corte_productos')
       const { data, error } = await supabase.rpc('hacer_corte_caja', { p_notas: null })
       if (error) throw error
       setCorteResult(data)
+      setCorteProductos((prods as CorteProducto[]) ?? [])
       setShowCorte(true)
       fetchData()
     } catch (e) {
@@ -151,6 +156,28 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       setCortingLoading(false)
     }
   }, [fetchData])
+
+  // Descargar el corte en Excel
+  const handleDescargarExcel = useCallback(async () => {
+    if (!corteResult) return
+    try {
+      const { data: cfg } = await supabase
+        .from('restaurant_config').select('display_name').maybeSingle()
+      await descargarCorteExcel({
+        restauranteNombre: cfg?.display_name ?? 'Restaurante',
+        totales: {
+          total_efectivo:      Number(corteResult.total_efectivo),
+          total_transferencia: Number(corteResult.total_transferencia),
+          total_general:       Number(corteResult.total_general),
+          total_ordenes:       Number(corteResult.total_ordenes),
+          fecha:               corteResult.fecha,
+        },
+        productos: corteProductos,
+      })
+    } catch (e) {
+      message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
+    }
+  }, [corteResult, corteProductos])
 
   const totalDia = daySummary.total_efectivo + daySummary.total_transferencia
 
@@ -417,6 +444,23 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <span className="text-xl font-bold text-white">${Number(corteResult.total_general).toFixed(2)}</span>
                 </div>
               </div>
+
+              {corteProductos.length > 0 && (
+                <p className="text-xs text-[#6B7280] text-center mb-3">
+                  {corteProductos.length} productos vendidos hoy · se incluyen en el Excel
+                </p>
+              )}
+
+              <button
+                onClick={handleDescargarExcel}
+                className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
+                style={{ backgroundColor: '#1D7A46', ...S.green }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Descargar Excel
+              </button>
 
               <button
                 onClick={() => setShowCorte(false)}
