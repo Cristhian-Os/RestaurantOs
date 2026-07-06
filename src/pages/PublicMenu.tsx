@@ -317,9 +317,10 @@ function stepFor(unidad: string): number {
   }
 }
 
-const CustomDishSheet = memo(({ onAdd, onClose }: {
+const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
   onAdd:   (item: Omit<CartItem, 'uid'>) => void
   onClose: () => void
+  restaurantId: string | null
 }) => {
   const [ings,    setIngs]    = useState<PublicIngredient[]>([])
   const [loading, setLoading] = useState(true)
@@ -328,11 +329,13 @@ const CustomDishSheet = memo(({ onAdd, onClose }: {
   const [notes,   setNotes]   = useState('')
 
   useEffect(() => {
-    supabase.from('ingredientes_menu_publico').select('*').then(({ data }) => {
+    if (!restaurantId) { setLoading(false); return }
+    supabase.from('ingredientes_menu_publico').select('*')
+      .eq('restaurant_id', restaurantId).then(({ data }) => {
       setIngs((data as PublicIngredient[] | null)?.filter(i => i.disponible) ?? [])
       setLoading(false)
     })
-  }, [])
+  }, [restaurantId])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return ings
@@ -558,6 +561,8 @@ export default function PublicMenu() {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const scrollingTo = useRef(false)
 
+  const [restaurantId, setRestaurantId] = useState<string | null>(null)
+
   // ── URL params ─────────────────────────────────────────────────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -565,12 +570,43 @@ export default function PublicMenu() {
     if (m) setMesa(m)
   }, [])
 
+  // ── resolver restaurante (por slug en la URL o único activo) ────
+  // Soporta /menu/<slug> y ?r=<slug>. Si no hay slug y solo existe un
+  // restaurante, usa ese (compatibilidad con los QR actuales de Cholaos).
+  useEffect(() => {
+    const parts = window.location.pathname.split('/').filter(Boolean) // ['menu', '<slug>']
+    const pathSlug = parts[0] === 'menu' ? parts[1] : undefined
+    const querySlug = new URLSearchParams(window.location.search).get('r') ?? undefined
+    const slug = (pathSlug || querySlug)?.toLowerCase()
+
+    const resolve = async () => {
+      if (slug) {
+        const { data } = await supabase.from('restaurants_public')
+          .select('id, name').eq('slug', slug).maybeSingle()
+        if (data) { setRestaurantId(data.id); if (data.name) setBizName(data.name); return }
+      }
+      // Sin slug (o slug inexistente): usar el único restaurante activo si lo hay
+      const { data: all } = await supabase.from('restaurants_public').select('id, name').limit(2)
+      if (all && all.length === 1) {
+        setRestaurantId(all[0].id)
+        if (all[0].name) setBizName(all[0].name)
+      } else {
+        // Varios restaurantes y sin slug válido → no cargar datos ajenos
+        setRestaurantId(null)
+        setLoading(false)
+      }
+    }
+    resolve()
+  }, [])
+
   // ── data fetch ─────────────────────────────────────────────────
   useEffect(() => {
+    if (!restaurantId) return
     Promise.all([
-      supabase.from('dishes').select('*').eq('available', true)
+      supabase.from('dishes').select('*').eq('restaurant_id', restaurantId).eq('available', true)
         .neq('availability_status', 'discontinued').order('sort_order').order('name'),
-      supabase.from('restaurant_config').select('display_name, modules_enabled').single(),
+      supabase.from('restaurant_config').select('display_name, modules_enabled')
+        .eq('restaurant_id', restaurantId).maybeSingle(),
     ]).then(([dr, cr]) => {
       setDishes(dr.data || [])
       if (cr.data?.display_name) setBizName(cr.data.display_name)
@@ -585,7 +621,7 @@ export default function PublicMenu() {
       if (Array.isArray(mods?.helado_flavors)) setFlavors(mods!.helado_flavors!)
       setLoading(false)
     })
-  }, [])
+  }, [restaurantId])
 
   // ── real-time order tracking ───────────────────────────────────
   useEffect(() => {
@@ -933,7 +969,7 @@ export default function PublicMenu() {
 
       {/* ── Plato personalizado ── */}
       <AnimatePresence>
-        {showCustom && <CustomDishSheet onAdd={addToCart} onClose={() => setShowCustom(false)} />}
+        {showCustom && <CustomDishSheet onAdd={addToCart} onClose={() => setShowCustom(false)} restaurantId={restaurantId} />}
       </AnimatePresence>
 
       {/* ── Cart bottom-sheet (liquid glass) ── */}
