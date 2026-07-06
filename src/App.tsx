@@ -3,11 +3,17 @@ import { supabase }  from './services/supabaseClient'
 import Login         from './pages/Login'
 import Dashboard     from './pages/Dashboard'
 import PublicMenu    from './pages/PublicMenu'
+import Landing       from './pages/Landing'
+import Signup        from './pages/Signup'
+import Legal         from './pages/Legal'
 import { ThemeProvider } from './contexts/ThemeContext'
 import type { Session } from '@supabase/supabase-js'
 
-const IS_PUBLIC_MENU = typeof window !== 'undefined' &&
-  window.location.pathname.startsWith('/menu')
+const PATH = typeof window !== 'undefined' ? window.location.pathname : '/'
+const IS_PUBLIC_MENU = PATH.startsWith('/menu')
+const IS_REGISTER    = PATH.startsWith('/registro')
+const IS_LOGIN       = PATH.startsWith('/login')
+const IS_LEGAL       = PATH.startsWith('/terminos') || PATH.startsWith('/privacidad')
 
 function SplashScreen() {
   return (
@@ -83,7 +89,12 @@ export default function App() {
   }, [])
 
   if (IS_PUBLIC_MENU) return <ThemeProvider><PublicMenu /></ThemeProvider>
+  if (IS_LEGAL)       return <ThemeProvider><Legal /></ThemeProvider>
   if (!ready)         return <SplashScreen />
+  // Con sesión activa → siempre el panel (aunque la URL sea /, /login o /registro)
   if (session)        return <ThemeProvider><Dashboard onLogout={handleLogout} /></ThemeProvider>
-  return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
+  // Sin sesión: rutas públicas de marketing / auth
+  if (IS_REGISTER)    return <ThemeProvider><Signup /></ThemeProvider>
+  if (IS_LOGIN)       return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
+  return <ThemeProvider><Landing /></ThemeProvider>
 }
