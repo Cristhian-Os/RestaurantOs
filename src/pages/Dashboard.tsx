@@ -186,16 +186,20 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [activeNav,  setActiveNav]  = useState<NavView>('dashboard')
   const [loading,    setLoading]    = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
   const { theme, setTheme } = useTheme()
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
     try { pushNotificationService.initializePushNotifications() } catch { /* no crítico */ }
   }, [])
 
-  // Aplicar la marca del restaurante (color primario) al cargar
+  // Aplicar la marca del restaurante (color, logo y nombre) al cargar
   useEffect(() => {
-    supabase.from('restaurant_config').select('color_primario').maybeSingle()
-      .then(({ data }) => applyBranding(data?.color_primario))
+    supabase.from('restaurant_config').select('display_name, logo_url, color_primario').maybeSingle()
+      .then(({ data }) => {
+        applyBranding(data?.color_primario)
+        setBrand({ name: data?.display_name ?? undefined, logo: data?.logo_url ?? undefined })
+      })
   }, [])
 
   useEffect(() => {
@@ -331,12 +335,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         position:'sticky', top:0, zIndex:20,
       }}>
         <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
-          <div style={{width:38,height:38,borderRadius:'0.625rem',overflow:'hidden',flexShrink:0,border:'1px solid var(--w-line)'}}>
-            <img src="/logo.jpg" alt="RestaurantOS" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+          <div style={{width:38,height:38,borderRadius:'0.625rem',overflow:'hidden',flexShrink:0,border:'1px solid var(--w-line)',background:'var(--w-surface)'}}>
+            <img src={brand.logo || '/logo.jpg'} alt={brand.name || 'RestaurantOS'} style={{width:'100%',height:'100%',objectFit:brand.logo?'contain':'cover',display:'block'}}
+              onError={e => { (e.target as HTMLImageElement).src = '/logo.jpg' }} />
           </div>
           <div>
             <h1 className="ed-display" style={{fontWeight:600,fontSize:'1.125rem',margin:0,lineHeight:1.1}}>
-              RestaurantOS
+              {brand.name || 'RestaurantOS'}
             </h1>
             <p style={{fontSize:'0.6875rem',color:'var(--w-ink-mut)',margin:0,fontFamily:'var(--w-sans)'}}>
               {profile!.full_name ?? profile!.email} · {profile!.role}

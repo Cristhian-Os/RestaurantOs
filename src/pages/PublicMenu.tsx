@@ -540,6 +540,7 @@ export default function PublicMenu() {
   const [dishes,        setDishes]        = useState<Dish[]>([])
   const [loading,       setLoading]       = useState(true)
   const [bizName,       setBizName]       = useState('RestaurantOS')
+  const [logoUrl,       setLogoUrl]       = useState<string | null>(null)
   const [catLabels,     setCatLabels]     = useState<Record<string, string>>({})
   const [flavors,       setFlavors]       = useState<string[]>([])
   const [activeCat,     setActiveCat]     = useState<DishCategory | 'all'>('all')
@@ -605,11 +606,14 @@ export default function PublicMenu() {
     Promise.all([
       supabase.from('dishes').select('*').eq('restaurant_id', restaurantId).eq('available', true)
         .neq('availability_status', 'discontinued').order('sort_order').order('name'),
-      supabase.from('restaurant_config').select('display_name, modules_enabled')
+      supabase.from('restaurant_config').select('display_name, modules_enabled, logo_url, color_primario')
         .eq('restaurant_id', restaurantId).maybeSingle(),
     ]).then(([dr, cr]) => {
       setDishes(dr.data || [])
       if (cr.data?.display_name) setBizName(cr.data.display_name)
+      if (cr.data?.logo_url) setLogoUrl(cr.data.logo_url as string)
+      // Marca del restaurante: aplicar su color como acento del menú
+      if (cr.data?.color_primario) document.documentElement.style.setProperty('--w-terra', cr.data.color_primario as string)
       // Etiquetas de categoría personalizadas (definidas en el panel admin)
       const mods = cr.data?.modules_enabled as { categories?: { value: string; label: string }[]; helado_flavors?: string[] } | null
       const cats = mods?.categories
@@ -772,6 +776,11 @@ export default function PublicMenu() {
       {/* ── Editorial hero ── */}
       <header className="menu-wrap" style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', margin: '0 auto', overflow: 'hidden' }}>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+          {logoUrl && (
+            <img src={logoUrl} alt={bizName}
+              style={{ height: 72, width: 'auto', maxWidth: 180, objectFit: 'contain', marginBottom: '1rem', borderRadius: '0.75rem' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.875rem' }}>
             <span className="ed-kicker">Menú</span>
             <div style={{ flex: 1, height: 1, background: 'var(--w-line)' }} />
