@@ -23,6 +23,7 @@ import { ClientMenuSection } from '../components/ClientMenuSection'
 import { AdminTasksView }    from '../components/tasks/AdminTasksView'
 import { EmployeeTasksView } from '../components/tasks/EmployeeTasksView'
 import { ShoppingList }      from '../components/inventory/ShoppingList'
+import { IngredientesManager } from '../components/inventory/IngredientesManager'
 import { RecipeBuilder }     from '../components/recipes/RecipeBuilder'
 import BusinessAssistant     from './BusinessAssistant'
 import { InstallPWA }        from '../components/pwa/InstallPWA'
@@ -296,8 +297,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         : <EmployeeTasksView profile={profile} />
       case 'inventory': return (
         <Tabs defaultActiveKey="1" items={[
-          { key:'1', label:'Lista de compras', children:<ShoppingList /> },
-          { key:'2', label:'Recetas',          children:<RecipeBuilder /> },
+          { key:'1', label:'Ingredientes',     children:<IngredientesManager /> },
+          { key:'2', label:'Lista de compras', children:<ShoppingList /> },
+          { key:'3', label:'Recetas',          children:<RecipeBuilder /> },
         ]} />
       )
       case 'analytics': return <BusinessAssistant />

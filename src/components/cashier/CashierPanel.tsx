@@ -42,6 +42,13 @@ interface DaySummary {
   total_ordenes:      number
 }
 
+interface Gasto {
+  id:         string
+  concepto:   string
+  monto:      number
+  created_at: string
+}
+
 type PaymentMethod = 'efectivo' | 'transferencia'
 
 interface CashierPanelProps { profile: Profile }
@@ -58,13 +65,21 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [corteResult,  setCorteResult] = useState<any>(null)
   const [corteProductos, setCorteProductos] = useState<CorteProducto[]>([])
   const [cortingLoading, setCortingLoading] = useState(false)
+  const [gastos,        setGastos]       = useState<Gasto[]>([])
+  const [showGastoForm, setShowGastoForm]= useState(false)
+  const [gastoConcepto, setGastoConcepto]= useState('')
+  const [gastoMonto,    setGastoMonto]   = useState('')
+  const [savingGasto,   setSavingGasto]  = useState(false)
 
   const fetchData = useCallback(async () => {
-    const [ordersRes, completedRes] = await Promise.all([
+    const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
+    const [ordersRes, completedRes, gastosRes] = await Promise.all([
       supabase.from('orders').select('*').eq('status', 'ready').order('created_at', { ascending: true }),
       supabase.from('orders').select('total, payment_method')
         .eq('status', 'completed')
-        .gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString())
+        .gte('created_at', inicioDia),
+      supabase.from('gastos').select('id, concepto, monto, created_at')
+        .gte('created_at', inicioDia).order('created_at', { ascending: false }),
     ])
 
     if (!ordersRes.error) {
@@ -82,7 +97,34 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         total_ordenes:       orders.length,
       })
     }
+
+    if (!gastosRes.error) setGastos(gastosRes.data || [])
+
     setLoading(false)
+  }, [])
+
+  const totalGastosHoy = gastos.reduce((s, g) => s + Number(g.monto), 0)
+
+  const handleAgregarGasto = useCallback(async () => {
+    const monto = parseFloat(gastoMonto)
+    if (!gastoConcepto.trim()) { message.error('Escribe el concepto del gasto'); return }
+    if (!monto || monto <= 0) { message.error('Monto inválido'); return }
+    setSavingGasto(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('gastos').insert({
+      concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
+    })
+    setSavingGasto(false)
+    if (error) { message.error('Error: ' + error.message); return }
+    setGastoConcepto(''); setGastoMonto(''); setShowGastoForm(false)
+    message.success('Gasto registrado')
+    fetchData()
+  }, [gastoConcepto, gastoMonto, fetchData])
+
+  const handleEliminarGasto = useCallback(async (id: string) => {
+    const { error } = await supabase.from('gastos').delete().eq('id', id)
+    if (error) { message.error('Error: ' + error.message); return }
+    setGastos(prev => prev.filter(g => g.id !== id))
   }, [])
 
   useEffect(() => {
@@ -180,6 +222,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   }, [corteResult, corteProductos])
 
   const totalDia = daySummary.total_efectivo + daySummary.total_transferencia
+  const netoDia  = totalDia - totalGastosHoy
 
   if (loading) return (
     <div className="flex justify-center py-20">
@@ -190,20 +233,78 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   return (
     <div className="space-y-6">
       {/* Resumen del día */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Efectivo hoy',       val: `$${daySummary.total_efectivo.toFixed(2)}`,     color: 'text-emerald-600' },
           { label: 'Transferencias hoy', val: `$${daySummary.total_transferencia.toFixed(2)}`, color: 'text-blue-600'    },
-          { label: 'Total del día',      val: `$${totalDia.toFixed(2)}`,                       color: 'text-[#FF5722]'   },
+          { label: 'Gastos hoy',         val: `$${totalGastosHoy.toFixed(2)}`,                 color: 'text-red-500'     },
+          { label: 'Neto del día',       val: `$${netoDia.toFixed(2)}`,                        color: 'text-[#FF5722]'   },
         ].map(s => (
           <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
             <p className="text-[10px] text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
-            {s.label === 'Total del día' && (
+            {s.label === 'Neto del día' && (
               <p className="text-[10px] text-[#9CA3AF]">{daySummary.total_ordenes} órdenes</p>
             )}
           </div>
         ))}
+      </div>
+
+      {/* Gastos del día */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            Gastos del día
+            <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({gastos.length})</span>
+          </h2>
+          <button onClick={() => setShowGastoForm(v => !v)}
+            className="px-4 py-2 rounded-2xl text-sm font-bold"
+            style={showGastoForm ? { background: 'var(--accent)', color: '#fff', ...S.coral } : { background: '#D8DAE4', color: '#2D3561', ...S.neoOutSm }}>
+            + Agregar gasto
+          </button>
+        </div>
+
+        {showGastoForm && (
+          <div className="bg-[#D8DAE4] rounded-2xl p-4 mb-4 flex flex-wrap gap-3 items-end" style={S.neoOut}>
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
+              <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
+                placeholder="Ej: Domicilio de insumos"
+                className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+            </div>
+            <div className="w-32">
+              <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Monto</label>
+              <input type="number" min={0} value={gastoMonto} onChange={e => setGastoMonto(e.target.value)}
+                placeholder="0"
+                className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+            </div>
+            <button onClick={handleAgregarGasto} disabled={savingGasto}
+              className="px-4 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingGasto ? 0.6 : 1 }}>
+              {savingGasto ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        )}
+
+        {gastos.length === 0 ? (
+          <div className="bg-[#D8DAE4] rounded-2xl p-6 text-center" style={S.neoIn}>
+            <p className="text-sm text-[#9CA3AF]">Sin gastos registrados hoy</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {gastos.map(g => (
+              <div key={g.id} className="flex items-center justify-between bg-[#D8DAE4] rounded-2xl px-4 py-3" style={S.neoOutSm}>
+                <div>
+                  <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
+                  <p className="text-[11px] text-[#9CA3AF]">{new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-red-500">${Number(g.monto).toFixed(2)}</span>
+                  <button onClick={() => handleEliminarGasto(g.id)} className="text-[#9CA3AF] hover:text-red-500 text-sm">✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Órdenes listas */}
