@@ -14,6 +14,10 @@ const IS_PUBLIC_MENU = PATH.startsWith('/menu')
 const IS_REGISTER    = PATH.startsWith('/registro')
 const IS_LOGIN       = PATH.startsWith('/login')
 const IS_LEGAL       = PATH.startsWith('/terminos') || PATH.startsWith('/privacidad')
+// App instalada (PWA en pantalla completa): nunca mostrar la landing de marketing
+const IS_STANDALONE  = typeof window !== 'undefined' &&
+  ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+   (window.navigator as unknown as { standalone?: boolean }).standalone === true)
 
 function SplashScreen() {
   return (
@@ -95,6 +99,7 @@ export default function App() {
   if (session)        return <ThemeProvider><Dashboard onLogout={handleLogout} /></ThemeProvider>
   // Sin sesión: rutas públicas de marketing / auth
   if (IS_REGISTER)    return <ThemeProvider><Signup /></ThemeProvider>
-  if (IS_LOGIN)       return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
+  // En la PWA instalada, la raíz va directo a login (sin landing de marketing)
+  if (IS_LOGIN || IS_STANDALONE) return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
   return <ThemeProvider><Landing /></ThemeProvider>
 }

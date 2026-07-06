@@ -2,7 +2,7 @@
   "name": "RestaurantOS",
   "short_name": "RestaurantOS",
   "description": "Sistema de gestión para restaurantes — punto de venta multi-rol",
-  "start_url": "/",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
