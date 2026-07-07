@@ -53,19 +53,27 @@ export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
     isMounted.current = true
     fetchTasks()
 
-    const channel = supabase
-      .channel(`tasks-${isAdmin ? 'admin' : userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        if (isMounted.current) fetchTasks()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_evidence' }, () => {
-        if (isMounted.current) fetchTasks()
-      })
-      .subscribe()
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    // Filtrado por restaurant_id: sin esto, cualquier restaurante recibe el
+    // realtime de tareas/evidencias de TODOS los demás (fuga de datos + ruido).
+    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+      if (cancelled || !rid) return
+      channel = supabase
+        .channel(`tasks-${isAdmin ? 'admin' : userId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `restaurant_id=eq.${rid}` }, () => {
+          if (isMounted.current) fetchTasks()
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_evidence', filter: `restaurant_id=eq.${rid}` }, () => {
+          if (isMounted.current) fetchTasks()
+        })
+        .subscribe()
+    })
 
     return () => {
       isMounted.current = false
-      supabase.removeChannel(channel)
+      cancelled = true
+      if (channel) supabase.removeChannel(channel)
     }
   }, [fetchTasks, isAdmin, userId])
 

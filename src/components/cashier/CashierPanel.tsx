@@ -129,11 +129,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   useEffect(() => {
     fetchData()
-    const channel = supabase
-      .channel('cashier-panel-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchData)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    // Filtrado por restaurant_id: evita que caja reciba cambios de pedidos de otros restaurantes.
+    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+      if (cancelled || !rid) return
+      channel = supabase
+        .channel('cashier-panel-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${rid}` }, fetchData)
+        .subscribe()
+    })
+    return () => { cancelled = true; if (channel) supabase.removeChannel(channel) }
   }, [fetchData])
 
   // Abrir modal de cobro

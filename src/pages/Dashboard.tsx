@@ -45,6 +45,7 @@ export interface Profile {
   phone?:      string | null
   avatar_url?: string | null
   active?:     boolean
+  must_change_password?: boolean
 }
 
 interface Metrics {
@@ -181,6 +182,56 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
   )
 })
 AdminDashboard.displayName = 'AdminDashboard'
+
+// ── Modal obligatorio: cambiar contraseña temporal en el primer login ──
+const ForcePasswordChangeModal = ({ onDone }: { onDone: () => void }) => {
+  const [pw1, setPw1]         = useState('')
+  const [pw2, setPw2]         = useState('')
+  const [err, setErr]         = useState<string | null>(null)
+  const [saving, setSaving]   = useState(false)
+
+  const handleSave = async () => {
+    setErr(null)
+    if (pw1.trim().length < 6) { setErr('La contraseña debe tener al menos 6 caracteres'); return }
+    if (pw1 !== pw2) { setErr('Las contraseñas no coinciden'); return }
+    setSaving(true)
+    try {
+      const { error } = await supabase.rpc('change_my_password', { p_new_password: pw1.trim() })
+      if (error) throw error
+      message.success('Contraseña actualizada')
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo actualizar la contraseña')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(20,20,30,0.55)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1.5rem' }}>
+      <div style={{ width:'100%', maxWidth:400, borderRadius:'1.25rem', padding:'1.75rem', background:'var(--w-surface)', border:'1px solid var(--w-line)', boxShadow:'var(--w-shadow-md)', fontFamily:'var(--w-sans)' }}>
+        <h3 style={{ margin:'0 0 0.5rem', fontWeight:700, fontSize:'1.125rem', color:'var(--w-ink)' }}>Configura tu contraseña</h3>
+        <p style={{ margin:'0 0 1.25rem', fontSize:'0.8125rem', color:'var(--w-ink-mut)' }}>
+          Tu cuenta se creó con una contraseña temporal. Por seguridad, elige una nueva antes de continuar.
+        </p>
+        <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+          <input type="password" placeholder="Nueva contraseña (mínimo 6 caracteres)" value={pw1}
+            onChange={e => setPw1(e.target.value)}
+            style={{ width:'100%', padding:'0.75rem 1rem', borderRadius:'0.75rem', border:'1px solid var(--w-line)', outline:'none', fontSize:'0.875rem', color:'var(--w-ink)', background:'var(--w-bg)', boxSizing:'border-box' }} />
+          <input type="password" placeholder="Confirma la nueva contraseña" value={pw2}
+            onChange={e => setPw2(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+            style={{ width:'100%', padding:'0.75rem 1rem', borderRadius:'0.75rem', border:'1px solid var(--w-line)', outline:'none', fontSize:'0.875rem', color:'var(--w-ink)', background:'var(--w-bg)', boxSizing:'border-box' }} />
+        </div>
+        {err && <p style={{ color:'#d33', fontSize:'0.8125rem', margin:'0.75rem 0 0' }}>{err}</p>}
+        <button onClick={handleSave} disabled={saving}
+          style={{ width:'100%', marginTop:'1.25rem', padding:'0.75rem', borderRadius:'1rem', border:'none', cursor:'pointer', fontWeight:700, fontSize:'0.875rem', background:'var(--w-terra, #d97757)', color:'#fff', opacity:saving?0.7:1 }}>
+          {saving ? 'Guardando...' : 'Guardar y continuar'}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // ── Dashboard Principal ─────────────────────────────────────────
 interface DashboardProps { onLogout: () => void }
@@ -338,6 +389,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   return (
     <div style={{minHeight:'100vh',background:'var(--w-bg)',fontFamily:'var(--w-sans)'}}>
+
+      {profile!.must_change_password && (
+        <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
+      )}
 
       {/* Notificaciones pedido listo — mesero y admin */}
       {(profile!.role === 'waiter' || profile!.role === 'admin') && (

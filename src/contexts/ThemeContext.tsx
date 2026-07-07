@@ -77,19 +77,24 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         })
 
       // 3. Suscripción realtime — para que otras pestañas del mismo admin reflejen el cambio
-      ch = supabase.channel('ros-theme-sync')
-        .on('postgres_changes', {
-          event: 'UPDATE', schema: 'public', table: 'restaurant_config',
-        }, (payload) => {
-          const mods = (payload.new as Record<string, unknown>)?.modules_enabled as Record<string, unknown> | null
-          const t = mods?.theme as Theme | undefined
-          if (t === 'light' || t === 'dark') {
-            applyTheme(t)
-            setThemeState(t)
-            localStorage.setItem('ros_theme', t)
-          }
-        })
-        .subscribe()
+      // Filtrado por restaurant_id: sin esto, el tema de CUALQUIER restaurante
+      // (oscuro/claro) se propagaba a las pantallas de TODOS los demás restaurantes.
+      supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+        if (cancelled || !rid) return
+        ch = supabase.channel('ros-theme-sync')
+          .on('postgres_changes', {
+            event: 'UPDATE', schema: 'public', table: 'restaurant_config', filter: `restaurant_id=eq.${rid}`,
+          }, (payload) => {
+            const mods = (payload.new as Record<string, unknown>)?.modules_enabled as Record<string, unknown> | null
+            const t = mods?.theme as Theme | undefined
+            if (t === 'light' || t === 'dark') {
+              applyTheme(t)
+              setThemeState(t)
+              localStorage.setItem('ros_theme', t)
+            }
+          })
+          .subscribe()
+      })
     })
 
     return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }

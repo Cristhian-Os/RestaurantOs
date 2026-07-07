@@ -107,26 +107,33 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
 
   useEffect(() => {
     fetchData()
-    const ch = supabase.channel('tablemap-v2')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        fetchData()
-        // Alerta al mesero cuando un pedido pasa a "ready"
-        const newRow = payload.new as { status?: string; table_num?: number }
-        if (newRow?.status === 'ready') {
-          const mesa = newRow?.table_num
-          message.open({
-            type: 'success',
-            content: `¡Mesa ${mesa ?? '?'} — pedido listo para entregar!`,
-            duration: 8,
-            style: { fontWeight: 700, fontSize: '1rem' },
-          })
-          // Vibrar si el dispositivo lo soporta
-          if ('vibrate' in navigator) navigator.vibrate([300, 100, 300])
-        }
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    let ch: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    // Filtrado por restaurant_id: sin esto, un mesero de un restaurante recibia
+    // la alerta de "mesa lista" de pedidos de OTRO restaurante.
+    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+      if (cancelled || !rid) return
+      ch = supabase.channel('tablemap-v2')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas', filter: `restaurant_id=eq.${rid}` }, fetchData)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${rid}` }, (payload) => {
+          fetchData()
+          // Alerta al mesero cuando un pedido pasa a "ready"
+          const newRow = payload.new as { status?: string; table_num?: number }
+          if (newRow?.status === 'ready') {
+            const mesa = newRow?.table_num
+            message.open({
+              type: 'success',
+              content: `¡Mesa ${mesa ?? '?'} — pedido listo para entregar!`,
+              duration: 8,
+              style: { fontWeight: 700, fontSize: '1rem' },
+            })
+            // Vibrar si el dispositivo lo soporta
+            if ('vibrate' in navigator) navigator.vibrate([300, 100, 300])
+          }
+        })
+        .subscribe()
+    })
+    return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }
   }, [fetchData])
 
   const handleChangeEstado = useCallback(async (mesa: Mesa, estado: Mesa['estado']) => {

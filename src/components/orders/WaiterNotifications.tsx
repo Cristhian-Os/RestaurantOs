@@ -51,38 +51,47 @@ export const WaiterNotifications = memo(() => {
 
     // Canal único por instancia — evita canales duplicados si React monta 2 veces
     const channelName = `waiter-notifs-${Date.now()}`
-    const ch = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders' },
-        (payload) => {
-          const row = payload.new as {
-            id: string; status: string; table_num: number | null
-            customer_name: string | null; created_at: string
-          }
+    let ch: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
 
-          if (row.status === 'ready') {
-            setReady(prev => {
-              if (prev.some(o => o.id === row.id)) return prev
-              beep()
-              if ('vibrate' in navigator) navigator.vibrate([300, 100, 300])
-              return [...prev, {
-                id: row.id, table_num: row.table_num,
-                customer_name: row.customer_name, created_at: row.created_at,
-              }]
-            })
+    // Filtrado por restaurant_id: sin esto, el mesero de CUALQUIER restaurante
+    // recibía el beep + aviso de "pedido listo" de pedidos de OTROS restaurantes.
+    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+      if (cancelled || !rid) return
+      ch = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${rid}` },
+          (payload) => {
+            const row = payload.new as {
+              id: string; status: string; table_num: number | null
+              customer_name: string | null; created_at: string
+            }
+
+            if (row.status === 'ready') {
+              setReady(prev => {
+                if (prev.some(o => o.id === row.id)) return prev
+                beep()
+                if ('vibrate' in navigator) navigator.vibrate([300, 100, 300])
+                return [...prev, {
+                  id: row.id, table_num: row.table_num,
+                  customer_name: row.customer_name, created_at: row.created_at,
+                }]
+              })
+            }
+            if (row.status === 'completed' || row.status === 'cancelled') {
+              setReady(prev => prev.filter(o => o.id !== row.id))
+            }
           }
-          if (row.status === 'completed' || row.status === 'cancelled') {
-            setReady(prev => prev.filter(o => o.id !== row.id))
-          }
-        }
-      )
-      .subscribe()
+        )
+        .subscribe()
+    })
 
     return () => {
+      cancelled = true
       clearInterval(poll)
-      supabase.removeChannel(ch)
+      if (ch) supabase.removeChannel(ch)
     }
   }, [fetchReady])
 

@@ -153,11 +153,18 @@ export const KitchenBoard = memo(() => {
 
   useEffect(() => {
     fetchOrders()
-    const channel = supabase
-      .channel('kitchen-board-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    // Filtrar el realtime por restaurant_id: sin esto, la cocina de CUALQUIER
+    // restaurante recibe (y reacciona a) los cambios de pedidos de TODOS los demás.
+    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+      if (cancelled || !rid) return
+      channel = supabase
+        .channel('kitchen-board-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${rid}` }, fetchOrders)
+        .subscribe()
+    })
+    return () => { cancelled = true; if (channel) supabase.removeChannel(channel) }
   }, [])
 
   const handleAdvance = useCallback(async (orderId: string, nextStatus: Order['status']) => {
