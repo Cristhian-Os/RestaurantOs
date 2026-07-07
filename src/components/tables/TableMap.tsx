@@ -78,7 +78,10 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
   const [newCapacidad, setNewCapacidad]= useState('4')
   const [newZona,      setNewZona]     = useState('principal')
   const [savingMesa,   setSavingMesa]  = useState(false)
+  const [editNumero,   setEditNumero]  = useState('')
+  const [editZona,     setEditZona]    = useState('')
   const [editCapacidad,setEditCapacidad] = useState('')
+  const [savingEdit,   setSavingEdit]  = useState(false)
   const isAdmin = profile.role === 'admin'
 
   const fetchData = useCallback(async () => {
@@ -162,19 +165,31 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
     message.success(`Mesa ${mesa.numero} eliminada`)
   }, [activeOrders])
 
-  const handleUpdateCapacidad = useCallback(async (mesa: Mesa) => {
+  const handleUpdateMesa = useCallback(async (mesa: Mesa) => {
+    const numero = parseInt(editNumero, 10)
     const capacidad = parseInt(editCapacidad, 10)
+    const zonaTrim = editZona.trim()
+    if (!numero || numero < 1 || numero > 100) { message.error('Número de mesa inválido (1-100)'); return }
     if (!capacidad || capacidad < 1) { message.error('Capacidad inválida'); return }
-    if (capacidad === mesa.capacidad) return
-    const { error } = await supabase.from('mesas').update({ capacidad }).eq('id', mesa.id)
-    if (error) { message.error('Error: ' + error.message); return }
-    setMesas(prev => prev.map(m => m.id === mesa.id ? { ...m, capacidad } : m))
-    setSelected(prev => prev?.id === mesa.id ? { ...prev, capacidad } : prev)
-    message.success('Capacidad actualizada')
-  }, [editCapacidad])
+    if (!zonaTrim) { message.error('La zona no puede estar vacía'); return }
+    if (numero === mesa.numero && capacidad === mesa.capacidad && zonaTrim === mesa.zona) return
+
+    setSavingEdit(true)
+    const { error } = await supabase.from('mesas')
+      .update({ numero, capacidad, zona: zonaTrim }).eq('id', mesa.id)
+    setSavingEdit(false)
+    if (error) { message.error(error.code === '23505' ? `Ya existe la mesa ${numero}` : 'Error: ' + error.message); return }
+    setMesas(prev => prev.map(m => m.id === mesa.id ? { ...m, numero, capacidad, zona: zonaTrim } : m).sort((a, b) => a.numero - b.numero))
+    setSelected(prev => prev?.id === mesa.id ? { ...prev, numero, capacidad, zona: zonaTrim } : prev)
+    message.success('Mesa actualizada')
+  }, [editNumero, editZona, editCapacidad])
 
   useEffect(() => {
-    if (selected) setEditCapacidad(String(selected.capacidad))
+    if (selected) {
+      setEditNumero(String(selected.numero))
+      setEditZona(selected.zona)
+      setEditCapacidad(String(selected.capacidad))
+    }
   }, [selected])
 
   const zonas = ['all', ...Array.from(new Set(mesas.map(m => m.zona)))]
@@ -409,24 +424,37 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
               </div>
             )}
 
-            {/* Editar capacidad + eliminar mesa (solo admin) */}
+            {/* Editar mesa (número, zona, capacidad) + eliminar (solo admin) */}
             {isAdmin && (
-              <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Capacidad</label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Editar mesa</label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Número</label>
+                    <input type="number" min={1} max={100} value={editNumero} onChange={e => setEditNumero(e.target.value)}
+                      style={{ width: 70, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Zona</label>
+                    <input type="text" value={editZona} onChange={e => setEditZona(e.target.value)}
+                      style={{ width: 110, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Capacidad</label>
                     <input type="number" min={1} value={editCapacidad} onChange={e => setEditCapacidad(e.target.value)}
-                      style={{ width: 80, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
-                    <button onClick={() => handleUpdateCapacidad(selected)}
-                      style={{ padding: '0.5rem 0.875rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', ...S.neoOutSm }}>
-                      Guardar
-                    </button>
+                      style={{ width: 70, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
                   </div>
                 </div>
-                <button onClick={() => handleDeleteMesa(selected)}
-                  style={{ padding: '0.5rem 0.875rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'rgba(239,68,68,0.12)', color: '#DC2626', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Eliminar mesa
-                </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                  <button onClick={() => handleUpdateMesa(selected)} disabled={savingEdit}
+                    style={{ padding: '0.5rem 1rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: savingEdit ? 0.6 : 1, ...S.coral }}>
+                    {savingEdit ? 'Guardando…' : 'Guardar cambios'}
+                  </button>
+                  <button onClick={() => handleDeleteMesa(selected)}
+                    style={{ padding: '0.5rem 0.875rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'rgba(239,68,68,0.12)', color: '#DC2626', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Eliminar mesa
+                  </button>
+                </div>
               </div>
             )}
           </motion.div>
