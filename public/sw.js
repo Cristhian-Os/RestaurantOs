@@ -1,5 +1,5 @@
-// RestaurantOS Service Worker v17 — offline real (cachea la app)
-const CACHE = 'ros-v17'
+// RestaurantOS Service Worker v18 — offline real (cachea la app)
+const CACHE = 'ros-v18'
 const OFFLINE_URL = '/index.html'
 
 // Install: cachear el HTML de entrada
