@@ -37,6 +37,10 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
   const [selectedProductId, setSelectedProductId] = useState<string>(propProductId)
   const [selectedProductName, setSelectedProductName] = useState<string>(propProductName)
   const [lines, setLines] = useState<RecetaLine[]>([emptyLine()])
+  // Calculadora "compré X por $Y" → precio por unidad (ayuda con compras al por mayor, ej. tina de 10 litros)
+  const [calcOpen, setCalcOpen] = useState<Record<number, boolean>>({})
+  const [calcQty, setCalcQty] = useState<Record<number, string>>({})
+  const [calcTotal, setCalcTotal] = useState<Record<number, string>>({})
 
   const productId = selectedProductId
   const productName = selectedProductName
@@ -59,6 +63,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
 
   // Cargar las líneas guardadas al estado editable (o una fila vacía)
   useEffect(() => {
+    setCalcOpen({}); setCalcQty({}); setCalcTotal({})
     if (!productId) { setLines([emptyLine()]); return }
     if (recetaQuery.data) {
       const loaded: RecetaLine[] = recetaQuery.data.map(r => ({
@@ -87,12 +92,41 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
     setLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l))
   }, [])
   const addLine = useCallback(() => setLines(prev => [...prev, emptyLine()]), [])
+  // Al quitar una fila, las que quedan después se recorren un índice — hay que
+  // re-mapear el estado de la calculadora (que vive aparte, por índice) o se
+  // queda pegado a la fila equivocada.
+  const reindexAfterRemove = useCallback(<T,>(map: Record<number, T>, removedIdx: number): Record<number, T> => {
+    const next: Record<number, T> = {}
+    for (const [k, v] of Object.entries(map)) {
+      const i = Number(k)
+      if (i < removedIdx) next[i] = v
+      else if (i > removedIdx) next[i - 1] = v
+    }
+    return next
+  }, [])
   const removeLine = useCallback((idx: number) => {
     setLines(prev => {
       const next = prev.filter((_, i) => i !== idx)
       return next.length > 0 ? next : [emptyLine()]
     })
+    setCalcOpen(prev => reindexAfterRemove(prev, idx))
+    setCalcQty(prev => reindexAfterRemove(prev, idx))
+    setCalcTotal(prev => reindexAfterRemove(prev, idx))
+  }, [reindexAfterRemove])
+
+  // Calculadora por línea: "compré X [unidad] por $Y" → precio unitario automático
+  const toggleCalc = useCallback((idx: number) => {
+    setCalcOpen(prev => ({ ...prev, [idx]: !prev[idx] }))
   }, [])
+  const updateCalc = useCallback((idx: number, field: 'qty' | 'total', value: string) => {
+    const qty   = parseFloat(field === 'qty'   ? value : calcQty[idx]   ?? '')
+    const total = parseFloat(field === 'total' ? value : calcTotal[idx] ?? '')
+    if (field === 'qty')   setCalcQty(prev => ({ ...prev, [idx]: value }))
+    else                   setCalcTotal(prev => ({ ...prev, [idx]: value }))
+    if (qty > 0 && total >= 0) {
+      setLines(prev => prev.map((l, i) => i === idx ? { ...l, costo_unitario: total / qty } : l))
+    }
+  }, [calcQty, calcTotal])
 
   // ─── Guardar ──────────────────────────────────────────────
   const saveMutation = useMutation({
@@ -171,6 +205,9 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                     <span style={{ color: 'var(--accent)', fontSize: '1.0625rem' }}>{fmtCOP(total)}</span>
                   </span>
                 </div>
+                <p style={{ margin: '-0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  💡 ¿Compras al por mayor (ej. tina de 10 litros)? Toca 🧮 en la fila para calcular solo el precio por unidad.
+                </p>
 
                 {/* Cabecera de columnas (desktop) */}
                 <div className="recipe-head" style={{ display: 'none', gap: '0.5rem', padding: '0 0.25rem', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -218,6 +255,18 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                         <span style={{ flex: 1.4, minWidth: 80, textAlign: 'right', fontWeight: 700, color: 'var(--accent)', fontSize: '0.9375rem' }}>
                           {fmtCOP(subtotal)}
                         </span>
+                        {/* Calculadora: compré X por $Y → precio unitario */}
+                        <button
+                          onClick={() => toggleCalc(idx)}
+                          title="¿Compraste al por mayor? Calcula el precio por unidad"
+                          style={{
+                            width: 32, height: 32, flexShrink: 0, borderRadius: '0.5rem', cursor: 'pointer', fontSize: '1rem', lineHeight: 1,
+                            border: `1px solid ${calcOpen[idx] ? 'var(--accent)' : 'var(--divider)'}`,
+                            background: calcOpen[idx] ? 'var(--accent)' : 'transparent',
+                          }}
+                        >
+                          🧮
+                        </button>
                         {/* Quitar */}
                         <button
                           onClick={() => removeLine(idx)}
@@ -226,6 +275,46 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                         >
                           ✕
                         </button>
+
+                        {/* Panel de conversión (compra al por mayor → precio por unidad) */}
+                        {calcOpen[idx] && (
+                          <div style={{
+                            flexBasis: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem',
+                            padding: '0.625rem', marginTop: '0.25rem', borderRadius: '0.75rem',
+                            background: 'var(--bg-surface)', border: '1px dashed var(--accent)',
+                          }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Compré</span>
+                            <input
+                              type="number" min={0} step={0.1} inputMode="decimal"
+                              value={calcQty[idx] ?? ''}
+                              onChange={e => updateCalc(idx, 'qty', e.target.value)}
+                              placeholder="ej: 10"
+                              style={{ ...inputBase, width: 80 }}
+                            />
+                            <input
+                              type="text"
+                              value={line.unidad ?? ''}
+                              onChange={e => updateLine(idx, 'unidad', e.target.value)}
+                              placeholder="litros, kg, unid."
+                              style={{ ...inputBase, width: 110 }}
+                            />
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>por</span>
+                            <span style={{ fontSize: '0.875rem' }}>$</span>
+                            <input
+                              type="number" min={0} step={50} inputMode="decimal"
+                              value={calcTotal[idx] ?? ''}
+                              onChange={e => updateCalc(idx, 'total', e.target.value)}
+                              placeholder="ej: 50000"
+                              style={{ ...inputBase, width: 100 }}
+                            />
+                            {parseFloat(calcQty[idx] ?? '') > 0 && (
+                              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent)' }}>
+                                = {fmtCOP((parseFloat(calcTotal[idx] ?? '0') || 0) / parseFloat(calcQty[idx]))} por {line.unidad?.trim() || 'unidad'}
+                                {' '}→ usa "Cantidad" para poner cuántos {line.unidad?.trim() || 'unidad(es)'} lleva este plato
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
