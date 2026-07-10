@@ -19,6 +19,9 @@ const S = {
   coral: { boxShadow: 'var(--shadow-coral)' },
 }
 
+// Postgres numeric llega como string vía Supabase/PostgREST — nunca confiar en el tipo TS
+const fmtCOP = (n: unknown) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO')
+
 export function ShoppingList() {
   const [filteredPriority, setFilteredPriority] = useState<'URGENTE' | 'ALTO' | 'NORMAL' | 'TODOS'>('TODOS')
 
@@ -37,7 +40,7 @@ export function ShoppingList() {
 
   // Calcular totales
   const totalItems = filteredData.length
-  const totalCost = filteredData.reduce((sum, item) => sum + item.costo_sugerido, 0)
+  const totalCost = filteredData.reduce((sum, item) => sum + Number(item.costo_total), 0)
   const urgenteCount = (listaQuery.data || []).filter((i) => i.prioridad === 'URGENTE').length
   const altoCount = (listaQuery.data || []).filter((i) => i.prioridad === 'ALTO').length
 
@@ -55,18 +58,18 @@ export function ShoppingList() {
       'Stock Mínimo',
       'Cantidad Sugerida',
       'Costo Unitario',
-      'Costo Sugerido',
+      'Costo Total',
       'Prioridad',
     ]
 
     const rows = filteredData.map((item) => [
       item.nombre,
       item.unidad_medida,
-      item.stock_actual.toFixed(2),
-      item.stock_minimo.toFixed(2),
-      item.cantidad_sugerida.toFixed(2),
-      item.costo_unitario.toFixed(2),
-      item.costo_sugerido.toFixed(2),
+      Number(item.stock_actual).toFixed(2),
+      Number(item.stock_minimo).toFixed(2),
+      Number(item.cantidad_sugerida).toFixed(2),
+      Number(item.costo_unitario).toFixed(2),
+      Number(item.costo_total).toFixed(2),
       item.prioridad,
     ])
 
@@ -97,8 +100,8 @@ export function ShoppingList() {
       filteredData.map((item) => ({
         ingrediente: item.nombre,
         unidad: item.unidad_medida,
-        cantidad_sugerida: item.cantidad_sugerida,
-        costo_total: item.costo_sugerido,
+        cantidad_sugerida: Number(item.cantidad_sugerida),
+        costo_total: Number(item.costo_total),
         prioridad: item.prioridad,
       })),
       null,
@@ -142,18 +145,18 @@ export function ShoppingList() {
       key: 'stock_actual',
       width: 100,
       render: (val: number) => (
-        <span className={val <= 0 ? 'text-red-600 font-bold' : 'text-neo-dark'}>
-          {val.toFixed(2)}
+        <span className={Number(val) <= 0 ? 'text-red-600 font-bold' : 'text-neo-dark'}>
+          {Number(val).toFixed(2)}
         </span>
       ),
-      sorter: (a: ListaCompras, b: ListaCompras) => a.stock_actual - b.stock_actual,
+      sorter: (a: ListaCompras, b: ListaCompras) => Number(a.stock_actual) - Number(b.stock_actual),
     },
     {
       title: 'Stock Mín.',
       dataIndex: 'stock_minimo',
       key: 'stock_minimo',
       width: 100,
-      render: (val: number) => <span className="text-sm text-neo-mid">{val.toFixed(2)}</span>,
+      render: (val: number) => <span className="text-sm text-neo-mid">{Number(val).toFixed(2)}</span>,
     },
     {
       title: 'Qty Sugerida',
@@ -161,7 +164,7 @@ export function ShoppingList() {
       key: 'cantidad_sugerida',
       width: 110,
       render: (val: number) => (
-        <span className="font-bold text-neo-coral">{val.toFixed(2)}</span>
+        <span className="font-bold text-neo-coral">{Number(val).toFixed(2)}</span>
       ),
     },
     {
@@ -170,18 +173,18 @@ export function ShoppingList() {
       key: 'costo_unitario',
       width: 100,
       render: (val: number) => (
-        <span className="text-sm text-neo-dark">${val.toFixed(2)}</span>
+        <span className="text-sm text-neo-dark">{fmtCOP(val)}</span>
       ),
     },
     {
       title: 'Costo Total',
-      dataIndex: 'costo_sugerido',
-      key: 'costo_sugerido',
+      dataIndex: 'costo_total',
+      key: 'costo_total',
       width: 110,
       render: (val: number) => (
-        <span className="font-bold text-neo-dark">${val.toFixed(2)}</span>
+        <span className="font-bold text-neo-dark">{fmtCOP(val)}</span>
       ),
-      sorter: (a: ListaCompras, b: ListaCompras) => a.costo_sugerido - b.costo_sugerido,
+      sorter: (a: ListaCompras, b: ListaCompras) => Number(a.costo_total) - Number(b.costo_total),
     },
     {
       title: 'Prioridad',
@@ -246,8 +249,7 @@ export function ShoppingList() {
             <Statistic
               title="Costo Total"
               value={totalCost}
-              prefix="$"
-              precision={2}
+              formatter={(val) => fmtCOP(val)}
               valueStyle={{ color: 'var(--accent)' }}
             />
           </Card>
@@ -324,7 +326,7 @@ export function ShoppingList() {
           style={S.neoOutSm}
         >
           <strong>Total:</strong> {totalItems} ingredientes •{' '}
-          <strong>Inversión:</strong> ${totalCost.toFixed(2)} • Fecha:{' '}
+          <strong>Inversión:</strong> {fmtCOP(totalCost)} • Fecha:{' '}
           {new Date().toLocaleDateString('es-ES')}
         </div>
       )}

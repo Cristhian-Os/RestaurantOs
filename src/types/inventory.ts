@@ -46,7 +46,9 @@ export interface ListaCompras {
   stock_minimo: number
   costo_unitario: number
   cantidad_sugerida: number
-  costo_sugerido: number
+  cantidad_necesaria_manual: number | null
+  cantidad_necesaria: number
+  costo_total: number
   prioridad: 'URGENTE' | 'ALTO' | 'NORMAL'
 }
 

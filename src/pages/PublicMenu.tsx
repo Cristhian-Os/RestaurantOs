@@ -618,7 +618,7 @@ export default function PublicMenu() {
   }, [])
 
   // ── data fetch ─────────────────────────────────────────────────
-  useEffect(() => {
+  const fetchMenuData = useCallback(() => {
     if (!restaurantId) return
     Promise.all([
       supabase.from('dishes').select('*').eq('restaurant_id', restaurantId).eq('available', true)
@@ -642,10 +642,25 @@ export default function PublicMenu() {
       if (Array.isArray(mods?.helado_flavors)) setFlavors(mods!.helado_flavors!)
       setLoading(false)
     })
+  }, [restaurantId])
+
+  useEffect(() => {
+    fetchMenuData()
+    if (!restaurantId) return
     // ¿Este restaurante acepta pagos en línea de comensales?
     supabase.rpc('online_payments_enabled', { p_restaurant_id: restaurantId })
       .then(({ data }) => setOnlinePay(data === true))
-  }, [restaurantId])
+  }, [restaurantId, fetchMenuData])
+
+  // Refrescar el menú en vivo si el admin edita platos o categorías mientras el comensal ya tiene el menú abierto
+  useEffect(() => {
+    if (!restaurantId) return
+    const ch = supabase.channel(`public-menu-sync-${restaurantId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter: `restaurant_id=eq.${restaurantId}` }, fetchMenuData)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'restaurant_config', filter: `restaurant_id=eq.${restaurantId}` }, fetchMenuData)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [restaurantId, fetchMenuData])
 
   // ── real-time order tracking ───────────────────────────────────
   useEffect(() => {

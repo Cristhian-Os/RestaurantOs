@@ -96,11 +96,25 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   }, [])
 
   // Cargar platos
-  useEffect(() => {
+  const fetchDishes = useCallback(() => {
     supabase.from('dishes').select('*').eq('available', true)
       .neq('availability_status', 'discontinued').order('sort_order').order('name')
       .then(({ data }) => { setDishes(data || []); setLoadingDishes(false) })
   }, [])
+
+  useEffect(() => { fetchDishes() }, [fetchDishes])
+
+  // Refrescar el menú en vivo si el admin edita platos/categorías en otra pestaña
+  useEffect(() => {
+    let ch: ReturnType<typeof supabase.channel> | null = null
+    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+      if (!rid) return
+      ch = supabase.channel('order-flow-dishes-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter: `restaurant_id=eq.${rid}` }, fetchDishes)
+        .subscribe()
+    })
+    return () => { if (ch) supabase.removeChannel(ch) }
+  }, [fetchDishes])
 
   // Platos filtrados
   const filteredDishes = useMemo(() => {
