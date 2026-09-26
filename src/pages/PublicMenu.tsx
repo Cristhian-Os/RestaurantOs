@@ -924,7 +924,7 @@ const DishCard = memo(({ dish, inCart, social, onCustomize, onOpenSocial, index 
     )}
 
     <div className="w-press" onClick={e => { e.stopPropagation(); onOpenSocial() }}
-      style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', cursor: 'pointer' }}>
+      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: '0.25rem', columnGap: '0.625rem', cursor: 'pointer' }}>
       {social?.es_popular && (
         <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: 'var(--w-terra)' }}>🔥 Popular</span>
       )}
