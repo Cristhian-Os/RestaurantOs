@@ -63,7 +63,7 @@ async function uploadAvatar(profileId: string, file: File): Promise<string | nul
   const { error } = await supabase.storage
     .from('restaurant-assets')
     .upload(path, file, { upsert: true, contentType: file.type })
-  if (error) { console.error('Avatar upload error:', error); return null }
+  if (error) { message.error(`No se pudo subir la foto: ${error.message}`); return null }
   const { data: { publicUrl } } = supabase.storage
     .from('restaurant-assets').getPublicUrl(path)
   return publicUrl + `?v=${Date.now()}`
