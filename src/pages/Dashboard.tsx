@@ -23,14 +23,19 @@ import { ClientMenuSection } from '../components/ClientMenuSection'
 import { AdminTasksView }    from '../components/tasks/AdminTasksView'
 import { EmployeeTasksView } from '../components/tasks/EmployeeTasksView'
 import { ShoppingList }      from '../components/inventory/ShoppingList'
+import { IngredientesManager } from '../components/inventory/IngredientesManager'
 import { RecipeBuilder }     from '../components/recipes/RecipeBuilder'
 import BusinessAssistant     from './BusinessAssistant'
 import { InstallPWA }        from '../components/pwa/InstallPWA'
 import { QRMenu }            from '../components/pwa/QRMenu'
 import { WaiterNotifications } from '../components/orders/WaiterNotifications'
+import SupportChat            from '../components/SupportChat'
+import BrandingManager, { applyBranding } from '../components/branding/BrandingManager'
+import SubscriptionPanel from '../components/billing/SubscriptionPanel'
+import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 
 export type Role    = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu' | 'branding' | 'billing'
 
 export interface Profile {
   id:          string
@@ -40,6 +45,7 @@ export interface Profile {
   phone?:      string | null
   avatar_url?: string | null
   active?:     boolean
+  must_change_password?: boolean
 }
 
 interface Metrics {
@@ -88,6 +94,8 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'analytics', icon:<Icons.Analytics />, label:'Analytics'  },
     { view:'team',      icon:<Icons.Team />,      label:'Equipo'     },
     { view:'menu',      icon:<Icons.Menu />,      label:'Menú'       },
+    { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
+    { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
   ],
   waiter:  [
     { view:'orders', icon:<Icons.Orders />, label:'Pedidos' },
@@ -175,6 +183,56 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
 })
 AdminDashboard.displayName = 'AdminDashboard'
 
+// ── Modal obligatorio: cambiar contraseña temporal en el primer login ──
+const ForcePasswordChangeModal = ({ onDone }: { onDone: () => void }) => {
+  const [pw1, setPw1]         = useState('')
+  const [pw2, setPw2]         = useState('')
+  const [err, setErr]         = useState<string | null>(null)
+  const [saving, setSaving]   = useState(false)
+
+  const handleSave = async () => {
+    setErr(null)
+    if (pw1.trim().length < 6) { setErr('La contraseña debe tener al menos 6 caracteres'); return }
+    if (pw1 !== pw2) { setErr('Las contraseñas no coinciden'); return }
+    setSaving(true)
+    try {
+      const { error } = await supabase.rpc('change_my_password', { p_new_password: pw1.trim() })
+      if (error) throw error
+      message.success('Contraseña actualizada')
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo actualizar la contraseña')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(20,20,30,0.55)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1.5rem' }}>
+      <div style={{ width:'100%', maxWidth:400, borderRadius:'1.25rem', padding:'1.75rem', background:'var(--w-surface)', border:'1px solid var(--w-line)', boxShadow:'var(--w-shadow-md)', fontFamily:'var(--w-sans)' }}>
+        <h3 style={{ margin:'0 0 0.5rem', fontWeight:700, fontSize:'1.125rem', color:'var(--w-ink)' }}>Configura tu contraseña</h3>
+        <p style={{ margin:'0 0 1.25rem', fontSize:'0.8125rem', color:'var(--w-ink-mut)' }}>
+          Tu cuenta se creó con una contraseña temporal. Por seguridad, elige una nueva antes de continuar.
+        </p>
+        <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+          <input type="password" placeholder="Nueva contraseña (mínimo 6 caracteres)" value={pw1}
+            onChange={e => setPw1(e.target.value)}
+            style={{ width:'100%', padding:'0.75rem 1rem', borderRadius:'0.75rem', border:'1px solid var(--w-line)', outline:'none', fontSize:'0.875rem', color:'var(--w-ink)', background:'var(--w-bg)', boxSizing:'border-box' }} />
+          <input type="password" placeholder="Confirma la nueva contraseña" value={pw2}
+            onChange={e => setPw2(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+            style={{ width:'100%', padding:'0.75rem 1rem', borderRadius:'0.75rem', border:'1px solid var(--w-line)', outline:'none', fontSize:'0.875rem', color:'var(--w-ink)', background:'var(--w-bg)', boxSizing:'border-box' }} />
+        </div>
+        {err && <p style={{ color:'#d33', fontSize:'0.8125rem', margin:'0.75rem 0 0' }}>{err}</p>}
+        <button onClick={handleSave} disabled={saving}
+          style={{ width:'100%', marginTop:'1.25rem', padding:'0.75rem', borderRadius:'1rem', border:'none', cursor:'pointer', fontWeight:700, fontSize:'0.875rem', background:'var(--w-terra, #d97757)', color:'#fff', opacity:saving?0.7:1 }}>
+          {saving ? 'Guardando...' : 'Guardar y continuar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Dashboard Principal ─────────────────────────────────────────
 interface DashboardProps { onLogout: () => void }
 
@@ -183,10 +241,31 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [activeNav,  setActiveNav]  = useState<NavView>('dashboard')
   const [loading,    setLoading]    = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
   const { theme, setTheme } = useTheme()
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
     try { pushNotificationService.initializePushNotifications() } catch { /* no crítico */ }
+  }, [])
+
+  // Aplicar la marca del restaurante (color, logo y nombre) al cargar
+  useEffect(() => {
+    supabase.from('restaurant_config').select('display_name, logo_url, color_primario').maybeSingle()
+      .then(({ data }) => {
+        applyBranding(data?.color_primario)
+        setBrand({ name: data?.display_name ?? undefined, logo: data?.logo_url ?? undefined })
+      })
+  }, [])
+
+  // Actualizar el encabezado al instante cuando el admin cambia la marca
+  useEffect(() => {
+    const onBrand = (e: Event) => {
+      const d = (e as CustomEvent).detail ?? {}
+      setBrand(b => ({ name: d.name ?? b.name, logo: d.logo ?? b.logo }))
+      if (d.color) applyBranding(d.color)
+    }
+    window.addEventListener('branding-updated', onBrand)
+    return () => window.removeEventListener('branding-updated', onBrand)
   }, [])
 
   useEffect(() => {
@@ -269,13 +348,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         : <EmployeeTasksView profile={profile} />
       case 'inventory': return (
         <Tabs defaultActiveKey="1" items={[
-          { key:'1', label:'Lista de compras', children:<ShoppingList /> },
-          { key:'2', label:'Recetas',          children:<RecipeBuilder /> },
+          { key:'1', label:'Ingredientes',     children:<IngredientesManager /> },
+          { key:'2', label:'Lista de compras', children:<ShoppingList /> },
+          { key:'3', label:'Recetas',          children:<RecipeBuilder /> },
         ]} />
       )
       case 'analytics': return <BusinessAssistant />
       case 'team':      return <TeamManager />
       case 'menu':      return profile.role === 'admin' ? <MenuManager /> : <ClientMenuSection />
+      case 'branding':  return <BrandingManager />
+      case 'billing':   return <SubscriptionPanel />
       default:          return null
     }
   }
@@ -308,6 +390,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   return (
     <div style={{minHeight:'100vh',background:'var(--w-bg)',fontFamily:'var(--w-sans)'}}>
 
+      {profile!.must_change_password && (
+        <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
+      )}
+
       {/* Notificaciones pedido listo — mesero y admin */}
       {(profile!.role === 'waiter' || profile!.role === 'admin') && (
         <WaiterNotifications />
@@ -321,12 +407,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         position:'sticky', top:0, zIndex:20,
       }}>
         <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
-          <div style={{width:38,height:38,borderRadius:'0.625rem',overflow:'hidden',flexShrink:0,border:'1px solid var(--w-line)'}}>
-            <img src="/logo.jpg" alt="RestaurantOS" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+          <div style={{width:38,height:38,borderRadius:'0.625rem',overflow:'hidden',flexShrink:0,border:'1px solid var(--w-line)',background:'var(--w-surface)'}}>
+            <img src={brand.logo || '/logo.jpg'} alt={brand.name || 'RestaurantOS'} style={{width:'100%',height:'100%',objectFit:brand.logo?'contain':'cover',display:'block'}}
+              onError={e => { (e.target as HTMLImageElement).src = '/logo.jpg' }} />
           </div>
           <div>
             <h1 className="ed-display" style={{fontWeight:600,fontSize:'1.125rem',margin:0,lineHeight:1.1}}>
-              RestaurantOS
+              {brand.name || 'RestaurantOS'}
             </h1>
             <p style={{fontSize:'0.6875rem',color:'var(--w-ink-mut)',margin:0,fontFamily:'var(--w-sans)'}}>
               {profile!.full_name ?? profile!.email} · {profile!.role}
@@ -410,12 +497,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </nav>
 
         <main style={{flex:1,padding:'1.25rem',overflowX:'hidden',minWidth:0}}>
+          {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
           {renderContent()}
           <div style={{height:'2rem'}} />
         </main>
       </div>
 
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
+      <SupportChat />
     </div>
   )
 }

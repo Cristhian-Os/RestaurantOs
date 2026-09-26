@@ -1,13 +1,29 @@
-import { useState, useEffect, useCallback, startTransition } from 'react'
+import { useState, useEffect, useCallback, startTransition, Suspense, lazy } from 'react'
 import { supabase }  from './services/supabaseClient'
 import Login         from './pages/Login'
-import Dashboard     from './pages/Dashboard'
 import PublicMenu    from './pages/PublicMenu'
+import Landing       from './pages/Landing'
+import Signup        from './pages/Signup'
+import Legal         from './pages/Legal'
+import ResetPassword from './pages/ResetPassword'
 import { ThemeProvider } from './contexts/ThemeContext'
 import type { Session } from '@supabase/supabase-js'
 
-const IS_PUBLIC_MENU = typeof window !== 'undefined' &&
-  window.location.pathname.startsWith('/menu')
+// Dashboard (y todo lo que solo usa el admin: mesas, menú, marca, suscripción,
+// etc.) va en su propio chunk — un visitante anónimo en la landing/login nunca
+// debería descargar ese código.
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+
+const PATH = typeof window !== 'undefined' ? window.location.pathname : '/'
+const IS_PUBLIC_MENU = PATH.startsWith('/menu')
+const IS_REGISTER    = PATH.startsWith('/registro')
+const IS_LOGIN       = PATH.startsWith('/login')
+const IS_LEGAL       = PATH.startsWith('/terminos') || PATH.startsWith('/privacidad')
+const IS_RESET_PASSWORD = PATH.startsWith('/reset-password')
+// App instalada (PWA en pantalla completa): nunca mostrar la landing de marketing
+const IS_STANDALONE  = typeof window !== 'undefined' &&
+  ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+   (window.navigator as unknown as { standalone?: boolean }).standalone === true)
 
 function SplashScreen() {
   return (
@@ -83,7 +99,16 @@ export default function App() {
   }, [])
 
   if (IS_PUBLIC_MENU) return <ThemeProvider><PublicMenu /></ThemeProvider>
+  if (IS_LEGAL)       return <ThemeProvider><Legal /></ThemeProvider>
   if (!ready)         return <SplashScreen />
-  if (session)        return <ThemeProvider><Dashboard onLogout={handleLogout} /></ThemeProvider>
-  return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
+  // Enlace de recuperación de contraseña: siempre pedir la nueva contraseña primero,
+  // incluso si Supabase ya dejó una sesión de recuperación activa (no saltar al panel).
+  if (IS_RESET_PASSWORD) return <ThemeProvider><ResetPassword /></ThemeProvider>
+  // Con sesión activa → siempre el panel (aunque la URL sea /, /login o /registro)
+  if (session)        return <ThemeProvider><Suspense fallback={<SplashScreen />}><Dashboard onLogout={handleLogout} /></Suspense></ThemeProvider>
+  // Sin sesión: rutas públicas de marketing / auth
+  if (IS_REGISTER)    return <ThemeProvider><Signup /></ThemeProvider>
+  // En la PWA instalada, la raíz va directo a login (sin landing de marketing)
+  if (IS_LOGIN || IS_STANDALONE) return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
+  return <ThemeProvider><Landing /></ThemeProvider>
 }

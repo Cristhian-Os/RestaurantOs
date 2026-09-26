@@ -678,3 +678,16 @@
 .border-\[\#FF5722\] { border-color: var(--accent) !important; }
 .text-\[\#E64A19\] { color: var(--accent-dk) !important; }
 .hover\:text-\[\#FF5722\]:hover { color: var(--accent) !important; }
+
+/* ── Landing: grids responsivos ── */
+.landing-steps,
+.landing-features { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+.landing-plans { display: grid; grid-template-columns: 1fr; gap: 1.5rem; align-items: stretch; }
+@media (min-width: 720px) {
+  .landing-steps    { grid-template-columns: repeat(3, 1fr); }
+  .landing-features { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 980px) {
+  .landing-features { grid-template-columns: repeat(3, 1fr); }
+  .landing-plans    { grid-template-columns: repeat(3, 1fr); }
+}

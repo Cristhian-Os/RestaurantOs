@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
+import { descargarCorteExcel, type CorteProducto } from '../../services/corteExcel'
 import message from 'antd/es/message'
 import type { Profile } from '../../pages/Dashboard'
 
@@ -41,6 +42,13 @@ interface DaySummary {
   total_ordenes:      number
 }
 
+interface Gasto {
+  id:         string
+  concepto:   string
+  monto:      number
+  created_at: string
+}
+
 type PaymentMethod = 'efectivo' | 'transferencia'
 
 interface CashierPanelProps { profile: Profile }
@@ -55,14 +63,23 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [processing,   setProcessing]= useState(false)
   const [showCorte,    setShowCorte] = useState(false)
   const [corteResult,  setCorteResult] = useState<any>(null)
+  const [corteProductos, setCorteProductos] = useState<CorteProducto[]>([])
   const [cortingLoading, setCortingLoading] = useState(false)
+  const [gastos,        setGastos]       = useState<Gasto[]>([])
+  const [showGastoForm, setShowGastoForm]= useState(false)
+  const [gastoConcepto, setGastoConcepto]= useState('')
+  const [gastoMonto,    setGastoMonto]   = useState('')
+  const [savingGasto,   setSavingGasto]  = useState(false)
 
   const fetchData = useCallback(async () => {
-    const [ordersRes, completedRes] = await Promise.all([
+    const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
+    const [ordersRes, completedRes, gastosRes] = await Promise.all([
       supabase.from('orders').select('*').eq('status', 'ready').order('created_at', { ascending: true }),
       supabase.from('orders').select('total, payment_method')
         .eq('status', 'completed')
-        .gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString())
+        .gte('created_at', inicioDia),
+      supabase.from('gastos').select('id, concepto, monto, created_at')
+        .gte('created_at', inicioDia).order('created_at', { ascending: false }),
     ])
 
     if (!ordersRes.error) {
@@ -80,16 +97,49 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         total_ordenes:       orders.length,
       })
     }
+
+    if (!gastosRes.error) setGastos(gastosRes.data || [])
+
     setLoading(false)
+  }, [])
+
+  const totalGastosHoy = gastos.reduce((s, g) => s + Number(g.monto), 0)
+
+  const handleAgregarGasto = useCallback(async () => {
+    const monto = parseFloat(gastoMonto)
+    if (!gastoConcepto.trim()) { message.error('Escribe el concepto del gasto'); return }
+    if (!monto || monto <= 0) { message.error('Monto inválido'); return }
+    setSavingGasto(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('gastos').insert({
+      concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
+    })
+    setSavingGasto(false)
+    if (error) { message.error('Error: ' + error.message); return }
+    setGastoConcepto(''); setGastoMonto(''); setShowGastoForm(false)
+    message.success('Gasto registrado')
+    fetchData()
+  }, [gastoConcepto, gastoMonto, fetchData])
+
+  const handleEliminarGasto = useCallback(async (id: string) => {
+    const { error } = await supabase.from('gastos').delete().eq('id', id)
+    if (error) { message.error('Error: ' + error.message); return }
+    setGastos(prev => prev.filter(g => g.id !== id))
   }, [])
 
   useEffect(() => {
     fetchData()
-    const channel = supabase
-      .channel('cashier-panel-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchData)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    // Filtrado por restaurant_id: evita que caja reciba cambios de pedidos de otros restaurantes.
+    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+      if (cancelled || !rid) return
+      channel = supabase
+        .channel('cashier-panel-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${rid}` }, fetchData)
+        .subscribe()
+    })
+    return () => { cancelled = true; if (channel) supabase.removeChannel(channel) }
   }, [fetchData])
 
   // Abrir modal de cobro
@@ -140,9 +190,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const handleCorte = useCallback(async () => {
     setCortingLoading(true)
     try {
+      // Desglose de productos ANTES del corte (mientras las órdenes del día siguen visibles)
+      const { data: prods } = await supabase.rpc('get_corte_productos')
       const { data, error } = await supabase.rpc('hacer_corte_caja', { p_notas: null })
       if (error) throw error
       setCorteResult(data)
+      setCorteProductos((prods as CorteProducto[]) ?? [])
       setShowCorte(true)
       fetchData()
     } catch (e) {
@@ -152,7 +205,33 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     }
   }, [fetchData])
 
+  // Descargar el corte en Excel
+  const handleDescargarExcel = useCallback(async () => {
+    if (!corteResult) return
+    try {
+      const { data: cfg } = await supabase
+        .from('restaurant_config').select('display_name').maybeSingle()
+      await descargarCorteExcel({
+        restauranteNombre: cfg?.display_name ?? 'Restaurante',
+        totales: {
+          total_efectivo:      Number(corteResult.total_efectivo),
+          total_transferencia: Number(corteResult.total_transferencia),
+          total_general:       Number(corteResult.total_general),
+          total_ordenes:       Number(corteResult.total_ordenes),
+          total_gastos:        Number(corteResult.total_gastos ?? 0),
+          total_neto:          Number(corteResult.total_neto ?? corteResult.total_general),
+          fecha:               corteResult.fecha,
+        },
+        productos: corteProductos,
+        gastos: gastos.map(g => ({ concepto: g.concepto, monto: Number(g.monto) })),
+      })
+    } catch (e) {
+      message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
+    }
+  }, [corteResult, corteProductos, gastos])
+
   const totalDia = daySummary.total_efectivo + daySummary.total_transferencia
+  const netoDia  = totalDia - totalGastosHoy
 
   if (loading) return (
     <div className="flex justify-center py-20">
@@ -163,20 +242,78 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   return (
     <div className="space-y-6">
       {/* Resumen del día */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Efectivo hoy',       val: `$${daySummary.total_efectivo.toFixed(2)}`,     color: 'text-emerald-600' },
           { label: 'Transferencias hoy', val: `$${daySummary.total_transferencia.toFixed(2)}`, color: 'text-blue-600'    },
-          { label: 'Total del día',      val: `$${totalDia.toFixed(2)}`,                       color: 'text-[#FF5722]'   },
+          { label: 'Gastos hoy',         val: `$${totalGastosHoy.toFixed(2)}`,                 color: 'text-red-500'     },
+          { label: 'Neto del día',       val: `$${netoDia.toFixed(2)}`,                        color: 'text-[#FF5722]'   },
         ].map(s => (
           <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
             <p className="text-[10px] text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
-            {s.label === 'Total del día' && (
+            {s.label === 'Neto del día' && (
               <p className="text-[10px] text-[#9CA3AF]">{daySummary.total_ordenes} órdenes</p>
             )}
           </div>
         ))}
+      </div>
+
+      {/* Gastos del día */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            Gastos del día
+            <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({gastos.length})</span>
+          </h2>
+          <button onClick={() => setShowGastoForm(v => !v)}
+            className="px-4 py-2 rounded-2xl text-sm font-bold"
+            style={showGastoForm ? { background: 'var(--accent)', color: '#fff', ...S.coral } : { background: '#D8DAE4', color: '#2D3561', ...S.neoOutSm }}>
+            + Agregar gasto
+          </button>
+        </div>
+
+        {showGastoForm && (
+          <div className="bg-[#D8DAE4] rounded-2xl p-4 mb-4 flex flex-wrap gap-3 items-end" style={S.neoOut}>
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
+              <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
+                placeholder="Ej: Domicilio de insumos"
+                className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+            </div>
+            <div className="w-32">
+              <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Monto</label>
+              <input type="number" min={0} value={gastoMonto} onChange={e => setGastoMonto(e.target.value)}
+                placeholder="0"
+                className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+            </div>
+            <button onClick={handleAgregarGasto} disabled={savingGasto}
+              className="px-4 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingGasto ? 0.6 : 1 }}>
+              {savingGasto ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        )}
+
+        {gastos.length === 0 ? (
+          <div className="bg-[#D8DAE4] rounded-2xl p-6 text-center" style={S.neoIn}>
+            <p className="text-sm text-[#9CA3AF]">Sin gastos registrados hoy</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {gastos.map(g => (
+              <div key={g.id} className="flex items-center justify-between bg-[#D8DAE4] rounded-2xl px-4 py-3" style={S.neoOutSm}>
+                <div>
+                  <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
+                  <p className="text-[11px] text-[#9CA3AF]">{new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-red-500">${Number(g.monto).toFixed(2)}</span>
+                  <button onClick={() => handleEliminarGasto(g.id)} className="text-[#9CA3AF] hover:text-red-500 text-sm">✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Órdenes listas */}
@@ -401,7 +538,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
               <div className="flex flex-col gap-3 mb-5">
                 {[
-                  { label: 'Efectivo',     val: corteResult.total_efectivo },
+                  { label: 'Efectivo',      val: corteResult.total_efectivo },
                   { label: 'Transferencia', val: corteResult.total_transferencia },
                   { label: 'Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
                 ].map(item => (
@@ -413,10 +550,35 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   </div>
                 ))}
                 <div className="flex justify-between items-center bg-[#FF5722] rounded-2xl px-4 py-3" style={S.coral}>
-                  <span className="text-sm font-bold text-white">TOTAL</span>
+                  <span className="text-sm font-bold text-white">Ganancias (ventas)</span>
                   <span className="text-xl font-bold text-white">${Number(corteResult.total_general).toFixed(2)}</span>
                 </div>
+                <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+                  <span className="text-sm font-bold text-red-600">Gastos del día</span>
+                  <span className="font-bold text-red-600">−${Number(corteResult.total_gastos ?? 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
+                  <span className="text-sm font-bold text-white">Beneficio neto</span>
+                  <span className="text-xl font-bold text-white">${Number(corteResult.total_neto ?? corteResult.total_general).toFixed(2)}</span>
+                </div>
               </div>
+
+              {corteProductos.length > 0 && (
+                <p className="text-xs text-[#6B7280] text-center mb-3">
+                  {corteProductos.length} productos vendidos hoy · se incluyen en el Excel
+                </p>
+              )}
+
+              <button
+                onClick={handleDescargarExcel}
+                className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
+                style={{ backgroundColor: '#1D7A46', ...S.green }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Descargar Excel
+              </button>
 
               <button
                 onClick={() => setShowCorte(false)}
