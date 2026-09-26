@@ -34,10 +34,11 @@ export interface DishOptionChoice {
   helado?: number   // si se elige esta opción, pide N sabores de helado
 }
 export interface DishOptionGroup {
-  tipo:      'helado' | 'opcion'
+  tipo:      'helado' | 'jugo' | 'opcion'
   nombre:    string
-  cantidad?: number              // tipo 'helado': cuántos sabores elegir
-  opciones?: DishOptionChoice[]  // tipo 'opcion': opciones a elegir (single)
+  cantidad?: number              // tipo 'helado'/'jugo': cuántos sabores elegir
+  opciones?: DishOptionChoice[]  // tipo 'opcion': opciones a elegir
+  multiple?: boolean             // tipo 'opcion': permite elegir más de una (ej: queso Y helado)
 }
 
 export interface Dish {
@@ -92,7 +93,7 @@ export interface TaskEvidence {
 
 export interface Profile {
   id:          string
-  role:        'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
+  role:        'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
   full_name:   string | null
   email?:      string
   phone?:      string | null

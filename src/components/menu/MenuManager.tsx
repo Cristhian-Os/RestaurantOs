@@ -90,6 +90,8 @@ interface DishForm {
   sizes:         SizeRow[]
   heladoCount:   string   // nº de bolas de helado a elegir (0/'' = ninguna)
   quesoHelado:   boolean  // opción "Con queso / Con helado"
+  quesoHeladoMulti: boolean  // permite elegir los dos a la vez (ej: el Salpicrem)
+  jugoCount:     string   // nº de sabores de jugo a elegir (0/'' = ninguno)
   image_file?:   File | null
   image_preview? :string | null
 }
@@ -97,22 +99,27 @@ interface DishForm {
 const FORM_EMPTY: DishForm = {
   name:'', description:'', price:'', category:'principal',
   tags:'', available:true, has_sizes:false, sizes:[{ nombre:'', precio:'' }],
-  heladoCount:'', quesoHelado:false,
+  heladoCount:'', quesoHelado:false, quesoHeladoMulti:false, jugoCount:'',
   image_file:null, image_preview:null,
 }
 
 // Construye el array de grupos de opciones a partir de los campos del formulario
-function buildOptions(heladoCount: string, quesoHelado: boolean): DishOptionGroup[] {
+function buildOptions(heladoCount: string, quesoHelado: boolean, quesoHeladoMulti: boolean, jugoCount: string): DishOptionGroup[] {
   const out: DishOptionGroup[] = []
   if (quesoHelado) {
     out.push({
       tipo: 'opcion', nombre: '¿Con qué lo quieres?',
       opciones: [{ label: 'Con queso' }, { label: 'Con helado', helado: 1 }],
+      multiple: quesoHeladoMulti,
     })
   }
   const n = parseInt(heladoCount, 10)
   if (!quesoHelado && Number.isFinite(n) && n > 0) {
     out.push({ tipo: 'helado', nombre: n > 1 ? `Elige ${n} sabores de helado` : 'Elige el sabor del helado', cantidad: n })
+  }
+  const nj = parseInt(jugoCount, 10)
+  if (Number.isFinite(nj) && nj > 0) {
+    out.push({ tipo: 'jugo', nombre: nj > 1 ? `Elige ${nj} sabores de jugo` : 'Elige el sabor del jugo', cantidad: nj })
   }
   return out
 }
@@ -121,6 +128,7 @@ function dishToForm(d: Dish): DishForm {
   const sizes = (d.sizes ?? []).map(s => ({ nombre: s.nombre, precio: String(s.precio) }))
   const opts = d.options ?? []
   const heladoGroup = opts.find(o => o.tipo === 'helado')
+  const jugoGroup = opts.find(o => o.tipo === 'jugo')
   const quesoHeladoGroup = opts.find(o => o.tipo === 'opcion' && (o.opciones ?? []).some(c => c.helado))
   return {
     name:          d.name,
@@ -133,6 +141,8 @@ function dishToForm(d: Dish): DishForm {
     sizes:         sizes.length > 0 ? sizes : [{ nombre:'', precio:'' }],
     heladoCount:   heladoGroup?.cantidad ? String(heladoGroup.cantidad) : '',
     quesoHelado:   !!quesoHeladoGroup,
+    quesoHeladoMulti: !!quesoHeladoGroup?.multiple,
+    jugoCount:     jugoGroup?.cantidad ? String(jugoGroup.cantidad) : '',
     image_file:    null,
     image_preview: d.image_url ?? null,
   }
@@ -249,6 +259,9 @@ export const MenuManager = memo(() => {
   // Sabores de helado disponibles (config)
   const [flavors,     setFlavors]     = useState<string[]>([])
   const [newFlavor,   setNewFlavor]   = useState('')
+  // Sabores de jugos disponibles (config)
+  const [jugoFlavors, setJugoFlavors] = useState<string[]>([])
+  const [newJugoFlavor, setNewJugoFlavor] = useState('')
   // Confirmación de borrado inline (reemplaza window.confirm)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -288,6 +301,9 @@ export const MenuManager = memo(() => {
         }
         if (modules && Array.isArray(modules['helado_flavors'])) {
           setFlavors((modules['helado_flavors'] as string[]).filter(Boolean))
+        }
+        if (modules && Array.isArray(modules['jugo_flavors'])) {
+          setJugoFlavors((modules['jugo_flavors'] as string[]).filter(Boolean))
         }
       })
   }, [fetchDishes])
@@ -384,7 +400,7 @@ export const MenuManager = memo(() => {
         available:           form.available,
         has_sizes:           form.has_sizes,
         sizes:               sizesPayload,
-        options:             buildOptions(form.heladoCount, form.quesoHelado),
+        options:             buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
         availability_status: form.available ? 'available' : 'out_of_stock',
         updated_at:          new Date().toISOString(),
       }
@@ -535,6 +551,35 @@ export const MenuManager = memo(() => {
     const updated = flavors.filter(f => f !== name)
     setFlavors(updated)
     await persistFlavors(updated)
+    message.success('Sabor eliminado')
+  }
+
+  // ── Sabores de jugos (config.jugo_flavors) ──────────────────
+  const persistJugoFlavors = async (list: string[]) => {
+    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
+    if (!cfg) return
+    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
+    await supabase.from('restaurant_config')
+      .update({ modules_enabled: { ...modules, jugo_flavors: list } })
+      .eq('id', cfg.id)
+  }
+
+  const handleAddJugoFlavor = async () => {
+    const name = newJugoFlavor.trim()
+    if (!name) return
+    if (jugoFlavors.some(f => f.toLowerCase() === name.toLowerCase())) {
+      message.warning('Ese sabor ya está en la lista'); return
+    }
+    const updated = [...jugoFlavors, name]
+    setJugoFlavors(updated); setNewJugoFlavor('')
+    await persistJugoFlavors(updated)
+    message.success(`Sabor "${name}" agregado`)
+  }
+
+  const handleDeleteJugoFlavor = async (name: string) => {
+    const updated = jugoFlavors.filter(f => f !== name)
+    setJugoFlavors(updated)
+    await persistJugoFlavors(updated)
     message.success('Sabor eliminado')
   }
 
@@ -798,6 +843,49 @@ export const MenuManager = memo(() => {
                         backgroundColor: !newFlavor.trim() ? bg : acc,
                         border: 'none', cursor: !newFlavor.trim() ? 'not-allowed' : 'pointer',
                         ...(!newFlavor.trim() ? S.neoIn : S.coral)
+                      }}>
+                      ✓
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sabores de jugos */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                  Sabores de jugos
+                </label>
+                <p className="text-xs mb-2" style={{ color: txtLt }}>
+                  Estos sabores aparecen para que el cliente elija en los platos que llevan jugo.
+                </p>
+                {jugoFlavors.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {jugoFlavors.map(f => (
+                      <span key={f}
+                        className="flex items-center gap-2 rounded-full pl-3 pr-2 py-1.5 text-sm font-semibold"
+                        style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }}>
+                        {f}
+                        <button onClick={() => handleDeleteJugoFlavor(f)} title="Eliminar"
+                          style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1 }}>✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="rounded-xl p-3 space-y-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                  <p className="text-xs font-bold" style={{ color: txtLt }}>+ Nuevo sabor</p>
+                  <div className="flex gap-2">
+                    <input value={newJugoFlavor} onChange={e => setNewJugoFlavor(e.target.value)}
+                      placeholder="Ej: Mango"
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddJugoFlavor() }}
+                      className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
+                      style={{ backgroundColor: bg, color: txt, border: 'none', ...S.neoIn }} />
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleAddJugoFlavor}
+                      disabled={!newJugoFlavor.trim()}
+                      className="px-3 py-2 rounded-xl text-sm font-bold text-white shrink-0"
+                      style={{
+                        backgroundColor: !newJugoFlavor.trim() ? bg : acc,
+                        border: 'none', cursor: !newJugoFlavor.trim() ? 'not-allowed' : 'pointer',
+                        ...(!newJugoFlavor.trim() ? S.neoIn : S.coral)
                       }}>
                       ✓
                     </motion.button>
@@ -1108,7 +1196,7 @@ export const MenuManager = memo(() => {
                   <div className="pt-3 mt-1 border-t" style={{ borderColor: bgSurf }}>
                     <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: txtLt }}>Opciones del plato</p>
                     <p className="text-[11px] mb-3" style={{ color: txtLt }}>
-                      Los sabores de helado se gestionan en ⚙️ Ajustes → “Sabores de helado”.
+                      Los sabores de helado y de jugos se gestionan en ⚙️ Ajustes → “Sabores de helado” / “Sabores de jugos”.
                     </p>
 
                     {/* Opción Queso / Helado */}
@@ -1126,6 +1214,23 @@ export const MenuManager = memo(() => {
                       </div>
                     </label>
 
+                    {/* Permitir los dos a la vez (solo tiene sentido si la opción queso/helado está activa) */}
+                    {form.quesoHelado && (
+                      <label className="flex items-center gap-3 cursor-pointer mb-3 ml-4">
+                        <div className="relative w-11 h-6 rounded-full transition-colors shrink-0"
+                          style={{ backgroundColor: form.quesoHeladoMulti ? acc : bgSurf }}
+                          onClick={() => setForm(p => ({ ...p, quesoHeladoMulti: !p.quesoHeladoMulti }))}>
+                          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.quesoHeladoMulti ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium" style={{ color: txt }}>Permitir elegir los dos</span>
+                          <p className="text-[11px]" style={{ color: txtLt }}>
+                            El cliente puede pedir queso Y helado juntos, no solo uno de los dos (ej: el Salpicrem).
+                          </p>
+                        </div>
+                      </label>
+                    )}
+
                     {/* Bolas de helado a elegir (solo si no usa la opción queso/helado) */}
                     {!form.quesoHelado && (
                       <div className="flex items-center gap-3">
@@ -1142,6 +1247,21 @@ export const MenuManager = memo(() => {
                           style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                       </div>
                     )}
+
+                    {/* Sabores de jugo a elegir (ej: jugos naturales) */}
+                    <div className="flex items-center gap-3 mt-3">
+                      <div className="flex-1">
+                        <span className="text-sm font-medium" style={{ color: txt }}>Sabores de jugo a elegir</span>
+                        <p className="text-[11px]" style={{ color: txtLt }}>
+                          Ej: Jugo natural = 1 · Jugo mixto = 2 · (0 = sin jugo). Sabores en ⚙️ Ajustes → “Sabores de jugos”.
+                        </p>
+                      </div>
+                      <input type="number" min="0" max="6" value={form.jugoCount}
+                        onChange={e => setForm(p => ({ ...p, jugoCount: e.target.value }))}
+                        placeholder="0"
+                        className="w-20 rounded-xl px-3 py-2 text-sm outline-none text-center shrink-0"
+                        style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
+                    </div>
                   </div>
                 </div>
               </div>

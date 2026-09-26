@@ -5,6 +5,7 @@ import type {
   RecetaLine,
   ListaCompras,
   ProductoDisponible,
+  RecetaShortage,
 } from '../types/inventory'
 
 export const inventoryService = {
@@ -105,6 +106,34 @@ export const inventoryService = {
     })
     if (error) throw new Error(`Error guardando receta: ${error.message}`)
     return (data as number) ?? p_lineas.length
+  },
+
+  // ─── Ingredientes agotados con cambio disponible ───────────
+  // Ingredientes de receta sin stock; si el ingrediente tiene un
+  // sustituto configurado (Inventario → Ingredientes), se ofrece
+  // como cambio al agregar el plato — igual que un adicional.
+  async getRecetaShortages(): Promise<RecetaShortage[]> {
+    const [{ data: recetas, error }, ingredientes] = await Promise.all([
+      supabase.from('recetas').select('producto_id, ingrediente_id').not('ingrediente_id', 'is', null),
+      inventoryService.getIngredientes(),
+    ])
+    if (error) throw new Error(`Error fetching recetas: ${error.message}`)
+
+    const porId = new Map(ingredientes.map(i => [i.id, i]))
+    const shortages: RecetaShortage[] = []
+    for (const r of recetas || []) {
+      const ing = porId.get(r.ingrediente_id)
+      if (!ing || Number(ing.stock_actual) > 0) continue
+      const sustituto = ing.sustituto_id ? porId.get(ing.sustituto_id) : null
+      shortages.push({
+        producto_id:        r.producto_id,
+        ingrediente_id:     r.ingrediente_id,
+        ingrediente_nombre: ing.nombre,
+        sustituto_id:       ing.sustituto_id ?? null,
+        sustituto_nombre:   sustituto?.nombre ?? null,
+      })
+    }
+    return shortages
   },
 
   // ─── Lista de Compras ─────────────────────────────────────

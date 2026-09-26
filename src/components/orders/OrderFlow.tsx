@@ -14,8 +14,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { offlineService } from '../../services/offlineService'
 import { pushNotificationService } from '../../services/pushNotificationService'
+import { inventoryService } from '../../services/inventoryService'
 import message from 'antd/es/message'
 import type { Dish, DishCategory } from '../../types'
+import type { RecetaShortage } from '../../types/inventory'
 import type { Profile } from '../../pages/Dashboard'
 import { CategoryIcon } from '../CategoryIcon'
 
@@ -55,9 +57,10 @@ interface CartItem {
 }
 
 // ¿Este plato requiere abrir el selector de opciones antes de agregarlo?
-// (mismo criterio que usa el menú del cliente: tamaños, sabores/opciones, o adicionales)
-function needsCustomization(dish: Dish): boolean {
-  return !!dish.has_sizes || (dish.options?.length ?? 0) > 0 || (dish.tags?.length ?? 0) > 0
+// (mismo criterio que usa el menú del cliente: tamaños, sabores/opciones, o
+// adicionales) + si se le agotó un ingrediente de receta con cambio que ofrecer.
+function needsCustomization(dish: Dish, hasShortage = false): boolean {
+  return !!dish.has_sizes || (dish.options?.length ?? 0) > 0 || (dish.tags?.length ?? 0) > 0 || hasShortage
 }
 
 interface Mesa {
@@ -77,11 +80,13 @@ interface OrderFlowProps {
 }
 
 // ─── Selector de opciones (tamaño, sabores de helado, adicionales) ──
-const DishOptionsModal = memo(({ dish, flavors, onConfirm, onClose }: {
-  dish:      Dish
-  flavors:   string[]
-  onConfirm: (unitPrice: number, optsText: string, size: string | null) => void
-  onClose:   () => void
+const DishOptionsModal = memo(({ dish, flavors, jugoFlavors, shortages, onConfirm, onClose }: {
+  dish:        Dish
+  flavors:     string[]
+  jugoFlavors: string[]
+  shortages:   RecetaShortage[]
+  onConfirm:   (unitPrice: number, optsText: string, size: string | null) => void
+  onClose:     () => void
 }) => {
   const optionGroups = dish.options ?? []
   const sizes = dish.sizes ?? []
@@ -90,8 +95,17 @@ const DishOptionsModal = memo(({ dish, flavors, onConfirm, onClose }: {
 
   const [size, setSize] = useState(hasSizes ? sizes[0].nombre : '')
   const [heladoSel, setHeladoSel] = useState<Record<number, string[]>>({})
-  const [opcionSel, setOpcionSel] = useState<Record<number, string>>({})
+  const [opcionSel, setOpcionSel] = useState<Record<number, string>>({})           // grupos single-select
+  const [opcionMultiSel, setOpcionMultiSel] = useState<Record<number, string[]>>({}) // grupos con multiple:true
   const [extras, setExtras] = useState<string[]>([])
+
+  // Labels elegidos del grupo gi, sea single o multiple (ej: queso Y helado a la vez)
+  const selectedLabels = (g: typeof optionGroups[number], gi: number): string[] =>
+    g.multiple ? (opcionMultiSel[gi] ?? []) : (opcionSel[gi] ? [opcionSel[gi]] : [])
+  const [swaps, setSwaps] = useState<string[]>([])   // ingrediente_id de los cambios aceptados
+
+  const toggleSwap = (ingredienteId: string) =>
+    setSwaps(prev => prev.includes(ingredienteId) ? prev.filter(x => x !== ingredienteId) : [...prev, ingredienteId])
 
   const unitPrice = hasSizes
     ? (sizes.find(s => s.nombre === size)?.precio ?? sizes[0].precio)
@@ -109,16 +123,16 @@ const DishOptionsModal = memo(({ dish, flavors, onConfirm, onClose }: {
     })
 
   const heladoNeeded = (g: typeof optionGroups[number], gi: number): number => {
-    if (g.tipo === 'helado') return g.cantidad ?? 1
+    if (g.tipo === 'helado' || g.tipo === 'jugo') return g.cantidad ?? 1
     if (g.tipo === 'opcion') {
-      const chosen = (g.opciones ?? []).find(o => o.label === opcionSel[gi])
-      return chosen?.helado ?? 0
+      const chosen = (g.opciones ?? []).filter(o => selectedLabels(g, gi).includes(o.label))
+      return Math.max(0, ...chosen.map(o => o.helado ?? 0))
     }
     return 0
   }
 
   const optionsValid = optionGroups.every((g, gi) => {
-    if (g.tipo === 'opcion' && !opcionSel[gi]) return false
+    if (g.tipo === 'opcion' && selectedLabels(g, gi).length === 0) return false
     const need = heladoNeeded(g, gi)
     if (need > 0) return (heladoSel[gi]?.length ?? 0) >= 1 && (heladoSel[gi]?.length ?? 0) <= need
     return true
@@ -128,17 +142,23 @@ const DishOptionsModal = memo(({ dish, flavors, onConfirm, onClose }: {
     const parts: string[] = []
     if (hasSizes) parts.push(`Tamaño: ${size}`)
     optionGroups.forEach((g, gi) => {
-      if (g.tipo === 'helado') {
+      if (g.tipo === 'helado' || g.tipo === 'jugo') {
         const sel = heladoSel[gi] ?? []
         if (sel.length) parts.push(`${g.nombre}: ${sel.join(', ')}`)
       } else if (g.tipo === 'opcion') {
-        const label = opcionSel[gi]
-        if (!label) return
+        const labels = selectedLabels(g, gi)
+        if (!labels.length) return
         const sel = heladoSel[gi] ?? []
-        parts.push(sel.length ? `${label} (${sel.join(', ')})` : label)
+        const base = labels.join(' + ')
+        parts.push(sel.length ? `${base} (${sel.join(', ')})` : base)
       }
     })
     if (extras.length) parts.push(`Adicionales: ${extras.join(', ')}`)
+    shortages.forEach(s => {
+      if (s.sustituto_nombre && swaps.includes(s.ingrediente_id)) {
+        parts.push(`Cambio: ${s.ingrediente_nombre} → ${s.sustituto_nombre}`)
+      }
+    })
     return parts.join(' · ')
   }
 
@@ -181,28 +201,40 @@ const DishOptionsModal = memo(({ dish, flavors, onConfirm, onClose }: {
 
         {optionGroups.map((g, gi) => {
           const need = heladoNeeded(g, gi)
+          const flavorOptions = g.tipo === 'jugo' ? jugoFlavors : flavors
           return (
             <div key={gi} className="mb-5">
               <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
-                {g.nombre}{g.tipo === 'helado' ? ` · elige ${need}` : ''}
+                {g.nombre}{(g.tipo === 'helado' || g.tipo === 'jugo') ? ` · elige ${need}` : ''}
               </p>
               {g.tipo === 'opcion' && (
                 <div className="flex flex-wrap gap-2 mb-2">
                   {(g.opciones ?? []).map(o => (
                     <button key={o.label}
-                      onClick={() => { setOpcionSel(p => ({ ...p, [gi]: o.label })); setHeladoSel(p => ({ ...p, [gi]: [] })) }}
-                      style={chipStyle(opcionSel[gi] === o.label)}>
+                      onClick={() => {
+                        if (g.multiple) {
+                          const cur = opcionMultiSel[gi] ?? []
+                          const next = cur.includes(o.label) ? cur.filter(x => x !== o.label) : [...cur, o.label]
+                          setOpcionMultiSel(p => ({ ...p, [gi]: next }))
+                          const stillNeedsHelado = (g.opciones ?? []).some(op => next.includes(op.label) && (op.helado ?? 0) > 0)
+                          if (!stillNeedsHelado) setHeladoSel(p => ({ ...p, [gi]: [] }))
+                        } else {
+                          setOpcionSel(p => ({ ...p, [gi]: o.label }))
+                          setHeladoSel(p => ({ ...p, [gi]: [] }))
+                        }
+                      }}
+                      style={chipStyle(selectedLabels(g, gi).includes(o.label))}>
                       {o.label}
                     </button>
                   ))}
                 </div>
               )}
               {need > 0 && (
-                flavors.length === 0 ? (
+                flavorOptions.length === 0 ? (
                   <p className="text-xs text-[#9CA3AF]">(Aún no hay sabores configurados en Menú → Configurar)</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {flavors.map(f => {
+                    {flavorOptions.map(f => {
                       const sel = (heladoSel[gi] ?? []).includes(f)
                       const full = (heladoSel[gi]?.length ?? 0) >= need
                       return (
@@ -228,6 +260,25 @@ const DishOptionsModal = memo(({ dish, flavors, onConfirm, onClose }: {
                 <button key={t} onClick={() => toggleExtra(t)} style={chipStyle(extras.includes(t))}>
                   {extras.includes(t) ? '✓ ' : '+ '}{t}
                 </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {shortages.length > 0 && (
+          <div className="mb-5">
+            <p className="text-xs font-bold text-[#DC2626] uppercase tracking-wider mb-2">⚠️ Ingrediente agotado</p>
+            <div className="flex flex-wrap gap-2">
+              {shortages.map(s => s.sustituto_nombre ? (
+                <button key={s.ingrediente_id} onClick={() => toggleSwap(s.ingrediente_id)} style={chipStyle(swaps.includes(s.ingrediente_id))}>
+                  {swaps.includes(s.ingrediente_id) ? '✓ ' : ''}Cambiar {s.ingrediente_nombre} → {s.sustituto_nombre}
+                </button>
+              ) : (
+                <span key={s.ingrediente_id}
+                  className="text-xs font-bold px-3 py-2 rounded-xl"
+                  style={{ background: 'rgba(220,38,38,0.12)', color: '#DC2626' }}>
+                  Se acabó {s.ingrediente_nombre} (sin cambio configurado)
+                </span>
               ))}
             </div>
           </div>
@@ -262,6 +313,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [activeCategory, setCategory] = useState<DishCategory | 'all'>('all')
   const [catMeta, setCatMeta]       = useState<Record<string, CategoryMeta>>({})
   const [flavors, setFlavors]       = useState<string[]>([])
+  const [jugoFlavors, setJugoFlavors] = useState<string[]>([])
+  const [shortages, setShortages]   = useState<RecetaShortage[]>([])
   const [customizingDish, setCustomizingDish] = useState<Dish | null>(null)
   // UI
   const [loadingMesas,  setLoadingMesas]  = useState(true)
@@ -306,12 +359,28 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     return () => { if (ch) supabase.removeChannel(ch) }
   }, [fetchDishes])
 
+  // Ingredientes de receta agotados (con o sin cambio configurado) — se
+  // refresca solo/a si otro pedido descuenta stock mientras el mesero
+  // tiene el menú abierto.
+  const fetchShortages = useCallback(() => {
+    inventoryService.getRecetaShortages().then(setShortages).catch(() => {})
+  }, [])
+
+  useEffect(() => { fetchShortages() }, [fetchShortages])
+
+  useEffect(() => {
+    const ch = supabase.channel('order-flow-shortages-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes' }, fetchShortages)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [fetchShortages])
+
   // Cargar categorías personalizadas y sabores de helado del negocio
   useEffect(() => {
     supabase.from('restaurant_config').select('modules_enabled').single()
       .then(({ data }) => {
         const mods = data?.modules_enabled as
-          { categories?: { value: string; label: string; emoji?: string }[]; helado_flavors?: string[] } | null
+          { categories?: { value: string; label: string; emoji?: string }[]; helado_flavors?: string[]; jugo_flavors?: string[] } | null
         const cats = mods?.categories
         if (Array.isArray(cats)) {
           const map: Record<string, CategoryMeta> = {}
@@ -319,6 +388,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           setCatMeta(map)
         }
         if (Array.isArray(mods?.helado_flavors)) setFlavors(mods!.helado_flavors!)
+        if (Array.isArray(mods?.jugo_flavors)) setJugoFlavors(mods!.jugo_flavors!)
       })
   }, [])
 
@@ -338,6 +408,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     return Array.from(cats) as DishCategory[]
   }, [dishes])
 
+  // Platos con al menos un ingrediente de receta agotado ahora mismo
+  const shortageProductIds = useMemo(() => new Set(shortages.map(s => s.producto_id)), [shortages])
+
   // Etiqueta/emoji de categoría: prioriza lo configurado por el negocio,
   // cae a las 5 categorías clásicas, y por último muestra el valor crudo.
   const catLabel = useCallback((c: string) => catMeta[c]?.label ?? CATEGORY_LABELS[c] ?? c, [catMeta])
@@ -354,7 +427,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     setCart(prev => {
       // Los platos con opciones (tamaño, sabores, adicionales) siempre agregan una línea nueva,
       // porque cada línea puede tener una selección distinta.
-      if (needsCustomization(dish)) {
+      if (needsCustomization(dish, shortageProductIds.has(dish.id))) {
         return [...prev, { uid: crypto.randomUUID(), dish, quantity: 1, notes: '', optsText, unitPrice, size }]
       }
       const ex = prev.find(i => i.dish.id === dish.id)
@@ -362,14 +435,14 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         ? prev.map(i => i.uid === ex.uid ? { ...i, quantity: i.quantity + 1 } : i)
         : [...prev, { uid: crypto.randomUUID(), dish, quantity: 1, notes: '', optsText: '', unitPrice, size: null }]
     })
-  }, [])
+  }, [shortageProductIds])
 
-  // Botón "+" del grid: si el plato requiere elegir opciones (tamaño, sabores, adicionales)
-  // abre el selector antes de agregar; si no, se agrega directo.
+  // Botón "+" del grid: si el plato requiere elegir opciones (tamaño, sabores, adicionales,
+  // o se le agotó un ingrediente) abre el selector antes de agregar; si no, se agrega directo.
   const handleAddClick = useCallback((dish: Dish) => {
-    if (needsCustomization(dish)) setCustomizingDish(dish)
+    if (needsCustomization(dish, shortageProductIds.has(dish.id))) setCustomizingDish(dish)
     else addDishToCart(dish)
-  }, [addDishToCart])
+  }, [addDishToCart, shortageProductIds])
 
   const removeFromCart = useCallback((dishId: string) => {
     setCart(prev => {
@@ -641,9 +714,11 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                           ? `desde $${Math.min(...dish.sizes.map(s => s.precio)).toFixed(2)}`
                           : `$${dish.price.toFixed(2)}`}
                       </p>
-                      {needsCustomization(dish) && (
-                        <p className="text-[10px] font-bold text-[#FF5722] -mt-1">
-                          {dish.has_sizes ? 'Elige tamaño al agregar' : 'Elige opciones al agregar'}
+                      {needsCustomization(dish, shortageProductIds.has(dish.id)) && (
+                        <p className="text-[10px] font-bold -mt-1" style={{ color: shortageProductIds.has(dish.id) ? '#DC2626' : '#FF5722' }}>
+                          {dish.has_sizes ? 'Elige tamaño al agregar'
+                            : shortageProductIds.has(dish.id) ? '⚠️ Ingrediente agotado — revisar al agregar'
+                            : 'Elige opciones al agregar'}
                         </p>
                       )}
 
@@ -702,6 +777,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 <DishOptionsModal
                   dish={customizingDish}
                   flavors={flavors}
+                  jugoFlavors={jugoFlavors}
+                  shortages={shortages.filter(s => s.producto_id === customizingDish.id)}
                   onConfirm={(unitPrice, optsText, size) => { addDishToCart(customizingDish, unitPrice, optsText, size); setCustomizingDish(null) }}
                   onClose={() => setCustomizingDish(null)}
                 />

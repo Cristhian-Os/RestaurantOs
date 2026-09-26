@@ -150,11 +150,12 @@ const DishImage = memo(({ dish, height }: { dish: Dish; height: number }) => {
 DishImage.displayName = 'DishImage'
 
 // ── Customize bottom-sheet (liquid glass) ─────────────────────────
-const CustomizeModal = memo(({ dish, flavors, onAdd, onClose }: {
-  dish:    Dish
-  flavors: string[]
-  onAdd:   (item: Omit<CartItem, 'uid'>) => void
-  onClose: () => void
+const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
+  dish:        Dish
+  flavors:     string[]
+  jugoFlavors: string[]
+  onAdd:       (item: Omit<CartItem, 'uid'>) => void
+  onClose:     () => void
 }) => {
   const sizes = dish.sizes ?? []
   const hasSizes = !!dish.has_sizes && sizes.length > 0
@@ -166,7 +167,12 @@ const CustomizeModal = memo(({ dish, flavors, onAdd, onClose }: {
   const [extras, setExtras] = useState<string[]>([])
   // Selecciones de opciones, por índice de grupo
   const [heladoSel,  setHeladoSel]  = useState<Record<number, string[]>>({})  // grupos 'helado' y submenú de 'opcion'
-  const [opcionSel,  setOpcionSel]  = useState<Record<number, string>>({})    // grupos 'opcion': label elegido
+  const [opcionSel,  setOpcionSel]  = useState<Record<number, string>>({})    // grupos 'opcion' single-select
+  const [opcionMultiSel, setOpcionMultiSel] = useState<Record<number, string[]>>({}) // grupos 'opcion' con multiple:true
+
+  // Labels elegidos del grupo gi, sea single o multiple (ej: queso Y helado a la vez)
+  const selectedLabels = (g: typeof optionGroups[number], gi: number): string[] =>
+    g.multiple ? (opcionMultiSel[gi] ?? []) : (opcionSel[gi] ? [opcionSel[gi]] : [])
 
   // Precio unitario: el del tamaño elegido, o el precio único del plato
   const unitPrice = hasSizes
@@ -185,19 +191,19 @@ const CustomizeModal = memo(({ dish, flavors, onAdd, onClose }: {
       return { ...prev, [gi]: [...cur, flavor] }
     })
 
-  // ¿Cuántos sabores requiere el grupo gi? (helado directo u opción "Con helado")
+  // ¿Cuántos sabores requiere el grupo gi? (helado/jugo directo u opción "Con helado")
   const heladoNeeded = (g: typeof optionGroups[number], gi: number): number => {
-    if (g.tipo === 'helado') return g.cantidad ?? 1
+    if (g.tipo === 'helado' || g.tipo === 'jugo') return g.cantidad ?? 1
     if (g.tipo === 'opcion') {
-      const chosen = (g.opciones ?? []).find(o => o.label === opcionSel[gi])
-      return chosen?.helado ?? 0
+      const chosen = (g.opciones ?? []).filter(o => selectedLabels(g, gi).includes(o.label))
+      return Math.max(0, ...chosen.map(o => o.helado ?? 0))
     }
     return 0
   }
 
   // Validación: todos los grupos deben estar completos
   const optionsValid = optionGroups.every((g, gi) => {
-    if (g.tipo === 'opcion' && !opcionSel[gi]) return false
+    if (g.tipo === 'opcion' && selectedLabels(g, gi).length === 0) return false
     const need = heladoNeeded(g, gi)
     if (need > 0) return (heladoSel[gi]?.length ?? 0) >= 1 && (heladoSel[gi]?.length ?? 0) <= need
     return true
@@ -207,14 +213,15 @@ const CustomizeModal = memo(({ dish, flavors, onAdd, onClose }: {
   const buildOptsText = () => {
     const parts: string[] = []
     optionGroups.forEach((g, gi) => {
-      if (g.tipo === 'helado') {
+      if (g.tipo === 'helado' || g.tipo === 'jugo') {
         const sel = heladoSel[gi] ?? []
         if (sel.length) parts.push(`${g.nombre}: ${sel.join(', ')}`)
       } else if (g.tipo === 'opcion') {
-        const label = opcionSel[gi]
-        if (!label) return
+        const labels = selectedLabels(g, gi)
+        if (!labels.length) return
         const sel = heladoSel[gi] ?? []
-        parts.push(sel.length ? `${label} (${sel.join(', ')})` : label)
+        const base = labels.join(' + ')
+        parts.push(sel.length ? `${base} (${sel.join(', ')})` : base)
       }
     })
     return parts.join(' · ')
@@ -271,17 +278,29 @@ const CustomizeModal = memo(({ dish, flavors, onAdd, onClose }: {
         {/* Grupos de opciones: sabores de helado, queso/helado, etc. */}
         {optionGroups.map((g, gi) => {
           const need = heladoNeeded(g, gi)
+          const flavorOptions = g.tipo === 'jugo' ? jugoFlavors : flavors
           return (
             <div key={gi} style={{ marginBottom: '1.25rem' }}>
               <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>
-                {g.nombre}{g.tipo === 'helado' ? ` · elige ${need}` : ''}
+                {g.nombre}{(g.tipo === 'helado' || g.tipo === 'jugo') ? ` · elige ${need}` : ''}
               </p>
               {g.tipo === 'opcion' && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: need > 0 ? '0.875rem' : 0 }}>
                   {(g.opciones ?? []).map(o => (
                     <button key={o.label}
-                      onClick={() => { setOpcionSel(p => ({ ...p, [gi]: o.label })); setHeladoSel(p => ({ ...p, [gi]: [] })) }}
-                      style={{ flex: '1 1 auto', ...chip(opcionSel[gi] === o.label) }}>
+                      onClick={() => {
+                        if (g.multiple) {
+                          const cur = opcionMultiSel[gi] ?? []
+                          const next = cur.includes(o.label) ? cur.filter(x => x !== o.label) : [...cur, o.label]
+                          setOpcionMultiSel(p => ({ ...p, [gi]: next }))
+                          const stillNeedsHelado = (g.opciones ?? []).some(op => next.includes(op.label) && (op.helado ?? 0) > 0)
+                          if (!stillNeedsHelado) setHeladoSel(p => ({ ...p, [gi]: [] }))
+                        } else {
+                          setOpcionSel(p => ({ ...p, [gi]: o.label }))
+                          setHeladoSel(p => ({ ...p, [gi]: [] }))
+                        }
+                      }}
+                      style={{ flex: '1 1 auto', ...chip(selectedLabels(g, gi).includes(o.label)) }}>
                       {o.label}
                     </button>
                   ))}
@@ -294,13 +313,13 @@ const CustomizeModal = memo(({ dish, flavors, onAdd, onClose }: {
                       Elige {need === 1 ? 'el sabor' : `${need} sabores`} de helado
                     </p>
                   )}
-                  {flavors.length === 0 ? (
+                  {flavorOptions.length === 0 ? (
                     <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>
                       (Aún no hay sabores configurados)
                     </p>
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      {flavors.map(f => {
+                      {flavorOptions.map(f => {
                         const sel = (heladoSel[gi] ?? []).includes(f)
                         const full = (heladoSel[gi]?.length ?? 0) >= need
                         return (
@@ -977,6 +996,7 @@ export default function PublicMenu() {
   const [logoUrl,       setLogoUrl]       = useState<string | null>(null)
   const [catLabels,     setCatLabels]     = useState<Record<string, string>>({})
   const [flavors,       setFlavors]       = useState<string[]>([])
+  const [jugoFlavors,   setJugoFlavors]   = useState<string[]>([])
   const [activeCat,     setActiveCat]     = useState<DishCategory | 'all'>('all')
   const [search,        setSearch]        = useState('')
   const [cart,          setCart]          = useState<CartItem[]>([])
@@ -1107,7 +1127,7 @@ export default function PublicMenu() {
       // Marca del restaurante: aplicar su color como acento del menú
       if (cr.data?.color_primario) document.documentElement.style.setProperty('--w-terra', cr.data.color_primario as string)
       // Etiquetas de categoría personalizadas (definidas en el panel admin)
-      const mods = cr.data?.modules_enabled as { categories?: { value: string; label: string }[]; helado_flavors?: string[] } | null
+      const mods = cr.data?.modules_enabled as { categories?: { value: string; label: string }[]; helado_flavors?: string[]; jugo_flavors?: string[] } | null
       const cats = mods?.categories
       if (Array.isArray(cats)) {
         const map: Record<string, string> = {}
@@ -1115,6 +1135,7 @@ export default function PublicMenu() {
         setCatLabels(map)
       }
       if (Array.isArray(mods?.helado_flavors)) setFlavors(mods!.helado_flavors!)
+      if (Array.isArray(mods?.jugo_flavors)) setJugoFlavors(mods!.jugo_flavors!)
       setLoading(false)
     })
   }, [restaurantId, refreshSocial])
@@ -1591,7 +1612,7 @@ export default function PublicMenu() {
 
       {/* ── Customize modal ── */}
       <AnimatePresence>
-        {customizing && <CustomizeModal dish={customizing} flavors={flavors} onAdd={addToCart} onClose={() => setCustomizing(null)} />}
+        {customizing && <CustomizeModal dish={customizing} flavors={flavors} jugoFlavors={jugoFlavors} onAdd={addToCart} onClose={() => setCustomizing(null)} />}
       </AnimatePresence>
 
       {/* ── Plato personalizado ── */}

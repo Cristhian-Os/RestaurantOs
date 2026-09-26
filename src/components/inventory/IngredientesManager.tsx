@@ -78,6 +78,13 @@ export function IngredientesManager() {
     onError: (e) => message.error(e instanceof Error ? e.message : 'Error al eliminar'),
   })
 
+  const sustitutoMutation = useMutation({
+    mutationFn: ({ id, sustituto_id }: { id: string; sustituto_id: string | null }) =>
+      inventoryService.updateIngrediente(id, { sustituto_id }),
+    onSuccess: () => invalidate(),
+    onError: (e) => message.error(e instanceof Error ? e.message : 'Error al guardar el sustituto'),
+  })
+
   const compraValida = useMemo(() => {
     const c = parseFloat(compraCantidad), p = parseFloat(compraPrecio)
     return c > 0 && p >= 0
@@ -145,15 +152,16 @@ export function IngredientesManager() {
               <th style={{ padding: '0.75rem 1rem' }}>Stock</th>
               <th style={{ padding: '0.75rem 1rem' }}>Mínimo</th>
               <th style={{ padding: '0.75rem 1rem' }}>Costo unitario</th>
+              <th style={{ padding: '0.75rem 1rem' }}>Si se agota, cambiar por</th>
               <th style={{ padding: '0.75rem 1rem' }}></th>
             </tr>
           </thead>
           <tbody>
             {ingredientesQuery.isLoading && (
-              <tr><td colSpan={5} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando…</td></tr>
+              <tr><td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando…</td></tr>
             )}
             {!ingredientesQuery.isLoading && ingredientes.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>Sin ingredientes todavía</td></tr>
+              <tr><td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>Sin ingredientes todavía</td></tr>
             )}
             {ingredientes.map(ing => (
               <tr key={ing.id} style={{ borderTop: '1px solid var(--divider)' }}>
@@ -163,6 +171,19 @@ export function IngredientesManager() {
                 </td>
                 <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>{Number(ing.stock_minimo).toFixed(2)}</td>
                 <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)' }}>{fmtCOP(Number(ing.costo_unitario))}</td>
+                <td style={{ padding: '0.75rem 1rem' }}>
+                  <select
+                    value={ing.sustituto_id ?? ''}
+                    onChange={e => sustitutoMutation.mutate({ id: ing.id, sustituto_id: e.target.value || null })}
+                    title="Si este ingrediente se agota, ofrecerlo como cambio al vender el plato (igual que un adicional)"
+                    style={{ ...inputBase, minWidth: 140, fontSize: '0.8125rem' }}
+                  >
+                    <option value="">— Sin cambio —</option>
+                    {ingredientes.filter(o => o.id !== ing.id).map(o => (
+                      <option key={o.id} value={o.id}>{o.nombre}</option>
+                    ))}
+                  </select>
+                </td>
                 <td style={{ padding: '0.75rem 1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <button onClick={() => openCompra(ing)}
                     style={{ padding: '0.4rem 0.75rem', borderRadius: '0.5rem', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', marginRight: '0.5rem' }}>

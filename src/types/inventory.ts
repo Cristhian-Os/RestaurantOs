@@ -5,8 +5,19 @@ export interface Ingrediente {
   stock_actual: number
   stock_minimo: number
   costo_unitario: number
+  sustituto_id?: string | null   // si se agota, ofrecer este ingrediente como cambio
   created_at: string
   updated_at: string
+}
+
+// Ingrediente de receta agotado (stock_actual = 0) con su cambio configurado,
+// para ofrecer al vender el plato como si fuera un adicional/topping.
+export interface RecetaShortage {
+  producto_id: string
+  ingrediente_id: string
+  ingrediente_nombre: string
+  sustituto_id: string | null
+  sustituto_nombre: string | null
 }
 
 export interface Receta {
