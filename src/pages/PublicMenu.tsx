@@ -662,18 +662,21 @@ export default function PublicMenu() {
     return () => { supabase.removeChannel(ch) }
   }, [restaurantId, fetchMenuData])
 
-  // ── real-time order tracking ───────────────────────────────────
+  // ── order tracking (polling) ────────────────────────────────────
+  // No se puede usar postgres_changes aquí: el comensal no tiene sesión
+  // (rol anon) y la tabla orders solo es legible por staff vía RLS —
+  // Realtime respeta RLS, así que ese canal nunca recibía nada. Se usa
+  // en su lugar la vista pública pedido_estado_publico (solo expone
+  // id/status/mesa, sin total ni datos del cliente) con polling.
   useEffect(() => {
-    if (!orderId) return
-    const ch = supabase.channel(`order-track-${orderId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
-        (payload) => {
-          const s = (payload.new as { status: string }).status
-          if (s) setOrderStatus(s)
-        })
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
-  }, [orderId])
+    if (!orderId || orderStatus === 'completed' || orderStatus === 'cancelled') return
+    let cancelled = false
+    const interval = setInterval(() => {
+      supabase.from('pedido_estado_publico').select('status').eq('id', orderId).maybeSingle()
+        .then(({ data }) => { if (!cancelled && data?.status) setOrderStatus(data.status) })
+    }, 5000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [orderId, orderStatus])
 
   // ── derived state ──────────────────────────────────────────────
   const categories = useMemo(() =>
