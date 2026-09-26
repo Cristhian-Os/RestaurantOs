@@ -9,26 +9,93 @@ export interface OfflineOrder extends Order {
   conflict_reason?: string
 }
 
-const STORAGE_KEY = 'restaurantos_offline_orders'
+// ── Almacenamiento: IndexedDB (antes localStorage) ──────────────────────
+// Mismo contrato público (saveOrderLocally/syncOfflineOrders/etc.) — solo
+// cambia dónde vive el dato. IndexedDB soporta más volumen que el límite de
+// ~5-10MB de localStorage y no bloquea el hilo principal en escrituras
+// grandes, lo cual importa si más adelante se guarda algo más que pedidos.
+const DB_NAME    = 'restaurantos_offline'
+const DB_VERSION = 1
+const STORE      = 'offline_orders'
+const LEGACY_STORAGE_KEY = 'restaurantos_offline_orders' // localStorage, versión anterior
+
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' })
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror   = () => reject(req.error)
+  })
+}
+
+async function idbGetAll(): Promise<OfflineOrder[]> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly')
+    const req = tx.objectStore(STORE).getAll()
+    req.onsuccess = () => resolve(req.result as OfflineOrder[])
+    req.onerror   = () => reject(req.error)
+  })
+}
+
+async function idbPut(order: OfflineOrder): Promise<void> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).put(order)
+    tx.oncomplete = () => resolve()
+    tx.onerror    = () => reject(tx.error)
+  })
+}
+
+async function idbDelete(id: string): Promise<void> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).delete(id)
+    tx.oncomplete = () => resolve()
+    tx.onerror    = () => reject(tx.error)
+  })
+}
+
+// Migración de una sola vez: si queda algo en el localStorage de la versión
+// anterior (ej. un pedido pendiente de un mesero que no había sincronizado
+// cuando se desplegó este cambio), se importa a IndexedDB y se limpia — para
+// que nadie pierda un pedido offline por el cambio de almacenamiento.
+let migrated = false
+async function migrateLegacyOnce(): Promise<void> {
+  if (migrated) return
+  migrated = true
+  try {
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY)
+    if (!raw) return
+    const legacy = JSON.parse(raw) as OfflineOrder[]
+    for (const order of legacy) await idbPut(order)
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
+  } catch (e) {
+    console.error('Migración de pedidos offline (localStorage → IndexedDB) falló:', e)
+  }
+}
 
 export const offlineService = {
   // ─── Guardar orden localmente cuando offline ────────────────
   async saveOrderLocally(order: Order): Promise<void> {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') as OfflineOrder[]
-
+    await migrateLegacyOnce()
     const offlineOrder: OfflineOrder = {
       ...order,
       id: order.id || crypto.randomUUID(),
       sync_status: 'pending',
     }
-
-    stored.push(offlineOrder)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
+    await idbPut(offlineOrder)
   },
 
   // ─── Obtener órdenes pendientes de sincronizar ──────────────
-  getOfflineOrders(): OfflineOrder[] {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') as OfflineOrder[]
+  async getOfflineOrders(): Promise<OfflineOrder[]> {
+    await migrateLegacyOnce()
+    return idbGetAll()
   },
 
   // ─── Sincronizar órdenes cuando vuelve conexión ────────────
@@ -36,7 +103,7 @@ export const offlineService = {
     synced: OfflineOrder[]
     conflicts: OfflineOrder[]
   }> {
-    const offlineOrders = this.getOfflineOrders()
+    const offlineOrders = await this.getOfflineOrders()
     const synced: OfflineOrder[] = []
     const conflicts: OfflineOrder[] = []
 
@@ -67,28 +134,20 @@ export const offlineService = {
           if (error.code === '23514' || /stock|insuficiente|inventario/i.test(error.message)) {
             order.sync_status = 'conflict'
             order.conflict_reason = 'Desajuste de inventario: el stock cambió desde que se creó la orden offline.'
+            await idbPut(order)
             conflicts.push(order)
           } else {
             throw error
           }
         } else {
-          order.sync_status = 'synced'
+          await idbDelete(order.id)
           synced.push(order)
         }
       } catch (error) {
         console.error('Sync error:', error)
-        // Reintentar más tarde (se queda pendiente en localStorage)
+        // Reintentar más tarde (se queda pendiente en IndexedDB)
       }
     }
-
-    // Quitar las sincronizadas de localStorage; conservar pendientes y conflictos.
-    const syncedIds   = new Set(synced.map(o => o.id))
-    const conflictIds = new Set(conflicts.map(o => o.id))
-    const remaining = offlineOrders
-      .filter(o => !syncedIds.has(o.id))
-      .map(o => conflictIds.has(o.id) ? (conflicts.find(c => c.id === o.id) ?? o) : o)
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining))
 
     return { synced, conflicts }
   },
