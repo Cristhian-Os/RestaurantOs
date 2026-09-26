@@ -243,6 +243,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
   const [lowStock,   setLowStock]   = useState(0)
+  const [pendingSocial, setPendingSocial] = useState(0)
   const { theme, setTheme } = useTheme()
 
   // Aviso de stock bajo: cuenta ingredientes por debajo de su mínimo (lo define
@@ -261,6 +262,26 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       .subscribe()
     return () => { cancelled = true; supabase.removeChannel(channel) }
   }, [profile])
+
+  // Aviso de reseñas por aprobar / comentarios reportados, sobre "Menú".
+  useEffect(() => {
+    if (!profile || profile.role !== 'admin') return
+    let cancelled = false
+    const check = () => Promise.all([
+      supabase.from('resenas_platos').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente'),
+      supabase.from('comentarios_platos').select('id', { count: 'exact', head: true }).eq('estado', 'visible').gt('reportado_count', 0),
+    ]).then(([r, c]) => {
+      if (cancelled) return
+      setPendingSocial((r.count ?? 0) + (c.count ?? 0))
+    })
+    check()
+    const channel = supabase.channel('menu-social-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resenas_platos' }, check)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios_platos' }, check)
+      .subscribe()
+    return () => { cancelled = true; supabase.removeChannel(channel) }
+  }, [profile])
+
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
     try { pushNotificationService.initializePushNotifications() } catch { /* no crítico */ }
@@ -485,6 +506,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 {view==='inventory' && lowStock>0 && (
                   <span style={{marginLeft:'auto',background:'#DC2626',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{lowStock}</span>
                 )}
+                {view==='menu' && pendingSocial>0 && (
+                  <span style={{marginLeft:'auto',background:'#DC2626',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{pendingSocial}</span>
+                )}
               </button>
             ))}
           </nav>
@@ -513,6 +537,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 {icon}
                 {view==='inventory' && lowStock>0 && (
                   <span style={{position:'absolute',top:-6,right:-8,background:'#DC2626',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{lowStock}</span>
+                )}
+                {view==='menu' && pendingSocial>0 && (
+                  <span style={{position:'absolute',top:-6,right:-8,background:'#DC2626',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{pendingSocial}</span>
                 )}
               </span>
               <span style={{fontSize:'9px',fontWeight:700,lineHeight:1,textAlign:'center'}}>
