@@ -23,6 +23,23 @@ const S = {
 
 interface Category { value: string; label: string; emoji: string }
 
+interface PendingResena {
+  id:             string
+  cliente_nombre: string
+  rating:         number
+  comentario:     string | null
+  created_at:     string
+  dishes:         { name: string } | null
+}
+interface InteraccionRow {
+  dish_id:      string
+  likes_count:  number
+  rating_avg:   number | null
+  rating_count: number
+  total_vendido:number
+  es_popular:   boolean
+}
+
 const DEFAULT_CATEGORIES: Category[] = [
   { value: 'entrada',   label: 'Entrada',   emoji: '🥗' },
   { value: 'principal', label: 'Principal', emoji: '🍽️' },
@@ -232,6 +249,13 @@ export const MenuManager = memo(() => {
   const editEmojiRefs   = useRef<Record<string, HTMLButtonElement | null>>({})
   const imageRef        = useRef<HTMLInputElement>(null)
 
+  // Interacciones de comensales: likes + reseñas (moderación)
+  const [showReviews,     setShowReviews]     = useState(false)
+  const [loadingReviews,  setLoadingReviews]  = useState(false)
+  const [pendingReviews,  setPendingReviews]  = useState<PendingResena[]>([])
+  const [socialOverview,  setSocialOverview]  = useState<InteraccionRow[]>([])
+  const [moderatingId,    setModeratingId]    = useState<string | null>(null)
+
   const fetchDishes = useCallback(async () => {
     const { data } = await supabase.from('dishes').select('*').order('category').order('sort_order').order('name')
     setDishes(data || [])
@@ -256,6 +280,34 @@ export const MenuManager = memo(() => {
         }
       })
   }, [fetchDishes])
+
+  const fetchReviews = useCallback(async () => {
+    setLoadingReviews(true)
+    const { data: restaurantId } = await supabase.rpc('current_restaurant_id')
+    const [pendRes, overviewRes] = await Promise.all([
+      supabase.from('resenas_platos')
+        .select('id, cliente_nombre, rating, comentario, created_at, dishes(name)')
+        .eq('estado', 'pendiente').order('created_at'),
+      restaurantId
+        ? supabase.rpc('obtener_interacciones_platos', { p_restaurant_id: restaurantId })
+        : Promise.resolve({ data: null }),
+    ])
+    setPendingReviews((pendRes.data as unknown as PendingResena[] | null) ?? [])
+    setSocialOverview(((overviewRes.data as InteraccionRow[] | null) ?? []).filter(r => r.likes_count > 0 || r.rating_count > 0))
+    setLoadingReviews(false)
+  }, [])
+
+  useEffect(() => { fetchReviews() }, [fetchReviews])
+  useEffect(() => { if (showReviews) fetchReviews() }, [showReviews, fetchReviews])
+
+  const moderarResena = async (id: string, estado: 'aprobada' | 'rechazada') => {
+    setModeratingId(id)
+    const { error } = await supabase.from('resenas_platos').update({ estado }).eq('id', id)
+    setModeratingId(null)
+    if (error) { message.error(error.message); return }
+    setPendingReviews(prev => prev.filter(r => r.id !== id))
+    if (estado === 'aprobada') fetchReviews()
+  }
 
   const openCreate = () => { setEditing(null); setForm(FORM_EMPTY); setFormError(null); setShowForm(true) }
   const openEdit   = (d: Dish) => {
@@ -522,6 +574,11 @@ export const MenuManager = memo(() => {
           🍽️ Menú
         </h2>
         <div className="flex gap-2">
+          <button onClick={() => setShowReviews(!showReviews)}
+            className="flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-2xl"
+            style={{ backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
+            💬 Reseñas{pendingReviews.length > 0 ? ` (${pendingReviews.length})` : ''}
+          </button>
           <button onClick={() => setShowSettings(!showSettings)}
             className="flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-2xl"
             style={{ backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
@@ -721,6 +778,73 @@ export const MenuManager = memo(() => {
                   </div>
                 </div>
               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Panel de interacciones: likes + reseñas de comensales */}
+      <AnimatePresence>
+        {showReviews && (
+          <motion.div key="reviews" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25, ease: 'easeOut' }}>
+            <div className="glass-card no-hover rounded-3xl p-6 space-y-5">
+              <h3 className="font-bold" style={{ color: txt }}>💬 Interacciones de comensales</h3>
+
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                  Reseñas pendientes de aprobar {pendingReviews.length > 0 && `(${pendingReviews.length})`}
+                </p>
+                {loadingReviews ? (
+                  <p className="text-sm" style={{ color: txtLt }}>Cargando...</p>
+                ) : pendingReviews.length === 0 ? (
+                  <p className="text-sm" style={{ color: txtLt }}>No hay reseñas esperando aprobación.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {pendingReviews.map(r => (
+                      <div key={r.id} className="rounded-2xl p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-sm font-bold" style={{ color: txt }}>{r.dishes?.name ?? 'Plato'}</span>
+                          <span style={{ fontSize: '0.75rem' }}>{'⭐'.repeat(r.rating)}</span>
+                        </div>
+                        <p className="text-xs mb-1" style={{ color: txtMid }}>— {r.cliente_nombre}</p>
+                        {r.comentario && <p className="text-sm mb-2" style={{ color: txt }}>{r.comentario}</p>}
+                        <div className="flex gap-2">
+                          <button disabled={moderatingId === r.id} onClick={() => moderarResena(r.id, 'aprobada')}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl text-white" style={{ backgroundColor: 'var(--green)' }}>
+                            ✓ Aprobar
+                          </button>
+                          <button disabled={moderatingId === r.id} onClick={() => moderarResena(r.id, 'rechazada')}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl text-white" style={{ backgroundColor: '#EF4444' }}>
+                            ✕ Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {socialOverview.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                    Likes y calificaciones por plato
+                  </p>
+                  <div className="space-y-1.5">
+                    {socialOverview.map(row => {
+                      const dishName = dishes.find(d => d.id === row.dish_id)?.name ?? 'Plato'
+                      return (
+                        <div key={row.dish_id} className="flex items-center justify-between text-sm rounded-xl px-3 py-2" style={{ backgroundColor: bgSurf }}>
+                          <span style={{ color: txt }}>{row.es_popular && '🔥 '}{dishName}</span>
+                          <span style={{ color: txtMid }}>
+                            ❤️ {row.likes_count}
+                            {row.rating_count > 0 && `  ·  ⭐ ${row.rating_avg} (${row.rating_count})`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

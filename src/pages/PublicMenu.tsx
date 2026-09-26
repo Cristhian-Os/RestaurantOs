@@ -50,6 +50,26 @@ interface CartItem {
   customIngredients?: { id: string; cantidad: number }[]  // solo para "plato personalizado"
 }
 
+// ── Interacciones sociales (likes / reseñas) ──────────────────────
+// Solo puede dar like o reseñar quien ya pidió ese plato: se verifica en el
+// servidor comparando el nombre ingresado contra el nombre de pedidos previos
+// (orders.customer_name). No hay cuentas de comensal, así que el nombre ES la identidad.
+const NOMBRE_KEY = 'rt_cliente_nombre'
+
+interface DishSocial {
+  likes_count:  number
+  rating_avg:   number | null
+  rating_count: number
+  es_popular:   boolean
+}
+
+interface Resena {
+  cliente_nombre: string
+  rating:         number
+  comentario:     string | null
+  created_at:     string
+}
+
 // ── Skeleton card (warm) ──────────────────────────────────────────
 const SkeletonCard = memo(() => (
   <div style={{ background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '0.75rem', boxShadow: 'var(--w-shadow-sm)' }}>
@@ -486,12 +506,163 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
 })
 CustomDishSheet.displayName = 'CustomDishSheet'
 
+// ── Likes + reseñas (bottom-sheet, liquid glass) ───────────────────
+// Gate de identidad: solo puede opinar quien ya pidió el plato con ese
+// nombre (verificado server-side). El nombre se recuerda en localStorage
+// para no repetirlo, pero la verificación real siempre corre en la BD.
+const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeChanged }: {
+  dish:          Dish
+  initialName:   string
+  onNameChange:  (name: string) => void
+  onClose:       () => void
+  onLikeChanged: () => void
+}) => {
+  const [nombre,    setNombre]    = useState(initialName)
+  const [resenas,   setResenas]   = useState<Resena[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [liked,     setLiked]     = useState(false)
+  const [likeBusy,  setLikeBusy]  = useState(false)
+  const [rating,    setRating]    = useState(5)
+  const [comentario,setComentario]= useState('')
+  const [sending,   setSending]   = useState(false)
+  const [error,     setError]     = useState<string | null>(null)
+  const [sentOk,    setSentOk]    = useState(false)
+
+  useEffect(() => {
+    supabase.rpc('obtener_resenas_aprobadas', { p_dish_id: dish.id }).then(({ data }) => {
+      setResenas((data as Resena[] | null) ?? [])
+      setLoading(false)
+    })
+    if (initialName.trim()) {
+      supabase.rpc('ya_di_like_plato', { p_dish_id: dish.id, p_cliente_nombre: initialName.trim() })
+        .then(({ data }) => setLiked(data === true))
+    }
+  }, [dish.id, initialName])
+
+  const commitName = (n: string) => {
+    setNombre(n)
+    if (n.trim()) onNameChange(n.trim())
+  }
+
+  const toggleLike = async () => {
+    if (!nombre.trim() || likeBusy) return
+    setLikeBusy(true)
+    setError(null)
+    const { data, error: err } = await supabase.rpc('dar_like_plato', { p_dish_id: dish.id, p_cliente_nombre: nombre.trim() })
+    setLikeBusy(false)
+    if (err) { setError(err.message); return }
+    setLiked(data === true)
+    onLikeChanged()
+  }
+
+  const enviarResena = async () => {
+    if (!nombre.trim()) { setError('Escribe el nombre con el que hiciste tu pedido'); return }
+    setSending(true)
+    setError(null)
+    const { error: err } = await supabase.rpc('dejar_resena_plato', {
+      p_dish_id: dish.id, p_cliente_nombre: nombre.trim(), p_rating: rating, p_comentario: comentario.trim() || null,
+    })
+    setSending(false)
+    if (err) { setError(err.message); return }
+    setSentOk(true)
+    setComentario('')
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'oklch(0.25 0.03 55 / 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <motion.div
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
+        onClick={e => e.stopPropagation()}
+        className="lg"
+        style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}>
+
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
+
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem', alignItems: 'center' }}>
+          <div style={{ width: 56, height: 56, flexShrink: 0 }}><DishImage dish={dish} height={56} /></div>
+          <div style={{ flex: 1 }}>
+            <h3 className="ed-display" style={{ fontSize: '1.1875rem', margin: 0 }}>{dish.name}</h3>
+            <p className="ed-kicker" style={{ margin: '0.25rem 0 0' }}>Likes y reseñas</p>
+          </div>
+          <button className="w-press" onClick={toggleLike} disabled={!nombre.trim() || likeBusy}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', opacity: nombre.trim() ? 1 : 0.4, cursor: nombre.trim() ? 'pointer' : 'not-allowed' }}>
+            <span style={{ fontSize: '1.5rem' }}>{liked ? '❤️' : '🤍'}</span>
+            <span className="ed-kicker" style={{ fontSize: '0.5625rem' }}>{liked ? 'Te gusta' : 'Me gusta'}</span>
+          </button>
+        </div>
+
+        <div style={{ marginBottom: '1.25rem' }}>
+          <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>¿A quién tenemos el gusto de atender?</label>
+          <input type="text" value={nombre} onChange={e => commitName(e.target.value)} placeholder="El mismo nombre con el que pediste"
+            style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
+          <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: '0.375rem 0 0' }}>
+            Solo puedes calificar platos que ya hayas pedido con ese nombre.
+          </p>
+        </div>
+
+        {!sentOk ? (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Tu calificación</p>
+            <div style={{ display: 'flex', gap: '0.375rem', marginBottom: '0.75rem' }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <button key={n} onClick={() => setRating(n)} style={{ background: 'none', border: 'none', fontSize: '1.75rem', cursor: 'pointer', lineHeight: 1, padding: 0 }}>
+                  {n <= rating ? '⭐' : '☆'}
+                </button>
+              ))}
+            </div>
+            <textarea value={comentario} onChange={e => setComentario(e.target.value)}
+              placeholder="Cuéntanos qué te pareció (opcional)"
+              rows={2} maxLength={300}
+              style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', marginBottom: '0.75rem' }} />
+            {error && <p style={{ fontSize: '0.8rem', color: 'var(--w-wine)', margin: '0 0 0.75rem', fontWeight: 600 }}>{error}</p>}
+            <button className="lg-accent w-press" disabled={sending} onClick={enviarResena}
+              style={{ width: '100%', padding: '0.9rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: sending ? 0.6 : 1 }}>
+              {sending ? 'Enviando...' : 'Enviar reseña'}
+            </button>
+          </div>
+        ) : (
+          <p style={{ fontSize: '0.8125rem', color: 'var(--w-olive)', fontWeight: 700, textAlign: 'center', marginBottom: '1.5rem' }}>
+            ✓ ¡Gracias! Tu reseña quedará visible cuando el restaurante la apruebe.
+          </p>
+        )}
+
+        <div>
+          <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Reseñas ({resenas.length})</p>
+          {loading ? (
+            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Cargando...</p>
+          ) : resenas.length === 0 ? (
+            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Aún no hay reseñas aprobadas para este plato.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {resenas.map((r, i) => (
+                <div key={i} className="glass-surface" style={{ borderRadius: '0.875rem', padding: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.25rem' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--w-ink)' }}>{r.cliente_nombre}</span>
+                    <span style={{ fontSize: '0.75rem' }}>{'⭐'.repeat(r.rating)}</span>
+                  </div>
+                  {r.comentario && <p className="ed-body" style={{ fontSize: '0.8125rem', margin: 0 }}>{r.comentario}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+})
+ReviewsSheet.displayName = 'ReviewsSheet'
+
 // ── Dish card (editorial, solid warm) ─────────────────────────────
-const DishCard = memo(({ dish, inCart, onCustomize, index = 0 }: {
-  dish:        Dish
-  inCart:      number
-  onCustomize: () => void
-  index?:      number
+const DishCard = memo(({ dish, inCart, social, onCustomize, onOpenSocial, index = 0 }: {
+  dish:         Dish
+  inCart:       number
+  social?:      DishSocial
+  onCustomize:  () => void
+  onOpenSocial: () => void
+  index?:       number
 }) => (
   <div
     className="w-lift w-rise"
@@ -513,6 +684,19 @@ const DishCard = memo(({ dish, inCart, onCustomize, index = 0 }: {
         {dish.description}
       </p>
     )}
+
+    <div className="w-press" onClick={e => { e.stopPropagation(); onOpenSocial() }}
+      style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', cursor: 'pointer' }}>
+      {social?.es_popular && (
+        <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: 'var(--w-terra)' }}>🔥 Popular</span>
+      )}
+      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-ink-mut)' }}>
+        {social && social.rating_count > 0 ? `⭐ ${social.rating_avg} (${social.rating_count})` : '⭐ Opina'}
+      </span>
+      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-wine)' }}>
+        ❤️ {social?.likes_count ?? 0}
+      </span>
+    </div>
 
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '0.375rem' }}>
       <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', fontSize: '1.0625rem' }}>
@@ -573,6 +757,8 @@ export default function PublicMenu() {
     cerrado_manual?: boolean; cerrado_mensaje?: string | null
   }>({})
   const [payingOnline,  setPayingOnline]  = useState(false)
+  const [socialMap,     setSocialMap]     = useState<Record<string, DishSocial>>({})
+  const [reviewDish,    setReviewDish]    = useState<Dish | null>(null)
 
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -585,6 +771,18 @@ export default function PublicMenu() {
     const params = new URLSearchParams(window.location.search)
     const m = params.get('mesa')
     if (m) setMesa(m)
+  }, [])
+
+  // ── nombre recordado (para no repetirlo al pedir / opinar) ──────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(NOMBRE_KEY)
+      if (saved) setClientName(saved)
+    } catch { /* localStorage no disponible (modo privado, etc.) */ }
+  }, [])
+  const rememberName = useCallback((name: string) => {
+    setClientName(name)
+    try { localStorage.setItem(NOMBRE_KEY, name) } catch { /* ignorar */ }
   }, [])
 
   // ── resolver restaurante (por slug en la URL o único activo) ────
@@ -626,6 +824,17 @@ export default function PublicMenu() {
   }, [])
 
   // ── data fetch ─────────────────────────────────────────────────
+  const refreshSocial = useCallback(() => {
+    if (!restaurantId) return
+    supabase.rpc('obtener_interacciones_platos', { p_restaurant_id: restaurantId }).then(({ data }) => {
+      const map: Record<string, DishSocial> = {}
+      for (const row of (data as (DishSocial & { dish_id: string })[] | null) ?? []) {
+        map[row.dish_id] = { likes_count: row.likes_count, rating_avg: row.rating_avg, rating_count: row.rating_count, es_popular: row.es_popular }
+      }
+      setSocialMap(map)
+    })
+  }, [restaurantId])
+
   const fetchMenuData = useCallback(() => {
     if (!restaurantId) return
     Promise.all([
@@ -635,6 +844,7 @@ export default function PublicMenu() {
         .eq('restaurant_id', restaurantId).maybeSingle(),
     ]).then(([dr, cr]) => {
       setDishes(dr.data || [])
+      refreshSocial()
       if (cr.data?.display_name) setBizName(cr.data.display_name)
       if (cr.data?.logo_url) setLogoUrl(cr.data.logo_url as string)
       setPromo(cr.data?.promo_activo && cr.data?.promo_texto ? cr.data.promo_texto as string : null)
@@ -664,7 +874,7 @@ export default function PublicMenu() {
       if (Array.isArray(mods?.helado_flavors)) setFlavors(mods!.helado_flavors!)
       setLoading(false)
     })
-  }, [restaurantId])
+  }, [restaurantId, refreshSocial])
 
   useEffect(() => {
     fetchMenuData()
@@ -1060,7 +1270,7 @@ export default function PublicMenu() {
             <div className="menu-grid">
               {filteredFlat.map((dish, i) => {
                 const inCart = cart.filter(ci => ci.dish.id === dish.id).reduce((s, ci) => s + ci.qty, 0)
-                return <DishCard key={dish.id} dish={dish} inCart={inCart} onCustomize={() => setCustomizing(dish)} index={i} />
+                return <DishCard key={dish.id} dish={dish} inCart={inCart} social={socialMap[dish.id]} onCustomize={() => setCustomizing(dish)} onOpenSocial={() => setReviewDish(dish)} index={i} />
               })}
             </div>
           )
@@ -1081,7 +1291,7 @@ export default function PublicMenu() {
                   <div className="menu-grid">
                     {catDishes.map((dish, i) => {
                       const inCart = cart.filter(ci => ci.dish.id === dish.id).reduce((s, ci) => s + ci.qty, 0)
-                      return <DishCard key={dish.id} dish={dish} inCart={inCart} onCustomize={() => setCustomizing(dish)} index={i} />
+                      return <DishCard key={dish.id} dish={dish} inCart={inCart} social={socialMap[dish.id]} onCustomize={() => setCustomizing(dish)} onOpenSocial={() => setReviewDish(dish)} index={i} />
                     })}
                   </div>
                 </section>
@@ -1146,6 +1356,14 @@ export default function PublicMenu() {
         {showCustom && <CustomDishSheet onAdd={addToCart} onClose={() => setShowCustom(false)} restaurantId={restaurantId} />}
       </AnimatePresence>
 
+      {/* ── Likes + reseñas ── */}
+      <AnimatePresence>
+        {reviewDish && (
+          <ReviewsSheet dish={reviewDish} initialName={clientName} onNameChange={rememberName}
+            onClose={() => setReviewDish(null)} onLikeChanged={refreshSocial} />
+        )}
+      </AnimatePresence>
+
       {/* ── Cart bottom-sheet (liquid glass) ── */}
       <AnimatePresence>
         {showCart && (
@@ -1194,8 +1412,8 @@ export default function PublicMenu() {
                   </div>
                 )}
                 <div style={{ gridColumn: mesa ? '1 / -1' : undefined }}>
-                  <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>Tu nombre</label>
-                  <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Ej: María"
+                  <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>¿A quién tenemos el gusto de atender?</label>
+                  <input type="text" value={clientName} onChange={e => rememberName(e.target.value)} placeholder="Ej: María"
                     style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
                 </div>
               </div>
