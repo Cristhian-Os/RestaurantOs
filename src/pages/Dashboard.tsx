@@ -33,9 +33,10 @@ import SupportChat            from '../components/SupportChat'
 import BrandingManager, { applyBranding } from '../components/branding/BrandingManager'
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
+import { PlatformOverview } from '../components/platform/PlatformOverview'
 
-export type Role    = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu' | 'branding' | 'billing'
+export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu' | 'branding' | 'billing' | 'platform'
 
 export interface Profile {
   id:          string
@@ -80,9 +81,13 @@ const Icons = {
   Download:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   Sun:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>,
   Moon:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>,
+  Platform:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5M3 12a9 3 0 0018 0"/></svg>,
 }
 
 const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: string }[]> = {
+  super_admin: [
+    { view:'platform', icon:<Icons.Platform />, label:'Restaurantes' },
+  ],
   admin: [
     { view:'dashboard', icon:<Icons.Dashboard />, label:'Inicio'     },
     { view:'orders',    icon:<Icons.Orders />,    label:'Pedidos'    },
@@ -332,7 +337,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         if (prof) {
           setProfile(prof)
           const defaults: Record<Role, NavView> = {
-            admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
+            super_admin:'platform', admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
           }
           startTransition(() => setActiveNav(defaults[prof!.role as Role] ?? 'orders'))
         }
@@ -351,7 +356,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     if (!profile) return
     if (profile.role !== 'admin' && activeNav === 'dashboard') {
       const defaults: Record<string, NavView> = {
-        waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
+        super_admin:'platform', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
       }
       const target = defaults[profile.role]
       if (target) startTransition(() => setActiveNav(target))
@@ -397,6 +402,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'menu':      return profile.role === 'admin' ? <MenuManager /> : <ClientMenuSection />
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
+      case 'platform':  return profile.role === 'super_admin' ? <PlatformOverview /> : null
       default:          return null
     }
   }
@@ -433,9 +439,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
       )}
 
-      {/* Notificaciones pedido listo — mesero y admin */}
+      {/* Notificaciones pedido listo — mesero (solo lo suyo) y admin (todo) */}
       {(profile!.role === 'waiter' || profile!.role === 'admin') && (
-        <WaiterNotifications />
+        <WaiterNotifications userId={profile!.id} isAdmin={profile!.role === 'admin'} />
       )}
 
       {/* Header */}

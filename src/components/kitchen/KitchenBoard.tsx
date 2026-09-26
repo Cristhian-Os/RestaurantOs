@@ -18,6 +18,7 @@ interface Order {
   notes:      string | null
   status:     'pending' | 'cooking' | 'ready' | 'completed'
   created_at: string
+  user_id:    string | null
 }
 
 const tint = (c: string, pct: number) => `color-mix(in oklch, ${c} ${pct}%, var(--w-surface))`
@@ -135,7 +136,7 @@ export const KitchenBoard = memo(() => {
     // el que aún no tiene paid_at está esperando cobro en Caja.
     const { data, error } = await supabase
       .from('orders')
-      .select('id, table_num, tipo_pedido, items, notes, status, created_at')
+      .select('id, table_num, tipo_pedido, items, notes, status, created_at, user_id')
       .in('status', ['pending','cooking','ready'])
       .not('paid_at', 'is', null)
       .order('created_at', { ascending: true })
@@ -177,8 +178,14 @@ export const KitchenBoard = memo(() => {
     if (nextStatus === 'ready') {
       const dest = order?.table_num ? `Mesa ${order.table_num}` : 'Pedido'
       message.success({ content: `${dest} — pedido listo. Notificando al mesero...`, duration: 5 })
-      // Push a meseros y admin (suena aunque tengan la app cerrada)
-      pushNotificationService.notify(['waiter', 'admin'], 'Pedido listo', `${dest} está listo para entregar`, '/')
+      // Dirigido: solo el mesero dueño del pedido + admin (antes le sonaba a
+      // TODOS los meseros del restaurante, aunque el pedido no fuera suyo).
+      // Si el pedido no tiene mesero asignado (ej. autoservicio por QR), solo
+      // se notifica a admin — no hay "la persona" específica a quién avisar.
+      pushNotificationService.notify(
+        ['admin'], 'Pedido listo', `${dest} está listo para entregar`, '/',
+        undefined, order?.user_id ? [order.user_id] : undefined,
+      )
     }
   }, [fetchOrders])
 

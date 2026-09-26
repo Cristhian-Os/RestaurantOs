@@ -13,6 +13,15 @@ interface ReadyOrder {
   table_num:     number | null
   customer_name: string | null
   created_at:    string
+  user_id:       string | null
+}
+
+interface WaiterNotificationsProps {
+  /** id del profile actual — se usa para filtrar solo sus propios pedidos. */
+  userId:  string
+  /** admin ve todos los pedidos listos del restaurante; mesero solo los suyos
+   *  (o los sin mesero asignado, ej. autoservicio por QR). */
+  isAdmin: boolean
 }
 
 function beep() {
@@ -31,17 +40,23 @@ function beep() {
   } catch { /* sin audio */ }
 }
 
-export const WaiterNotifications = memo(() => {
+export const WaiterNotifications = memo(({ userId, isAdmin }: WaiterNotificationsProps) => {
   const [ready, setReady] = useState<ReadyOrder[]>([])
+
+  // Dirigido: un mesero solo ve/oye los pedidos que él tomó, o los que no
+  // tienen mesero asignado (ej. pedido de autoservicio por QR). Admin ve todo
+  // — antes CUALQUIER mesero recibía el aviso de pedidos de otros meseros.
+  const isMine = useCallback((o: { user_id: string | null }) =>
+    isAdmin || o.user_id === userId || o.user_id === null, [isAdmin, userId])
 
   const fetchReady = useCallback(async () => {
     const { data } = await supabase
       .from('orders')
-      .select('id, table_num, customer_name, created_at')
+      .select('id, table_num, customer_name, created_at, user_id')
       .eq('status', 'ready')
       .is('delivered_at', null)
-    if (data) setReady(data)
-  }, [])
+    if (data) setReady(data.filter(isMine))
+  }, [isMine])
 
   // Marcar como entregada: persiste en la base (visible en Caja) y quita
   // el aviso de todos los dispositivos, no solo de esta pantalla.
@@ -75,9 +90,10 @@ export const WaiterNotifications = memo(() => {
             const row = payload.new as {
               id: string; status: string; table_num: number | null
               customer_name: string | null; created_at: string; delivered_at: string | null
+              user_id: string | null
             }
 
-            if (row.status === 'ready' && !row.delivered_at) {
+            if (row.status === 'ready' && !row.delivered_at && isMine(row)) {
               setReady(prev => {
                 if (prev.some(o => o.id === row.id)) return prev
                 beep()
@@ -85,6 +101,7 @@ export const WaiterNotifications = memo(() => {
                 return [...prev, {
                   id: row.id, table_num: row.table_num,
                   customer_name: row.customer_name, created_at: row.created_at,
+                  user_id: row.user_id,
                 }]
               })
             }

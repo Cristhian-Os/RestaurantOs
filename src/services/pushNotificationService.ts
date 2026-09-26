@@ -93,12 +93,16 @@ export const pushNotificationService = {
   // rol). Si no se pasa explícito (staff autenticado), se resuelve desde el
   // perfil del usuario actual. El flujo anónimo del menú público (sin
   // sesión) SÍ debe pasarlo explícito, porque no hay perfil de quien llama.
+  // userIds: si se pasa, ADEMÁS de los roles se notifica directo a esas
+  // personas puntuales (ej. el mesero dueño del pedido) — no reemplaza los
+  // roles, los complementa.
   async notify(
     target: PushTarget | PushTarget[],
     title: string,
     body: string,
     url = '/',
     restaurantId?: string,
+    userIds?: string[],
   ): Promise<void> {
     try {
       let rid = restaurantId
@@ -111,7 +115,7 @@ export const pushNotificationService = {
       }
       const roles = Array.isArray(target) ? target : [target]
       await supabase.functions.invoke('send-push', {
-        body: { roles, title, body, url, restaurant_id: rid },
+        body: { roles, title, body, url, restaurant_id: rid, user_ids: userIds },
       })
     } catch (error) {
       console.error('Error enviando push:', error)

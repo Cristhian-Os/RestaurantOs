@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { roles = [], title, body, url = '/' } = await req.json()
+    const { roles = [], title, body, url = '/', user_ids = [] } = await req.json()
     if (!title || !body) {
       return new Response(JSON.stringify({ error: 'title y body requeridos' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
@@ -46,9 +46,24 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'sin restaurante' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
-    const { data: profs } = await supabase.from('profiles').select('id')
-      .in('role', roles).eq('restaurant_id', callerProf.restaurant_id)
-    const ids = (profs ?? []).map((p: { id: string }) => p.id)
+    const roleIds: string[] = []
+    if (roles.length > 0) {
+      const { data: profs } = await supabase.from('profiles').select('id')
+        .in('role', roles).eq('restaurant_id', callerProf.restaurant_id)
+      roleIds.push(...(profs ?? []).map((p: { id: string }) => p.id))
+    }
+
+    // user_ids: destinatarios puntuales (ej. el mesero dueño del pedido). Se
+    // verifica que pertenezcan al MISMO restaurante del que llama, para que
+    // nadie pueda pasar un id de otro restaurante y filtrar una notificación.
+    let directIds: string[] = []
+    if (Array.isArray(user_ids) && user_ids.length > 0) {
+      const { data: verified } = await supabase.from('profiles').select('id')
+        .in('id', user_ids).eq('restaurant_id', callerProf.restaurant_id)
+      directIds = (verified ?? []).map((p: { id: string }) => p.id)
+    }
+
+    const ids = [...new Set([...roleIds, ...directIds])]
     if (ids.length === 0) {
       return new Response(JSON.stringify({ sent: 0, reason: 'sin destinatarios' }), { headers: { ...cors, 'Content-Type': 'application/json' } })
     }
