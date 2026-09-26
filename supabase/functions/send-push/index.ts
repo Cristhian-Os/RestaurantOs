@@ -34,7 +34,20 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    const { data: profs } = await supabase.from('profiles').select('id').in('role', roles)
+    // Escopar SIEMPRE al restaurante de quien llama — antes esto notificaba a
+    // admins/meseros/cocina de TODOS los restaurantes del SaaS, no solo el propio.
+    const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
+    const { data: { user } } = await supabase.auth.getUser(token)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'no autenticado' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
+    }
+    const { data: callerProf } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).maybeSingle()
+    if (!callerProf?.restaurant_id) {
+      return new Response(JSON.stringify({ error: 'sin restaurante' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } })
+    }
+
+    const { data: profs } = await supabase.from('profiles').select('id')
+      .in('role', roles).eq('restaurant_id', callerProf.restaurant_id)
     const ids = (profs ?? []).map((p: { id: string }) => p.id)
     if (ids.length === 0) {
       return new Response(JSON.stringify({ sent: 0, reason: 'sin destinatarios' }), { headers: { ...cors, 'Content-Type': 'application/json' } })

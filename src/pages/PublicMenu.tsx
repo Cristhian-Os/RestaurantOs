@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
 import { pushNotificationService } from '../services/pushNotificationService'
 import type { Dish, DishCategory } from '../types'
+import { openWompiCheckout } from '../config/billing'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
   all:       'Todo',
@@ -42,9 +43,11 @@ interface CartItem {
   qty:     number
   notes:   string
   size:    string
-  price:   number   // precio unitario elegido (según tamaño, o el del plato)
+  price:   number   // precio unitario ESTIMADO en el cliente, solo para mostrar — el
+                     // precio real que se cobra siempre se recalcula en el servidor (create_public_order)
   extras:  string[]
   optsText: string  // resumen de opciones elegidas (sabores de helado, queso/helado…)
+  customIngredients?: { id: string; cantidad: number }[]  // solo para "plato personalizado"
 }
 
 // ── Skeleton card (warm) ──────────────────────────────────────────
@@ -317,9 +320,10 @@ function stepFor(unidad: string): number {
   }
 }
 
-const CustomDishSheet = memo(({ onAdd, onClose }: {
+const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
   onAdd:   (item: Omit<CartItem, 'uid'>) => void
   onClose: () => void
+  restaurantId: string | null
 }) => {
   const [ings,    setIngs]    = useState<PublicIngredient[]>([])
   const [loading, setLoading] = useState(true)
@@ -328,11 +332,13 @@ const CustomDishSheet = memo(({ onAdd, onClose }: {
   const [notes,   setNotes]   = useState('')
 
   useEffect(() => {
-    supabase.from('ingredientes_menu_publico').select('*').then(({ data }) => {
+    if (!restaurantId) { setLoading(false); return }
+    supabase.from('ingredientes_menu_publico').select('*')
+      .eq('restaurant_id', restaurantId).then(({ data }) => {
       setIngs((data as PublicIngredient[] | null)?.filter(i => i.disponible) ?? [])
       setLoading(false)
     })
-  }, [])
+  }, [restaurantId])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return ings
@@ -386,7 +392,10 @@ const CustomDishSheet = memo(({ onAdd, onClose }: {
       category:    'custom',
       available:   true,
     }
-    onAdd({ dish: customDish, qty: 1, notes, size: '', price: total, extras: [], optsText: summary })
+    onAdd({
+      dish: customDish, qty: 1, notes, size: '', price: total, extras: [], optsText: summary,
+      customIngredients: chosen.map(c => ({ id: c.id, cantidad: c.cantidad })),
+    })
     onClose()
   }
 
@@ -537,6 +546,7 @@ export default function PublicMenu() {
   const [dishes,        setDishes]        = useState<Dish[]>([])
   const [loading,       setLoading]       = useState(true)
   const [bizName,       setBizName]       = useState('RestaurantOS')
+  const [logoUrl,       setLogoUrl]       = useState<string | null>(null)
   const [catLabels,     setCatLabels]     = useState<Record<string, string>>({})
   const [flavors,       setFlavors]       = useState<string[]>([])
   const [activeCat,     setActiveCat]     = useState<DishCategory | 'all'>('all')
@@ -553,10 +563,14 @@ export default function PublicMenu() {
   const [orderId,       setOrderId]       = useState<string | null>(null)
   const [orderStatus,   setOrderStatus]   = useState<string | null>(null)
   const [showTracking,  setShowTracking]  = useState(false)
+  const [onlinePay,     setOnlinePay]     = useState(false)   // ¿el restaurante acepta pagos en línea?
+  const [payingOnline,  setPayingOnline]  = useState(false)
 
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
   const observerRef = useRef<IntersectionObserver | null>(null)
   const scrollingTo = useRef(false)
+
+  const [restaurantId, setRestaurantId] = useState<string | null>(null)
 
   // ── URL params ─────────────────────────────────────────────────
   useEffect(() => {
@@ -565,15 +579,58 @@ export default function PublicMenu() {
     if (m) setMesa(m)
   }, [])
 
-  // ── data fetch ─────────────────────────────────────────────────
+  // ── resolver restaurante (por slug en la URL o único activo) ────
+  // Soporta /menu/<slug> y ?r=<slug>. Si no hay slug y solo existe un
+  // restaurante, usa ese (compatibilidad con los QR actuales de Cholaos).
   useEffect(() => {
+    const parts = window.location.pathname.split('/').filter(Boolean) // ['menu', '<slug>']
+    const pathSlug = parts[0] === 'menu' ? parts[1] : undefined
+    const querySlug = new URLSearchParams(window.location.search).get('r') ?? undefined
+    const slug = (pathSlug || querySlug)?.toLowerCase()
+
+    const resolve = async () => {
+      if (slug) {
+        const { data } = await supabase.from('restaurants_public')
+          .select('id, name').eq('slug', slug).maybeSingle()
+        if (data) { setRestaurantId(data.id); if (data.name) setBizName(data.name); return }
+      }
+      // Sin slug (o slug inexistente): usar el único restaurante activo si lo hay
+      const { data: all } = await supabase.from('restaurants_public').select('id, name').limit(2)
+      if (all && all.length === 1) {
+        setRestaurantId(all[0].id)
+        if (all[0].name) setBizName(all[0].name)
+        return
+      }
+      // Varios restaurantes y sin slug válido: compatibilidad con los QR físicos
+      // ya impresos de Cholaos (creados antes del multi-tenant, sin slug en la URL).
+      const LEGACY_DEFAULT_ID = 'cdd99ebf-c8b7-43b1-b437-1d136e283212'
+      const { data: legacy } = await supabase.from('restaurants_public')
+        .select('id, name').eq('id', LEGACY_DEFAULT_ID).maybeSingle()
+      if (legacy) {
+        setRestaurantId(legacy.id)
+        if (legacy.name) setBizName(legacy.name)
+      } else {
+        setRestaurantId(null)
+        setLoading(false)
+      }
+    }
+    resolve()
+  }, [])
+
+  // ── data fetch ─────────────────────────────────────────────────
+  const fetchMenuData = useCallback(() => {
+    if (!restaurantId) return
     Promise.all([
-      supabase.from('dishes').select('*').eq('available', true)
+      supabase.from('dishes').select('*').eq('restaurant_id', restaurantId).eq('available', true)
         .neq('availability_status', 'discontinued').order('sort_order').order('name'),
-      supabase.from('restaurant_config').select('display_name, modules_enabled').single(),
+      supabase.from('restaurant_config').select('display_name, modules_enabled, logo_url, color_primario')
+        .eq('restaurant_id', restaurantId).maybeSingle(),
     ]).then(([dr, cr]) => {
       setDishes(dr.data || [])
       if (cr.data?.display_name) setBizName(cr.data.display_name)
+      if (cr.data?.logo_url) setLogoUrl(cr.data.logo_url as string)
+      // Marca del restaurante: aplicar su color como acento del menú
+      if (cr.data?.color_primario) document.documentElement.style.setProperty('--w-terra', cr.data.color_primario as string)
       // Etiquetas de categoría personalizadas (definidas en el panel admin)
       const mods = cr.data?.modules_enabled as { categories?: { value: string; label: string }[]; helado_flavors?: string[] } | null
       const cats = mods?.categories
@@ -585,7 +642,25 @@ export default function PublicMenu() {
       if (Array.isArray(mods?.helado_flavors)) setFlavors(mods!.helado_flavors!)
       setLoading(false)
     })
-  }, [])
+  }, [restaurantId])
+
+  useEffect(() => {
+    fetchMenuData()
+    if (!restaurantId) return
+    // ¿Este restaurante acepta pagos en línea de comensales?
+    supabase.rpc('online_payments_enabled', { p_restaurant_id: restaurantId })
+      .then(({ data }) => setOnlinePay(data === true))
+  }, [restaurantId, fetchMenuData])
+
+  // Refrescar el menú en vivo si el admin edita platos o categorías mientras el comensal ya tiene el menú abierto
+  useEffect(() => {
+    if (!restaurantId) return
+    const ch = supabase.channel(`public-menu-sync-${restaurantId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter: `restaurant_id=eq.${restaurantId}` }, fetchMenuData)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'restaurant_config', filter: `restaurant_id=eq.${restaurantId}` }, fetchMenuData)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [restaurantId, fetchMenuData])
 
   // ── real-time order tracking ───────────────────────────────────
   useEffect(() => {
@@ -634,47 +709,49 @@ export default function PublicMenu() {
   const canConfirm = mesa.trim() !== '' || clientName.trim() !== ''
 
   const sendOrder = useCallback(async () => {
-    if (!canConfirm || cart.length === 0) return
+    if (!canConfirm || cart.length === 0 || !restaurantId) return
     setSending(true)
     try {
-      const items = cart.map(i => ({
-        id: i.dish.id, name: i.dish.name, price: i.price, quantity: i.qty,
-        notes: [i.size && `Tamaño: ${i.size}`, i.optsText || null, ...(i.extras.length ? [`Adicionales: ${i.extras.join(', ')}`] : []), i.notes].filter(Boolean).join(' | ') || null,
-      }))
+      // El precio de cada línea NUNCA se manda desde aquí — create_public_order
+      // lo recalcula en el servidor a partir de dishes/ingredientes reales, para
+      // que nadie pueda manipular el total del pedido (y lo que luego cobra Wompi).
+      const items = cart.map(i => {
+        const line_notes = [i.size && `Tamaño: ${i.size}`, i.optsText || null, ...(i.extras.length ? [`Adicionales: ${i.extras.join(', ')}`] : []), i.notes].filter(Boolean).join(' | ') || null
+        return i.customIngredients
+          ? { kind: 'custom', quantity: i.qty, line_notes, ingredients: i.customIngredients }
+          : { kind: 'dish', dish_id: i.dish.id, quantity: i.qty, size: i.size || null, line_notes }
+      })
       const tableNum = mesa.trim() ? parseInt(mesa) : null
       const noteParts = [
         clientName.trim() ? `Cliente: ${clientName.trim()}` : null,
         !mesa.trim() ? 'Pedido en mostrador / sin mesa' : null,
       ].filter(Boolean)
-      const { data: userData } = await supabase.auth.getUser()
-      const { data: newOrder, error } = await supabase.from('orders').insert({
-        table_num:     tableNum,
-        items:         JSON.stringify(items),
-        total:         cartTotal,
-        tipo_pedido:   'LOCAL',
-        status:        'pending',
-        customer_name: clientName.trim() || null,
-        notes:         noteParts.length ? noteParts.join(' · ') : null,
-        user_id:       userData.user?.id ?? '00000000-0000-0000-0000-000000000000',
-      }).select('id').single()
+      const { data: newOrderId, error } = await supabase.rpc('create_public_order', {
+        p_restaurant_id:  restaurantId,
+        p_table_num:      tableNum,
+        p_customer_name:  clientName.trim() || null,
+        p_notes:          noteParts.length ? noteParts.join(' · ') : null,
+        p_items:          items,
+      })
 
       // Solo confirmamos y vaciamos el carrito si el pedido SE GUARDÓ de verdad
-      if (error || !newOrder?.id) {
+      if (error || !newOrderId) {
         throw new Error(error?.message || 'No se pudo registrar el pedido')
       }
 
-      setOrderId(newOrder.id)
+      setOrderId(newOrderId)
       setOrderStatus('pending')
       setShowTracking(true)
       setSent(true)
       setCart([])
       setShowCart(false)
-      // Avisar a cocina y admin (push, suena con la app cerrada)
+      // Avisar a cocina y admin (push, suena con la app cerrada) — SOLO a este restaurante
       pushNotificationService.notify(
         ['kitchen', 'admin'],
         'Nuevo pedido',
         tableNum ? `Mesa ${tableNum} hizo un pedido` : `${clientName.trim() || 'Un cliente'} hizo un pedido`,
         '/',
+        restaurantId ?? undefined,
       )
     } catch (e) {
       // Falló (red o servidor): NO perdemos el carrito y avisamos al cliente
@@ -686,7 +763,7 @@ export default function PublicMenu() {
       )
       console.error('Error al enviar pedido:', e)
     } finally { setSending(false) }
-  }, [cart, mesa, clientName, cartTotal, canConfirm])
+  }, [cart, mesa, clientName, canConfirm, restaurantId])
 
   // ── scrollspy ──────────────────────────────────────────────────
   useEffect(() => {
@@ -736,6 +813,11 @@ export default function PublicMenu() {
       {/* ── Editorial hero ── */}
       <header className="menu-wrap" style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', margin: '0 auto', overflow: 'hidden' }}>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+          {logoUrl && (
+            <img src={logoUrl} alt={bizName}
+              style={{ height: 72, width: 'auto', maxWidth: 180, objectFit: 'contain', marginBottom: '1rem', borderRadius: '0.75rem' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.875rem' }}>
             <span className="ed-kicker">Menú</span>
             <div style={{ flex: 1, height: 1, background: 'var(--w-line)' }} />
@@ -815,6 +897,30 @@ export default function PublicMenu() {
                   {orderStatus === 'cancelled' && 'Tu pedido fue cancelado. Consulta con el mesero.'}
                 </p>
               </div>
+
+              {/* Pago en línea (si el restaurante lo tiene activo) */}
+              {onlinePay && orderStatus !== 'cancelled' && orderStatus !== 'completed' && (
+                <button
+                  disabled={payingOnline}
+                  onClick={async () => {
+                    if (!orderId) return
+                    setPayingOnline(true)
+                    try {
+                      const { data, error } = await supabase.functions.invoke('wompi-init', {
+                        body: { kind: 'diner', order_id: orderId, redirect_url: window.location.href },
+                      })
+                      if (error) throw error
+                      if (data?.error) { alert(data.error); return }
+                      openWompiCheckout(data)
+                    } catch {
+                      alert('No se pudo iniciar el pago. Intenta de nuevo o paga con el mesero.')
+                    } finally { setPayingOnline(false) }
+                  }}
+                  className="w-press"
+                  style={{ marginTop: '1rem', width: '100%', padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-terra)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: payingOnline ? 'not-allowed' : 'pointer', opacity: payingOnline ? 0.7 : 1 }}>
+                  {payingOnline ? 'Abriendo pago…' : '💳 Pagar en línea'}
+                </button>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -933,7 +1039,7 @@ export default function PublicMenu() {
 
       {/* ── Plato personalizado ── */}
       <AnimatePresence>
-        {showCustom && <CustomDishSheet onAdd={addToCart} onClose={() => setShowCustom(false)} />}
+        {showCustom && <CustomDishSheet onAdd={addToCart} onClose={() => setShowCustom(false)} restaurantId={restaurantId} />}
       </AnimatePresence>
 
       {/* ── Cart bottom-sheet (liquid glass) ── */}

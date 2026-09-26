@@ -44,6 +44,10 @@ interface CustomDishBuilderProps {
 // Formato de precio en pesos colombianos (sin decimales, con separador de miles)
 const fmtCOP = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 
+// Precio de venta = costo / 0.65 (mismo margen ~35% que usa el flujo de pedido por QR
+// y que aplica crear_plato_custom en el servidor — sin esto se mostraba el costo crudo).
+const precioVenta = (costoUnitario: number) => costoUnitario / 0.65
+
 export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBuilderProps) => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [selected, setSelected] = useState<Record<string, SelectedIngredient>>({})
@@ -130,7 +134,7 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
           nombre: ing.nombre,
           cantidad: nuevaCantidad,
           unidad_medida: ing.unidad_medida,
-          costo: ing.costo_unitario * nuevaCantidad,
+          costo: precioVenta(ing.costo_unitario) * nuevaCantidad,
         },
       }
     })
@@ -151,7 +155,7 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
       [id]: {
         ...prev[id],
         cantidad,
-        costo: ing.costo_unitario * cantidad,
+        costo: precioVenta(ing.costo_unitario) * cantidad,
       },
     }))
   }, [ingredients])
@@ -267,7 +271,7 @@ export const CustomDishBuilder = memo(({ onDishCreated, onClose }: CustomDishBui
                   <div>
                     <p className="font-medium text-[var(--text-primary)] text-sm">{ing.nombre}</p>
                     <p className="text-xs text-[var(--text-secondary)]">
-                      {fmtCOP(ing.costo_unitario)} / {ing.unidad_medida}
+                      {fmtCOP(precioVenta(ing.costo_unitario))} / {ing.unidad_medida}
                     </p>
                   </div>
                   <span className="text-xs bg-[var(--bg-surface)] px-2 py-1 rounded font-semibold">

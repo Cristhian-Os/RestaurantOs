@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import QRCode from 'qrcode'
+import { supabase } from '../../services/supabaseClient'
 
 const S = {
   out:   { boxShadow: 'var(--shadow-out)' },
@@ -15,8 +16,12 @@ const S = {
 
 const BASE_URL = window.location.origin
 
-function buildMenuUrl(mesa?: string) {
-  return mesa ? `${BASE_URL}/menu?mesa=${mesa}` : `${BASE_URL}/menu`
+// El slug identifica el restaurante en el menú público. Sin él, la URL
+// /menu a secas solo funciona si existe un único restaurante en toda la
+// plataforma — con varios restaurantes registrados deja de servir.
+function buildMenuUrl(slug: string | null, mesa?: string) {
+  const path = slug ? `${BASE_URL}/menu/${slug}` : `${BASE_URL}/menu`
+  return mesa ? `${path}?mesa=${mesa}` : path
 }
 
 async function generateQR(url: string): Promise<string> {
@@ -33,22 +38,49 @@ async function generateQR(url: string): Promise<string> {
 export function QRMenu() {
   const [mesa,      setMesa]      = useState('')
   const [qrUrl,     setQrUrl]     = useState('')
-  const [menuUrl,   setMenuUrl]   = useState(buildMenuUrl())
+  const [menuUrl,   setMenuUrl]   = useState('')
   const [showModal, setShowModal] = useState(false)
   const [printing,  setPrinting]  = useState(false)
+  const [slug,      setSlug]      = useState<string | null>(null)
+  const [bizName,   setBizName]   = useState('Menú Digital')
+  const [logoUrl,   setLogoUrl]   = useState<string | null>(null)
+  const [ready,     setReady]     = useState(false)
 
-  // Generar QR genérico al montar
+  // Resolver el slug + marca del restaurante del admin logueado
   useEffect(() => {
-    generateQR(buildMenuUrl()).then(setQrUrl)
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setReady(true); return }
+      const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).single()
+      const restaurantId = prof?.restaurant_id ?? null
+      if (restaurantId) {
+        const [{ data: rest }, { data: cfg }] = await Promise.all([
+          supabase.from('restaurants_public').select('slug, name').eq('id', restaurantId).maybeSingle(),
+          supabase.from('restaurant_config').select('display_name, logo_url').eq('restaurant_id', restaurantId).maybeSingle(),
+        ])
+        if (rest?.slug) setSlug(rest.slug)
+        setBizName(cfg?.display_name || rest?.name || 'Menú Digital')
+        if (cfg?.logo_url) setLogoUrl(cfg.logo_url)
+      }
+      setReady(true)
+    })()
   }, [])
 
+  // Generar QR genérico en cuanto se resuelve el slug
+  useEffect(() => {
+    if (!ready) return
+    const url = buildMenuUrl(slug)
+    setMenuUrl(url)
+    generateQR(url).then(setQrUrl)
+  }, [ready, slug])
+
   const handleGenerate = useCallback(async () => {
-    const url = buildMenuUrl(mesa.trim() || undefined)
+    const url = buildMenuUrl(slug, mesa.trim() || undefined)
     setMenuUrl(url)
     const dataUrl = await generateQR(url)
     setQrUrl(dataUrl)
     setShowModal(true)
-  }, [mesa])
+  }, [mesa, slug])
 
   const handleDownload = useCallback(() => {
     if (!qrUrl) return
@@ -93,8 +125,8 @@ export function QRMenu() {
 </head>
 <body>
   <div class="card">
-    <img class="logo" src="${BASE_URL}/logo.jpg" alt="Logo" />
-    <h1>Heladería Doña María</h1>
+    <img class="logo" src="${logoUrl || `${BASE_URL}/logo.jpg`}" alt="Logo" />
+    <h1>${bizName}</h1>
     ${mesa ? `<p class="mesa">Mesa ${mesa}</p>` : '<p class="mesa">Menú Digital</p>'}
     <div class="line"></div>
     <img class="qr" src="${qrUrl}" alt="QR Menú" />
@@ -110,7 +142,7 @@ export function QRMenu() {
 </html>`)
     win.document.close()
     setTimeout(() => setPrinting(false), 2000)
-  }, [qrUrl, menuUrl, mesa])
+  }, [qrUrl, menuUrl, mesa, bizName, logoUrl])
 
   return (
     <>
@@ -247,10 +279,10 @@ export function QRMenu() {
         }}>
           <p style={{ fontSize: '0.7rem', color: 'var(--text-primary)', fontWeight: 600,
             margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {BASE_URL}/menu
+            {buildMenuUrl(slug)}
           </p>
           <button
-            onClick={() => navigator.clipboard.writeText(`${BASE_URL}/menu`)}
+            onClick={() => navigator.clipboard.writeText(buildMenuUrl(slug))}
             style={{
               padding: '0.25rem 0.625rem', borderRadius: '0.5rem',
               border: 'none', backgroundColor: 'var(--bg)',

@@ -45,7 +45,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
   const isUrgent = elapsedSecs > 900
 
   const nextStatus: Record<Order['status'], Order['status'] | null> = {
-    pending: 'cooking', cooking: 'ready', ready: 'completed', completed: null,
+    pending: 'cooking', cooking: 'ready', ready: null, completed: null,
   }
   const next = nextStatus[order.status]
   const actionLabel: Record<Order['status'], string | null> = {
@@ -110,10 +110,9 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
         </motion.button>
       )}
       {order.status === 'ready' && (
-        <motion.button whileTap={{ scale: 0.97 }} onClick={() => onAdvance(order.id, 'completed')}
-          style={{ width: '100%', padding: '0.625rem', borderRadius: '0.875rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 700, color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', background: 'var(--w-ink)' }}>
-          Entregar al mesero
-        </motion.button>
+        <p style={{ textAlign: 'center', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--w-olive)', margin: 0, fontFamily: 'var(--w-sans)' }}>
+          Esperando cobro en caja
+        </p>
       )}
     </motion.div>
   )
@@ -171,7 +170,6 @@ export const KitchenBoard = memo(() => {
       // Push a meseros y admin (suena aunque tengan la app cerrada)
       pushNotificationService.notify(['waiter', 'admin'], 'Pedido listo', `${dest} está listo para entregar`, '/')
     }
-    if (nextStatus === 'completed') message.success('Pedido entregado')
   }, [fetchOrders])
 
   const pending = orders.filter(o => o.status === 'pending')
