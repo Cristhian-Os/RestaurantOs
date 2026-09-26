@@ -32,12 +32,13 @@ interface PendingResena {
   dishes:         { name: string } | null
 }
 interface InteraccionRow {
-  dish_id:      string
-  likes_count:  number
-  rating_avg:   number | null
-  rating_count: number
-  total_vendido:number
-  es_popular:   boolean
+  dish_id:        string
+  likes_count:    number
+  dislikes_count: number
+  rating_avg:     number | null
+  rating_count:   number
+  total_vendido:  number
+  es_popular:     boolean
 }
 
 const DEFAULT_CATEGORIES: Category[] = [
@@ -293,7 +294,7 @@ export const MenuManager = memo(() => {
         : Promise.resolve({ data: null }),
     ])
     setPendingReviews((pendRes.data as unknown as PendingResena[] | null) ?? [])
-    setSocialOverview(((overviewRes.data as InteraccionRow[] | null) ?? []).filter(r => r.likes_count > 0 || r.rating_count > 0))
+    setSocialOverview(((overviewRes.data as InteraccionRow[] | null) ?? []).filter(r => r.likes_count > 0 || r.dislikes_count > 0 || r.rating_count > 0))
     setLoadingReviews(false)
   }, [])
 
@@ -827,7 +828,7 @@ export const MenuManager = memo(() => {
               {socialOverview.length > 0 && (
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
-                    Likes y calificaciones por plato
+                    Qué gusta y qué no, por plato
                   </p>
                   <div className="space-y-1.5">
                     {socialOverview.map(row => {
@@ -836,7 +837,7 @@ export const MenuManager = memo(() => {
                         <div key={row.dish_id} className="flex items-center justify-between text-sm rounded-xl px-3 py-2" style={{ backgroundColor: bgSurf }}>
                           <span style={{ color: txt }}>{row.es_popular && '🔥 '}{dishName}</span>
                           <span style={{ color: txtMid }}>
-                            ❤️ {row.likes_count}
+                            ❤️ {row.likes_count}  ·  👎 {row.dislikes_count}
                             {row.rating_count > 0 && `  ·  ⭐ ${row.rating_avg} (${row.rating_count})`}
                           </span>
                         </div>

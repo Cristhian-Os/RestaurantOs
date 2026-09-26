@@ -57,10 +57,11 @@ interface CartItem {
 const NOMBRE_KEY = 'rt_cliente_nombre'
 
 interface DishSocial {
-  likes_count:  number
-  rating_avg:   number | null
-  rating_count: number
-  es_popular:   boolean
+  likes_count:    number
+  dislikes_count: number
+  rating_avg:     number | null
+  rating_count:   number
+  es_popular:     boolean
 }
 
 interface Resena {
@@ -517,41 +518,49 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
   onClose:       () => void
   onLikeChanged: () => void
 }) => {
-  const [nombre,    setNombre]    = useState(initialName)
-  const [resenas,   setResenas]   = useState<Resena[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [liked,     setLiked]     = useState(false)
-  const [likeBusy,  setLikeBusy]  = useState(false)
-  const [rating,    setRating]    = useState(5)
-  const [comentario,setComentario]= useState('')
-  const [sending,   setSending]   = useState(false)
-  const [error,     setError]     = useState<string | null>(null)
-  const [sentOk,    setSentOk]    = useState(false)
+  const [nombre,      setNombre]      = useState(initialName)
+  const [resenas,     setResenas]     = useState<Resena[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [miReaccion,  setMiReaccion]  = useState<'like' | 'dislike' | null>(null)
+  const [reaccionBusy,setReaccionBusy]= useState(false)
+  const [rating,      setRating]      = useState(5)
+  const [comentario,  setComentario]  = useState('')
+  const [sending,     setSending]     = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
+  const [sentOk,      setSentOk]      = useState(false)
 
   useEffect(() => {
     supabase.rpc('obtener_resenas_aprobadas', { p_dish_id: dish.id }).then(({ data }) => {
       setResenas((data as Resena[] | null) ?? [])
       setLoading(false)
     })
-    if (initialName.trim()) {
-      supabase.rpc('ya_di_like_plato', { p_dish_id: dish.id, p_cliente_nombre: initialName.trim() })
-        .then(({ data }) => setLiked(data === true))
-    }
-  }, [dish.id, initialName])
+  }, [dish.id])
+
+  // Revisa si ese nombre ya reaccionó (like/dislike) a este plato. Corre al
+  // abrir (si ya conocíamos el nombre) y cada vez que el comensal termina de
+  // escribir/cambiar el nombre en el campo — así funciona igual si vino del
+  // checkout, si lo escribió a mano, o si lo hace desde otro dispositivo.
+  const checkReaccion = useCallback((n: string) => {
+    if (!n.trim()) { setMiReaccion(null); return }
+    supabase.rpc('mi_reaccion_plato', { p_dish_id: dish.id, p_cliente_nombre: n.trim() })
+      .then(({ data }) => setMiReaccion((data as 'like' | 'dislike' | null) ?? null))
+  }, [dish.id])
+
+  useEffect(() => { checkReaccion(initialName) }, [checkReaccion, initialName])
 
   const commitName = (n: string) => {
     setNombre(n)
     if (n.trim()) onNameChange(n.trim())
   }
 
-  const toggleLike = async () => {
-    if (!nombre.trim() || likeBusy) return
-    setLikeBusy(true)
+  const reaccionar = async (tipo: 'like' | 'dislike') => {
+    if (!nombre.trim() || reaccionBusy) return
+    setReaccionBusy(true)
     setError(null)
-    const { data, error: err } = await supabase.rpc('dar_like_plato', { p_dish_id: dish.id, p_cliente_nombre: nombre.trim() })
-    setLikeBusy(false)
+    const { data, error: err } = await supabase.rpc('reaccionar_plato', { p_dish_id: dish.id, p_cliente_nombre: nombre.trim(), p_reaccion: tipo })
+    setReaccionBusy(false)
     if (err) { setError(err.message); return }
-    setLiked(data === true)
+    setMiReaccion((data as 'like' | 'dislike' | null) ?? null)
     onLikeChanged()
   }
 
@@ -587,16 +596,23 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
             <h3 className="ed-display" style={{ fontSize: '1.1875rem', margin: 0 }}>{dish.name}</h3>
             <p className="ed-kicker" style={{ margin: '0.25rem 0 0' }}>Likes y reseñas</p>
           </div>
-          <button className="w-press" onClick={toggleLike} disabled={!nombre.trim() || likeBusy}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', opacity: nombre.trim() ? 1 : 0.4, cursor: nombre.trim() ? 'pointer' : 'not-allowed' }}>
-            <span style={{ fontSize: '1.5rem' }}>{liked ? '❤️' : '🤍'}</span>
-            <span className="ed-kicker" style={{ fontSize: '0.5625rem' }}>{liked ? 'Te gusta' : 'Me gusta'}</span>
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button className="w-press" onClick={() => reaccionar('like')} disabled={!nombre.trim() || reaccionBusy}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', opacity: nombre.trim() ? 1 : 0.4, cursor: nombre.trim() ? 'pointer' : 'not-allowed' }}>
+              <span style={{ fontSize: '1.5rem' }}>{miReaccion === 'like' ? '❤️' : '🤍'}</span>
+              <span className="ed-kicker" style={{ fontSize: '0.5625rem' }}>Me gusta</span>
+            </button>
+            <button className="w-press" onClick={() => reaccionar('dislike')} disabled={!nombre.trim() || reaccionBusy}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', opacity: nombre.trim() ? 1 : 0.4, cursor: nombre.trim() ? 'pointer' : 'not-allowed' }}>
+              <span style={{ fontSize: '1.5rem' }}>{miReaccion === 'dislike' ? '👎' : '🖐️'}</span>
+              <span className="ed-kicker" style={{ fontSize: '0.5625rem' }}>No me gustó</span>
+            </button>
+          </div>
         </div>
 
         <div style={{ marginBottom: '1.25rem' }}>
           <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>¿A quién tenemos el gusto de atender?</label>
-          <input type="text" value={nombre} onChange={e => commitName(e.target.value)} placeholder="El mismo nombre con el que pediste"
+          <input type="text" value={nombre} onChange={e => commitName(e.target.value)} onBlur={e => checkReaccion(e.target.value)} placeholder="El mismo nombre con el que pediste"
             style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
           <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: '0.375rem 0 0' }}>
             Solo puedes calificar platos que ya hayas pedido con ese nombre.
@@ -829,7 +845,7 @@ export default function PublicMenu() {
     supabase.rpc('obtener_interacciones_platos', { p_restaurant_id: restaurantId }).then(({ data }) => {
       const map: Record<string, DishSocial> = {}
       for (const row of (data as (DishSocial & { dish_id: string })[] | null) ?? []) {
-        map[row.dish_id] = { likes_count: row.likes_count, rating_avg: row.rating_avg, rating_count: row.rating_count, es_popular: row.es_popular }
+        map[row.dish_id] = { likes_count: row.likes_count, dislikes_count: row.dislikes_count, rating_avg: row.rating_avg, rating_count: row.rating_count, es_popular: row.es_popular }
       }
       setSocialMap(map)
     })
