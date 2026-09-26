@@ -57,11 +57,12 @@ interface CartItem {
 const NOMBRE_KEY = 'rt_cliente_nombre'
 
 interface DishSocial {
-  likes_count:    number
-  dislikes_count: number
-  rating_avg:     number | null
-  rating_count:   number
-  es_popular:     boolean
+  likes_count:      number
+  dislikes_count:   number
+  rating_avg:       number | null
+  rating_count:     number
+  comentarios_count:number
+  es_popular:       boolean
 }
 
 interface Resena {
@@ -933,6 +934,11 @@ const DishCard = memo(({ dish, inCart, social, onCustomize, onOpenSocial, index 
       <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-wine)' }}>
         ❤️ {social?.likes_count ?? 0}
       </span>
+      {!!social?.comentarios_count && (
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-ink-mut)' }}>
+          💬 {social.comentarios_count}
+        </span>
+      )}
     </div>
 
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '0.375rem' }}>
@@ -1066,7 +1072,7 @@ export default function PublicMenu() {
     supabase.rpc('obtener_interacciones_platos', { p_restaurant_id: restaurantId }).then(({ data }) => {
       const map: Record<string, DishSocial> = {}
       for (const row of (data as (DishSocial & { dish_id: string })[] | null) ?? []) {
-        map[row.dish_id] = { likes_count: row.likes_count, dislikes_count: row.dislikes_count, rating_avg: row.rating_avg, rating_count: row.rating_count, es_popular: row.es_popular }
+        map[row.dish_id] = { likes_count: row.likes_count, dislikes_count: row.dislikes_count, rating_avg: row.rating_avg, rating_count: row.rating_count, comentarios_count: row.comentarios_count, es_popular: row.es_popular }
       }
       setSocialMap(map)
     })

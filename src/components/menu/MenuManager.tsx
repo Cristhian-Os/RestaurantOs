@@ -32,13 +32,14 @@ interface PendingResena {
   dishes:         { name: string } | null
 }
 interface InteraccionRow {
-  dish_id:        string
-  likes_count:    number
-  dislikes_count: number
-  rating_avg:     number | null
-  rating_count:   number
-  total_vendido:  number
-  es_popular:     boolean
+  dish_id:           string
+  likes_count:       number
+  dislikes_count:    number
+  rating_avg:        number | null
+  rating_count:      number
+  comentarios_count: number
+  total_vendido:     number
+  es_popular:        boolean
 }
 interface ReportedComment {
   id:              string
@@ -306,7 +307,7 @@ export const MenuManager = memo(() => {
         .eq('estado', 'visible').gt('reportado_count', 0).order('reportado_count', { ascending: false }),
     ])
     setPendingReviews((pendRes.data as unknown as PendingResena[] | null) ?? [])
-    setSocialOverview(((overviewRes.data as InteraccionRow[] | null) ?? []).filter(r => r.likes_count > 0 || r.dislikes_count > 0 || r.rating_count > 0))
+    setSocialOverview(((overviewRes.data as InteraccionRow[] | null) ?? []).filter(r => r.likes_count > 0 || r.dislikes_count > 0 || r.rating_count > 0 || r.comentarios_count > 0))
     setReportedComments((reportedRes.data as unknown as ReportedComment[] | null) ?? [])
     setLoadingReviews(false)
   }, [])
@@ -894,6 +895,7 @@ export const MenuManager = memo(() => {
                           <span style={{ color: txtMid }}>
                             ❤️ {row.likes_count}  ·  👎 {row.dislikes_count}
                             {row.rating_count > 0 && `  ·  ⭐ ${row.rating_avg} (${row.rating_count})`}
+                            {row.comentarios_count > 0 && `  ·  💬 ${row.comentarios_count}`}
                           </span>
                         </div>
                       )
