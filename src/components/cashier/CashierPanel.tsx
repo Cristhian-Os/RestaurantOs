@@ -34,6 +34,7 @@ interface Order {
   tipo_pedido:string
   notes:      string | null
   created_at: string
+  delivered_at: string | null
 }
 
 interface DaySummary {
@@ -352,6 +353,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
                       #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                    </p>
+                    <p className={`text-xs font-bold mt-0.5 ${order.delivered_at ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {order.delivered_at ? '✓ Entregado al mesero' : 'Esperando que el mesero lo recoja'}
                     </p>
                   </div>
                   <span className="text-2xl font-bold text-[#FF5722]">${order.total.toFixed(2)}</span>

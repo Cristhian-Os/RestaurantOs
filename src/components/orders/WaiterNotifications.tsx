@@ -39,7 +39,15 @@ export const WaiterNotifications = memo(() => {
       .from('orders')
       .select('id, table_num, customer_name, created_at')
       .eq('status', 'ready')
+      .is('delivered_at', null)
     if (data) setReady(data)
+  }, [])
+
+  // Marcar como entregada: persiste en la base (visible en Caja) y quita
+  // el aviso de todos los dispositivos, no solo de esta pantalla.
+  const markDelivered = useCallback(async (orderId: string) => {
+    setReady(prev => prev.filter(o => o.id !== orderId))
+    await supabase.from('orders').update({ delivered_at: new Date().toISOString() }).eq('id', orderId)
   }, [])
 
   useEffect(() => {
@@ -66,10 +74,10 @@ export const WaiterNotifications = memo(() => {
           (payload) => {
             const row = payload.new as {
               id: string; status: string; table_num: number | null
-              customer_name: string | null; created_at: string
+              customer_name: string | null; created_at: string; delivered_at: string | null
             }
 
-            if (row.status === 'ready') {
+            if (row.status === 'ready' && !row.delivered_at) {
               setReady(prev => {
                 if (prev.some(o => o.id === row.id)) return prev
                 beep()
@@ -80,7 +88,8 @@ export const WaiterNotifications = memo(() => {
                 }]
               })
             }
-            if (row.status === 'completed' || row.status === 'cancelled') {
+            // Entregada (por este u otro mesero) o cerrada: quitar el aviso de todos los dispositivos.
+            if (row.delivered_at || row.status === 'completed' || row.status === 'cancelled') {
               setReady(prev => prev.filter(o => o.id !== row.id))
             }
           }
@@ -142,12 +151,12 @@ export const WaiterNotifications = memo(() => {
               </div>
 
               <button
-                onClick={() => setReady(prev => prev.filter(o => o.id !== order.id))}
+                onClick={() => markDelivered(order.id)}
                 style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--text-muted)', fontSize: '1.125rem', padding: '0.25rem',
-                  flexShrink: 0, minHeight: 'auto', minWidth: 'auto',
-                }}>✕</button>
+                  background: 'var(--green)', border: 'none', cursor: 'pointer', color: '#fff',
+                  fontSize: '0.75rem', fontWeight: 700, padding: '0.5rem 0.75rem', borderRadius: '0.625rem',
+                  flexShrink: 0, whiteSpace: 'nowrap',
+                }}>Ya lo tengo</button>
             </div>
           </motion.div>
         ))}
