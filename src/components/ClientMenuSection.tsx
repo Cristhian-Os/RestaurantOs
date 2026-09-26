@@ -196,7 +196,7 @@ export const ClientMenuSection = memo(() => {
        
       </div>
       <h2 className="text-xl font-bold text-[#2D3561]">¡Pedido enviado!</h2>
-      <p className="text-sm text-[#9CA3AF] text-center">Tu orden ya está en cocina. En breve llega a tu mesa.</p>
+      <p className="text-sm text-[#9CA3AF] text-center">Para que pase a cocina, paga en caja (efectivo, transferencia o Nequi/Daviplata).</p>
       <button onClick={() => setSubmitted(false)}
         className="px-6 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={S.coral}>
         Pedir más

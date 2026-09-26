@@ -131,10 +131,13 @@ export const KitchenBoard = memo(() => {
   })
 
   const fetchOrders = useCallback(async () => {
+    // Ningún pedido llega a cocina sin estar pagado primero (Plan B) —
+    // el que aún no tiene paid_at está esperando cobro en Caja.
     const { data, error } = await supabase
       .from('orders')
       .select('id, table_num, tipo_pedido, items, notes, status, created_at')
       .in('status', ['pending','cooking','ready'])
+      .not('paid_at', 'is', null)
       .order('created_at', { ascending: true })
     if (!error) {
       const parsed = (data || []).map(parseOrder)

@@ -59,9 +59,11 @@ interface CashierPanelProps { profile: Profile }
 
 export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [readyOrders,  setReady]     = useState<Order[]>([])
+  const [pendingPayment, setPendingPayment] = useState<Order[]>([])
   const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0 })
   const [loading,      setLoading]   = useState(true)
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
+  const [payingKind,   setPayingKind]  = useState<'inicial' | 'final'>('final')
   const [payMethod,    setPayMethod] = useState<PaymentMethod>('efectivo')
   const [amountPaid,   setAmountPaid]= useState('')
   const [processing,   setProcessing]= useState(false)
@@ -78,7 +80,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   const fetchData = useCallback(async () => {
     const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
-    const [ordersRes, completedRes, gastosRes] = await Promise.all([
+    const parseItems = (o: any): Order => ({
+      ...o,
+      items: (() => { try { const p = typeof o.items === 'string' ? JSON.parse(o.items) : o.items; return Array.isArray(p) ? p : [] } catch { return [] } })()
+    })
+    const [pendingRes, ordersRes, completedRes, gastosRes] = await Promise.all([
+      // Plan B: pedidos recién creados (mesero o QR) esperando cobro ANTES de pasar a cocina.
+      supabase.from('orders').select('*').eq('status', 'pending').is('paid_at', null).order('created_at', { ascending: true }),
       supabase.from('orders').select('*').eq('status', 'ready').order('created_at', { ascending: true }),
       supabase.from('orders').select('total, payment_method')
         .eq('status', 'completed')
@@ -87,11 +95,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         .gte('created_at', inicioDia).order('created_at', { ascending: false }),
     ])
 
+    if (!pendingRes.error) setPendingPayment((pendingRes.data || []).map(parseItems))
+
     if (!ordersRes.error) {
-      setReady((ordersRes.data || []).map(o => ({
-        ...o,
-        items: (() => { try { const p = typeof o.items === 'string' ? JSON.parse(o.items) : o.items; return Array.isArray(p) ? p : [] } catch { return [] } })()
-      })))
+      setReady((ordersRes.data || []).map(parseItems))
     }
 
     if (!completedRes.error) {
@@ -147,9 +154,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     return () => { cancelled = true; if (channel) supabase.removeChannel(channel) }
   }, [fetchData])
 
-  // Abrir modal de cobro
-  const openPay = useCallback((order: Order) => {
+  // Abrir modal de cobro. kind='inicial' -> cobrar_orden_inicial (Plan B, antes
+  // de cocina, no toca status). kind='final' -> cobrar_orden (flujo de siempre).
+  const openPay = useCallback((order: Order, kind: 'inicial' | 'final' = 'final') => {
     setPayingOrder(order)
+    setPayingKind(kind)
     setPayMethod('efectivo')
     setAmountPaid(order.total.toFixed(2))
   }, [])
@@ -171,16 +180,19 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     }
     setProcessing(true)
     try {
-      const { data, error } = await supabase.rpc('cobrar_orden', {
-        p_order_id:       payingOrder.id,
-        p_payment_method: payMethod,
-        p_amount_paid:    payMethod === 'efectivo' ? parseFloat(amountPaid) : payingOrder.total,
-      })
+      const { data, error } = await supabase.rpc(
+        payingKind === 'inicial' ? 'cobrar_orden_inicial' : 'cobrar_orden',
+        {
+          p_order_id:       payingOrder.id,
+          p_payment_method: payMethod,
+          p_amount_paid:    payMethod === 'efectivo' ? parseFloat(amountPaid) : payingOrder.total,
+        }
+      )
       if (error) throw error
       message.success(
         payMethod === 'efectivo' && data.change > 0
           ? `Cobrado · Cambio: $${data.change.toFixed(2)}`
-          : 'Cobrado exitosamente'
+          : payingKind === 'inicial' ? 'Cobrado · enviado a cocina' : 'Cobrado exitosamente'
       )
       setPayingOrder(null)
       fetchData()
@@ -189,7 +201,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } finally {
       setProcessing(false)
     }
-  }, [payingOrder, payMethod, amountPaid, fetchData])
+  }, [payingOrder, payingKind, payMethod, amountPaid, fetchData])
 
   // Corte de caja
   const handleCorte = useCallback(async () => {
@@ -338,6 +350,56 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           </div>
         )}
       </div>
+
+      {/* Pedidos esperando cobro ANTES de pasar a cocina (Plan B) */}
+      {pendingPayment.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-amber-600" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+              Pedidos por cobrar antes de cocina
+              <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({pendingPayment.length})</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {pendingPayment.map(order => (
+              <motion.div
+                key={order.id}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-[#D8DAE4] rounded-3xl p-5 border-2 border-amber-400" style={S.neoOut}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="font-bold text-[#2D3561] text-lg">
+                      {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+                    </p>
+                    <p className="text-xs text-[#9CA3AF]">
+                      #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                    </p>
+                    {order.notes && <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>}
+                  </div>
+                  <span className="text-2xl font-bold text-[#FF5722]">${order.total.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col gap-1 mb-4">
+                  {order.items.slice(0, 4).map((item, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
+                      <span className="text-[#9CA3AF]">${(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => openPay(order, 'inicial')}
+                  className="w-full py-3 rounded-2xl font-bold text-white text-sm"
+                  style={{ backgroundColor: '#D97706' }}
+                >
+                  Cobrar y enviar a cocina · ${order.total.toFixed(2)}
+                </motion.button>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Órdenes listas */}
       <div>

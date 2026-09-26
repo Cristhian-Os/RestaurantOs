@@ -412,9 +412,10 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           p_table_num:   selectedMesa?.numero ?? null,
         })
         if (error) throw error
-        message.success(`Orden enviada a cocina — Total: $${cartTotal.toFixed(2)}`)
+        // Plan B: el pedido no pasa a cocina hasta que Caja lo cobre.
+        message.success(`Pedido enviado a caja para cobro — Total: $${cartTotal.toFixed(2)}`)
         const dest = selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : 'Mostrador'
-        pushNotificationService.notify(['kitchen', 'admin'], 'Nuevo pedido', `${dest} — ${items.length} ítem(s)`, '/')
+        pushNotificationService.notify(['cashier', 'admin'], 'Pedido por cobrar', `${dest} — ${items.length} ítem(s) · $${cartTotal.toFixed(2)}`, '/')
         onOrderCreated?.(data.order_id, data.total)
       } else {
         const { data: { user: offlineUser } } = await supabase.auth.getUser()

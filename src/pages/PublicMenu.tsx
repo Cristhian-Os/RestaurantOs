@@ -562,6 +562,7 @@ export default function PublicMenu() {
   const [showCustom,    setShowCustom]    = useState(false)
   const [orderId,       setOrderId]       = useState<string | null>(null)
   const [orderStatus,   setOrderStatus]   = useState<string | null>(null)
+  const [isPaid,        setIsPaid]        = useState(false)
   const [showTracking,  setShowTracking]  = useState(false)
   const [onlinePay,     setOnlinePay]     = useState(false)   // ¿el restaurante acepta pagos en línea?
   const [payingOnline,  setPayingOnline]  = useState(false)
@@ -672,8 +673,12 @@ export default function PublicMenu() {
     if (!orderId || orderStatus === 'completed' || orderStatus === 'cancelled') return
     let cancelled = false
     const interval = setInterval(() => {
-      supabase.from('pedido_estado_publico').select('status').eq('id', orderId).maybeSingle()
-        .then(({ data }) => { if (!cancelled && data?.status) setOrderStatus(data.status) })
+      supabase.from('pedido_estado_publico').select('status, pagado').eq('id', orderId).maybeSingle()
+        .then(({ data }) => {
+          if (cancelled || !data) return
+          if (data.status) setOrderStatus(data.status)
+          setIsPaid(!!data.pagado)
+        })
     }, 5000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [orderId, orderStatus])
@@ -744,6 +749,7 @@ export default function PublicMenu() {
 
       setOrderId(newOrderId)
       setOrderStatus('pending')
+      setIsPaid(false)
       setShowTracking(true)
       setSent(true)
       setCart([])
@@ -891,9 +897,14 @@ export default function PublicMenu() {
                   )
                 })}
               </div>
-              <div style={{ background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.875rem 1rem', border: '1px solid var(--w-line)' }}>
-                <p style={{ fontWeight: 500, color: 'var(--w-ink)', margin: 0, fontSize: '0.875rem' }}>
-                  {orderStatus === 'pending'   && 'Tu pedido fue recibido. Pronto comenzamos a prepararlo.'}
+              <div style={{
+                background: orderStatus === 'pending' && !isPaid ? 'color-mix(in oklch, var(--w-saffron) 15%, var(--w-bg))' : 'var(--w-bg)',
+                borderRadius: '0.875rem', padding: '0.875rem 1rem',
+                border: orderStatus === 'pending' && !isPaid ? '1px solid var(--w-saffron)' : '1px solid var(--w-line)',
+              }}>
+                <p style={{ fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontSize: '0.875rem' }}>
+                  {orderStatus === 'pending' && !isPaid && 'Para que tu pedido pase a cocina, ve a caja y paga (efectivo, transferencia o Nequi/Daviplata).'}
+                  {orderStatus === 'pending' && isPaid  && 'Tu pedido fue recibido. Pronto comenzamos a prepararlo.'}
                   {orderStatus === 'cooking'   && 'Estamos preparando tu pedido. Ya casi está.'}
                   {orderStatus === 'ready'     && 'Tu pedido está listo. El mesero te lo llevará enseguida.'}
                   {orderStatus === 'completed' && 'Buen provecho. Esperamos que lo disfrutes.'}
@@ -934,8 +945,8 @@ export default function PublicMenu() {
             <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               style={{ background: 'color-mix(in oklch, var(--w-olive) 14%, var(--w-surface))', border: '1px solid var(--w-olive)', borderRadius: '1rem', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
               <div style={{ flex: 1 }}>
-                <p style={{ fontFamily: 'var(--w-display)', fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontSize: '1.0625rem' }}>Pedido enviado a cocina</p>
-                <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-ink-mut)' }}>En breve lo estaremos preparando.</p>
+                <p style={{ fontFamily: 'var(--w-display)', fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontSize: '1.0625rem' }}>Pedido enviado</p>
+                <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-ink-mut)' }}>Revisa el estado de tu pedido abajo.</p>
               </div>
               <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1.125rem' }}>✕</button>
             </motion.div>
