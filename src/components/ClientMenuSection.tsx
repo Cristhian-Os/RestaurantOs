@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }        from '../services/supabaseClient'
 import { DishCard }        from './DishCard'
 import { CustomDishBuilder } from './CustomDishBuilder'
+import { CategoryIcon }    from './CategoryIcon'
 import message from 'antd/es/message'
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from './ScrollReveal'
 import type { Dish, DishCategory } from '../types'
@@ -44,6 +45,7 @@ export const ClientMenuSection = memo(() => {
   const [submitting,        setSubmitting]   = useState(false)
   const [submitted,         setSubmitted]    = useState(false)
   const [showCustomBuilder, setShowCustom]   = useState(false)
+  const [catMeta, setCatMeta] = useState<Record<string, { label: string; emoji: string }>>({})
 
   // Cargar menú real desde Supabase
   useEffect(() => {
@@ -55,6 +57,25 @@ export const ClientMenuSection = memo(() => {
       .order('sort_order').order('name')
       .then(({ data }) => { setDishes(data || []); setLoading(false) })
   }, [])
+
+  // Cargar categorías personalizadas del negocio (evita etiquetas en blanco / crash)
+  useEffect(() => {
+    supabase.from('restaurant_config').select('modules_enabled').single()
+      .then(({ data }) => {
+        const mods = data?.modules_enabled as { categories?: { value: string; label: string; emoji?: string }[] } | null
+        const cats = mods?.categories
+        if (Array.isArray(cats)) {
+          const map: Record<string, { label: string; emoji: string }> = {}
+          for (const c of cats) if (c?.value) map[c.value] = { label: c.label, emoji: c.emoji || '' }
+          setCatMeta(map)
+        }
+      })
+  }, [])
+
+  const catLabel = useCallback((c: string) => catMeta[c]?.label ?? CATEGORY_LABELS[c] ?? c, [catMeta])
+  // Emoji custom elegido por el negocio (MenuManager) si existe; si no, ícono de línea por defecto.
+  const catIcon = useCallback((c: string) =>
+    catMeta[c]?.emoji || <CategoryIcon category={c} size={40} />, [catMeta])
 
   const filteredDishes = useMemo(() => {
     let list = dishes
@@ -266,7 +287,7 @@ export const ClientMenuSection = memo(() => {
               style={activeCategory === cat
                 ? { background: 'var(--accent)', color: 'white', ...S.coral }
                 : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
-              {CATEGORY_LABELS[cat]}
+              {catLabel(cat)}
             </button>
           ))}
         </div>
@@ -288,7 +309,8 @@ export const ClientMenuSection = memo(() => {
         <ScrollRevealList stagger={0.06} className="grid grid-cols-2 gap-4">
           {filteredDishes.map(dish => (
             <ScrollRevealItem key={dish.id}>
-              <DishCard dish={dish} onAdd={handleAdd} quantity={getQuantity(dish.id)} />
+              <DishCard dish={dish} onAdd={handleAdd} quantity={getQuantity(dish.id)}
+                categoryLabel={catLabel(dish.category)} categoryIcon={catIcon(dish.category)} />
             </ScrollRevealItem>
           ))}
         </ScrollRevealList>

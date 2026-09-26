@@ -9,9 +9,10 @@
  *  • Imágenes con lazy loading nativo
  */
 
-import { memo, useState, useCallback } from 'react'
+import { memo, useState, useCallback, type ReactNode } from 'react'
 import { motion, AnimatePresence, type Transition } from 'framer-motion'
 import type { Dish } from '../types'
+import { CategoryIcon } from './CategoryIcon'
 
 // ─── Constantes de estilo (fuera del componente para evitar recreación) ─
 const S = {
@@ -23,11 +24,11 @@ const S = {
 
 // ─── Configuración visual por categoría ──────────────────────
 const CATEGORY_CONFIG = {
-  entrada:   { emoji: '', label: 'Entrada',   color: 'bg-emerald-100 text-emerald-700' },
-  principal: { emoji: '', label: 'Principal', color: 'bg-blue-100 text-blue-700'     },
-  postre:    { emoji: '', label: 'Postre',    color: 'bg-pink-100 text-pink-700'      },
-  bebida:    { emoji: '', label: 'Bebida',    color: 'bg-cyan-100 text-cyan-700'      },
-  especial:  { emoji: '', label: 'Especial',  color: 'bg-amber-100 text-amber-700'    },
+  entrada:   { label: 'Entrada',   color: 'bg-emerald-100 text-emerald-700' },
+  principal: { label: 'Principal', color: 'bg-blue-100 text-blue-700'     },
+  postre:    { label: 'Postre',    color: 'bg-pink-100 text-pink-700'      },
+  bebida:    { label: 'Bebida',    color: 'bg-cyan-100 text-cyan-700'      },
+  especial:  { label: 'Especial',  color: 'bg-amber-100 text-amber-700'    },
 } as const
 
 // ─── Transiciones tipadas para FM v12 ────────────────────────
@@ -41,12 +42,18 @@ interface DishCardProps {
   onAdd:     (dish: Dish) => void
   /** Número de unidades en el carrito (muestra badge si > 0). */
   quantity?: number
+  /** Etiqueta/ícono de categoría ya resueltos (categorías personalizadas del negocio). */
+  categoryLabel?: string
+  categoryIcon?: ReactNode
 }
 
 // ─── Componente ───────────────────────────────────────────────
-export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0 }) => {
+export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, categoryLabel, categoryIcon }) => {
   const [justAdded, setJustAdded] = useState(false)
-  const cat = CATEGORY_CONFIG[dish.category]
+  const cat = CATEGORY_CONFIG[dish.category as keyof typeof CATEGORY_CONFIG]
+  const icon = categoryIcon ?? <CategoryIcon category={dish.category} size={40} />
+  const label = categoryLabel ?? cat?.label ?? dish.category
+  const color = cat?.color ?? 'bg-gray-100 text-gray-600'
 
   const handleAdd = useCallback(() => {
     if (!dish.available) return
@@ -91,11 +98,11 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0 }) => {
         </div>
       ) : (
         <div
-          className="w-full h-28 rounded-2xl flex items-center justify-center text-5xl"
+          className="w-full h-28 rounded-2xl flex items-center justify-center text-[#9CA3AF]"
           style={S.neoIn}
           aria-hidden="true"
         >
-          {cat.emoji}
+          {icon}
         </div>
       )}
 
@@ -108,8 +115,8 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0 }) => {
           >
             {dish.name}
           </h3>
-          <span className={`${cat.color} text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0`}>
-            {cat.label}
+          <span className={`${color} text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0`}>
+            {label}
           </span>
         </div>
 
