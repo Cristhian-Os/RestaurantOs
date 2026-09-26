@@ -40,6 +40,14 @@ interface InteraccionRow {
   total_vendido:  number
   es_popular:     boolean
 }
+interface ReportedComment {
+  id:              string
+  cliente_nombre:  string
+  texto:           string
+  reportado_count: number
+  created_at:      string
+  dishes:          { name: string } | null
+}
 
 const DEFAULT_CATEGORIES: Category[] = [
   { value: 'entrada',   label: 'Entrada',   emoji: '🥗' },
@@ -256,6 +264,7 @@ export const MenuManager = memo(() => {
   const [pendingReviews,  setPendingReviews]  = useState<PendingResena[]>([])
   const [socialOverview,  setSocialOverview]  = useState<InteraccionRow[]>([])
   const [moderatingId,    setModeratingId]    = useState<string | null>(null)
+  const [reportedComments,setReportedComments]= useState<ReportedComment[]>([])
 
   const fetchDishes = useCallback(async () => {
     const { data } = await supabase.from('dishes').select('*').order('category').order('sort_order').order('name')
@@ -285,16 +294,20 @@ export const MenuManager = memo(() => {
   const fetchReviews = useCallback(async () => {
     setLoadingReviews(true)
     const { data: restaurantId } = await supabase.rpc('current_restaurant_id')
-    const [pendRes, overviewRes] = await Promise.all([
+    const [pendRes, overviewRes, reportedRes] = await Promise.all([
       supabase.from('resenas_platos')
         .select('id, cliente_nombre, rating, comentario, created_at, dishes(name)')
         .eq('estado', 'pendiente').order('created_at'),
       restaurantId
         ? supabase.rpc('obtener_interacciones_platos', { p_restaurant_id: restaurantId })
         : Promise.resolve({ data: null }),
+      supabase.from('comentarios_platos')
+        .select('id, cliente_nombre, texto, reportado_count, created_at, dishes(name)')
+        .eq('estado', 'visible').gt('reportado_count', 0).order('reportado_count', { ascending: false }),
     ])
     setPendingReviews((pendRes.data as unknown as PendingResena[] | null) ?? [])
     setSocialOverview(((overviewRes.data as InteraccionRow[] | null) ?? []).filter(r => r.likes_count > 0 || r.dislikes_count > 0 || r.rating_count > 0))
+    setReportedComments((reportedRes.data as unknown as ReportedComment[] | null) ?? [])
     setLoadingReviews(false)
   }, [])
 
@@ -308,6 +321,16 @@ export const MenuManager = memo(() => {
     if (error) { message.error(error.message); return }
     setPendingReviews(prev => prev.filter(r => r.id !== id))
     if (estado === 'aprobada') fetchReviews()
+  }
+
+  const moderarComentario = async (id: string, accion: 'ocultar' | 'ignorar') => {
+    setModeratingId(id)
+    const { error } = await supabase.from('comentarios_platos')
+      .update(accion === 'ocultar' ? { estado: 'oculto' } : { reportado_count: 0 })
+      .eq('id', id)
+    setModeratingId(null)
+    if (error) { message.error(error.message); return }
+    setReportedComments(prev => prev.filter(c => c.id !== id))
   }
 
   const openCreate = () => { setEditing(null); setForm(FORM_EMPTY); setFormError(null); setShowForm(true) }
@@ -578,7 +601,7 @@ export const MenuManager = memo(() => {
           <button onClick={() => setShowReviews(!showReviews)}
             className="flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-2xl"
             style={{ backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
-            💬 Reseñas{pendingReviews.length > 0 ? ` (${pendingReviews.length})` : ''}
+            💬 Reseñas{(pendingReviews.length + reportedComments.length) > 0 ? ` (${pendingReviews.length + reportedComments.length})` : ''}
           </button>
           <button onClick={() => setShowSettings(!showSettings)}
             className="flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-2xl"
@@ -817,6 +840,38 @@ export const MenuManager = memo(() => {
                           <button disabled={moderatingId === r.id} onClick={() => moderarResena(r.id, 'rechazada')}
                             className="text-xs font-bold px-3 py-1.5 rounded-xl text-white" style={{ backgroundColor: '#EF4444' }}>
                             ✕ Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                  Comentarios reportados {reportedComments.length > 0 && `(${reportedComments.length})`}
+                </p>
+                {reportedComments.length === 0 ? (
+                  <p className="text-sm" style={{ color: txtLt }}>Nadie ha reportado comentarios.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {reportedComments.map(c => (
+                      <div key={c.id} className="rounded-2xl p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-sm font-bold" style={{ color: txt }}>{c.dishes?.name ?? 'Plato'}</span>
+                          <span className="text-xs font-bold" style={{ color: '#EF4444' }}>🚩 {c.reportado_count}</span>
+                        </div>
+                        <p className="text-xs mb-1" style={{ color: txtMid }}>— {c.cliente_nombre}</p>
+                        <p className="text-sm mb-2" style={{ color: txt }}>{c.texto}</p>
+                        <div className="flex gap-2">
+                          <button disabled={moderatingId === c.id} onClick={() => moderarComentario(c.id, 'ocultar')}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl text-white" style={{ backgroundColor: '#EF4444' }}>
+                            Ocultar
+                          </button>
+                          <button disabled={moderatingId === c.id} onClick={() => moderarComentario(c.id, 'ignorar')}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl" style={{ backgroundColor: bg, color: txtMid }}>
+                            Ignorar reporte
                           </button>
                         </div>
                       </div>

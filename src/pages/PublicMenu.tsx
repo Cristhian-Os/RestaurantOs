@@ -71,6 +71,47 @@ interface Resena {
   created_at:     string
 }
 
+// Comentarios/respuestas: moderación reactiva (se publican al instante, el
+// admin oculta después si hace falta) — a diferencia de las reseñas, que
+// quedan pendientes de aprobación. Un solo nivel de anidación (como
+// Instagram/YouTube). Editar/borrar el propio comentario se protege con un
+// token guardado en este navegador (no hay cuentas, el nombre no basta).
+const COMMENT_TOKENS_KEY = 'rt_comment_tokens'
+const COMMENT_REPORTED_KEY = 'rt_comment_reported'
+
+function getCommentTokens(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(COMMENT_TOKENS_KEY) ?? '{}') } catch { return {} }
+}
+function saveCommentToken(id: string, token: string) {
+  try {
+    const map = getCommentTokens()
+    map[id] = token
+    localStorage.setItem(COMMENT_TOKENS_KEY, JSON.stringify(map))
+  } catch { /* localStorage no disponible */ }
+}
+function getReportedSet(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(COMMENT_REPORTED_KEY) ?? '[]')) } catch { return new Set() }
+}
+function markReported(id: string) {
+  try {
+    const set = getReportedSet()
+    set.add(id)
+    localStorage.setItem(COMMENT_REPORTED_KEY, JSON.stringify([...set]))
+  } catch { /* localStorage no disponible */ }
+}
+
+interface Comentario {
+  id:             string
+  parent_id:      string | null
+  cliente_nombre: string
+  texto:          string
+  estado:         'visible' | 'eliminado'
+  created_at:     string
+  updated_at:     string
+  likes_count:    number
+  ya_me_gusta:    boolean
+}
+
 // ── Skeleton card (warm) ──────────────────────────────────────────
 const SkeletonCard = memo(() => (
   <div style={{ background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '0.75rem', boxShadow: 'var(--w-shadow-sm)' }}>
@@ -529,6 +570,157 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
   const [error,       setError]       = useState<string | null>(null)
   const [sentOk,      setSentOk]      = useState(false)
 
+  const [comentarios,   setComentarios]   = useState<Comentario[]>([])
+  const [nuevoTexto,    setNuevoTexto]    = useState('')
+  const [enviandoCom,   setEnviandoCom]   = useState(false)
+  const [comentarioErr, setComentarioErr] = useState<string | null>(null)
+  const [replyingTo,    setReplyingTo]    = useState<string | null>(null)
+  const [replyTexto,    setReplyTexto]    = useState('')
+  const [editingId,     setEditingId]     = useState<string | null>(null)
+  const [editTexto,     setEditTexto]     = useState('')
+  const [myTokens,      setMyTokens]      = useState<Record<string, string>>({})
+  const [reportedIds,   setReportedIds]   = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setMyTokens(getCommentTokens())
+    setReportedIds(getReportedSet())
+  }, [])
+
+  const fetchComentarios = useCallback(() => {
+    supabase.rpc('obtener_comentarios_plato', { p_dish_id: dish.id, p_cliente_nombre: nombre.trim() || null })
+      .then(({ data }) => setComentarios((data as Comentario[] | null) ?? []))
+  }, [dish.id, nombre])
+
+  useEffect(() => {
+    fetchComentarios()
+    // Poll ligero mientras el panel está abierto, para que se sientan los
+    // comentarios de otros comensales sin tener que cerrar y reabrir.
+    const interval = setInterval(fetchComentarios, 10000)
+    return () => clearInterval(interval)
+  }, [fetchComentarios])
+
+  const postComentario = async (texto: string, parentId: string | null) => {
+    if (!nombre.trim()) { setComentarioErr('Escribe el nombre con el que hiciste tu pedido'); return }
+    if (!texto.trim()) return
+    setEnviandoCom(true)
+    setComentarioErr(null)
+    const { data, error: err } = await supabase.rpc('crear_comentario_plato', {
+      p_dish_id: dish.id, p_cliente_nombre: nombre.trim(), p_texto: texto.trim(), p_parent_id: parentId,
+    })
+    setEnviandoCom(false)
+    if (err) { setComentarioErr(err.message); return }
+    const row = (data as { comment_id: string; comment_token: string }[] | null)?.[0]
+    if (row) saveCommentToken(row.comment_id, row.comment_token)
+    setMyTokens(getCommentTokens())
+    setNuevoTexto('')
+    setReplyTexto('')
+    setReplyingTo(null)
+    fetchComentarios()
+  }
+
+  const guardarEdicion = async (id: string) => {
+    const token = myTokens[id]
+    if (!token || !editTexto.trim()) return
+    const { error: err } = await supabase.rpc('editar_comentario_plato', { p_comment_id: id, p_edit_token: token, p_texto: editTexto.trim() })
+    if (err) { setComentarioErr(err.message); return }
+    setEditingId(null)
+    fetchComentarios()
+  }
+
+  const eliminarComentario = async (id: string) => {
+    const token = myTokens[id]
+    if (!token) return
+    const { error: err } = await supabase.rpc('borrar_comentario_plato', { p_comment_id: id, p_edit_token: token })
+    if (err) { setComentarioErr(err.message); return }
+    fetchComentarios()
+  }
+
+  const likeComentario = async (id: string) => {
+    if (!nombre.trim()) { setComentarioErr('Escribe el nombre con el que hiciste tu pedido'); return }
+    const { error: err } = await supabase.rpc('reaccionar_comentario_plato', { p_comment_id: id, p_cliente_nombre: nombre.trim() })
+    if (err) { setComentarioErr(err.message); return }
+    fetchComentarios()
+  }
+
+  const reportarComentario = async (id: string) => {
+    if (reportedIds.has(id)) return
+    await supabase.rpc('reportar_comentario_plato', { p_comment_id: id })
+    markReported(id)
+    setReportedIds(getReportedSet())
+  }
+
+  const timeAgo = (iso: string) => {
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+    if (mins < 1) return 'ahora'
+    if (mins < 60) return `${mins} min`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs} h`
+    return `${Math.floor(hrs / 24)} d`
+  }
+
+  const renderComentario = (c: Comentario, isReply: boolean) => {
+    const borrado = c.estado === 'eliminado'
+    const esMio = !!myTokens[c.id]
+    return (
+      <div key={c.id} style={{ marginLeft: isReply ? '1.5rem' : 0 }}>
+        <div className="glass-surface" style={{ borderRadius: '0.875rem', padding: '0.625rem 0.75rem' }}>
+          {editingId === c.id ? (
+            <div>
+              <textarea value={editTexto} onChange={e => setEditTexto(e.target.value)} rows={2} maxLength={500}
+                style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.625rem', padding: '0.5rem', border: '1px solid var(--w-line)', outline: 'none', resize: 'none', fontSize: '0.8125rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', marginBottom: '0.375rem' }} />
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => guardarEdicion(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-olive)', background: 'none', border: 'none', cursor: 'pointer' }}>Guardar</button>
+                <button onClick={() => setEditingId(null)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.1875rem' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--w-ink)' }}>{borrado ? '—' : c.cliente_nombre}</span>
+                <span style={{ fontSize: '0.625rem', color: 'var(--w-ink-mut)' }}>{timeAgo(c.created_at)}</span>
+              </div>
+              <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 0.375rem', fontStyle: borrado ? 'italic' : 'normal', color: borrado ? 'var(--w-ink-mut)' : undefined }}>
+                {borrado ? 'Comentario eliminado' : c.texto}
+              </p>
+              {!borrado && (
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <button onClick={() => likeComentario(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: c.ya_me_gusta ? 'var(--w-wine)' : 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    {c.ya_me_gusta ? '❤️' : '🤍'} {c.likes_count > 0 ? c.likes_count : ''}
+                  </button>
+                  {!isReply && (
+                    <button onClick={() => { setReplyingTo(replyingTo === c.id ? null : c.id); setReplyTexto('') }} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      Responder
+                    </button>
+                  )}
+                  {esMio && (
+                    <>
+                      <button onClick={() => { setEditingId(c.id); setEditTexto(c.texto) }} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Editar</button>
+                      <button onClick={() => eliminarComentario(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-wine)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Eliminar</button>
+                    </>
+                  )}
+                  <button onClick={() => reportarComentario(c.id)} disabled={reportedIds.has(c.id)}
+                    style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', opacity: reportedIds.has(c.id) ? 0.4 : 1, background: 'none', border: 'none', cursor: reportedIds.has(c.id) ? 'default' : 'pointer', padding: 0, marginLeft: 'auto' }}>
+                    {reportedIds.has(c.id) ? 'Reportado' : '⚑'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {replyingTo === c.id && (
+          <div style={{ marginLeft: '1.5rem', marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+            <input type="text" value={replyTexto} onChange={e => setReplyTexto(e.target.value)} placeholder="Responder..." maxLength={500}
+              style={{ flex: 1, background: 'var(--w-bg)', borderRadius: '0.625rem', padding: '0.5rem 0.75rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.8125rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
+            <button className="w-press" disabled={enviandoCom} onClick={() => postComentario(replyTexto, c.id)}
+              style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff', background: 'var(--w-terra)', border: 'none', borderRadius: '0.625rem', padding: '0 0.875rem' }}>
+              Enviar
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   useEffect(() => {
     supabase.rpc('obtener_resenas_aprobadas', { p_dish_id: dish.id }).then(({ data }) => {
       setResenas((data as Resena[] | null) ?? [])
@@ -660,6 +852,35 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
                     <span style={{ fontSize: '0.75rem' }}>{'⭐'.repeat(r.rating)}</span>
                   </div>
                   {r.comentario && <p className="ed-body" style={{ fontSize: '0.8125rem', margin: 0 }}>{r.comentario}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--w-line)' }}>
+          <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>
+            Comentarios ({comentarios.filter(c => c.estado === 'visible').length})
+          </p>
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            <input type="text" value={nuevoTexto} onChange={e => setNuevoTexto(e.target.value)} placeholder="Escribe un comentario..." maxLength={500}
+              style={{ flex: 1, background: 'var(--w-bg)', borderRadius: '0.75rem', padding: '0.625rem 0.875rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.8125rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
+            <button className="lg-accent w-press" disabled={enviandoCom} onClick={() => postComentario(nuevoTexto, null)}
+              style={{ fontSize: '0.75rem', fontWeight: 700, border: 'none', borderRadius: '0.75rem', padding: '0 1rem' }}>
+              Enviar
+            </button>
+          </div>
+          {comentarioErr && <p style={{ fontSize: '0.75rem', color: 'var(--w-wine)', margin: '-0.5rem 0 0.75rem', fontWeight: 600 }}>{comentarioErr}</p>}
+
+          {comentarios.filter(c => !c.parent_id).length === 0 ? (
+            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Sé el primero en comentar este plato.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {comentarios.filter(c => !c.parent_id).map(top => (
+                <div key={top.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {renderComentario(top, false)}
+                  {comentarios.filter(r => r.parent_id === top.id).map(reply => renderComentario(reply, true))}
                 </div>
               ))}
             </div>
