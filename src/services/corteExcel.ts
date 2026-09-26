@@ -34,6 +34,7 @@ export interface CorteTotales {
   total_ordenes:       number
   total_gastos?:       number
   total_neto?:         number
+  total_propinas?:     number
   fecha?:              string
 }
 
@@ -69,6 +70,9 @@ export async function descargarCorteExcel(opts: {
   rows.push(['Transferencia',  '', '', '', n(totales.total_transferencia)])
   rows.push(['Ganancias (ventas)', '', '', '', n(totales.total_general)])
   rows.push(['Órdenes',        '', n(totales.total_ordenes), '', ''])
+  if (n(totales.total_propinas) > 0) {
+    rows.push(['Propinas (NO es venta, se reparte al equipo)', '', '', '', n(totales.total_propinas)])
+  }
 
   if (denominaciones.length > 0) {
     const totalContado = denominaciones.reduce((s, d) => s + n(d.subtotal), 0)

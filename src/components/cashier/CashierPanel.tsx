@@ -38,12 +38,14 @@ interface Order {
   paid_at:        string | null
   payment_method: string | null
   amount_paid:    number | null
+  propina:        number | null
 }
 
 interface DaySummary {
   total_efectivo:     number
   total_transferencia:number
   total_ordenes:      number
+  total_propinas:     number
 }
 
 interface Gasto {
@@ -75,7 +77,7 @@ interface CashierPanelProps { profile: Profile }
 export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [readyOrders,  setReady]     = useState<Order[]>([])
   const [pendingPayment, setPendingPayment] = useState<Order[]>([])
-  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0 })
+  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0, total_propinas: 0 })
   const [loading,      setLoading]   = useState(true)
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
   const [payingKind,   setPayingKind]  = useState<'inicial' | 'final'>('final')
@@ -95,6 +97,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [ingredientesOpts, setIngredientesOpts] = useState<IngredienteOpt[]>([])
   const [provItems,     setProvItems]    = useState<ProvItem[]>([{ ...PROV_ITEM_EMPTY }])
   const [conteo,        setConteo]       = useState<Record<number, string>>({})
+  const [propinaSugeridaPct, setPropinaSugeridaPct] = useState<number | null>(null)
+  const [propinaInput,  setPropinaInput] = useState('')
+  const [propinaRespuesta, setPropinaRespuesta] = useState<'si' | 'no' | null>(null)
 
   const fetchData = useCallback(async () => {
     const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
@@ -106,7 +111,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       // Plan B: pedidos recién creados (mesero o QR) esperando cobro ANTES de pasar a cocina.
       supabase.from('orders').select('*').eq('status', 'pending').is('paid_at', null).order('created_at', { ascending: true }),
       supabase.from('orders').select('*').eq('status', 'ready').order('created_at', { ascending: true }),
-      supabase.from('orders').select('total, payment_method')
+      supabase.from('orders').select('total, payment_method, propina')
         .eq('status', 'completed')
         .gte('created_at', inicioDia),
       supabase.from('gastos').select('id, concepto, monto, created_at')
@@ -125,6 +130,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         total_efectivo:      orders.filter(o => o.payment_method === 'efectivo').reduce((s,o) => s + o.total, 0),
         total_transferencia: orders.filter(o => o.payment_method === 'transferencia').reduce((s,o) => s + o.total, 0),
         total_ordenes:       orders.length,
+        total_propinas:      orders.reduce((s,o) => s + Number(o.propina || 0), 0),
       })
     }
 
@@ -155,6 +161,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   useEffect(() => {
     supabase.from('ingredientes').select('id, nombre, unidad_medida').order('nombre')
       .then(({ data }) => setIngredientesOpts(data ?? []))
+  }, [])
+
+  // % de propina sugerida configurado en Marca, para prellenar el campo de propina
+  useEffect(() => {
+    supabase.from('restaurant_config').select('propina_sugerida_pct').maybeSingle()
+      .then(({ data }) => setPropinaSugeridaPct(data?.propina_sugerida_pct ?? null))
   }, [])
 
   const updateProvItem = useCallback((idx: number, patch: Partial<ProvItem>) => {
@@ -213,15 +225,23 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     setPayingKind(kind)
     setPayMethod('efectivo')
     setAmountPaid(order.total.toFixed(2))
+    setPropinaInput('')
+    setPropinaRespuesta(null)
   }, [])
 
   // Calcular cambio
-  const cambio = payingOrder && payMethod === 'efectivo' && parseFloat(amountPaid) >= payingOrder.total
-    ? parseFloat(amountPaid) - payingOrder.total
+  // "Monto recibido" es TODO el efectivo físico que entrega el cliente (venta +
+  // propina juntos) — el cambio y la validación de pago suficiente deben
+  // descontar la propina también, si no, la propina se cuenta como vuelto.
+  const propinaNum = parseFloat(propinaInput) || 0
+  const totalConPropina = payingOrder ? payingOrder.total + propinaNum : 0
+
+  const cambio = payingOrder && payMethod === 'efectivo' && parseFloat(amountPaid) >= totalConPropina
+    ? parseFloat(amountPaid) - totalConPropina
     : 0
 
   const pagoInsuficiente = payingOrder && payMethod === 'efectivo'
-    && amountPaid !== '' && parseFloat(amountPaid) < payingOrder.total
+    && amountPaid !== '' && parseFloat(amountPaid) < totalConPropina
 
   // Orden ya pagada antes de cocina (Plan B) y ahora lista: solo se completa,
   // sin volver a pedir el pago.
@@ -258,6 +278,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           p_order_id:       payingOrder.id,
           p_payment_method: payMethod,
           p_amount_paid:    payMethod === 'efectivo' ? parseFloat(amountPaid) : payingOrder.total,
+          p_propina:        parseFloat(propinaInput) || 0,
         }
       )
       if (error) throw error
@@ -273,7 +294,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } finally {
       setProcessing(false)
     }
-  }, [payingOrder, payingKind, payMethod, amountPaid, fetchData])
+  }, [payingOrder, payingKind, payMethod, amountPaid, propinaInput, fetchData])
 
   // Corte de caja
   const handleCorte = useCallback(async () => {
@@ -326,6 +347,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           total_ordenes:       Number(corteResult.total_ordenes),
           total_gastos:        Number(corteResult.total_gastos ?? 0),
           total_neto:          Number(corteResult.total_neto ?? corteResult.total_general),
+          total_propinas:      Number(corteResult.total_propinas ?? 0),
           fecha:               corteResult.fecha,
         },
         productos: corteProductos,
@@ -349,10 +371,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   return (
     <div className="space-y-6">
       {/* Resumen del día */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
           { label: 'Efectivo hoy',       val: `$${daySummary.total_efectivo.toFixed(2)}`,     color: 'text-emerald-600' },
           { label: 'Transferencias hoy', val: `$${daySummary.total_transferencia.toFixed(2)}`, color: 'text-blue-600'    },
+          { label: 'Propinas hoy',       val: `$${daySummary.total_propinas.toFixed(2)}`,      color: 'text-purple-500'  },
           { label: 'Gastos hoy',         val: `$${totalGastosHoy.toFixed(2)}`,                 color: 'text-red-500'     },
           { label: 'Neto del día',       val: `$${netoDia.toFixed(2)}`,                        color: 'text-[#FF5722]'   },
         ].map(s => (
@@ -716,7 +739,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   )}
                   {pagoInsuficiente && (
                     <p className="mt-2 text-xs text-red-500 font-medium">
-                      Falta ${(payingOrder.total - parseFloat(amountPaid)).toFixed(2)}
+                      Falta ${(totalConPropina - parseFloat(amountPaid)).toFixed(2)}
                     </p>
                   )}
                 </div>
@@ -725,9 +748,48 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               {payMethod === 'transferencia' && (
                 <div className="mb-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
                   <p className="text-sm font-bold text-blue-700">Confirmar transferencia</p>
-                  <p className="text-xs text-blue-600 mt-0.5">Total: ${payingOrder.total.toFixed(2)}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    {propinaNum > 0
+                      ? `Venta: $${payingOrder.total.toFixed(2)} + Propina: $${propinaNum.toFixed(2)} = $${totalConPropina.toFixed(2)}`
+                      : `Total: $${payingOrder.total.toFixed(2)}`}
+                  </p>
                 </div>
               )}
+
+              {/* Propina: hay que responder sí/no explícitamente, para que nunca quede
+                  al aire si el cliente dejó propina o no. Si dice que sí, se separa
+                  del resto del dinero (columna aparte, no cuenta como venta). */}
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">¿El cliente dejó propina?</label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button type="button"
+                    onClick={() => { setPropinaRespuesta('si'); if (!propinaInput || propinaInput === '0') setPropinaInput(propinaSugeridaPct ? Math.round(payingOrder.total * propinaSugeridaPct / 100).toString() : '') }}
+                    className="py-2.5 rounded-xl text-sm font-bold"
+                    style={propinaRespuesta === 'si' ? { background: 'var(--accent)', color: 'white' } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
+                    Sí
+                  </button>
+                  <button type="button"
+                    onClick={() => { setPropinaRespuesta('no'); setPropinaInput('0') }}
+                    className="py-2.5 rounded-xl text-sm font-bold"
+                    style={propinaRespuesta === 'no' ? { background: '#6B7280', color: 'white' } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
+                    No
+                  </button>
+                </div>
+                {propinaRespuesta === 'si' && (
+                  <>
+                    {!!propinaSugeridaPct && (
+                      <button type="button"
+                        onClick={() => setPropinaInput(Math.round(payingOrder.total * propinaSugeridaPct / 100).toString())}
+                        className="text-xs font-bold text-[#FF5722] mb-2 block">
+                        Sugerida {propinaSugeridaPct}% · ${Math.round(payingOrder.total * propinaSugeridaPct / 100).toFixed(2)}
+                      </button>
+                    )}
+                    <input type="number" min={0} value={propinaInput} onChange={e => setPropinaInput(e.target.value)}
+                      placeholder="Monto de la propina" autoFocus
+                      className="w-full bg-[#CDD0DC] rounded-xl px-4 py-2.5 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn} />
+                  </>
+                )}
+              </div>
 
               {/* Botones */}
               <div className="flex gap-3">
@@ -742,11 +804,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleCobrar}
-                  disabled={processing || !!pagoInsuficiente}
-                  className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-[#FF5722] ${processing || pagoInsuficiente ? 'opacity-60' : ''}`}
+                  disabled={processing || !!pagoInsuficiente || !propinaRespuesta}
+                  className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-[#FF5722] ${processing || pagoInsuficiente || !propinaRespuesta ? 'opacity-60' : ''}`}
                   style={S.coral}
                 >
-                  {processing ? 'Procesando...' : 'Cobrar'}
+                  {processing ? 'Procesando...' : !propinaRespuesta ? 'Responde la propina' : 'Cobrar'}
                 </motion.button>
               </div>
             </motion.div>
@@ -795,6 +857,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <span className="text-sm font-bold text-white">Ganancias (ventas)</span>
                   <span className="text-xl font-bold text-white">${Number(corteResult.total_general).toFixed(2)}</span>
                 </div>
+                {Number(corteResult.total_propinas ?? 0) > 0 && (
+                  <div className="flex justify-between items-center bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3">
+                    <span className="text-sm font-bold text-purple-600">Propinas (no es venta)</span>
+                    <span className="font-bold text-purple-600">${Number(corteResult.total_propinas).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
                   <span className="text-sm font-bold text-red-600">Gastos del día</span>
                   <span className="font-bold text-red-600">−${Number(corteResult.total_gastos ?? 0).toFixed(2)}</span>
@@ -805,7 +873,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 </div>
               </div>
 
-              {/* Conteo físico de efectivo (arqueo): cuántos billetes/monedas hay de cada denominación */}
+              {/* Conteo físico de efectivo (arqueo): cuántos billetes/monedas hay de cada denominación.
+                  El efectivo esperado en el cajón incluye las propinas pagadas en efectivo, no solo
+                  las ventas — si no, el conteo "no cuadra" solo porque hay propinas de por medio. */}
               <div className="mb-5">
                 <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
                   Conteo de efectivo (opcional)
@@ -824,18 +894,23 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     </div>
                   ))}
                 </div>
-                {denominacionesConteo.length > 0 && (
-                  <div className="flex justify-between items-center bg-[#CDD0DC] rounded-xl px-3 py-2 text-xs" style={S.neoIn}>
-                    <span className="text-[#6B7280]">Contado: ${totalContado.toFixed(2)}</span>
-                    <span className={`font-bold ${
-                      Math.abs(totalContado - Number(corteResult.total_efectivo)) < 0.01 ? 'text-emerald-600' : 'text-red-600'
-                    }`}>
-                      {totalContado === Number(corteResult.total_efectivo)
-                        ? '✓ Cuadra'
-                        : `Diferencia: $${(totalContado - Number(corteResult.total_efectivo)).toFixed(2)}`}
-                    </span>
-                  </div>
+                {Number(corteResult.total_propinas_efectivo ?? 0) > 0 && (
+                  <p className="text-[11px] text-[#9CA3AF] mb-2">
+                    Incluye ${Number(corteResult.total_propinas_efectivo).toFixed(2)} de propinas en efectivo — recuerda separarlas, no son venta del restaurante.
+                  </p>
                 )}
+                {denominacionesConteo.length > 0 && (() => {
+                  const efectivoEsperado = Number(corteResult.efectivo_esperado_cajon ?? corteResult.total_efectivo)
+                  const diferencia = totalContado - efectivoEsperado
+                  return (
+                    <div className="flex justify-between items-center bg-[#CDD0DC] rounded-xl px-3 py-2 text-xs" style={S.neoIn}>
+                      <span className="text-[#6B7280]">Contado: ${totalContado.toFixed(2)} · Esperado: ${efectivoEsperado.toFixed(2)}</span>
+                      <span className={`font-bold ${Math.abs(diferencia) < 0.01 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {Math.abs(diferencia) < 0.01 ? '✓ Cuadra' : `Diferencia: $${diferencia.toFixed(2)}`}
+                      </span>
+                    </div>
+                  )
+                })()}
               </div>
 
               {corteProductos.length > 0 && (

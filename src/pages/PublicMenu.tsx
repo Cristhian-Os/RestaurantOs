@@ -799,12 +799,16 @@ export default function PublicMenu() {
         restaurantId ?? undefined,
       )
     } catch (e) {
-      // Falló (red o servidor): NO perdemos el carrito y avisamos al cliente
+      // Falló (red o servidor): NO perdemos el carrito y avisamos al cliente.
+      // Si el servidor rechazó el pedido por una regla de negocio (sin stock,
+      // cerrado, fuera de horario, etc.) ese mensaje ya viene en español y
+      // claro — se lo mostramos tal cual en vez de un genérico que confunde.
       const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+      const serverMsg = e instanceof Error ? e.message : null
       setSendError(
         offline
           ? 'Parece que no tienes conexión. Tu pedido NO se envió — revisa tu internet e intenta otra vez. Tu carrito sigue aquí.'
-          : 'No pudimos enviar tu pedido. Intenta de nuevo o pide ayuda a un mesero. Tu carrito sigue aquí.'
+          : serverMsg || 'No pudimos enviar tu pedido. Intenta de nuevo o pide ayuda a un mesero. Tu carrito sigue aquí.'
       )
       console.error('Error al enviar pedido:', e)
     } finally { setSending(false) }
