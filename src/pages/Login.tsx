@@ -1,7 +1,7 @@
 /**
- * Login.tsx — Warm Editorial + Liquid Glass
+ * Login.tsx — Liquid Glass + Neumorfismo (Fase 1)
  * Primera impresión: fondo lino cálido, tarjeta liquid glass,
- * tipografía Fraunces. Lógica de autenticación intacta.
+ * tipografía Outfit. Lógica de autenticación intacta.
  */
 import { useState, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'

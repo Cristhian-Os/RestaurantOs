@@ -5,8 +5,8 @@
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Nunito:wght@400;500;600;700;800&display=swap');
-/* Editorial warm system — Fraunces (display serif) + Inter (UI sans) */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700;800&display=swap');
+/* Sistema Fase 1 — Outfit (display redondeada) + Plus Jakarta Sans (UI) */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -22,9 +22,9 @@
   --text-primary:    #2B2018;  /* espresso                 */
   --text-secondary:  #5C5147;
   --text-muted:      #8C8073;
-  --accent:          #4F7A47;  /* verde gastronómico       */
-  --accent-dk:       #3E6238;
-  --accent-rgb:      79, 122, 71;
+  --accent:          #FF6B4A;  /* coral — acento Fase 1    */
+  --accent-dk:       #E8532F;
+  --accent-rgb:      255, 107, 74;
   --green:           #6FA04D;  /* verde éxito (más vivo)   */
   --amber:           #C97A45;  /* arcilla/rust             */
   --blue:            #7C8AA0;  /* azul apagado cálido      */
@@ -35,7 +35,7 @@
   --shadow-out-lg: 0 12px 32px rgba(70,50,35,0.14),0 24px 60px rgba(70,50,35,0.12);
   --shadow-in:     inset 0 1px 2px rgba(70,50,35,0.08);
   --shadow-in-sm:  inset 0 1px 2px rgba(70,50,35,0.06);
-  --shadow-coral:  0 2px 8px rgba(79,122,71,0.22);
+  --shadow-coral:  0 2px 8px rgba(255,107,74,0.25);
   --shadow-green:  0 2px 8px rgba(111,160,77,0.20);
   --shadow-amber:  0 2px 8px rgba(201,122,69,0.20);
 
@@ -78,9 +78,9 @@
   --text-primary:    #F4F5F7;  /* casi blanco */
   --text-secondary:  #C2C4C9;
   --text-muted:      #8A8D94;
-  --accent:          #84C25E;  /* verde brillante (oscuro) */
-  --accent-dk:       #5E8246;
-  --accent-rgb:      124, 168, 94;
+  --accent:          #FF8166;  /* coral brillante (oscuro) */
+  --accent-dk:       #FF6B4A;
+  --accent-rgb:      255, 129, 102;
   --green:           #8FBF63;  /* verde éxito */
   --amber:           #D98C55;  /* arcilla/rust */
   --blue:            #93A0B5;
@@ -90,7 +90,7 @@
   --shadow-out-lg: 0 16px 40px rgba(0,0,0,0.52),0 28px 64px rgba(0,0,0,0.40);
   --shadow-in:     inset 0 1px 2px rgba(0,0,0,0.40);
   --shadow-in-sm:  inset 0 1px 2px rgba(0,0,0,0.30);
-  --shadow-coral:  0 2px 10px rgba(124,168,94,0.28);
+  --shadow-coral:  0 2px 10px rgba(255,129,102,0.32);
   --shadow-green:  0 2px 10px rgba(143,191,99,0.24);
   --shadow-amber:  0 2px 10px rgba(217,140,85,0.26);
 
@@ -488,14 +488,14 @@
   --w-ink-mut:   oklch(0.585 0.025 60);   /* texto tenue        */
   --w-line:      oklch(0.255 0.022 55 / 0.12); /* divisores      */
 
-  /* Acento principal: verde gastronómico (bosque/oliva) */
-  --w-terra:     oklch(0.515 0.105 148);  /* verde (acento principal) */
-  --w-terra-dk:  oklch(0.440 0.100 148);
+  /* Acento principal Fase 1: coral/tangerina — juvenil, premium, gastronómico */
+  --w-terra:     #FF6B4A;
+  --w-terra-dk:  #E8532F;
   --w-olive:     oklch(0.560 0.115 48);   /* arcilla/rust (secundario, contraste) */
   --w-saffron:   oklch(0.760 0.110 72);   /* miel (detalle)     */
   --w-wine:      oklch(0.430 0.130 20);   /* vino (alertas)     */
 
-  --w-terra-rgb: 88, 122, 76;
+  --w-terra-rgb: 255, 107, 74;
 
   /* — Sombras cálidas (tintadas, no grises) — */
   --w-shadow-sm: 0 1px 2px oklch(0.255 0.04 55 / 0.06), 0 2px 6px oklch(0.255 0.04 55 / 0.08);
@@ -504,8 +504,15 @@
   --w-shadow-terra: 0 2px 8px oklch(0.515 0.105 148 / 0.24);
 
   /* — Tipografía — */
-  --w-display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --w-sans:    'Inter', ui-sans-serif, system-ui, sans-serif;
+  --w-display: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  --w-sans:    'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /* — Motion Fase 1: easing juguetón con rebote — */
+  --w-ease-bounce: cubic-bezier(.34, 1.56, .64, 1);
+
+  /* — Neumorfismo cálido (nuevo en Fase 1, sobre --w-surface) — */
+  --w-neu-dark:  oklch(0.255 0.022 55 / 0.16);
+  --w-neu-light: oklch(1 0 0 / 0.9);
 }
 
 /* — Liquid Glass (Apple) — translúcido, especular, refractado — */
@@ -519,7 +526,7 @@
     var(--w-shadow-md),
     inset 0 1px 1px oklch(1 0 0 / 0.65),       /* highlight superior */
     inset 0 -1px 1px oklch(0.255 0.04 55 / 0.06);
-  border-radius: 1.25rem;
+  border-radius: 1.5rem;
   overflow: hidden;
   isolation: isolate;
 }
@@ -566,6 +573,33 @@
   border-radius: 1rem;
 }
 
+/* — Neumorfismo cálido (Fase 1): tarjetas, botones e inputs tácticos —
+   Convive con .lg: el vidrio es para barras/paneles grandes, el
+   neumorfismo para superficies pequeñas con las que se interactúa. */
+.w-neu {
+  background: var(--w-surface);
+  box-shadow: 5px 5px 10px var(--w-neu-dark), -5px -5px 10px var(--w-neu-light);
+  border-radius: 1.125rem;
+}
+.w-neu-inset {
+  background: var(--w-surface);
+  box-shadow: inset 4px 4px 8px var(--w-neu-dark), inset -4px -4px 8px var(--w-neu-light);
+  border-radius: 1.125rem;
+}
+.w-neu-btn {
+  background: var(--w-surface);
+  box-shadow: 4px 4px 8px var(--w-neu-dark), -4px -4px 8px var(--w-neu-light);
+  border-radius: 0.875rem;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.3s var(--w-ease-bounce), box-shadow 0.2s ease;
+}
+.w-neu-btn:hover  { transform: translateY(-2px) scale(1.03); }
+.w-neu-btn:active {
+  box-shadow: inset 3px 3px 6px var(--w-neu-dark), inset -3px -3px 6px var(--w-neu-light);
+  transform: scale(0.96);
+}
+
 /* — Tipografía editorial — */
 .ed-display {
   font-family: var(--w-display);
@@ -588,21 +622,21 @@
 /* — Animaciones performantes (transform/opacity, ease-out expo) — */
 @keyframes wRise   { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
 @keyframes wFade   { from { opacity: 0; } to { opacity: 1; } }
-@keyframes wScale  { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes wScale  { 0% { opacity: 0; transform: scale(0.92); } 65% { opacity: 1; transform: scale(1.015); } 100% { opacity: 1; transform: scale(1); } }
 @keyframes wShimmer { from { transform: translateX(-120%); } to { transform: translateX(220%); } }
 
 .w-rise  { animation: wRise  0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .w-fade  { animation: wFade  0.5s ease-out both; }
 .w-scale { animation: wScale 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-/* Hover lift cálido (GPU) */
-.w-lift { transition: transform 0.32s cubic-bezier(0.16,1,0.3,1), box-shadow 0.32s ease; will-change: transform; }
-.w-lift:hover  { transform: translateY(-4px); box-shadow: var(--w-shadow-lg); }
-.w-lift:active { transform: translateY(-1px) scale(0.99); }
+/* Hover lift cálido (GPU) — rebote juguetón, Fase 1 */
+.w-lift { transition: transform 0.3s var(--w-ease-bounce), box-shadow 0.3s ease; will-change: transform; }
+.w-lift:hover  { transform: translateY(-4px) scale(1.01); box-shadow: var(--w-shadow-lg); }
+.w-lift:active { transform: translateY(-1px) scale(0.98); }
 
 /* Press táctil */
-.w-press { transition: transform 0.14s cubic-bezier(0.16,1,0.3,1); }
-.w-press:active { transform: scale(0.95); }
+.w-press { transition: transform 0.3s var(--w-ease-bounce); }
+.w-press:active { transform: scale(0.94); }
 
 /* Respeta usuarios con movimiento reducido */
 @media (prefers-reduced-motion: reduce) {
@@ -620,17 +654,21 @@
   --w-ink-mut:   oklch(0.640 0.005 250);
   --w-line:      oklch(1 0 0 / 0.12);
 
-  --w-terra:     oklch(0.640 0.125 148);  /* verde más brillante (oscuro) */
-  --w-terra-dk:  oklch(0.560 0.115 148);
+  --w-terra:     #FF8166;  /* coral más brillante (oscuro) */
+  --w-terra-dk:  #FF6B4A;
   --w-olive:     oklch(0.620 0.120 48);   /* arcilla/rust       */
   --w-saffron:   oklch(0.785 0.110 72);   /* miel               */
   --w-wine:      oklch(0.620 0.150 22);
-  --w-terra-rgb: 122, 162, 100;
+  --w-terra-rgb: 255, 129, 102;
 
   --w-shadow-sm: 0 1px 2px oklch(0 0 0 / 0.30), 0 2px 8px oklch(0 0 0 / 0.32);
   --w-shadow-md: 0 4px 14px oklch(0 0 0 / 0.42), 0 10px 28px oklch(0 0 0 / 0.36);
   --w-shadow-lg: 0 16px 40px oklch(0 0 0 / 0.52), 0 28px 64px oklch(0 0 0 / 0.40);
-  --w-shadow-terra: 0 2px 10px oklch(0.64 0.125 148 / 0.30);
+  --w-shadow-terra: 0 2px 10px oklch(0.70 0.14 40 / 0.32);
+
+  /* Neumorfismo en oscuro — gris carbón, nunca negro puro */
+  --w-neu-dark:  oklch(0 0 0 / 0.55);
+  --w-neu-light: oklch(0.32 0.005 250 / 0.55);
 }
 /* Liquid glass en oscuro — panel translúcido oscuro */
 [data-theme="dark"] .lg {

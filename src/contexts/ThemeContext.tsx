@@ -136,7 +136,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             colorBgElevated:  isDark ? '#202227' : '#FDFAF4',
             colorTextBase:    isDark ? '#F4F5F7' : '#2B2018',
             borderRadius:     12,
-            fontFamily:       "'Inter', ui-sans-serif, system-ui, sans-serif",
+            fontFamily:       "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif",
           },
         }}
       >
