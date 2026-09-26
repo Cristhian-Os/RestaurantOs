@@ -35,6 +35,9 @@ interface Order {
   notes:      string | null
   created_at: string
   delivered_at: string | null
+  paid_at:        string | null
+  payment_method: string | null
+  amount_paid:    number | null
 }
 
 interface DaySummary {
@@ -49,6 +52,18 @@ interface Gasto {
   monto:      number
   created_at: string
 }
+
+interface IngredienteOpt { id: string; nombre: string; unidad_medida: string | null }
+
+interface ProvItem {
+  ingrediente_id:  string   // '' si no coincide con un ingrediente existente
+  nombre_producto: string
+  cantidad:        string
+  unidad:          string
+  precio_unitario: string
+}
+
+const PROV_ITEM_EMPTY: ProvItem = { ingrediente_id: '', nombre_producto: '', cantidad: '', unidad: '', precio_unitario: '' }
 
 type PaymentMethod = 'efectivo' | 'transferencia'
 
@@ -73,9 +88,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [cortingLoading, setCortingLoading] = useState(false)
   const [gastos,        setGastos]       = useState<Gasto[]>([])
   const [showGastoForm, setShowGastoForm]= useState(false)
+  const [gastoModo,     setGastoModo]    = useState<'simple' | 'proveedor'>('simple')
   const [gastoConcepto, setGastoConcepto]= useState('')
   const [gastoMonto,    setGastoMonto]   = useState('')
   const [savingGasto,   setSavingGasto]  = useState(false)
+  const [ingredientesOpts, setIngredientesOpts] = useState<IngredienteOpt[]>([])
+  const [provItems,     setProvItems]    = useState<ProvItem[]>([{ ...PROV_ITEM_EMPTY }])
   const [conteo,        setConteo]       = useState<Record<number, string>>({})
 
   const fetchData = useCallback(async () => {
@@ -133,6 +151,40 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     fetchData()
   }, [gastoConcepto, gastoMonto, fetchData])
 
+  // Ingredientes existentes, para vincular cada producto de la compra a su stock
+  useEffect(() => {
+    supabase.from('ingredientes').select('id, nombre, unidad_medida').order('nombre')
+      .then(({ data }) => setIngredientesOpts(data ?? []))
+  }, [])
+
+  const updateProvItem = useCallback((idx: number, patch: Partial<ProvItem>) => {
+    setProvItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it))
+  }, [])
+
+  const provTotal = provItems.reduce((s, it) => s + (parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0), 0)
+
+  const handleAgregarCompraProveedor = useCallback(async () => {
+    if (!gastoConcepto.trim()) { message.error('Escribe el concepto (ej: nombre del proveedor)'); return }
+    const items = provItems.filter(it => it.nombre_producto.trim() && parseFloat(it.cantidad) > 0 && parseFloat(it.precio_unitario) >= 0)
+    if (items.length === 0) { message.error('Agrega al menos un producto con cantidad y precio'); return }
+    setSavingGasto(true)
+    const { error } = await supabase.rpc('registrar_compra_proveedor', {
+      p_concepto: gastoConcepto.trim(),
+      p_items: items.map(it => ({
+        ingrediente_id:  it.ingrediente_id || null,
+        nombre_producto: it.nombre_producto.trim(),
+        cantidad:        parseFloat(it.cantidad),
+        unidad:          it.unidad.trim() || null,
+        precio_unitario: parseFloat(it.precio_unitario),
+      })),
+    })
+    setSavingGasto(false)
+    if (error) { message.error('Error: ' + error.message); return }
+    setGastoConcepto(''); setProvItems([{ ...PROV_ITEM_EMPTY }]); setShowGastoForm(false)
+    message.success('Compra registrada · stock actualizado')
+    fetchData()
+  }, [gastoConcepto, provItems, fetchData])
+
   const handleEliminarGasto = useCallback(async (id: string) => {
     const { error } = await supabase.from('gastos').delete().eq('id', id)
     if (error) { message.error('Error: ' + error.message); return }
@@ -170,6 +222,26 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   const pagoInsuficiente = payingOrder && payMethod === 'efectivo'
     && amountPaid !== '' && parseFloat(amountPaid) < payingOrder.total
+
+  // Orden ya pagada antes de cocina (Plan B) y ahora lista: solo se completa,
+  // sin volver a pedir el pago.
+  const handleCompletarPagada = useCallback(async (order: Order) => {
+    setProcessing(true)
+    try {
+      const { error } = await supabase.rpc('cobrar_orden', {
+        p_order_id:       order.id,
+        p_payment_method: order.payment_method ?? 'efectivo',
+        p_amount_paid:    order.amount_paid ?? order.total,
+      })
+      if (error) throw error
+      message.success('Pedido completado')
+      fetchData()
+    } catch (e) {
+      message.error(`${e instanceof Error ? e.message : 'Error al completar'}`)
+    } finally {
+      setProcessing(false)
+    }
+  }, [fetchData])
 
   // Cobrar
   const handleCobrar = useCallback(async () => {
@@ -309,23 +381,93 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         </div>
 
         {showGastoForm && (
-          <div className="bg-[#D8DAE4] rounded-2xl p-4 mb-4 flex flex-wrap gap-3 items-end" style={S.neoOut}>
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
-              <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
-                placeholder="Ej: Domicilio de insumos"
-                className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+          <div className="bg-[#D8DAE4] rounded-2xl p-4 mb-4" style={S.neoOut}>
+            {/* Modo: gasto simple vs compra a proveedor con detalle */}
+            <div className="flex gap-2 mb-3">
+              <button onClick={() => setGastoModo('simple')}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold"
+                style={gastoModo === 'simple' ? { background: 'var(--accent)', color: '#fff' } : { background: '#CDD0DC', color: '#6B7280' }}>
+                Gasto simple
+              </button>
+              <button onClick={() => setGastoModo('proveedor')}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold"
+                style={gastoModo === 'proveedor' ? { background: 'var(--accent)', color: '#fff' } : { background: '#CDD0DC', color: '#6B7280' }}>
+                Compra a proveedor
+              </button>
             </div>
-            <div className="w-32">
-              <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Monto</label>
-              <input type="number" min={0} value={gastoMonto} onChange={e => setGastoMonto(e.target.value)}
-                placeholder="0"
-                className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
-            </div>
-            <button onClick={handleAgregarGasto} disabled={savingGasto}
-              className="px-4 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingGasto ? 0.6 : 1 }}>
-              {savingGasto ? 'Guardando…' : 'Guardar'}
-            </button>
+
+            {gastoModo === 'simple' ? (
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="flex-1 min-w-[160px]">
+                  <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
+                  <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
+                    placeholder="Ej: Domicilio de insumos"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                </div>
+                <div className="w-32">
+                  <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Monto</label>
+                  <input type="number" min={0} value={gastoMonto} onChange={e => setGastoMonto(e.target.value)}
+                    placeholder="0"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                </div>
+                <button onClick={handleAgregarGasto} disabled={savingGasto}
+                  className="px-4 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingGasto ? 0.6 : 1 }}>
+                  {savingGasto ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="mb-3">
+                  <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Proveedor / concepto</label>
+                  <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
+                    placeholder="Ej: Distribuidora La Cosecha"
+                    className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                </div>
+
+                <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-2">Productos que trajo</label>
+                <div className="flex flex-col gap-2 mb-3">
+                  {provItems.map((it, idx) => (
+                    <div key={idx} className="flex flex-wrap gap-2 items-center bg-[#CDD0DC] rounded-xl p-2" style={S.neoIn}>
+                      <select
+                        value={it.ingrediente_id}
+                        onChange={e => {
+                          const ing = ingredientesOpts.find(o => o.id === e.target.value)
+                          updateProvItem(idx, { ingrediente_id: e.target.value, nombre_producto: ing?.nombre ?? it.nombre_producto, unidad: ing?.unidad_medida ?? it.unidad })
+                        }}
+                        className="text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none">
+                        <option value="">Producto nuevo (escribir)…</option>
+                        {ingredientesOpts.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                      </select>
+                      {!it.ingrediente_id && (
+                        <input value={it.nombre_producto} onChange={e => updateProvItem(idx, { nombre_producto: e.target.value })}
+                          placeholder="Nombre del producto" className="flex-1 min-w-[100px] text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                      )}
+                      <input type="number" min={0} step="0.01" value={it.cantidad} onChange={e => updateProvItem(idx, { cantidad: e.target.value })}
+                        placeholder="Cantidad" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                      <input value={it.unidad} onChange={e => updateProvItem(idx, { unidad: e.target.value })}
+                        placeholder="kg / lb / und" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                      <input type="number" min={0} step="0.01" value={it.precio_unitario} onChange={e => updateProvItem(idx, { precio_unitario: e.target.value })}
+                        placeholder="Precio unit." className="w-24 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                      <span className="text-xs font-bold text-[#2D3561] w-20 text-right">
+                        ${((parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0)).toFixed(2)}
+                      </span>
+                      <button onClick={() => setProvItems(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev)}
+                        className="text-[#9CA3AF] hover:text-red-500 text-sm px-1">✕</button>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setProvItems(prev => [...prev, { ...PROV_ITEM_EMPTY }])}
+                  className="text-xs font-bold text-[#FF5722] mb-3">+ Agregar producto</button>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-[#2D3561]">Total: ${provTotal.toFixed(2)}</span>
+                  <button onClick={handleAgregarCompraProveedor} disabled={savingGasto}
+                    className="px-4 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingGasto ? 0.6 : 1 }}>
+                    {savingGasto ? 'Guardando…' : 'Guardar compra · sube stock'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -461,14 +603,26 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   )}
                 </div>
 
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => openPay(order)}
-                  className="w-full py-3 rounded-2xl font-bold text-white bg-[#FF5722] text-sm"
-                  style={S.coral}
-                >
-                  Cobrar ${order.total.toFixed(2)}
-                </motion.button>
+                {order.paid_at ? (
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleCompletarPagada(order)}
+                    disabled={processing}
+                    className="w-full py-3 rounded-2xl font-bold text-white bg-emerald-600 text-sm"
+                    style={{ opacity: processing ? 0.6 : 1 }}
+                  >
+                    ✓ Ya pagado · Completar pedido
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => openPay(order)}
+                    className="w-full py-3 rounded-2xl font-bold text-white bg-[#FF5722] text-sm"
+                    style={S.coral}
+                  >
+                    Cobrar ${order.total.toFixed(2)}
+                  </motion.button>
+                )}
               </motion.div>
             ))}
           </div>

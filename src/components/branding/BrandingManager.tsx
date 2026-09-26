@@ -17,16 +17,36 @@ interface Config {
   color_primario: string | null
   color_acento:   string | null
   logo_url:       string | null
+  promo_texto:    string | null
+  promo_activo:   boolean
+  whatsapp_numero:      string | null
+  direccion:            string | null
+  instagram_url:        string | null
+  facebook_url:         string | null
+  propina_sugerida_pct: number | null
+  portada_url:          string | null
+  horario_activo:       boolean
+  horario_apertura:     string | null
+  horario_cierre:       string | null
+  cerrado_manual:       boolean
+  cerrado_mensaje:      string | null
 }
 
 const DEFAULT_COLOR = '#1D7A46'
+const CFG_EMPTY: Config = {
+  display_name: '', slogan: '', color_primario: DEFAULT_COLOR, color_acento: '#C97A40', logo_url: null,
+  promo_texto: '', promo_activo: false, whatsapp_numero: '', direccion: '', instagram_url: '', facebook_url: '',
+  propina_sugerida_pct: null, portada_url: null, horario_activo: false, horario_apertura: '11:00', horario_cierre: '21:00',
+  cerrado_manual: false, cerrado_mensaje: '',
+}
 
 export default function BrandingManager() {
   const [rid,     setRid]     = useState<string | null>(null)
-  const [cfg,     setCfg]     = useState<Config>({ display_name: '', slogan: '', color_primario: DEFAULT_COLOR, color_acento: '#C97A40', logo_url: null })
+  const [cfg,     setCfg]     = useState<Config>(CFG_EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadingPortada, setUploadingPortada] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -36,13 +56,27 @@ export default function BrandingManager() {
       const restaurantId = prof?.restaurant_id ?? null
       setRid(restaurantId)
       const { data } = await supabase.from('restaurant_config')
-        .select('display_name, slogan, color_primario, color_acento, logo_url').maybeSingle()
+        .select('display_name, slogan, color_primario, color_acento, logo_url, promo_texto, promo_activo, whatsapp_numero, direccion, instagram_url, facebook_url, propina_sugerida_pct, portada_url, horario_activo, horario_apertura, horario_cierre, cerrado_manual, cerrado_mensaje')
+        .maybeSingle()
       if (data) setCfg({
         display_name:   data.display_name ?? '',
         slogan:         data.slogan ?? '',
         color_primario: data.color_primario ?? DEFAULT_COLOR,
         color_acento:   data.color_acento ?? '#C97A40',
         logo_url:       data.logo_url ?? null,
+        promo_texto:    data.promo_texto ?? '',
+        promo_activo:   data.promo_activo ?? false,
+        whatsapp_numero:      data.whatsapp_numero ?? '',
+        direccion:            data.direccion ?? '',
+        instagram_url:        data.instagram_url ?? '',
+        facebook_url:         data.facebook_url ?? '',
+        propina_sugerida_pct: data.propina_sugerida_pct ?? null,
+        portada_url:          data.portada_url ?? null,
+        horario_activo:       data.horario_activo ?? false,
+        horario_apertura:     data.horario_apertura ?? '11:00',
+        horario_cierre:       data.horario_cierre ?? '21:00',
+        cerrado_manual:       data.cerrado_manual ?? false,
+        cerrado_mensaje:      data.cerrado_mensaje ?? '',
       })
       setLoading(false)
     })()
@@ -60,6 +94,18 @@ export default function BrandingManager() {
         slogan:         cfg.slogan?.trim() || null,
         color_primario: cfg.color_primario,
         color_acento:   cfg.color_acento,
+        promo_texto:    cfg.promo_texto?.trim() || null,
+        promo_activo:   cfg.promo_activo,
+        whatsapp_numero:      cfg.whatsapp_numero?.replace(/\D/g, '') || null,
+        direccion:            cfg.direccion?.trim() || null,
+        instagram_url:        cfg.instagram_url?.trim() || null,
+        facebook_url:         cfg.facebook_url?.trim() || null,
+        propina_sugerida_pct: cfg.propina_sugerida_pct || null,
+        horario_activo:       cfg.horario_activo,
+        horario_apertura:     cfg.horario_apertura || null,
+        horario_cierre:       cfg.horario_cierre || null,
+        cerrado_manual:       cfg.cerrado_manual,
+        cerrado_mensaje:      cfg.cerrado_mensaje?.trim() || null,
       }, { onConflict: 'restaurant_id' })
       if (error) throw error
       applyBranding(cfg.color_primario)
@@ -89,6 +135,25 @@ export default function BrandingManager() {
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Error al subir el logo')
     } finally { setUploading(false) }
+  }, [rid])
+
+  const uploadPortada = useCallback(async (file: File) => {
+    if (!rid) return
+    setUploadingPortada(true)
+    try {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${rid}/portada.${ext}`
+      const { error: upErr } = await supabase.storage.from('restaurant-assets').upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) throw upErr
+      const { data: pub } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
+      const url = `${pub.publicUrl}?t=${Date.now()}`
+      const { error } = await supabase.from('restaurant_config').update({ portada_url: url }).eq('restaurant_id', rid)
+      if (error) throw error
+      setCfg(c => ({ ...c, portada_url: url }))
+      message.success('Portada actualizada')
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Error al subir la portada')
+    } finally { setUploadingPortada(false) }
   }, [rid])
 
   if (loading) return <div style={{ padding: '2rem', color: 'var(--w-ink-mut)' }}>Cargando…</div>
@@ -121,6 +186,26 @@ export default function BrandingManager() {
         </div>
       </div>
 
+      {/* Portada */}
+      <div style={card}>
+        <span style={label}>Portada del menú</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ width: 120, height: 60, borderRadius: '0.75rem', overflow: 'hidden', border: '1px solid var(--w-line)', background: 'var(--w-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {cfg.portada_url
+              ? <img src={cfg.portada_url} alt="portada" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: '0.7rem', color: 'var(--w-ink-mut)' }}>Sin imagen</span>}
+          </div>
+          <label className="w-press" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-ink)' }}>
+            {uploadingPortada ? 'Subiendo…' : 'Subir portada'}
+            <input type="file" accept="image/*" hidden
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadPortada(f) }} />
+          </label>
+        </div>
+        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.6rem 0 0' }}>
+          Foto grande que aparece arriba del menú de tus clientes (opcional).
+        </p>
+      </div>
+
       {/* Nombre + eslogan */}
       <div style={card}>
         <label style={label}>Nombre del restaurante</label>
@@ -147,6 +232,107 @@ export default function BrandingManager() {
         </div>
         <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.9rem 0 0' }}>
           El color principal se usa como acento en botones y detalles de la app.
+        </p>
+      </div>
+
+      {/* Banner de promoción */}
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem' }}>
+          <span style={label as React.CSSProperties}>Banner de promoción</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={cfg.promo_activo}
+              onChange={e => setCfg(c => ({ ...c, promo_activo: e.target.checked }))}
+              style={{ width: 18, height: 18, cursor: 'pointer' }} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: cfg.promo_activo ? 'var(--w-olive)' : 'var(--w-ink-mut)' }}>
+              {cfg.promo_activo ? 'Activo' : 'Apagado'}
+            </span>
+          </label>
+        </div>
+        <input value={cfg.promo_texto ?? ''} onChange={e => setCfg(c => ({ ...c, promo_texto: e.target.value }))}
+          style={inputBox} placeholder="Ej: 2x1 en cholados todos los martes" maxLength={120} />
+        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.6rem 0 0' }}>
+          Aparece como una franja arriba del menú de tus clientes. Actívalo o apágalo cuando quieras, sin borrar el texto.
+        </p>
+      </div>
+
+      {/* Contacto y ubicación */}
+      <div style={card}>
+        <span style={label}>Contacto y ubicación</span>
+        <label style={{ ...label, fontWeight: 500, fontSize: '0.75rem' }}>WhatsApp (con indicativo, ej: 573001234567)</label>
+        <input value={cfg.whatsapp_numero ?? ''} onChange={e => setCfg(c => ({ ...c, whatsapp_numero: e.target.value }))} style={inputBox} placeholder="573001234567" />
+        <label style={{ ...label, fontWeight: 500, fontSize: '0.75rem', marginTop: '0.9rem' }}>Dirección</label>
+        <input value={cfg.direccion ?? ''} onChange={e => setCfg(c => ({ ...c, direccion: e.target.value }))} style={inputBox} placeholder="Ej: Cra 14 # 20-30, Armenia" />
+        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.9rem', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 200px' }}>
+            <label style={{ ...label, fontWeight: 500, fontSize: '0.75rem' }}>Instagram (link)</label>
+            <input value={cfg.instagram_url ?? ''} onChange={e => setCfg(c => ({ ...c, instagram_url: e.target.value }))} style={inputBox} placeholder="https://instagram.com/tu_restaurante" />
+          </div>
+          <div style={{ flex: '1 1 200px' }}>
+            <label style={{ ...label, fontWeight: 500, fontSize: '0.75rem' }}>Facebook (link)</label>
+            <input value={cfg.facebook_url ?? ''} onChange={e => setCfg(c => ({ ...c, facebook_url: e.target.value }))} style={inputBox} placeholder="https://facebook.com/tu_restaurante" />
+          </div>
+        </div>
+        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.9rem 0 0' }}>
+          Aparecen como botones/links en el menú de tus clientes. Deja vacío lo que no uses.
+        </p>
+      </div>
+
+      {/* Horario de atención */}
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem' }}>
+          <span style={label as React.CSSProperties}>Horario de atención</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={cfg.horario_activo}
+              onChange={e => setCfg(c => ({ ...c, horario_activo: e.target.checked }))}
+              style={{ width: 18, height: 18, cursor: 'pointer' }} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: cfg.horario_activo ? 'var(--w-olive)' : 'var(--w-ink-mut)' }}>
+              {cfg.horario_activo ? 'Activo' : 'Apagado'}
+            </span>
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ ...label, fontWeight: 500, fontSize: '0.75rem' }}>Abre</label>
+            <input type="time" value={cfg.horario_apertura ?? ''} onChange={e => setCfg(c => ({ ...c, horario_apertura: e.target.value }))} style={inputBox} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ ...label, fontWeight: 500, fontSize: '0.75rem' }}>Cierra</label>
+            <input type="time" value={cfg.horario_cierre ?? ''} onChange={e => setCfg(c => ({ ...c, horario_cierre: e.target.value }))} style={inputBox} />
+          </div>
+        </div>
+        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.9rem 0 0' }}>
+          Si lo activas, tus clientes no podrán hacer pedidos fuera de este horario (se los bloquea automáticamente).
+        </p>
+      </div>
+
+      {/* Cerrado temporalmente */}
+      <div style={{ ...card, ...(cfg.cerrado_manual ? { border: '1px solid #DC2626' } : {}) }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem' }}>
+          <span style={label as React.CSSProperties}>Cerrado temporalmente</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={cfg.cerrado_manual}
+              onChange={e => setCfg(c => ({ ...c, cerrado_manual: e.target.checked }))}
+              style={{ width: 18, height: 18, cursor: 'pointer' }} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: cfg.cerrado_manual ? '#DC2626' : 'var(--w-ink-mut)' }}>
+              {cfg.cerrado_manual ? 'Cerrado ahora' : 'Abierto'}
+            </span>
+          </label>
+        </div>
+        <input value={cfg.cerrado_mensaje ?? ''} onChange={e => setCfg(c => ({ ...c, cerrado_mensaje: e.target.value }))}
+          style={inputBox} placeholder="Ej: Cerrado hoy por mantenimiento, volvemos mañana" maxLength={140} />
+        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.6rem 0 0' }}>
+          Úsalo para bloquear pedidos al instante (emergencia, día libre, etc), sin importar el horario de arriba.
+        </p>
+      </div>
+
+      {/* Propina sugerida */}
+      <div style={card}>
+        <label style={label}>Propina sugerida (%)</label>
+        <input type="number" min={0} max={30} value={cfg.propina_sugerida_pct ?? ''}
+          onChange={e => setCfg(c => ({ ...c, propina_sugerida_pct: e.target.value ? parseInt(e.target.value) : null }))}
+          style={{ ...inputBox, maxWidth: 120 }} placeholder="Ej: 10" />
+        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.6rem 0 0' }}>
+          Se muestra como sugerencia al cliente al pedir. Es informativa: no se suma automáticamente al total.
         </p>
       </div>
 

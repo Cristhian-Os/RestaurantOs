@@ -96,6 +96,7 @@ export const inventoryService = {
         costo_unitario: Number.isFinite(l.costo_unitario) ? l.costo_unitario : 0,
         unidad: l.unidad?.trim() || null,
         cantidad_necesaria: l.cantidad_necesaria,
+        ingrediente_id: l.ingrediente_id || null,
       }))
 
     const { data, error } = await supabase.rpc('guardar_receta_manual', {

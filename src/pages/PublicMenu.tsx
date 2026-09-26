@@ -546,6 +546,7 @@ export default function PublicMenu() {
   const [dishes,        setDishes]        = useState<Dish[]>([])
   const [loading,       setLoading]       = useState(true)
   const [bizName,       setBizName]       = useState('RestaurantOS')
+  const [promo,         setPromo]         = useState<string | null>(null)
   const [logoUrl,       setLogoUrl]       = useState<string | null>(null)
   const [catLabels,     setCatLabels]     = useState<Record<string, string>>({})
   const [flavors,       setFlavors]       = useState<string[]>([])
@@ -565,6 +566,12 @@ export default function PublicMenu() {
   const [isPaid,        setIsPaid]        = useState(false)
   const [showTracking,  setShowTracking]  = useState(false)
   const [onlinePay,     setOnlinePay]     = useState(false)   // ¿el restaurante acepta pagos en línea?
+  const [brandExtra,    setBrandExtra]    = useState<{
+    whatsapp_numero?: string | null; direccion?: string | null; instagram_url?: string | null; facebook_url?: string | null
+    propina_sugerida_pct?: number | null; portada_url?: string | null
+    horario_activo?: boolean; horario_apertura?: string | null; horario_cierre?: string | null
+    cerrado_manual?: boolean; cerrado_mensaje?: string | null
+  }>({})
   const [payingOnline,  setPayingOnline]  = useState(false)
 
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
@@ -624,12 +631,26 @@ export default function PublicMenu() {
     Promise.all([
       supabase.from('dishes').select('*').eq('restaurant_id', restaurantId).eq('available', true)
         .neq('availability_status', 'discontinued').order('sort_order').order('name'),
-      supabase.from('restaurant_config').select('display_name, modules_enabled, logo_url, color_primario')
+      supabase.from('restaurant_config').select('display_name, modules_enabled, logo_url, color_primario, promo_texto, promo_activo, whatsapp_numero, direccion, instagram_url, facebook_url, propina_sugerida_pct, portada_url, horario_activo, horario_apertura, horario_cierre, cerrado_manual, cerrado_mensaje')
         .eq('restaurant_id', restaurantId).maybeSingle(),
     ]).then(([dr, cr]) => {
       setDishes(dr.data || [])
       if (cr.data?.display_name) setBizName(cr.data.display_name)
       if (cr.data?.logo_url) setLogoUrl(cr.data.logo_url as string)
+      setPromo(cr.data?.promo_activo && cr.data?.promo_texto ? cr.data.promo_texto as string : null)
+      setBrandExtra({
+        whatsapp_numero: cr.data?.whatsapp_numero as string | null,
+        direccion: cr.data?.direccion as string | null,
+        instagram_url: cr.data?.instagram_url as string | null,
+        facebook_url: cr.data?.facebook_url as string | null,
+        propina_sugerida_pct: cr.data?.propina_sugerida_pct as number | null,
+        portada_url: cr.data?.portada_url as string | null,
+        horario_activo: cr.data?.horario_activo as boolean | undefined,
+        horario_apertura: cr.data?.horario_apertura as string | null,
+        horario_cierre: cr.data?.horario_cierre as string | null,
+        cerrado_manual: cr.data?.cerrado_manual as boolean | undefined,
+        cerrado_mensaje: cr.data?.cerrado_mensaje as string | null,
+      })
       // Marca del restaurante: aplicar su color como acento del menú
       if (cr.data?.color_primario) document.documentElement.style.setProperty('--w-terra', cr.data.color_primario as string)
       // Etiquetas de categoría personalizadas (definidas en el panel admin)
@@ -714,7 +735,22 @@ export default function PublicMenu() {
   }, [])
 
   // ── send order ─────────────────────────────────────────────────
-  const canConfirm = mesa.trim() !== '' || clientName.trim() !== ''
+  const isClosedBySchedule = useMemo(() => {
+    if (!brandExtra.horario_activo || !brandExtra.horario_apertura || !brandExtra.horario_cierre) return false
+    const bogota = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))
+    const mins = bogota.getHours() * 60 + bogota.getMinutes()
+    const [oh, om] = brandExtra.horario_apertura.split(':').map(Number)
+    const [ch, cm] = brandExtra.horario_cierre.split(':').map(Number)
+    const open = oh * 60 + (om || 0), close = ch * 60 + (cm || 0)
+    return open <= close ? !(mins >= open && mins <= close) : !(mins >= open || mins <= close)
+  }, [brandExtra.horario_activo, brandExtra.horario_apertura, brandExtra.horario_cierre])
+
+  const isClosedNow = !!brandExtra.cerrado_manual || isClosedBySchedule
+  const closedMessage = brandExtra.cerrado_manual
+    ? (brandExtra.cerrado_mensaje || 'Cerrado temporalmente. Vuelve más tarde.')
+    : `Cerrado ahora · Atendemos de ${brandExtra.horario_apertura} a ${brandExtra.horario_cierre}`
+
+  const canConfirm = (mesa.trim() !== '' || clientName.trim() !== '') && !isClosedNow
 
   const sendOrder = useCallback(async () => {
     if (!canConfirm || cart.length === 0 || !restaurantId) return
@@ -818,6 +854,36 @@ export default function PublicMenu() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--w-bg)', fontFamily: 'var(--w-sans)', paddingBottom: '6rem' }}>
+
+      {/* ── Cerrado (bloquea pedidos) ── */}
+      {isClosedNow && (
+        <div style={{ background: 'var(--w-wine)', color: '#fff', textAlign: 'center', padding: '0.625rem 1rem', fontSize: '0.8125rem', fontWeight: 700, fontFamily: 'var(--w-sans)' }}>
+          {closedMessage}
+        </div>
+      )}
+
+      {/* ── Banner de promoción ── */}
+      {promo && !isClosedNow && (
+        <div style={{ background: 'var(--w-terra)', color: '#fff', textAlign: 'center', padding: '0.625rem 1rem', fontSize: '0.8125rem', fontWeight: 700, fontFamily: 'var(--w-sans)' }}>
+          {promo}
+        </div>
+      )}
+
+      {/* ── Portada ── */}
+      {brandExtra.portada_url && (
+        <div style={{ width: '100%', height: 180, overflow: 'hidden' }}>
+          <img src={brandExtra.portada_url} alt={bizName} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        </div>
+      )}
+
+      {/* ── WhatsApp flotante ── */}
+      {brandExtra.whatsapp_numero && (
+        <a href={`https://wa.me/${brandExtra.whatsapp_numero}`} target="_blank" rel="noopener noreferrer"
+          style={{ position: 'fixed', right: '1.1rem', bottom: '1.1rem', zIndex: 40, width: 52, height: 52, borderRadius: '50%', background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 16px rgba(0,0,0,0.25)' }}
+          aria-label="Escribir por WhatsApp">
+          <svg viewBox="0 0 24 24" fill="#fff" style={{ width: 28, height: 28 }}><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 004.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.24.68-1.4 1.3-1.93 1.38-.5.08-1.12.11-1.81-.11-.42-.13-.95-.31-1.64-.6-2.89-1.25-4.78-4.15-4.93-4.34-.14-.19-1.18-1.57-1.18-3 0-1.42.75-2.12 1.01-2.41.27-.29.58-.36.78-.36.19 0 .39 0 .56.01.18.01.42-.07.66.5.24.58.83 2 .9 2.15.07.15.12.32.02.51-.09.19-.14.31-.28.48-.14.16-.29.36-.42.49-.14.14-.28.29-.12.57.15.28.68 1.12 1.46 1.82 1.01.9 1.85 1.18 2.13 1.31.29.14.45.11.62-.07.17-.18.72-.84.91-1.13.19-.29.38-.24.63-.14.26.09 1.65.78 1.94.92.28.14.47.21.54.33.07.13.07.72-.16 1.4z"/></svg>
+        </a>
+      )}
 
       {/* ── Editorial hero ── */}
       <header className="menu-wrap" style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', margin: '0 auto', overflow: 'hidden' }}>
@@ -1021,6 +1087,26 @@ export default function PublicMenu() {
         )}
       </div>
 
+      {/* ── Footer: contacto y ubicación ── */}
+      {(brandExtra.direccion || brandExtra.instagram_url || brandExtra.facebook_url) && (
+        <footer className="menu-wrap" style={{ margin: '2rem auto 0', padding: '1.5rem', textAlign: 'center', borderTop: '1px solid var(--w-line)' }}>
+          {brandExtra.direccion && (
+            <a href={`https://maps.google.com/?q=${encodeURIComponent(brandExtra.direccion)}`} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-block', fontSize: '0.8125rem', color: 'var(--w-ink-mut)', marginBottom: '0.75rem', textDecoration: 'none' }}>
+              📍 {brandExtra.direccion}
+            </a>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+            {brandExtra.instagram_url && (
+              <a href={brandExtra.instagram_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-terra)', textDecoration: 'none' }}>Instagram</a>
+            )}
+            {brandExtra.facebook_url && (
+              <a href={brandExtra.facebook_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-terra)', textDecoration: 'none' }}>Facebook</a>
+            )}
+          </div>
+        </footer>
+      )}
+
       {/* ── Floating cart (liquid glass accent) ── */}
       {/* Se oculta cuando el carrito o un modal están abiertos, para no
           chocar con el botón de confirmar. */}
@@ -1110,9 +1196,19 @@ export default function PublicMenu() {
                 </div>
               </div>
 
-              {!canConfirm && (
+              {isClosedNow && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--w-wine)', marginBottom: '1rem', textAlign: 'center', fontWeight: 700 }}>
+                  {closedMessage}
+                </p>
+              )}
+              {!isClosedNow && !canConfirm && (
                 <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', marginBottom: '1rem', textAlign: 'center' }}>
                   Ingresa tu <strong style={{ color: 'var(--w-ink)' }}>nombre</strong> o el número de <strong style={{ color: 'var(--w-ink)' }}>mesa</strong> para continuar
+                </p>
+              )}
+              {!isClosedNow && !!brandExtra.propina_sugerida_pct && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', marginBottom: '1rem', textAlign: 'center' }}>
+                  Propina sugerida ({brandExtra.propina_sugerida_pct}%): {fmtCOP(Math.round(cartTotal * brandExtra.propina_sugerida_pct / 100))} — se paga aparte, a tu criterio
                 </p>
               )}
               {canConfirm && !mesa.trim() && clientName.trim() && (
@@ -1135,7 +1231,7 @@ export default function PublicMenu() {
               <button className="lg-accent w-press"
                 onClick={() => { setSendError(null); sendOrder() }} disabled={sending || !canConfirm}
                 style={{ width: '100%', padding: '1.05rem', border: 'none', fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--w-sans)', cursor: !canConfirm ? 'not-allowed' : 'pointer', opacity: !canConfirm ? 0.5 : 1 }}>
-                {sending ? 'Enviando...' : !canConfirm ? 'Ingresa nombre o mesa' : `Pedir · ${fmtCOP(cartTotal)}`}
+                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : !canConfirm ? 'Ingresa nombre o mesa' : `Pedir · ${fmtCOP(cartTotal)}`}
               </button>
             </motion.div>
           </motion.div>

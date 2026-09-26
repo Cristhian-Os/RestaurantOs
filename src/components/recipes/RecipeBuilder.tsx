@@ -12,7 +12,7 @@ import Button from 'antd/es/button'
 import Modal from 'antd/es/modal'
 import Select from 'antd/es/select'
 import Spin from 'antd/es/spin'
-import type { RecetaLine } from '../../types/inventory'
+import type { RecetaLine, Ingrediente } from '../../types/inventory'
 
 interface RecipeBuilderProps {
   productId?: string
@@ -22,7 +22,7 @@ interface RecipeBuilderProps {
 
 const fmtCOP = (n: number) => '$' + Math.round(n || 0).toLocaleString('es-CO')
 
-const emptyLine = (): RecetaLine => ({ nombre: '', costo_unitario: 0, cantidad_necesaria: 1, unidad: '' })
+const emptyLine = (): RecetaLine => ({ nombre: '', costo_unitario: 0, cantidad_necesaria: 1, unidad: '', ingrediente_id: null })
 
 // — estilos de input cálidos (siguen el tema claro/oscuro) —
 const inputBase: React.CSSProperties = {
@@ -61,6 +61,16 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
     enabled: !!productId && isModalVisible,
   })
 
+  // Ingredientes del inventario, para vincular (opcional) cada línea y que
+  // vender el plato descuente su stock automáticamente.
+  const ingredientesQuery = useQuery({
+    queryKey: ['ingredientes'],
+    queryFn: () => inventoryService.getIngredientes(),
+    staleTime: 1000 * 30,
+    enabled: isModalVisible,
+  })
+  const ingredientesOpts: Ingrediente[] = ingredientesQuery.data ?? []
+
   // Cargar las líneas guardadas al estado editable (o una fila vacía)
   useEffect(() => {
     setCalcOpen({}); setCalcQty({}); setCalcTotal({})
@@ -72,6 +82,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
         costo_unitario: Number(r.costo_unitario) || 0,
         cantidad_necesaria: Number(r.cantidad_necesaria) || 0,
         unidad: r.unidad ?? '',
+        ingrediente_id: r.ingrediente_id ?? null,
       }))
       setLines(loaded.length > 0 ? loaded : [emptyLine()])
     }
@@ -208,9 +219,13 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                 <p style={{ margin: '-0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   💡 ¿Compras al por mayor (ej. tina de 10 litros)? Toca 🧮 en la fila para calcular solo el precio por unidad.
                 </p>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  📦 Si vinculas una fila a un ingrediente del inventario, cada venta de este plato descuenta esa cantidad del stock automáticamente.
+                </p>
 
                 {/* Cabecera de columnas (desktop) */}
                 <div className="recipe-head" style={{ display: 'none', gap: '0.5rem', padding: '0 0.25rem', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <span style={{ flex: 1.6 }}>Inventario</span>
                   <span style={{ flex: 3 }}>Materia prima</span>
                   <span style={{ flex: 1.4, textAlign: 'right' }}>Precio unit.</span>
                   <span style={{ flex: 1.2, textAlign: 'right' }}>Cantidad</span>
@@ -227,13 +242,35 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                         display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem',
                         background: 'var(--bg)', border: '1px solid var(--divider)', borderRadius: '0.875rem', padding: '0.625rem',
                       }}>
+                        {/* Vincular a inventario (opcional): si se elige, vender el plato baja este stock */}
+                        <select
+                          value={line.ingrediente_id ?? ''}
+                          onChange={e => {
+                            const ing = ingredientesOpts.find(i => i.id === e.target.value)
+                            setLines(prev => prev.map((l, i) => i === idx ? {
+                              ...l,
+                              ingrediente_id: e.target.value || null,
+                              nombre: ing?.nombre ?? l.nombre,
+                              costo_unitario: ing ? Number(ing.costo_unitario) : l.costo_unitario,
+                              unidad: ing?.unidad_medida ?? l.unidad,
+                            } : l))
+                          }}
+                          title="Vincular a un ingrediente del inventario (opcional) para descontar stock al vender"
+                          style={{ ...inputBase, flex: 1.6, minWidth: 130, fontSize: '0.75rem' }}
+                        >
+                          <option value="">Solo costeo (texto libre)</option>
+                          {ingredientesOpts.map(ing => (
+                            <option key={ing.id} value={ing.id}>📦 {ing.nombre}</option>
+                          ))}
+                        </select>
                         {/* Nombre libre */}
                         <input
                           type="text"
                           value={line.nombre}
                           onChange={e => updateLine(idx, 'nombre', e.target.value)}
                           placeholder="Ej: Harina, Leche, Fresa..."
-                          style={{ ...inputBase, flex: 3, minWidth: 140 }}
+                          disabled={!!line.ingrediente_id}
+                          style={{ ...inputBase, flex: 3, minWidth: 140, opacity: line.ingrediente_id ? 0.7 : 1 }}
                         />
                         {/* Precio unitario */}
                         <input

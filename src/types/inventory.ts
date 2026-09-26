@@ -27,6 +27,7 @@ export interface RecetaLine {
   costo_unitario: number
   cantidad_necesaria: number
   unidad?: string | null
+  ingrediente_id?: string | null   // si se vincula a inventario, vender el plato baja este stock
 }
 
 export interface DetallesPedido {

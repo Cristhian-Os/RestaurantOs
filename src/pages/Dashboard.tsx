@@ -242,7 +242,25 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [loading,    setLoading]    = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
+  const [lowStock,   setLowStock]   = useState(0)
   const { theme, setTheme } = useTheme()
+
+  // Aviso de stock bajo: cuenta ingredientes por debajo de su mínimo (lo define
+  // el admin en Inventario) y lo muestra como insignia sobre "Inventario".
+  useEffect(() => {
+    if (!profile || profile.role !== 'admin') return
+    let cancelled = false
+    const check = () => supabase.from('ingredientes').select('stock_actual, stock_minimo')
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setLowStock(data.filter(i => Number(i.stock_actual) <= Number(i.stock_minimo)).length)
+      })
+    check()
+    const channel = supabase.channel('low-stock-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes' }, check)
+      .subscribe()
+    return () => { cancelled = true; supabase.removeChannel(channel) }
+  }, [profile])
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
     try { pushNotificationService.initializePushNotifications() } catch { /* no crítico */ }
@@ -464,6 +482,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     ? {background:'var(--w-terra)',color:'#fff',...S.terra}
                     : {background:'transparent',color:'var(--w-ink-soft)'})}}>
                 {icon}{label}
+                {view==='inventory' && lowStock>0 && (
+                  <span style={{marginLeft:'auto',background:'#DC2626',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{lowStock}</span>
+                )}
               </button>
             ))}
           </nav>
@@ -488,7 +509,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 ...(activeNav===view
                   ? {background:'var(--w-terra)',color:'#fff',...S.terra}
                   : {background:'transparent',color:'var(--w-ink-mut)'})}}>
-              {icon}
+              <span style={{position:'relative'}}>
+                {icon}
+                {view==='inventory' && lowStock>0 && (
+                  <span style={{position:'absolute',top:-6,right:-8,background:'#DC2626',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{lowStock}</span>
+                )}
+              </span>
               <span style={{fontSize:'9px',fontWeight:700,lineHeight:1,textAlign:'center'}}>
                 {label}
               </span>
