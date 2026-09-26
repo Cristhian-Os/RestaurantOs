@@ -332,6 +332,7 @@ export const MenuManager = memo(() => {
     setModeratingId(null)
     if (error) { message.error(error.message); return }
     setReportedComments(prev => prev.filter(c => c.id !== id))
+    if (accion === 'ocultar') fetchReviews()
   }
 
   const openCreate = () => { setEditing(null); setForm(FORM_EMPTY); setFormError(null); setShowForm(true) }
