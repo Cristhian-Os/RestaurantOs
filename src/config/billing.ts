@@ -4,17 +4,17 @@
  * Cobramos en PESOS COLOMBIANOS (COP). Wompi trabaja con "amount_in_cents"
  * (centavos): un peso son 100 centavos. Ej: $200.000 COP = 20.000.000 centavos.
  *
- * ⚠️ PRECIOS EN COP — CONFIRMAR CON EL DUEÑO. Los de abajo son un estimado
- * partiendo de los planes en USD ($50/$100/$170) a ~4.000 COP/USD. Ajústalos
- * al valor comercial real; la app y el cobro leen de aquí.
+ * Precios confirmados por el dueño 2026-09-26: USD $79/$135/$220 al mes,
+ * convertidos a COP con la misma tasa (~4.000 COP/USD) que ya usaba este
+ * archivo. Si la tasa real cambia, ajusta solo estos 3 valores.
  */
 import type { PlanId } from './plans'
 
 /** Precio mensual de cada plan en PESOS colombianos (COP). */
 export const PLAN_COP: Record<PlanId, number> = {
-  emprende: 200_000,
-  pro:      400_000,
-  premium:  680_000,
+  emprende: 316_000,
+  pro:      540_000,
+  premium:  880_000,
 }
 
 /** Convierte pesos COP a centavos (lo que espera Wompi). */

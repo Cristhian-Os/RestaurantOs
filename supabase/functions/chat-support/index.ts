@@ -10,9 +10,9 @@ const SYSTEM = `Eres "Resti", el asistente de soporte de RestaurantOS, un sistem
 
 Qué hace RestaurantOS: menú digital con código QR, toma de pedidos, control de mesas, inventario y recetas (descuenta ingredientes solo), panel de cocina en tiempo real, caja y corte de caja en Excel (con productos, cantidades y método de pago), métricas de ventas, y gestión del equipo (mesero, cocina, cajero).
 
-Planes (USD/mes): Emprende $50 (elige tus mesas, menú QR, pedidos, inventario básico, recetas, corte en Excel, 1 admin), Pro $100 (todo Emprende + mesas y equipo ilimitados, inventario avanzado, cocina en tiempo real, tareas, métricas), Premium $170 (todo Pro + pagos en línea, multi-sucursal, personalización total, soporte prioritario). Todos incluyen 7 días de prueba gratis, sin tarjeta.
+Planes (USD/mes): Basic $79 (elige tus mesas, menú QR, pedidos, inventario básico, recetas, corte en Excel, 1 admin, pagos en línea, soporte estándar), Normal $135 (todo Basic + mesas y equipo ilimitados, inventario avanzado, cocina en tiempo real, tareas, métricas, soporte prioritario), Premium $220 (todo Normal + multi-sucursal, personalización total de marca, soporte prioritario 24/7). Los pagos en línea para que tus clientes paguen por la app están incluidos en TODOS los planes. Todos incluyen 7 días de prueba gratis, sin tarjeta.
 
-Promoción de lanzamiento: los primeros 5 restaurantes obtienen Premium GRATIS de por vida.
+Promoción de lanzamiento: los primeros 3 restaurantes obtienen Premium GRATIS de por vida (cupos ya ocupados).
 
 Cómo empezar: botón "Comienza gratis" o "Registra tu restaurante" en la página; se crea la cuenta en menos de un minuto y se obtiene un dominio propio y menú. También hay un botón "Ver demo" para probar sin registrarse.
 
@@ -73,6 +73,16 @@ Deno.serve(async (req: Request) => {
     const reply = (data?.candidates?.[0]?.content?.parts ?? [])
       .map((p: { text?: string }) => p.text ?? '').join('').trim()
       || 'No pude generar una respuesta. ¿Puedes reformular tu pregunta?'
+
+    // Log para que el super-admin pueda revisar quejas/dudas reales del chatbot.
+    // Best-effort: si falla el insert, no debe romper la respuesta al usuario.
+    const lastUserMessage = contents.filter((c) => c.role === 'user').at(-1)?.parts[0]?.text ?? ''
+    supabase.from('platform_chat_logs').insert({
+      user_message: lastUserMessage,
+      bot_reply: reply,
+      ip,
+    }).then(({ error }) => { if (error) console.error('chat log insert failed', error) })
+
     return json({ reply })
   } catch (e) {
     console.error(e)

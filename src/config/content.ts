@@ -5,8 +5,12 @@
  * textos cuando tengas testimonios reales de tus clientes.
  */
 
-/** Cupos de la promoción de lanzamiento (primeros N = Premium gratis). */
-export const PROMO_SLOTS = 5
+/** Cupos de la promoción de lanzamiento (primeros N = Premium gratis).
+ *  Bajado de 5 a 3 el 2026-09-26 — los 3 cupos ya están ocupados por
+ *  restaurantes existentes, así que de aquí en adelante ningún restaurante
+ *  nuevo la recibe automáticamente (nunca se activó de forma automática:
+ *  siempre fue el dueño marcando is_promo=true a mano). */
+export const PROMO_SLOTS = 3
 
 export interface Testimonial {
   quote:   string
