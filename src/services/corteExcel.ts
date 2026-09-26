@@ -21,6 +21,12 @@ export interface CorteGasto {
   monto:    number
 }
 
+export interface CorteDenominacion {
+  valor:    number
+  cantidad: number
+  subtotal: number
+}
+
 export interface CorteTotales {
   total_efectivo:      number
   total_transferencia: number
@@ -36,9 +42,10 @@ export async function descargarCorteExcel(opts: {
   totales:           CorteTotales
   productos:         CorteProducto[]
   gastos?:           CorteGasto[]
+  denominaciones?:   CorteDenominacion[]
 }) {
   const XLSX = await import('xlsx')
-  const { restauranteNombre, totales, productos, gastos = [] } = opts
+  const { restauranteNombre, totales, productos, gastos = [], denominaciones = [] } = opts
   const fecha = totales.fecha ?? new Date().toISOString().slice(0, 10)
 
   const n = (v: unknown) => Number(v ?? 0)
@@ -62,6 +69,19 @@ export async function descargarCorteExcel(opts: {
   rows.push(['Transferencia',  '', '', '', n(totales.total_transferencia)])
   rows.push(['Ganancias (ventas)', '', '', '', n(totales.total_general)])
   rows.push(['Órdenes',        '', n(totales.total_ordenes), '', ''])
+
+  if (denominaciones.length > 0) {
+    const totalContado = denominaciones.reduce((s, d) => s + n(d.subtotal), 0)
+    const diferencia = totalContado - n(totales.total_efectivo)
+    rows.push([])
+    rows.push(['CONTEO DE EFECTIVO', 'Cantidad', '', '', 'Subtotal'])
+    for (const d of denominaciones) {
+      rows.push([`$${d.valor.toLocaleString('es-CO')}`, n(d.cantidad), '', '', n(d.subtotal)])
+    }
+    rows.push(['Total contado', '', '', '', totalContado])
+    rows.push(['Efectivo esperado (sistema)', '', '', '', n(totales.total_efectivo)])
+    rows.push([diferencia === 0 ? 'Cuadra' : 'Diferencia', '', '', '', diferencia])
+  }
 
   const totalGastos = totales.total_gastos ?? gastos.reduce((s, g) => s + n(g.monto), 0)
   const totalNeto = totales.total_neto ?? n(totales.total_general) - totalGastos

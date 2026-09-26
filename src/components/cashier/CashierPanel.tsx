@@ -52,6 +52,9 @@ interface Gasto {
 
 type PaymentMethod = 'efectivo' | 'transferencia'
 
+// Denominaciones de billetes y monedas en circulación en Colombia (COP).
+const DENOMINACIONES = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50] as const
+
 interface CashierPanelProps { profile: Profile }
 
 export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
@@ -71,6 +74,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [gastoConcepto, setGastoConcepto]= useState('')
   const [gastoMonto,    setGastoMonto]   = useState('')
   const [savingGasto,   setSavingGasto]  = useState(false)
+  const [conteo,        setConteo]       = useState<Record<number, string>>({})
 
   const fetchData = useCallback(async () => {
     const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
@@ -197,6 +201,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       if (error) throw error
       setCorteResult(data)
       setCorteProductos((prods as CorteProducto[]) ?? [])
+      setConteo({})
       setShowCorte(true)
       fetchData()
     } catch (e) {
@@ -206,12 +211,28 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     }
   }, [fetchData])
 
+  // Conteo físico de efectivo (arqueo): cantidad de billetes/monedas por denominación
+  const denominacionesConteo = DENOMINACIONES
+    .map(valor => ({ valor, cantidad: parseInt(conteo[valor] || '0', 10) || 0 }))
+    .filter(d => d.cantidad > 0)
+    .map(d => ({ ...d, subtotal: d.valor * d.cantidad }))
+  const totalContado = denominacionesConteo.reduce((s, d) => s + d.subtotal, 0)
+
   // Descargar el corte en Excel
   const handleDescargarExcel = useCallback(async () => {
     if (!corteResult) return
     try {
       const { data: cfg } = await supabase
         .from('restaurant_config').select('display_name').maybeSingle()
+
+      // Guardar el conteo en el corte ya creado, para que quede en el historial
+      // y no solo en el Excel descargado esa vez.
+      if (denominacionesConteo.length > 0 && corteResult.corte_id) {
+        await supabase.from('cortes_caja')
+          .update({ denominaciones: denominacionesConteo })
+          .eq('id', corteResult.corte_id)
+      }
+
       await descargarCorteExcel({
         restauranteNombre: cfg?.display_name ?? 'Restaurante',
         totales: {
@@ -225,11 +246,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         },
         productos: corteProductos,
         gastos: gastos.map(g => ({ concepto: g.concepto, monto: Number(g.monto) })),
+        denominaciones: denominacionesConteo,
       })
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
     }
-  }, [corteResult, corteProductos, gastos])
+  }, [corteResult, corteProductos, gastos, denominacionesConteo])
 
   const totalDia = daySummary.total_efectivo + daySummary.total_transferencia
   const netoDia  = totalDia - totalGastosHoy
@@ -565,6 +587,39 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <span className="text-sm font-bold text-white">Beneficio neto</span>
                   <span className="text-xl font-bold text-white">${Number(corteResult.total_neto ?? corteResult.total_general).toFixed(2)}</span>
                 </div>
+              </div>
+
+              {/* Conteo físico de efectivo (arqueo): cuántos billetes/monedas hay de cada denominación */}
+              <div className="mb-5">
+                <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
+                  Conteo de efectivo (opcional)
+                </p>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  {DENOMINACIONES.map(valor => (
+                    <div key={valor} className="flex items-center gap-2 bg-[#CDD0DC] rounded-xl px-2 py-1.5" style={S.neoIn}>
+                      <span className="text-xs text-[#6B7280] w-14 shrink-0">${valor.toLocaleString('es-CO')}</span>
+                      <input
+                        type="number" min={0} inputMode="numeric"
+                        value={conteo[valor] ?? ''}
+                        onChange={e => setConteo(prev => ({ ...prev, [valor]: e.target.value }))}
+                        placeholder="0"
+                        className="w-full bg-transparent text-sm font-bold text-[#2D3561] outline-none text-right"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {denominacionesConteo.length > 0 && (
+                  <div className="flex justify-between items-center bg-[#CDD0DC] rounded-xl px-3 py-2 text-xs" style={S.neoIn}>
+                    <span className="text-[#6B7280]">Contado: ${totalContado.toFixed(2)}</span>
+                    <span className={`font-bold ${
+                      Math.abs(totalContado - Number(corteResult.total_efectivo)) < 0.01 ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      {totalContado === Number(corteResult.total_efectivo)
+                        ? '✓ Cuadra'
+                        : `Diferencia: $${(totalContado - Number(corteResult.total_efectivo)).toFixed(2)}`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {corteProductos.length > 0 && (
