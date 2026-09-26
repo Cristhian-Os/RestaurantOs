@@ -19,10 +19,14 @@ async function registerSW() {
       }
     }
 
-    // Limpiar cachés de versiones anteriores
+    // Limpiar cachés de versiones anteriores.
+    // Este literal debe coincidir siempre con CACHE en public/sw.js — si no,
+    // este código borra la caché del SW en cada carga y rompe el offline
+    // (bug real detectado 2026-09-26: aquí decía 'ros-v7' mientras sw.js ya
+    // usaba 'ros-v22', autodestruyendo la caché del app-shell en cada visita).
     const keys = await caches.keys()
     for (const key of keys) {
-      if (key !== 'ros-v7') {
+      if (key !== 'ros-v22') {
         await caches.delete(key)
       }
     }
