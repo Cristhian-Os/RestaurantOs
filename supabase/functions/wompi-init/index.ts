@@ -73,6 +73,14 @@ Deno.serve(async (req) => {
 
     } else if (kind === 'diner') {
       if (!order_id) return json({ error: 'order_id requerido' }, 400)
+
+      // Rate limit: máx 10 intentos de pago por IP cada 5 min. Sin esto,
+      // un script podía llenar la tabla payments de basura o golpear la
+      // API de Wompi repetidamente sin ningún costo para el atacante.
+      const xff = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
+      const ip = req.headers.get('cf-connecting-ip') ?? (xff || 'sin-ip')
+      const { data: withinLimit } = await admin.rpc('check_rate_limit', { p_key: `wompi:${ip}`, p_max: 10, p_window_seconds: 300 })
+      if (withinLimit === false) return json({ error: 'Demasiados intentos, espera un momento' }, 429)
       // Monto autoritativo desde la orden (RPC en la base). Nunca confiar en el cliente.
       const { data: totalCents, error: rpcErr } = await admin.rpc('order_total_cents', { p_order_id: order_id })
       if (rpcErr || totalCents == null) return json({ error: 'no se pudo calcular el total de la orden' }, 400)
