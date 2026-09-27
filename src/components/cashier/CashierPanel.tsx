@@ -564,6 +564,38 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 >
                   Cobrar y enviar a cocina · ${Math.round(order.total).toLocaleString('es-CO')}
                 </motion.button>
+                <div className="flex gap-2 mt-2">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      setEditingOrderId(order.id)
+                      setEditItems(order.items || [])
+                    }}
+                    className="flex-1 py-2 rounded-2xl font-bold text-white bg-amber-500 text-xs"
+                  >
+                    ✏️ Editar
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    disabled={cancellingOrder === order.id}
+                    onClick={async () => {
+                      if (!window.confirm('¿Cancelar este pedido?')) return
+                      setCancellingOrder(order.id)
+                      try {
+                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                        if (error) { alert('Error: ' + error.message); return }
+                        setPendingPayment(prev => prev.filter(o => o.id !== order.id))
+                      } catch (err: any) {
+                        alert('Error: ' + err.message)
+                      } finally {
+                        setCancellingOrder(null)
+                      }
+                    }}
+                    className="flex-1 py-2 rounded-2xl font-bold text-white bg-red-600 text-xs"
+                  >
+                    {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
+                  </motion.button>
+                </div>
               </motion.div>
             ))}
           </div>
