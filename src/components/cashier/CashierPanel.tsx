@@ -45,6 +45,7 @@ interface Order {
 interface DaySummary {
   total_efectivo:     number
   total_transferencia:number
+  total_rappi:        number
   total_ordenes:      number
   total_propinas:     number
 }
@@ -79,7 +80,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [readyOrders,  setReady]     = useState<Order[]>([])
   const [pendingPayment, setPendingPayment] = useState<Order[]>([])
   const [cookingOrders, setCooking]  = useState<Order[]>([])
-  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0, total_propinas: 0 })
+  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_rappi: 0, total_ordenes: 0, total_propinas: 0 })
   const [loading,      setLoading]   = useState(true)
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
   const [payingKind,   setPayingKind]  = useState<'inicial' | 'final'>('final')
@@ -138,6 +139,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       setSummary({
         total_efectivo:      orders.filter(o => o.payment_method === 'efectivo').reduce((s,o) => s + o.total, 0),
         total_transferencia: orders.filter(o => o.payment_method === 'transferencia').reduce((s,o) => s + o.total, 0),
+        total_rappi:         orders.filter(o => o.payment_method === 'rappi').reduce((s,o) => s + o.total, 0),
         total_ordenes:       orders.length,
         total_propinas:      orders.reduce((s,o) => s + Number(o.propina || 0), 0),
       })
@@ -380,10 +382,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   return (
     <div className="space-y-6">
       {/* Resumen del día */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         {[
           { label: 'Efectivo hoy',       val: `$${Math.round(daySummary.total_efectivo).toLocaleString('es-CO')}`,     color: 'text-emerald-600' },
           { label: 'Transferencias hoy', val: `$${Math.round(daySummary.total_transferencia).toLocaleString('es-CO')}`, color: 'text-blue-600'    },
+          { label: 'Rappi hoy',          val: `$${Math.round(daySummary.total_rappi).toLocaleString('es-CO')}`,         color: 'text-orange-500'  },
           { label: 'Propinas hoy',       val: `$${Math.round(daySummary.total_propinas).toLocaleString('es-CO')}`,      color: 'text-purple-500'  },
           { label: 'Gastos hoy',         val: `$${Math.round(totalGastosHoy).toLocaleString('es-CO')}`,                 color: 'text-red-500'     },
           { label: 'Neto del día',       val: `$${Math.round(netoDia).toLocaleString('es-CO')}`,                        color: 'text-[#FF5722]'   },
@@ -1000,6 +1003,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <div className="flex justify-between items-center bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3">
                     <span className="text-sm font-bold text-purple-600">Propinas (no es venta)</span>
                     <span className="font-bold text-purple-600">${Number(corteResult.total_propinas).toFixed(2)}</span>
+                  </div>
+                )}
+                {Number(corteResult.total_rappi ?? 0) > 0 && (
+                  <div className="flex justify-between items-center bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3">
+                    <span className="text-sm font-bold text-orange-600">Rappi (no cuenta en ganancias)</span>
+                    <span className="font-bold text-orange-600">${Number(corteResult.total_rappi).toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
