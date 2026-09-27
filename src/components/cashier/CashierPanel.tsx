@@ -28,6 +28,7 @@ interface Order {
   id:         string
   mesa_id:    string | null
   table_num:  number | null
+  customer_name: string | null
   items:      Array<{ id: string; name: string; price: number; quantity: number; notes?: string }>
   total:      number
   status:     string
@@ -544,6 +545,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <div>
                     <p className="font-bold text-[#2D3561] text-lg">
                       {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+                      {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
                       #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
@@ -626,6 +628,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <div>
                     <p className="font-bold text-[#2D3561] text-lg">
                       {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+                      {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
                       #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
@@ -701,6 +704,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <div>
                     <p className="font-bold text-[#2D3561] text-lg">
                       {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+                      {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
                       #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
@@ -817,6 +821,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <p className="text-xs font-bold text-[#FF5722] uppercase tracking-wider">Cobrar orden</p>
                   <h3 className="font-bold text-[#2D3561] text-lg mt-0.5">
                     {payingOrder.table_num ? `Mesa ${payingOrder.table_num}` : payingOrder.tipo_pedido}
+                    {payingOrder.customer_name && <span className="text-[#FF5722]"> · {payingOrder.customer_name}</span>}
                   </h3>
                 </div>
                 <span className="text-2xl font-bold text-[#FF5722]">${Math.round(payingOrder.total).toLocaleString('es-CO')}</span>

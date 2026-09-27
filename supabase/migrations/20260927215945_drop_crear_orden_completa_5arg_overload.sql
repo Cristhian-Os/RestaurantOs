@@ -1,0 +1,15 @@
+-- CREATE OR REPLACE con un parámetro nuevo al final (p_customer_name) creó un
+-- SEGUNDO overload de crear_orden_completa en vez de reemplazar la función
+-- de 5 parámetros — Postgres trata firmas con distinto número de parámetros
+-- como funciones distintas, así que la versión de 5 nunca se tocó. Con las
+-- dos coexistiendo, PostgREST no podía resolver de forma única las llamadas
+-- del frontend (que aún mandaba 5 parámetros) y respondía 300 Multiple
+-- Choices, bloqueando la toma de pedidos en producción.
+--
+-- Mismo error ya ocurrido antes con cobrar_orden, ver
+-- 20260926073102_eliminar_overloads_duplicados_cobrar_orden.
+--
+-- Se elimina la versión vieja; la de 6 parámetros (con p_customer_name
+-- DEFAULT NULL, ver 20260927213900) cubre ambos casos — el frontend viejo
+-- que manda 5 parámetros sigue funcionando porque el 6to tiene default.
+DROP FUNCTION IF EXISTS public.crear_orden_completa(uuid, jsonb, text, text, integer);

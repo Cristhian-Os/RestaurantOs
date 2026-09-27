@@ -13,6 +13,7 @@ interface OrderItem { id: string; name: string; price: number; quantity: number;
 interface Order {
   id:         string
   table_num:  number | null
+  customer_name: string | null
   tipo_pedido:string
   items:      OrderItem[]
   notes:      string | null
@@ -96,6 +97,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
         <div>
           <p className="ed-display" style={{ fontWeight: 600, fontSize: '1.0625rem', margin: 0 }}>
             {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+            {order.customer_name ? ` · ${order.customer_name}` : ''}
           </p>
           <p style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>#{order.id.slice(0,8)}</p>
         </div>
@@ -178,7 +180,7 @@ export const KitchenBoard = memo(() => {
     // el que aún no tiene paid_at está esperando cobro en Caja.
     const { data, error } = await supabase
       .from('orders')
-      .select('id, table_num, tipo_pedido, items, notes, status, created_at, user_id')
+      .select('id, table_num, customer_name, tipo_pedido, items, notes, status, created_at, user_id')
       .in('status', ['pending','cooking','ready'])
       .not('paid_at', 'is', null)
       .order('created_at', { ascending: true })

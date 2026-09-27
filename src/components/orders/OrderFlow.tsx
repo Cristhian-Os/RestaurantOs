@@ -306,6 +306,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [mesas, setMesas]           = useState<Mesa[]>([])
   const [selectedMesa, setMesa]     = useState<Mesa | null>(null)
   const [tipoPedido, setTipo]       = useState<TipoPedido>('LOCAL')
+  const [customerName, setCustomerName] = useState('')
   // Menú
   const [dishes, setDishes]         = useState<Dish[]>([])
   const [cart, setCart]             = useState<CartItem[]>([])
@@ -478,16 +479,17 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
 
       if (isOnline) {
         const { data, error } = await supabase.rpc('crear_orden_completa', {
-          p_mesa_id:     selectedMesa?.id ?? null,
-          p_items:       items,
-          p_tipo_pedido: tipoPedido,
-          p_notes:       orderNotes || null,
-          p_table_num:   selectedMesa?.numero ?? null,
+          p_mesa_id:        selectedMesa?.id ?? null,
+          p_items:          items,
+          p_tipo_pedido:    tipoPedido,
+          p_notes:          orderNotes || null,
+          p_table_num:      selectedMesa?.numero ?? null,
+          p_customer_name:  customerName.trim() || null,
         })
         if (error) throw error
         // Plan B: el pedido no pasa a cocina hasta que Caja lo cobre.
         message.success(`Pedido enviado a caja para cobro — Total: $${Math.round(cartTotal).toLocaleString('es-CO')}`)
-        const dest = selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : 'Mostrador'
+        const dest = (selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : 'Mostrador') + (customerName.trim() ? ` · ${customerName.trim()}` : '')
         pushNotificationService.notify(['cashier', 'admin'], 'Pedido por cobrar', `${dest} — ${items.length} ítem(s) · $${Math.round(cartTotal).toLocaleString('es-CO')}`, '/')
         onOrderCreated?.(data.order_id, data.total)
       } else {
@@ -503,6 +505,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           status: 'pending',
           tipo_pedido: tipoPedido,
           table_num: selectedMesa?.numero ?? null,
+          customer_name: customerName.trim() || undefined,
           notes: orderNotes || undefined,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -515,12 +518,13 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       setStep('mesa')
       setMesa(null)
       setOrderNotes('')
+      setCustomerName('')
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al enviar orden'}`)
     } finally {
       setSubmitting(false)
     }
-  }, [cart, tipoPedido, selectedMesa, isOnline, cartTotal, orderNotes, onOrderCreated])
+  }, [cart, tipoPedido, selectedMesa, isOnline, cartTotal, orderNotes, customerName, onOrderCreated])
 
   // ─── RENDER ───────────────────────────────────────────────
   return (
@@ -627,6 +631,21 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   )}
                 </div>
               )}
+
+              {/* Nombre del comensal: además de la mesa, para identificar el pedido */}
+              <div className="mt-5">
+                <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+                  Nombre del comensal (opcional)
+                </p>
+                <input
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  placeholder="Ej: María"
+                  maxLength={120}
+                  className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] outline-none placeholder-[#9CA3AF]"
+                  style={S.neoIn}
+                />
+              </div>
             </div>
 
             <motion.button
@@ -798,6 +817,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               <h3 className="font-bold text-[#2D3561] mb-1">Resumen del pedido</h3>
               <p className="text-xs text-[#9CA3AF] mb-4">
                 {tipoPedido === 'LOCAL' && selectedMesa ? `Mesa ${selectedMesa.numero}` : tipoPedido}
+                {customerName.trim() && ` · ${customerName.trim()}`}
               </p>
 
               {/* Items */}
