@@ -498,12 +498,28 @@ export const MenuManager = memo(() => {
   }
 
   const handleDeleteCategory = async (value: string) => {
-    const inUse = dishes.some(d => d.category === value)
-    if (inUse) { message.warning('No puedes eliminar una categoría que tiene platos asignados'); return }
-    const updated = categories.filter(c => c.value !== value)
-    setCategories(updated)
-    await persistCategories(updated)
-    message.success('Categoría eliminada')
+    const cat = categories.find(c => c.value === value)
+    const dishesInCat = dishes.filter(d => d.category === value)
+    const confirmMsg = dishesInCat.length > 0
+      ? `¿Eliminar la categoría "${cat?.label}" y sus ${dishesInCat.length} plato(s)? Esta acción no se puede deshacer.`
+      : `¿Eliminar la categoría "${cat?.label}"?`
+    if (!window.confirm(confirmMsg)) return
+
+    try {
+      if (dishesInCat.length > 0) {
+        const { error } = await supabase.from('dishes').delete().eq('category', value)
+        if (error) throw error
+        setDishes(prev => prev.filter(d => d.category !== value))
+      }
+      const updated = categories.filter(c => c.value !== value)
+      setCategories(updated)
+      await persistCategories(updated)
+      message.success('Categoría eliminada')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error al eliminar categoría'
+      message.error(`❌ ${msg}`)
+      console.error('[MenuManager deleteCategory]', e)
+    }
   }
 
   // Guardar label de categoría
