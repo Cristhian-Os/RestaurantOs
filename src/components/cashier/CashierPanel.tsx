@@ -100,6 +100,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [propinaSugeridaPct, setPropinaSugeridaPct] = useState<number | null>(null)
   const [propinaInput,  setPropinaInput] = useState('')
   const [propinaRespuesta, setPropinaRespuesta] = useState<'si' | 'no' | null>(null)
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
+  const [editItems,     setEditItems]     = useState<any[]>([])
+  const [savingEdit,    setSavingEdit]    = useState(false)
+  const [cancellingOrder, setCancellingOrder] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
@@ -646,6 +650,38 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     Cobrar ${order.total.toFixed(2)}
                   </motion.button>
                 )}
+                <div className="flex gap-2 mt-2">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      setEditingOrderId(order.id)
+                      setEditItems(order.items || [])
+                    }}
+                    className="flex-1 py-2 rounded-2xl font-bold text-white bg-amber-500 text-xs"
+                  >
+                    ✏️ Editar
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    disabled={cancellingOrder === order.id}
+                    onClick={async () => {
+                      if (!window.confirm('¿Cancelar este pedido?')) return
+                      setCancellingOrder(order.id)
+                      try {
+                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                        if (error) { alert('Error: ' + error.message); return }
+                        setReady(prev => prev.filter(o => o.id !== order.id))
+                      } catch (err: any) {
+                        alert('Error: ' + err.message)
+                      } finally {
+                        setCancellingOrder(null)
+                      }
+                    }}
+                    className="flex-1 py-2 rounded-2xl font-bold text-white bg-red-600 text-xs"
+                  >
+                    {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
+                  </motion.button>
+                </div>
               </motion.div>
             ))}
           </div>
