@@ -1003,9 +1003,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                         <p style={{ color: '#9CA3AF', margin: 0, fontSize: '0.8125rem' }}>${(item.price * item.quantity).toLocaleString('es-CO')}</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#F5F5F5', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid #D1D5E0' }}>
-                        <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: Math.max(0, newItems[i].quantity - 1) }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>−</button>
-                        <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600 }}>{item.quantity}</span>
-                        <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: newItems[i].quantity + 1 }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>+</button>
+                        <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: Math.max(0, newItems[i].quantity - 1) }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem', color: '#2D3561' }}>−</button>
+                        <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600, color: '#2D3561' }}>{item.quantity}</span>
+                        <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: newItems[i].quantity + 1 }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem', color: '#2D3561' }}>+</button>
                       </div>
                       <button onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))} style={{ background: '#FF5722', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer', fontWeight: 600 }}>✕</button>
                     </div>
