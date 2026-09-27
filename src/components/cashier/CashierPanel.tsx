@@ -77,6 +77,7 @@ interface CashierPanelProps { profile: Profile }
 export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [readyOrders,  setReady]     = useState<Order[]>([])
   const [pendingPayment, setPendingPayment] = useState<Order[]>([])
+  const [cookingOrders, setCooking]  = useState<Order[]>([])
   const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0, total_propinas: 0 })
   const [loading,      setLoading]   = useState(true)
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
@@ -111,10 +112,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       ...o,
       items: (() => { try { const p = typeof o.items === 'string' ? JSON.parse(o.items) : o.items; return Array.isArray(p) ? p : [] } catch { return [] } })()
     })
-    const [pendingRes, ordersRes, completedRes, gastosRes] = await Promise.all([
+    const [pendingRes, ordersRes, cookingRes, completedRes, gastosRes] = await Promise.all([
       // Plan B: pedidos recién creados (mesero o QR) esperando cobro ANTES de pasar a cocina.
       supabase.from('orders').select('*').eq('status', 'pending').is('paid_at', null).order('created_at', { ascending: true }),
       supabase.from('orders').select('*').eq('status', 'ready').order('created_at', { ascending: true }),
+      supabase.from('orders').select('*').eq('status', 'cooking').order('created_at', { ascending: true }),
       supabase.from('orders').select('total, payment_method, propina')
         .eq('status', 'completed')
         .gte('created_at', inicioDia),
@@ -127,6 +129,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     if (!ordersRes.error) {
       setReady((ordersRes.data || []).map(parseItems))
     }
+
+    if (!cookingRes.error) setCooking((cookingRes.data || []).map(parseItems))
 
     if (!completedRes.error) {
       const orders = completedRes.data || []
@@ -596,6 +600,68 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
                   </motion.button>
                 </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pedidos en cocina */}
+      {cookingOrders.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-amber-600" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+              En cocina
+              <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({cookingOrders.length})</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {cookingOrders.map(order => (
+              <motion.div
+                key={order.id}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-[#D8DAE4] rounded-3xl p-5 border-2 border-amber-400" style={S.neoOut}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="font-bold text-[#2D3561] text-lg">
+                      {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+                    </p>
+                    <p className="text-xs text-[#9CA3AF]">
+                      #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                    </p>
+                    <p className="text-xs font-bold mt-0.5 text-amber-600">Preparándose en cocina</p>
+                  </div>
+                  <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex flex-col gap-1 mb-4">
+                  {order.items.filter((it: any) => !it.cancelled).map((item, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
+                      <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
+                    </div>
+                  ))}
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  disabled={cancellingOrder === order.id}
+                  onClick={async () => {
+                    if (!window.confirm('¿Cancelar este pedido? Ya está en preparación.')) return
+                    setCancellingOrder(order.id)
+                    try {
+                      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                      if (error) { alert('Error: ' + error.message); return }
+                      setCooking(prev => prev.filter(o => o.id !== order.id))
+                    } catch (err: any) {
+                      alert('Error: ' + err.message)
+                    } finally {
+                      setCancellingOrder(null)
+                    }
+                  }}
+                  className="w-full py-3 rounded-2xl font-bold text-white bg-red-600 text-sm"
+                >
+                  {cancellingOrder === order.id ? '⏳ Cancelando...' : '🗑️ Cancelar pedido'}
+                </motion.button>
               </motion.div>
             ))}
           </div>

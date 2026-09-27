@@ -45,6 +45,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
   const elapsedSecs = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 1000)
   const isUrgent = elapsedSecs > 900
   const [cancellingItem, setCancellingItem] = useState<number | null>(null)
+  const [cancellingOrder, setCancellingOrder] = useState(false)
 
   const nextStatus: Record<Order['status'], Order['status'] | null> = {
     pending: 'cooking', cooking: 'ready', ready: null, completed: null,
@@ -63,6 +64,19 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
       onAdvance(order.id, order.status)
     } finally {
       setCancellingItem(null)
+    }
+  }
+
+  const handleCancelOrder = async () => {
+    if (!window.confirm('¿Cancelar todo el pedido?')) return
+    setCancellingOrder(true)
+    try {
+      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+      if (error) { message.error(error.message); return }
+      message.success('Pedido cancelado')
+      onAdvance(order.id, order.status)
+    } finally {
+      setCancellingOrder(false)
     }
   }
 
@@ -129,6 +143,13 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
             background: order.status === 'pending' ? 'var(--w-terra)' : 'var(--w-olive)',
             boxShadow: order.status === 'pending' ? 'var(--w-shadow-terra)' : 'var(--w-shadow-sm)' }}>
           {actionLabel[order.status]}
+        </motion.button>
+      )}
+      {order.status === 'cooking' && (
+        <motion.button whileTap={{ scale: 0.97 }} onClick={handleCancelOrder} disabled={cancellingOrder}
+          style={{ width: '100%', padding: '0.625rem', borderRadius: '0.875rem', fontWeight: 700, color: '#fff', fontSize: '0.8125rem', border: 'none', cursor: cancellingOrder ? 'not-allowed' : 'pointer', fontFamily: 'var(--w-sans)',
+            background: 'var(--w-wine)', opacity: cancellingOrder ? 0.6 : 1 }}>
+          {cancellingOrder ? 'Cancelando...' : '🗑️ Cancelar pedido'}
         </motion.button>
       )}
       {order.status === 'ready' && (
