@@ -44,6 +44,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
   const elapsed = useElapsed(order.created_at)
   const elapsedSecs = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 1000)
   const isUrgent = elapsedSecs > 900
+  const [cancellingItem, setCancellingItem] = useState<number | null>(null)
 
   const nextStatus: Record<Order['status'], Order['status'] | null> = {
     pending: 'cooking', cooking: 'ready', ready: null, completed: null,
@@ -51,6 +52,18 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
   const next = nextStatus[order.status]
   const actionLabel: Record<Order['status'], string | null> = {
     pending: 'Iniciar preparación', cooking: 'Marcar listo', ready: null, completed: null,
+  }
+
+  const handleCancelItem = async (itemIndex: number) => {
+    setCancellingItem(itemIndex)
+    try {
+      const { error } = await supabase.rpc('cancelar_item_orden', { p_order_id: order.id, p_item_index: itemIndex })
+      if (error) { message.error(error.message); return }
+      message.success('Item cancelado')
+      onAdvance(order.id, order.status)
+    } finally {
+      setCancellingItem(null)
+    }
   }
 
   return (
@@ -92,6 +105,14 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
               <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontFamily: 'var(--w-sans)' }}>{item.name}</p>
               {item.notes && <p style={{ fontSize: '0.6875rem', color: 'var(--w-saffron)', fontWeight: 600, margin: 0 }}>{item.notes}</p>}
             </div>
+            {order.status === 'cooking' && !item.cancelled && (
+              <button
+                onClick={() => handleCancelItem(i)}
+                disabled={cancellingItem === i}
+                style={{ padding: '0.25rem 0.5rem', borderRadius: '0.375rem', background: 'var(--w-wine)', color: '#fff', border: 'none', fontSize: '0.75rem', cursor: 'pointer', opacity: cancellingItem === i ? 0.6 : 1 }}>
+                {cancellingItem === i ? '⏳' : '❌'}
+              </button>
+            )}
           </div>
         ))}
       </div>

@@ -1731,3 +1731,91 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.cancelar_orden(p_order_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_status text;
+  v_user_role text;
+  v_user_rid uuid;
+  v_order_rid uuid;
+BEGIN
+  SELECT status, restaurant_id INTO v_status, v_order_rid FROM public.orders WHERE id = p_order_id;
+
+  IF v_status IS NULL THEN
+    RAISE EXCEPTION 'Pedido no encontrado';
+  END IF;
+
+  SELECT role, restaurant_id INTO v_user_role, v_user_rid FROM public.profiles WHERE id = auth.uid();
+
+  IF v_order_rid IS DISTINCT FROM v_user_rid THEN
+    RAISE EXCEPTION 'No autorizado';
+  END IF;
+
+  IF v_user_role = 'client' AND v_status != 'pending' THEN
+    RAISE EXCEPTION 'Solo se pueden cancelar pedidos pendientes';
+  END IF;
+
+  IF v_user_role NOT IN ('admin', 'cashier', 'kitchen', 'client') THEN
+    RAISE EXCEPTION 'Rol no autorizado';
+  END IF;
+
+  UPDATE public.orders SET status = 'cancelled', updated_at = NOW() WHERE id = p_order_id;
+
+  RETURN jsonb_build_object('status', 'ok');
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.cancelar_item_orden(p_order_id uuid, p_item_index integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_status text;
+  v_user_role text;
+  v_user_rid uuid;
+  v_order_rid uuid;
+  v_items jsonb;
+  v_total numeric;
+  v_item_price numeric;
+BEGIN
+  SELECT status, restaurant_id, items, total INTO v_status, v_order_rid, v_items, v_total FROM public.orders WHERE id = p_order_id;
+
+  IF v_status IS NULL THEN
+    RAISE EXCEPTION 'Pedido no encontrado';
+  END IF;
+
+  IF v_status != 'cooking' THEN
+    RAISE EXCEPTION 'Solo se pueden cancelar items en cocina';
+  END IF;
+
+  SELECT role, restaurant_id INTO v_user_role, v_user_rid FROM public.profiles WHERE id = auth.uid();
+
+  IF v_order_rid IS DISTINCT FROM v_user_rid THEN
+    RAISE EXCEPTION 'No autorizado';
+  END IF;
+
+  IF v_user_role NOT IN ('admin', 'cashier', 'kitchen') THEN
+    RAISE EXCEPTION 'Rol no autorizado';
+  END IF;
+
+  v_item_price := COALESCE((v_items->p_item_index->>'price')::numeric, 0);
+  v_items := jsonb_set(v_items, ARRAY[p_item_index::text, 'cancelled'], 'true'::jsonb);
+
+  UPDATE public.orders
+  SET items = v_items,
+      total = GREATEST(0, v_total - v_item_price),
+      updated_at = NOW()
+  WHERE id = p_order_id;
+
+  RETURN jsonb_build_object('status', 'ok');
+END;
+$function$
+;
+

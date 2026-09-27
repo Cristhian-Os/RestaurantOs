@@ -1020,6 +1020,7 @@ export default function PublicMenu() {
     cerrado_manual?: boolean; cerrado_mensaje?: string | null
   }>({})
   const [payingOnline,  setPayingOnline]  = useState(false)
+  const [cancelling,    setCancelling]    = useState(false)
   const [socialMap,     setSocialMap]     = useState<Record<string, DishSocial>>({})
   const [reviewDish,    setReviewDish]    = useState<Dish | null>(null)
 
@@ -1477,6 +1478,27 @@ export default function PublicMenu() {
                   className="w-press"
                   style={{ marginTop: '1rem', width: '100%', padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-terra)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: payingOnline ? 'not-allowed' : 'pointer', opacity: payingOnline ? 0.7 : 1 }}>
                   {payingOnline ? 'Abriendo pago…' : '💳 Pagar en línea'}
+                </button>
+              )}
+
+              {orderStatus === 'pending' && !isPaid && (
+                <button
+                  disabled={cancelling}
+                  onClick={async () => {
+                    if (!orderId || !window.confirm('¿Cancelar este pedido?')) return
+                    setCancelling(true)
+                    try {
+                      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: orderId })
+                      if (error) throw error
+                      setOrderStatus('cancelled')
+                      alert('Pedido cancelado')
+                    } catch {
+                      alert('No se pudo cancelar el pedido.')
+                    } finally { setCancelling(false) }
+                  }}
+                  className="w-press"
+                  style={{ marginTop: '0.5rem', width: '100%', padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-wine)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: cancelling ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.7 : 1 }}>
+                  {cancelling ? 'Cancelando...' : '🗑️ Cancelar pedido'}
                 </button>
               )}
             </motion.div>
