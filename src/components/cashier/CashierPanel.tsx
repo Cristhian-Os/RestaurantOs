@@ -976,6 +976,87 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
             </motion.div>
           </motion.div>
         )}
+
+        {editingOrderId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '1rem' }}
+            onClick={() => !savingEdit && setEditingOrderId(null)}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              style={{ background: '#F5F5F5', borderRadius: '1.25rem', padding: '1.5rem', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflow: 'auto' }}
+              onClick={e => e.stopPropagation()}>
+              <h3 style={{ fontWeight: 600, fontSize: '1.25rem', margin: '0 0 1rem', color: '#2D3561' }}>Editar pedido</h3>
+
+              {editItems.length === 0 ? (
+                <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '2rem 0' }}>Sin items</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                  {editItems.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#fff', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid #D1D5E0' }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontWeight: 600, margin: '0 0 0.25rem', color: '#2D3561', fontSize: '0.9375rem' }}>{item.dish?.nombre || item.name}</p>
+                        <p style={{ color: '#9CA3AF', margin: 0, fontSize: '0.8125rem' }}>${(item.price * item.qty).toLocaleString('es-CO')}</p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#F5F5F5', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid #D1D5E0' }}>
+                        <button onClick={() => { const newItems = [...editItems]; newItems[i].qty = Math.max(0, newItems[i].qty - 1); setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>−</button>
+                        <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600 }}>{item.qty}</span>
+                        <button onClick={() => { const newItems = [...editItems]; newItems[i].qty += 1; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>+</button>
+                      </div>
+                      <button onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))} style={{ background: '#FF5722', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer', fontWeight: 600 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ background: '#CDD0DC', padding: '1rem', borderRadius: '0.875rem', marginBottom: '1.5rem', border: '1px solid #D1D5E0' }}>
+                <p style={{ margin: 0, color: '#9CA3AF', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Total nuevo</p>
+                <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#FF5722' }}>${editItems.reduce((sum, item) => sum + (item.price * item.qty), 0).toLocaleString('es-CO')}</p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  disabled={savingEdit}
+                  onClick={async () => {
+                    setSavingEdit(true)
+                    try {
+                      if (editItems.length === 0) { alert('Agrega al menos 1 item'); return }
+                      const newOrder = await supabase.from('orders').insert([{
+                        restaurant_id: (readyOrders.find(o => o.id === editingOrderId))?.restaurant_id,
+                        customer_name: (readyOrders.find(o => o.id === editingOrderId))?.customer_name,
+                        items: JSON.stringify(editItems),
+                        total: editItems.reduce((sum, item) => sum + (item.price * item.qty), 0),
+                        tipo_pedido: 'delivery',
+                        status: 'ready'
+                      }]).select()
+                      if (newOrder.error) throw newOrder.error
+                      if (editingOrderId) await supabase.rpc('cancelar_orden', { p_order_id: editingOrderId })
+                      alert('Pedido actualizado')
+                      setReady(prev => prev.filter(o => o.id !== editingOrderId))
+                      setEditingOrderId(null)
+                    } catch (err: any) {
+                      alert('Error: ' + err.message)
+                    } finally {
+                      setSavingEdit(false)
+                    }
+                  }}
+                  style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.875rem', background: '#FF5722', color: '#fff', fontFamily: 'sans-serif', fontWeight: 700, cursor: savingEdit ? 'not-allowed' : 'pointer', opacity: savingEdit ? 0.7 : 1 }}>
+                  {savingEdit ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+                <button
+                  disabled={savingEdit}
+                  onClick={() => setEditingOrderId(null)}
+                  style={{ flex: 1, padding: '0.9rem', border: '1px solid #D1D5E0', borderRadius: '0.875rem', background: '#F5F5F5', color: '#2D3561', fontFamily: 'sans-serif', fontWeight: 700, cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   )
