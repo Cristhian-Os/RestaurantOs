@@ -757,10 +757,8 @@ export const MenuManager = memo(() => {
                             <span className="flex-1 text-sm font-bold" style={{ color: txt }}>{cat.label}</span>
                             <button onClick={() => { setEditingCat(cat.value); setCatLabel(cat.label) }}
                               style={{ color: txtLt, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem' }} title="Editar nombre">✏️</button>
-                            {!['entrada','principal','postre','bebida','especial'].includes(cat.value) && (
-                              <button onClick={() => handleDeleteCategory(cat.value)}
-                                style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem' }} title="Eliminar">🗑️</button>
-                            )}
+                            <button onClick={() => handleDeleteCategory(cat.value)}
+                              style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem' }} title="Eliminar">🗑️</button>
                           </>
                       }
                     </div>
@@ -1326,7 +1324,7 @@ export const MenuManager = memo(() => {
                       ))}
                     </div>
                   )}
-                  <p className="text-sm font-bold mt-0.5" style={{ color: acc }}>${dish.price.toFixed(2)}</p>
+                  <p className="text-sm font-bold mt-0.5" style={{ color: acc }}>${dish.price.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
                 </div>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <button onClick={() => openEdit(dish)}

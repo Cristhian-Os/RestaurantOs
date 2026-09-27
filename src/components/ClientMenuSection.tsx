@@ -337,7 +337,7 @@ export const ClientMenuSection = memo(() => {
                     <span className="text-sm text-[#6B7280]">{item.dish.name}</span>
                   </div>
                   <span className="text-sm font-bold text-[#2D3561]">
-                    ${(item.dish.price * item.quantity).toFixed(2)}
+                    ${Math.round(item.dish.price * item.quantity).toLocaleString('es-CO')}
                   </span>
                 </div>
               ))}

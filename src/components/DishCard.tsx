@@ -145,7 +145,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
           className="text-lg font-bold text-[#FF5722]"
           style={{ fontFamily: 'DM Sans, sans-serif' }}
         >
-          ${dish.price.toFixed(2)}
+          ${Math.round(dish.price).toLocaleString('es-CO')}
         </span>
 
         {/* motion.button con efecto spring al presionar (touch-friendly) */}

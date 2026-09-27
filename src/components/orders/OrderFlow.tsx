@@ -192,7 +192,7 @@ const DishOptionsModal = memo(({ dish, flavors, jugoFlavors, shortages, onConfir
             <div className="flex flex-wrap gap-2">
               {sizes.map(s => (
                 <button key={s.nombre} onClick={() => setSize(s.nombre)} style={chipStyle(size === s.nombre)}>
-                  {s.nombre} · ${s.precio.toFixed(2)}
+                  {s.nombre} · ${Math.round(s.precio).toLocaleString('es-CO')}
                 </button>
               ))}
             </div>
@@ -290,7 +290,7 @@ const DishOptionsModal = memo(({ dish, flavors, jugoFlavors, shortages, onConfir
           className="w-full py-4 rounded-2xl font-bold text-white bg-[#FF5722]"
           style={{ ...S.coral, opacity: optionsValid ? 1 : 0.5 }}
         >
-          {optionsValid ? `Agregar al pedido · $${unitPrice.toFixed(2)}` : 'Elige las opciones'}
+          {optionsValid ? `Agregar al pedido · $${Math.round(unitPrice).toLocaleString('es-CO')}` : 'Elige las opciones'}
         </button>
       </motion.div>
     </motion.div>
@@ -486,9 +486,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         })
         if (error) throw error
         // Plan B: el pedido no pasa a cocina hasta que Caja lo cobre.
-        message.success(`Pedido enviado a caja para cobro — Total: $${cartTotal.toFixed(2)}`)
+        message.success(`Pedido enviado a caja para cobro — Total: $${Math.round(cartTotal).toLocaleString('es-CO')}`)
         const dest = selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : 'Mostrador'
-        pushNotificationService.notify(['cashier', 'admin'], 'Pedido por cobrar', `${dest} — ${items.length} ítem(s) · $${cartTotal.toFixed(2)}`, '/')
+        pushNotificationService.notify(['cashier', 'admin'], 'Pedido por cobrar', `${dest} — ${items.length} ítem(s) · $${Math.round(cartTotal).toLocaleString('es-CO')}`, '/')
         onOrderCreated?.(data.order_id, data.total)
       } else {
         const { data: { user: offlineUser } } = await supabase.auth.getUser()
@@ -711,8 +711,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                       <p className="text-xs font-bold text-[#2D3561] leading-tight line-clamp-2">{dish.name}</p>
                       <p className="text-sm font-bold text-[#FF5722]">
                         {dish.has_sizes && dish.sizes?.length
-                          ? `desde $${Math.min(...dish.sizes.map(s => s.precio)).toFixed(2)}`
-                          : `$${dish.price.toFixed(2)}`}
+                          ? `desde $${Math.round(Math.min(...dish.sizes.map(s => s.precio))).toLocaleString('es-CO')}`
+                          : `$${Math.round(dish.price).toLocaleString('es-CO')}`}
                       </p>
                       {needsCustomization(dish, shortageProductIds.has(dish.id)) && (
                         <p className="text-[10px] font-bold -mt-1" style={{ color: shortageProductIds.has(dish.id) ? '#DC2626' : '#FF5722' }}>
@@ -761,7 +761,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                     style={S.coral}
                   >
                     <span>Ver pedido ({cartCount})</span>
-                    <span>${cartTotal.toFixed(2)}</span>
+                    <span>${Math.round(cartTotal).toLocaleString('es-CO')}</span>
                   </button>
                 </motion.div>
               )}
@@ -812,7 +812,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                         <span className="text-sm font-medium text-[#2D3561]">{item.dish.name}</span>
                       </div>
                       <span className="text-sm font-bold text-[#2D3561]">
-                        ${(item.unitPrice * item.quantity).toFixed(2)}
+                        ${Math.round(item.unitPrice * item.quantity).toLocaleString('es-CO')}
                       </span>
                     </div>
                     {item.optsText && (
@@ -850,7 +850,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               {/* Total */}
               <div className="flex items-center justify-between pt-4 border-t border-[#D1D5E0]">
                 <span className="font-bold text-[#2D3561]">Total</span>
-                <span className="text-2xl font-bold text-[#FF5722]">${cartTotal.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-[#FF5722]">${Math.round(cartTotal).toLocaleString('es-CO')}</span>
               </div>
             </div>
 
@@ -869,7 +869,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                     </svg>
                     Enviando a cocina...
                   </span>
-                : `Confirmar orden · $${cartTotal.toFixed(2)}`
+                : `Confirmar orden · $${Math.round(cartTotal).toLocaleString('es-CO')}`
               }
             </motion.button>
 

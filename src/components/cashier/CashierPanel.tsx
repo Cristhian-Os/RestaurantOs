@@ -228,7 +228,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     setPayingOrder(order)
     setPayingKind(kind)
     setPayMethod('efectivo')
-    setAmountPaid(order.total.toFixed(2))
+    setAmountPaid(String(Math.round(order.total)))
     setPropinaInput('')
     setPropinaRespuesta(null)
   }, [])
@@ -288,7 +288,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       if (error) throw error
       message.success(
         payMethod === 'efectivo' && data.change > 0
-          ? `Cobrado · Cambio: $${data.change.toFixed(2)}`
+          ? `Cobrado · Cambio: $${Math.round(data.change).toLocaleString('es-CO')}`
           : payingKind === 'inicial' ? 'Cobrado · enviado a cocina' : 'Cobrado exitosamente'
       )
       setPayingOrder(null)
@@ -377,11 +377,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       {/* Resumen del día */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Efectivo hoy',       val: `$${daySummary.total_efectivo.toFixed(2)}`,     color: 'text-emerald-600' },
-          { label: 'Transferencias hoy', val: `$${daySummary.total_transferencia.toFixed(2)}`, color: 'text-blue-600'    },
-          { label: 'Propinas hoy',       val: `$${daySummary.total_propinas.toFixed(2)}`,      color: 'text-purple-500'  },
-          { label: 'Gastos hoy',         val: `$${totalGastosHoy.toFixed(2)}`,                 color: 'text-red-500'     },
-          { label: 'Neto del día',       val: `$${netoDia.toFixed(2)}`,                        color: 'text-[#FF5722]'   },
+          { label: 'Efectivo hoy',       val: `$${Math.round(daySummary.total_efectivo).toLocaleString('es-CO')}`,     color: 'text-emerald-600' },
+          { label: 'Transferencias hoy', val: `$${Math.round(daySummary.total_transferencia).toLocaleString('es-CO')}`, color: 'text-blue-600'    },
+          { label: 'Propinas hoy',       val: `$${Math.round(daySummary.total_propinas).toLocaleString('es-CO')}`,      color: 'text-purple-500'  },
+          { label: 'Gastos hoy',         val: `$${Math.round(totalGastosHoy).toLocaleString('es-CO')}`,                 color: 'text-red-500'     },
+          { label: 'Neto del día',       val: `$${Math.round(netoDia).toLocaleString('es-CO')}`,                        color: 'text-[#FF5722]'   },
         ].map(s => (
           <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
@@ -476,7 +476,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       <input type="number" min={0} step="0.01" value={it.precio_unitario} onChange={e => updateProvItem(idx, { precio_unitario: e.target.value })}
                         placeholder="Precio unit." className="w-24 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
                       <span className="text-xs font-bold text-[#2D3561] w-20 text-right">
-                        ${((parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0)).toFixed(2)}
+                        ${Math.round((parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0)).toLocaleString('es-CO')}
                       </span>
                       <button onClick={() => setProvItems(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev)}
                         className="text-[#9CA3AF] hover:text-red-500 text-sm px-1">✕</button>
@@ -487,7 +487,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   className="text-xs font-bold text-[#FF5722] mb-3">+ Agregar producto</button>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-[#2D3561]">Total: ${provTotal.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-[#2D3561]">Total: ${Math.round(provTotal).toLocaleString('es-CO')}</span>
                   <button onClick={handleAgregarCompraProveedor} disabled={savingGasto}
                     className="px-4 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingGasto ? 0.6 : 1 }}>
                     {savingGasto ? 'Guardando…' : 'Guardar compra · sube stock'}
@@ -511,7 +511,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <p className="text-[11px] text-[#9CA3AF]">{new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-bold text-red-500">${Number(g.monto).toFixed(2)}</span>
+                  <span className="font-bold text-red-500">${Math.round(Number(g.monto)).toLocaleString('es-CO')}</span>
                   <button onClick={() => handleEliminarGasto(g.id)} className="text-[#9CA3AF] hover:text-red-500 text-sm">✕</button>
                 </div>
               </div>
@@ -546,13 +546,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     </p>
                     {order.notes && <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>}
                   </div>
-                  <span className="text-2xl font-bold text-[#FF5722]">${order.total.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
                 </div>
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.slice(0, 4).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
                       <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
-                      <span className="text-[#9CA3AF]">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                 </div>
@@ -562,7 +562,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   className="w-full py-3 rounded-2xl font-bold text-white text-sm"
                   style={{ backgroundColor: '#D97706' }}
                 >
-                  Cobrar y enviar a cocina · ${order.total.toFixed(2)}
+                  Cobrar y enviar a cocina · ${Math.round(order.total).toLocaleString('es-CO')}
                 </motion.button>
               </motion.div>
             ))}
@@ -611,7 +611,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.delivered_at ? '✓ Entregado al mesero' : 'Esperando que el mesero lo recoja'}
                     </p>
                   </div>
-                  <span className="text-2xl font-bold text-[#FF5722]">${order.total.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
                 </div>
 
                 {/* Items */}
@@ -619,7 +619,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   {order.items.slice(0, 4).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
                       <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
-                      <span className="text-[#9CA3AF]">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                   {order.items.length > 4 && (
@@ -647,7 +647,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     className="w-full py-3 rounded-2xl font-bold text-white bg-[#FF5722] text-sm"
                     style={S.coral}
                   >
-                    Cobrar ${order.total.toFixed(2)}
+                    Cobrar ${Math.round(order.total).toLocaleString('es-CO')}
                   </motion.button>
                 )}
                 <div className="flex gap-2 mt-2">
@@ -721,7 +721,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     {payingOrder.table_num ? `Mesa ${payingOrder.table_num}` : payingOrder.tipo_pedido}
                   </h3>
                 </div>
-                <span className="text-2xl font-bold text-[#FF5722]">${payingOrder.total.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-[#FF5722]">${Math.round(payingOrder.total).toLocaleString('es-CO')}</span>
               </div>
 
               {/* Items en el modal */}
@@ -729,7 +729,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 {payingOrder.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-xs py-0.5">
                     <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
-                    <span className="text-[#9CA3AF]">${(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                   </div>
                 ))}
               </div>
