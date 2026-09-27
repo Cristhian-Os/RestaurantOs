@@ -161,7 +161,7 @@ CREATE OR REPLACE FUNCTION public.cobrar_orden(p_order_id uuid, p_payment_method
 AS $function$
 DECLARE v_order public.orders%ROWTYPE; v_change NUMERIC := 0; v_propina_final numeric;
 BEGIN
-  IF public.get_user_role() NOT IN ('admin','cashier') THEN
+  IF public.get_user_role() IS NULL OR public.get_user_role() NOT IN ('admin','cashier') THEN
     RAISE EXCEPTION 'Solo cajero o administrador pueden cobrar órdenes';
   END IF;
   IF p_payment_method NOT IN ('efectivo','transferencia','tarjeta') THEN
@@ -209,7 +209,7 @@ DECLARE
   v_change NUMERIC := 0;
   v_propina_final numeric := GREATEST(COALESCE(p_propina,0),0);
 BEGIN
-  IF public.get_user_role() NOT IN ('admin','cashier') THEN
+  IF public.get_user_role() IS NULL OR public.get_user_role() NOT IN ('admin','cashier') THEN
     RAISE EXCEPTION 'Solo cajero o administrador pueden cobrar órdenes';
   END IF;
   IF p_payment_method NOT IN ('efectivo','transferencia','tarjeta') THEN
@@ -320,7 +320,7 @@ DECLARE
   v_unit     numeric;
   v_reservas jsonb := '{}'::jsonb;
 BEGIN
-  IF public.get_user_role() NOT IN ('admin','waiter','cashier') THEN
+  IF public.get_user_role() IS NULL OR public.get_user_role() NOT IN ('admin','waiter','cashier') THEN
     RAISE EXCEPTION 'No autorizado para crear órdenes';
   END IF;
   IF v_rid IS NULL THEN
@@ -389,7 +389,7 @@ DECLARE
   v_rid           UUID := public.current_restaurant_id();
   v_items_final   JSONB := '[]'::JSONB;
 BEGIN
-  IF public.get_user_role() NOT IN ('admin','waiter','cashier','client') THEN
+  IF public.get_user_role() IS NULL OR public.get_user_role() NOT IN ('admin','waiter','cashier','client') THEN
     RAISE EXCEPTION 'No autorizado para crear órdenes';
   END IF;
   IF v_rid IS NULL THEN
@@ -1017,7 +1017,7 @@ CREATE OR REPLACE FUNCTION public.get_corte_productos()
  SET search_path TO 'public'
 AS $function$
 BEGIN
-  IF public.get_user_role() NOT IN ('admin','cashier') THEN
+  IF public.get_user_role() IS NULL OR public.get_user_role() NOT IN ('admin','cashier') THEN
     RAISE EXCEPTION 'Solo cajero o administrador pueden ver el corte';
   END IF;
   RETURN QUERY
@@ -1119,7 +1119,7 @@ DECLARE
   v_total_gastos NUMERIC; v_total_neto NUMERIC;
   v_rid UUID := public.current_restaurant_id();
 BEGIN
-  IF public.get_user_role() NOT IN ('admin','cashier') THEN
+  IF public.get_user_role() IS NULL OR public.get_user_role() NOT IN ('admin','cashier') THEN
     RAISE EXCEPTION 'Solo cajero o administrador pueden hacer el corte de caja';
   END IF;
 
@@ -1555,7 +1555,7 @@ DECLARE
   v_cantidad  NUMERIC;
   v_precio    NUMERIC;
 BEGIN
-  IF public.get_user_role() NOT IN ('admin','cashier') THEN
+  IF public.get_user_role() IS NULL OR public.get_user_role() NOT IN ('admin','cashier') THEN
     RAISE EXCEPTION 'Solo cajero o administrador pueden registrar gastos';
   END IF;
   IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
@@ -1739,28 +1739,15 @@ CREATE OR REPLACE FUNCTION public.cancelar_orden(p_order_id uuid)
 AS $function$
 DECLARE
   v_status text;
-  v_user_role text;
-  v_user_rid uuid;
-  v_order_rid uuid;
 BEGIN
-  SELECT status, restaurant_id INTO v_status, v_order_rid FROM public.orders WHERE id = p_order_id;
+  SELECT status INTO v_status FROM public.orders WHERE id = p_order_id;
 
   IF v_status IS NULL THEN
     RAISE EXCEPTION 'Pedido no encontrado';
   END IF;
 
-  SELECT role, restaurant_id INTO v_user_role, v_user_rid FROM public.profiles WHERE id = auth.uid();
-
-  IF v_order_rid IS DISTINCT FROM v_user_rid THEN
-    RAISE EXCEPTION 'No autorizado';
-  END IF;
-
-  IF v_user_role = 'client' AND v_status != 'pending' THEN
-    RAISE EXCEPTION 'Solo se pueden cancelar pedidos pendientes';
-  END IF;
-
-  IF v_user_role NOT IN ('admin', 'cashier', 'kitchen', 'client') THEN
-    RAISE EXCEPTION 'Rol no autorizado';
+  IF v_status IN ('completed', 'cancelled') THEN
+    RAISE EXCEPTION 'Este pedido ya no se puede cancelar';
   END IF;
 
   UPDATE public.orders SET status = 'cancelled', updated_at = NOW() WHERE id = p_order_id;
@@ -1771,6 +1758,63 @@ $function$
 ;
 
 CREATE OR REPLACE FUNCTION public.cancelar_item_orden(p_order_id uuid, p_item_index integer)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_order public.orders%ROWTYPE;
+  v_role TEXT;
+  v_items JSONB;
+  v_item JSONB;
+  v_item_price NUMERIC;
+  v_new_total NUMERIC;
+BEGIN
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Orden no encontrada'; END IF;
+
+  SELECT public.get_user_role() INTO v_role;
+  IF v_role IS NULL OR v_role NOT IN ('kitchen', 'admin', 'cashier') THEN
+    RAISE EXCEPTION 'Solo cocina, cajero o admin pueden cancelar items';
+  END IF;
+
+  IF v_order.status != 'cooking' THEN
+    RAISE EXCEPTION 'Solo se pueden cancelar items de órdenes en cooking';
+  END IF;
+
+  v_items := CASE
+    WHEN jsonb_typeof(v_order.items::jsonb) = 'array' THEN v_order.items::jsonb
+    ELSE '[]'::jsonb
+  END;
+
+  IF p_item_index < 0 OR p_item_index >= jsonb_array_length(v_items) THEN
+    RAISE EXCEPTION 'Índice de item inválido';
+  END IF;
+
+  v_item := v_items -> p_item_index;
+  v_item_price := COALESCE((v_item->>'price')::NUMERIC, 0);
+
+  v_items := jsonb_set(v_items, ARRAY[p_item_index::text, 'cancelled'], 'true'::jsonb);
+
+  v_new_total := GREATEST(0, v_order.total - v_item_price);
+
+  UPDATE public.orders SET
+    items = v_items,
+    total = v_new_total,
+    updated_at = NOW()
+  WHERE id = p_order_id;
+
+  RETURN json_build_object(
+    'order_id', p_order_id,
+    'item_index', p_item_index,
+    'item_name', v_item->>'name',
+    'new_total', v_new_total,
+    'message', 'Item cancelado'
+  );
+END; $function$
+;
+
+CREATE OR REPLACE FUNCTION public.editar_pedido_cliente(p_order_id uuid, p_items jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -1778,43 +1822,92 @@ CREATE OR REPLACE FUNCTION public.cancelar_item_orden(p_order_id uuid, p_item_in
 AS $function$
 DECLARE
   v_status text;
-  v_user_role text;
-  v_user_rid uuid;
-  v_order_rid uuid;
-  v_items jsonb;
-  v_total numeric;
-  v_item_price numeric;
+  v_original_items jsonb;
+  v_new_total numeric := 0;
+  v_item jsonb;
+  v_orig_item jsonb;
+  v_id text;
+  v_qty int;
+  v_price numeric;
+  v_new_items jsonb;
 BEGIN
-  SELECT status, restaurant_id, items, total INTO v_status, v_order_rid, v_items, v_total FROM public.orders WHERE id = p_order_id;
+  SELECT status, items INTO v_status, v_original_items FROM public.orders WHERE id = p_order_id;
 
   IF v_status IS NULL THEN
     RAISE EXCEPTION 'Pedido no encontrado';
   END IF;
 
-  IF v_status != 'cooking' THEN
-    RAISE EXCEPTION 'Solo se pueden cancelar items en cocina';
+  IF v_status NOT IN ('pending', 'ready') THEN
+    RAISE EXCEPTION 'Solo se pueden editar pedidos pendientes o listos para cobrar';
   END IF;
 
-  SELECT role, restaurant_id INTO v_user_role, v_user_rid FROM public.profiles WHERE id = auth.uid();
+  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items) LOOP
+    v_id := v_item->>'id';
+    v_qty := COALESCE((v_item->>'quantity')::int, 0);
+    IF v_qty <= 0 THEN CONTINUE; END IF;
 
-  IF v_order_rid IS DISTINCT FROM v_user_rid THEN
-    RAISE EXCEPTION 'No autorizado';
+    SELECT elem INTO v_orig_item
+    FROM jsonb_array_elements(v_original_items) elem
+    WHERE elem->>'id' = v_id
+    LIMIT 1;
+
+    IF v_orig_item IS NULL THEN
+      RAISE EXCEPTION 'Item no valido en el pedido';
+    END IF;
+
+    v_price := (v_orig_item->>'price')::numeric;
+    v_new_total := v_new_total + (v_price * v_qty);
+  END LOOP;
+
+  IF v_new_total <= 0 THEN
+    RAISE EXCEPTION 'El pedido debe tener al menos un item';
   END IF;
 
-  IF v_user_role NOT IN ('admin', 'cashier', 'kitchen') THEN
-    RAISE EXCEPTION 'Rol no autorizado';
-  END IF;
-
-  v_item_price := COALESCE((v_items->p_item_index->>'price')::numeric, 0);
-  v_items := jsonb_set(v_items, ARRAY[p_item_index::text, 'cancelled'], 'true'::jsonb);
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'id', elem->>'id',
+      'name', elem->>'name',
+      'price', (elem->>'price')::numeric,
+      'quantity', (ni->>'quantity')::int,
+      'notes', elem->'notes'
+    )
+  ) INTO v_new_items
+  FROM jsonb_array_elements(v_original_items) elem
+  JOIN jsonb_array_elements(p_items) ni ON ni->>'id' = elem->>'id'
+  WHERE COALESCE((ni->>'quantity')::int, 0) > 0;
 
   UPDATE public.orders
-  SET items = v_items,
-      total = GREATEST(0, v_total - v_item_price),
+  SET items = v_new_items,
+      total = v_new_total,
       updated_at = NOW()
   WHERE id = p_order_id;
 
-  RETURN jsonb_build_object('status', 'ok');
+  RETURN jsonb_build_object('status', 'ok', 'total', v_new_total);
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.obtener_items_pedido_cliente(p_order_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_status text;
+  v_items jsonb;
+BEGIN
+  SELECT status, items INTO v_status, v_items FROM public.orders WHERE id = p_order_id;
+
+  IF v_status IS NULL THEN
+    RAISE EXCEPTION 'Pedido no encontrado';
+  END IF;
+
+  IF v_status NOT IN ('pending', 'ready') THEN
+    RAISE EXCEPTION 'Este pedido ya no se puede editar';
+  END IF;
+
+  RETURN COALESCE(v_items, '[]'::jsonb);
 END;
 $function$
 ;

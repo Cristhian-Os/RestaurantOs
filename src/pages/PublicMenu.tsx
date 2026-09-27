@@ -1022,7 +1022,7 @@ export default function PublicMenu() {
   const [payingOnline,  setPayingOnline]  = useState(false)
   const [cancelling,    setCancelling]    = useState(false)
   const [editingOrder,  setEditingOrder]  = useState(false)
-  const [editItems,     setEditItems]     = useState<CartItem[]>([])
+  const [editItems,     setEditItems]     = useState<{ id: string; name: string; price: number; quantity: number; notes?: string | null }[]>([])
   const [savingEdit,    setSavingEdit]    = useState(false)
   const [socialMap,     setSocialMap]     = useState<Record<string, DishSocial>>({})
   const [reviewDish,    setReviewDish]    = useState<Dish | null>(null)
@@ -1488,9 +1488,12 @@ export default function PublicMenu() {
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                   <button
                     disabled={editingOrder}
-                    onClick={() => {
+                    onClick={async () => {
+                      if (!orderId) return
                       setEditingOrder(true)
-                      setEditItems(cart)
+                      const { data, error } = await supabase.rpc('obtener_items_pedido_cliente', { p_order_id: orderId })
+                      if (error) { alert('No se pudo cargar el pedido: ' + error.message); setEditingOrder(false); return }
+                      setEditItems(Array.isArray(data) ? data : [])
                     }}
                     className="w-press"
                     style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-saffron)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: editingOrder ? 'not-allowed' : 'pointer', opacity: editingOrder ? 0.7 : 1 }}>
@@ -1534,19 +1537,19 @@ export default function PublicMenu() {
                       <h3 style={{ fontFamily: 'var(--w-display)', fontWeight: 600, fontSize: '1.25rem', margin: '0 0 1rem', color: 'var(--w-ink)' }}>Editar pedido</h3>
 
                       {editItems.length === 0 ? (
-                        <p style={{ color: 'var(--w-ink-mut)', textAlign: 'center', padding: '2rem 0' }}>Sin items</p>
+                        <p style={{ color: 'var(--w-ink-mut)', textAlign: 'center', padding: '2rem 0' }}>Cargando…</p>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
                           {editItems.map((item, i) => (
                             <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: 'var(--w-bg)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)' }}>
                               <div style={{ flex: 1 }}>
-                                <p style={{ fontWeight: 600, margin: '0 0 0.25rem', color: 'var(--w-ink)', fontSize: '0.9375rem' }}>{item.dish.nombre}</p>
-                                <p style={{ color: 'var(--w-ink-mut)', margin: 0, fontSize: '0.8125rem' }}>${(item.price * item.qty).toLocaleString('es-CO')}</p>
+                                <p style={{ fontWeight: 600, margin: '0 0 0.25rem', color: 'var(--w-ink)', fontSize: '0.9375rem' }}>{item.name}</p>
+                                <p style={{ color: 'var(--w-ink-mut)', margin: 0, fontSize: '0.8125rem' }}>${(item.price * item.quantity).toLocaleString('es-CO')}</p>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--w-surface)', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid var(--w-line)' }}>
-                                <button onClick={() => { const newItems = [...editItems]; newItems[i].qty = Math.max(0, newItems[i].qty - 1); setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>−</button>
-                                <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600 }}>{item.qty}</span>
-                                <button onClick={() => { const newItems = [...editItems]; newItems[i].qty += 1; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>+</button>
+                                <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: Math.max(0, newItems[i].quantity - 1) }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>−</button>
+                                <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600 }}>{item.quantity}</span>
+                                <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: newItems[i].quantity + 1 }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>+</button>
                               </div>
                               <button onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))} style={{ background: 'var(--w-wine)', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer', fontWeight: 600 }}>✕</button>
                             </div>
@@ -1556,29 +1559,23 @@ export default function PublicMenu() {
 
                       <div style={{ background: 'var(--w-bg)', padding: '1rem', borderRadius: '0.875rem', marginBottom: '1.5rem', border: '1px solid var(--w-line)' }}>
                         <p style={{ margin: 0, color: 'var(--w-ink-mut)', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Total nuevo</p>
-                        <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-terra)' }}>${editItems.reduce((sum, item) => sum + (item.price * item.qty), 0).toLocaleString('es-CO')}</p>
+                        <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-terra)' }}>${editItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toLocaleString('es-CO')}</p>
                       </div>
 
                       <div style={{ display: 'flex', gap: '0.75rem' }}>
                         <button
                           disabled={savingEdit}
                           onClick={async () => {
+                            if (!orderId) return
+                            if (editItems.length === 0) { alert('Agrega al menos 1 item'); return }
                             setSavingEdit(true)
                             try {
-                              if (editItems.length === 0) { alert('Agrega al menos 1 item'); return }
-                              const newOrderRes = await supabase.from('orders').insert([{
-                                restaurant_id: restaurantId,
-                                customer_name: clientName,
-                                items: JSON.stringify(editItems),
-                                total: editItems.reduce((sum, item) => sum + (item.price * item.qty), 0),
-                                tipo_pedido: 'delivery',
-                                status: 'pending'
-                              }]).select()
-                              if (newOrderRes.error) throw newOrderRes.error
-                              if (orderId) await supabase.rpc('cancelar_orden', { p_order_id: orderId })
-                              setOrderId(newOrderRes.data[0].id)
-                              setOrderStatus('pending')
-                              alert('Pedido actualizado. Nuevo ID: ' + newOrderRes.data[0].id.slice(0, 8))
+                              const { data, error } = await supabase.rpc('editar_pedido_cliente', {
+                                p_order_id: orderId,
+                                p_items: editItems.map(it => ({ id: it.id, quantity: it.quantity })),
+                              })
+                              if (error) throw error
+                              alert('Pedido actualizado')
                               setEditingOrder(false)
                             } catch (err) {
                               alert('Error al guardar: ' + (err as any).message)

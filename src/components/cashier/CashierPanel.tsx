@@ -999,13 +999,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   {editItems.map((item, i) => (
                     <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#fff', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid #D1D5E0' }}>
                       <div style={{ flex: 1 }}>
-                        <p style={{ fontWeight: 600, margin: '0 0 0.25rem', color: '#2D3561', fontSize: '0.9375rem' }}>{item.dish?.nombre || item.name}</p>
-                        <p style={{ color: '#9CA3AF', margin: 0, fontSize: '0.8125rem' }}>${(item.price * item.qty).toLocaleString('es-CO')}</p>
+                        <p style={{ fontWeight: 600, margin: '0 0 0.25rem', color: '#2D3561', fontSize: '0.9375rem' }}>{item.name}</p>
+                        <p style={{ color: '#9CA3AF', margin: 0, fontSize: '0.8125rem' }}>${(item.price * item.quantity).toLocaleString('es-CO')}</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#F5F5F5', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid #D1D5E0' }}>
-                        <button onClick={() => { const newItems = [...editItems]; newItems[i].qty = Math.max(0, newItems[i].qty - 1); setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>−</button>
-                        <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600 }}>{item.qty}</span>
-                        <button onClick={() => { const newItems = [...editItems]; newItems[i].qty += 1; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>+</button>
+                        <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: Math.max(0, newItems[i].quantity - 1) }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>−</button>
+                        <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600 }}>{item.quantity}</span>
+                        <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: newItems[i].quantity + 1 }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>+</button>
                       </div>
                       <button onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))} style={{ background: '#FF5722', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer', fontWeight: 600 }}>✕</button>
                     </div>
@@ -1015,28 +1015,24 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
               <div style={{ background: '#CDD0DC', padding: '1rem', borderRadius: '0.875rem', marginBottom: '1.5rem', border: '1px solid #D1D5E0' }}>
                 <p style={{ margin: 0, color: '#9CA3AF', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Total nuevo</p>
-                <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#FF5722' }}>${editItems.reduce((sum, item) => sum + (item.price * item.qty), 0).toLocaleString('es-CO')}</p>
+                <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#FF5722' }}>${editItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toLocaleString('es-CO')}</p>
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button
                   disabled={savingEdit}
                   onClick={async () => {
+                    if (!editingOrderId) return
+                    if (editItems.length === 0) { alert('Agrega al menos 1 item'); return }
                     setSavingEdit(true)
                     try {
-                      if (editItems.length === 0) { alert('Agrega al menos 1 item'); return }
-                      const newOrder = await supabase.from('orders').insert([{
-                        restaurant_id: (readyOrders.find(o => o.id === editingOrderId))?.restaurant_id,
-                        customer_name: (readyOrders.find(o => o.id === editingOrderId))?.customer_name,
-                        items: JSON.stringify(editItems),
-                        total: editItems.reduce((sum, item) => sum + (item.price * item.qty), 0),
-                        tipo_pedido: 'delivery',
-                        status: 'ready'
-                      }]).select()
-                      if (newOrder.error) throw newOrder.error
-                      if (editingOrderId) await supabase.rpc('cancelar_orden', { p_order_id: editingOrderId })
+                      const { error } = await supabase.rpc('editar_pedido_cliente', {
+                        p_order_id: editingOrderId,
+                        p_items: editItems.map(it => ({ id: it.id, quantity: it.quantity })),
+                      })
+                      if (error) throw error
                       alert('Pedido actualizado')
-                      setReady(prev => prev.filter(o => o.id !== editingOrderId))
+                      await fetchData()
                       setEditingOrderId(null)
                     } catch (err: any) {
                       alert('Error: ' + err.message)
