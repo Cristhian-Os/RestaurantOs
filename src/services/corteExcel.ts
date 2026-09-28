@@ -128,3 +128,98 @@ export async function descargarCorteExcel(opts: {
   const slug = restauranteNombre.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
   XLSX.writeFile(wb, `corte_${slug || 'restaurante'}_${fecha}.xlsx`)
 }
+
+// ─── Corte mensual ──────────────────────────────────────────────────────
+export interface CorteMensualDia {
+  fecha:         string
+  efectivo:      number
+  transferencia: number
+  total:         number
+  ordenes:       number
+  gastos:        number
+}
+
+export interface CorteMensualTotales {
+  mes:                 string   // 'YYYY-MM'
+  desde:               string   // 'YYYY-MM-DD'
+  hasta:               string   // 'YYYY-MM-DD'
+  total_efectivo:      number
+  total_transferencia: number
+  total_general:       number
+  total_ordenes:       number
+  total_propinas:      number
+  total_gastos:        number
+  total_neto:          number
+  dias:                CorteMensualDia[]
+}
+
+export async function descargarCorteMensualExcel(opts: {
+  restauranteNombre: string
+  corte:             CorteMensualTotales
+}) {
+  const XLSX = await import('xlsx')
+  const { restauranteNombre, corte } = opts
+  const n = (v: unknown) => Number(v ?? 0)
+
+  const mesLabel = new Date(corte.desde + 'T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+  const mesLabelCap = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)
+
+  const rows: (string | number)[][] = []
+  const moneyCells: [number, number][] = []   // [fila, columna] a formatear como moneda
+
+  const pushMoneyRow = (label: string, valor: number) => {
+    rows.push([label, '', '', '', n(valor)])
+    moneyCells.push([rows.length - 1, 4])
+  }
+
+  rows.push([restauranteNombre])
+  rows.push([`Corte mensual · ${mesLabelCap} · sin Rappi`])
+  rows.push([`Del ${corte.desde} al ${corte.hasta}`])
+  rows.push([])
+  rows.push(['RESUMEN DEL MES', '', '', '', ''])
+  pushMoneyRow('Efectivo', corte.total_efectivo)
+  pushMoneyRow('Transferencia', corte.total_transferencia)
+  pushMoneyRow('Ventas del mes', corte.total_general)
+  if (n(corte.total_propinas) > 0) {
+    pushMoneyRow('Propinas (NO es venta, se reparte al equipo)', corte.total_propinas)
+  }
+  pushMoneyRow('Gastos del mes', -n(corte.total_gastos))
+  pushMoneyRow('BENEFICIO NETO DEL MES', corte.total_neto)
+  rows.push(['Órdenes', '', '', '', n(corte.total_ordenes)])
+
+  if (corte.dias.length > 0) {
+    rows.push([])
+    rows.push(['DÍA', 'Efectivo', 'Transferencia', 'Órdenes', 'Total'])
+    for (const d of corte.dias) {
+      const diaLabel = new Date(d.fecha + 'T12:00:00')
+        .toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' })
+      const r = rows.length
+      rows.push([diaLabel.charAt(0).toUpperCase() + diaLabel.slice(1), n(d.efectivo), n(d.transferencia), n(d.ordenes), n(d.total)])
+      moneyCells.push([r, 1], [r, 2], [r, 4])
+    }
+    const totalRow = rows.length
+    rows.push(['TOTAL', n(corte.total_efectivo), n(corte.total_transferencia), n(corte.total_ordenes), n(corte.total_general)])
+    moneyCells.push([totalRow, 1], [totalRow, 2], [totalRow, 4])
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 16 }]
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+  ]
+
+  const money = '#,##0'
+  for (const [r, c] of moneyCells) {
+    const ref = XLSX.utils.encode_cell({ r, c })
+    const cell = ws[ref]
+    if (cell && typeof cell.v === 'number') cell.z = money
+  }
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Corte mensual')
+
+  const slug = restauranteNombre.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  XLSX.writeFile(wb, `corte_mensual_${slug || 'restaurante'}_${corte.mes}.xlsx`)
+}

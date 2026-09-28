@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
-import { descargarCorteExcel, type CorteProducto } from '../../services/corteExcel'
+import { descargarCorteExcel, descargarCorteMensualExcel, type CorteProducto } from '../../services/corteExcel'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import { hoyBogota } from '../../services/menuOptions'
 import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
@@ -374,6 +374,21 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     if (error) { message.error('Error: ' + error.message); return }
     setCorteMensual(data as CorteMensual)
   }, [])
+
+  // Descargar el corte mensual en Excel (resumen del mes + desglose por día)
+  const handleDescargarExcelMensual = useCallback(async () => {
+    if (!corteMensual) return
+    try {
+      const { data: cfg } = await supabase
+        .from('restaurant_config').select('display_name').maybeSingle()
+      await descargarCorteMensualExcel({
+        restauranteNombre: cfg?.display_name ?? 'Restaurante',
+        corte: corteMensual,
+      })
+    } catch (e) {
+      message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
+    }
+  }, [corteMensual])
 
   // Conteo físico de efectivo (arqueo): cantidad de billetes/monedas por denominación
   const denominacionesConteo = DENOMINACIONES
@@ -1250,6 +1265,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   </div>
                 </div>
               )}
+
+              <button
+                onClick={handleDescargarExcelMensual}
+                className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
+                style={{ backgroundColor: '#1D7A46', ...S.green }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Descargar Excel
+              </button>
 
               <button onClick={() => setCorteMensual(null)} className="w-full py-3 rounded-2xl font-bold text-[#2D3561]" style={S.neoOut}>
                 Cerrar
