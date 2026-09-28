@@ -427,7 +427,7 @@ const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject
             <p className="font-bold text-[#2D3561] text-sm leading-snug" style={{ fontFamily: 'DM Sans, sans-serif' }}>
               {task.title}
             </p>
-            <span className={`${st.color} text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0`}>
+            <span className={`${st.color} text-[0.625rem] font-bold px-2 py-0.5 rounded-full shrink-0`}>
               {st.label}
             </span>
           </div>

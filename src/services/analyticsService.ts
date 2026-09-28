@@ -48,6 +48,7 @@ export const analyticsService = {
         .from('orders')
         .select('*')
         .eq('status', 'completed')
+        .neq('tipo_pedido', 'RAPPI')   // Rappi no cuenta en ventas (precios distintos al menú)
         .gte('created_at', thirtyDaysAgo.toISOString())
 
       if (ordersError) throw ordersError

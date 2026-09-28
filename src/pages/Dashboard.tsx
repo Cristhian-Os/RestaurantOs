@@ -34,9 +34,12 @@ import BrandingManager, { applyBranding } from '../components/branding/BrandingM
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 import { PlatformOverview } from '../components/platform/PlatformOverview'
+import { MenuAvailability } from '../components/menu/MenuAvailability'
+import { Proveedores }      from '../components/cashier/Proveedores'
+import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu' | 'branding' | 'billing' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'proveedores' | 'branding' | 'billing' | 'platform'
 
 export interface Profile {
   id:          string
@@ -82,6 +85,8 @@ const Icons = {
   Sun:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>,
   Moon:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>,
   Platform:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5M3 12a9 3 0 0018 0"/></svg>,
+  Toggles:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><rect x="2" y="5" width="20" height="6" rx="3"/><circle cx="16" cy="8" r="1.5"/><rect x="2" y="13" width="20" height="6" rx="3"/><circle cx="8" cy="16" r="1.5"/></svg>,
+  Truck:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M1 4h14v12H1zM15 9h4l3 3v4h-7"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg>,
 }
 
 const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: string }[]> = {
@@ -99,6 +104,8 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'analytics', icon:<Icons.Analytics />, label:'Analytics'  },
     { view:'team',      icon:<Icons.Team />,      label:'Equipo'     },
     { view:'menu',      icon:<Icons.Menu />,      label:'Menú'       },
+    { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú'},
+    { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
     { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
     { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
   ],
@@ -109,9 +116,11 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
   ],
   kitchen: [{ view:'kitchen', icon:<Icons.Kitchen />, label:'Cocina' }],
   cashier: [
-    { view:'cashier', icon:<Icons.Cashier />, label:'Caja'    },
-    { view:'orders',  icon:<Icons.Orders />,  label:'Pedidos' },
-    { view:'tasks',   icon:<Icons.Tasks />,   label:'Tareas'  },
+    { view:'cashier',      icon:<Icons.Cashier />, label:'Caja'         },
+    { view:'orders',       icon:<Icons.Orders />,  label:'Pedidos'      },
+    { view:'tasks',        icon:<Icons.Tasks />,   label:'Tareas'       },
+    { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú' },
+    { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'  },
   ],
   client:  [{ view:'menu', icon:<Icons.Menu />, label:'Menú' }],
 }
@@ -381,7 +390,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <h2 className="ed-display" style={{fontWeight:600,fontSize:'1.875rem',marginBottom:'1.25rem'}}>
             Nueva orden
           </h2>
-          <OrderFlow profile={profile} onOrderCreated={()=>message.success('Orden enviada a cocina')} />
+          <OrderFlow profile={profile} />
         </div>
       )
       case 'tables':    return <TableMap profile={profile} />
@@ -400,6 +409,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'analytics': return <BusinessAssistant />
       case 'team':      return <TeamManager />
       case 'menu':      return profile.role === 'admin' ? <MenuManager /> : <ClientMenuSection />
+      case 'menu_gestion': return <MenuAvailability />
+      case 'proveedores':  return <Proveedores />
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
       case 'platform':  return profile.role === 'super_admin' ? <PlatformOverview /> : null
@@ -425,6 +436,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   )
 
   const navItems = NAV_BY_ROLE[profile!.role] ?? NAV_BY_ROLE.client
+  const hasSounds = ['admin', 'cashier', 'kitchen', 'waiter'].includes(profile!.role)
 
   const chromeBtn: React.CSSProperties = {
     padding:'0.625rem', background:'var(--w-surface)', borderRadius:'0.75rem',
@@ -444,6 +456,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         <WaiterNotifications userId={profile!.id} isAdmin={profile!.role === 'admin'} />
       )}
 
+      {/* Sonido por tipo de pedido: cocina (pedido para preparar) y caja/admin (pedido nuevo) */}
+      <OrderSoundAlerts role={profile!.role} userId={profile!.id} />
+      {hasSounds && <SoundUnlockBanner />}
+
       {/* Header */}
       <header className="lg" style={{
         padding:'0.875rem 1.25rem', borderRadius:0, border:'none',
@@ -451,23 +467,25 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         display:'flex', justifyContent:'space-between', alignItems:'center',
         position:'sticky', top:0, zIndex:20,
       }}>
-        <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'0.75rem',minWidth:0,flex:1}}>
           <div style={{width:38,height:38,borderRadius:'0.625rem',overflow:'hidden',flexShrink:0,border:'1px solid var(--w-line)',background:'var(--w-surface)'}}>
             <img src={brand.logo || '/logo.jpg'} alt={brand.name || 'RestaurantOS'} style={{width:'100%',height:'100%',objectFit:brand.logo?'contain':'cover',display:'block'}}
               onError={e => { (e.target as HTMLImageElement).src = '/logo.jpg' }} />
           </div>
-          <div>
-            <h1 className="ed-display" style={{fontWeight:600,fontSize:'1.125rem',margin:0,lineHeight:1.1}}>
+          <div style={{minWidth:0}}>
+            <h1 className="ed-display" style={{fontWeight:600,fontSize:'1.125rem',margin:0,lineHeight:1.1,
+              overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
               {brand.name || 'RestaurantOS'}
             </h1>
-            <p style={{fontSize:'0.6875rem',color:'var(--w-ink-mut)',margin:0,fontFamily:'var(--w-sans)'}}>
+            <p style={{fontSize:'0.6875rem',color:'var(--w-ink-mut)',margin:0,fontFamily:'var(--w-sans)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
               {profile!.full_name ?? profile!.email} · {profile!.role}
             </p>
           </div>
         </div>
 
-        <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
+        <div style={{display:'flex',gap:'0.5rem',alignItems:'center',flexShrink:0,marginLeft:'0.5rem'}}>
           <InstallPWA compact />
+          {hasSounds && <SoundTestButton style={chromeBtn} />}
           {/* Theme toggle — solo admin */}
           {profile!.role === 'admin' && (
             <button
@@ -532,7 +550,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           {navItems.map(({view,icon,label})=>(
             <button key={view} onClick={()=>setActiveNav(view)} title={label}
               className="w-press"
-              style={{width:60,padding:'0.625rem 0',borderRadius:'0.875rem',border:'none',
+              style={{width:72,padding:'0.625rem 0',borderRadius:'0.875rem',border:'none',
                 cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',
                 gap:'0.3rem',fontFamily:'var(--w-sans)',
                 transition:'all 0.2s cubic-bezier(0.16,1,0.3,1)',
@@ -548,7 +566,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   <span style={{position:'absolute',top:-6,right:-8,background:'#DC2626',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{pendingSocial}</span>
                 )}
               </span>
-              <span style={{fontSize:'9px',fontWeight:700,lineHeight:1,textAlign:'center'}}>
+              <span style={{fontSize:'0.5625rem',fontWeight:700,lineHeight:1.15,textAlign:'center'}}>
                 {label}
               </span>
             </button>

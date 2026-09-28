@@ -11,8 +11,12 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
 import { pushNotificationService } from '../services/pushNotificationService'
-import type { Dish, DishCategory } from '../types'
+import type { Dish, DishCategory, DishOptionGroup, ItemSel } from '../types'
 import { openWompiCheckout } from '../config/billing'
+import {
+  type MenuConfig, defaultSel, describeSel, flavorsNeeded, hasOptions, lineNotes, orderCategories,
+  parseMenuConfig, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
+} from '../services/menuOptions'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
   all:       'Todo',
@@ -46,8 +50,23 @@ interface CartItem {
   price:   number   // precio unitario ESTIMADO en el cliente, solo para mostrar — el
                      // precio real que se cobra siempre se recalcula en el servidor (create_public_order)
   extras:  string[]
-  optsText: string  // resumen de opciones elegidas (sabores de helado, queso/helado…)
+  toppings: string[]
+  optsText: string  // resumen de opciones elegidas (tamaño, sabores, queso/helado, toppings, adicionales)
+  sel?:     ItemSel // selección del constructor: se guarda en el pedido para poder editarlo después
   customIngredients?: { id: string; cantidad: number }[]  // solo para "plato personalizado"
+}
+
+// Línea de un pedido ya enviado, en el modal de edición
+interface EditLine {
+  idx:       number          // posición en el pedido original
+  dishId:    string | null
+  name:      string
+  quantity:  number
+  unitPrice: number
+  notes:     string | null
+  size:      string | null
+  toppings:  string[]
+  sel:       ItemSel | null
 }
 
 // ── Interacciones sociales (likes / reseñas) ──────────────────────
@@ -150,81 +169,55 @@ const DishImage = memo(({ dish, height }: { dish: Dish; height: number }) => {
 DishImage.displayName = 'DishImage'
 
 // ── Customize bottom-sheet (liquid glass) ─────────────────────────
-const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
-  dish:        Dish
-  flavors:     string[]
-  jugoFlavors: string[]
-  onAdd:       (item: Omit<CartItem, 'uid'>) => void
-  onClose:     () => void
+// El mismo constructor arma un producto nuevo o edita uno ya pedido (initial).
+const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, onClose }: {
+  dish:          Dish
+  menu:          MenuConfig
+  initial?:      { qty: number; sel?: ItemSel; previousNotes?: string | null }
+  confirmLabel?: string
+  onAdd:         (item: Omit<CartItem, 'uid'>) => void
+  onClose:       () => void
 }) => {
   const sizes = dish.sizes ?? []
   const hasSizes = !!dish.has_sizes && sizes.length > 0
   const optionGroups = dish.options ?? []
 
-  const [qty,    setQty]    = useState(1)
-  const [notes,  setNotes]  = useState('')
-  const [size,   setSize]   = useState(hasSizes ? sizes[0].nombre : '')
-  const [extras, setExtras] = useState<string[]>([])
-  // Selecciones de opciones, por índice de grupo
-  const [heladoSel,  setHeladoSel]  = useState<Record<number, string[]>>({})  // grupos 'helado' y submenú de 'opcion'
-  const [opcionSel,  setOpcionSel]  = useState<Record<number, string>>({})    // grupos 'opcion' single-select
-  const [opcionMultiSel, setOpcionMultiSel] = useState<Record<number, string[]>>({}) // grupos 'opcion' con multiple:true
+  const [qty,   setQty]   = useState(initial?.qty ?? 1)
+  const [notes, setNotes] = useState(initial?.sel?.comment ?? '')
+  const [sel,   setSel]   = useState<ItemSel>(() => ({ ...defaultSel(dish), ...(initial?.sel ?? {}) }))
 
-  // Labels elegidos del grupo gi, sea single o multiple (ej: queso Y helado a la vez)
-  const selectedLabels = (g: typeof optionGroups[number], gi: number): string[] =>
-    g.multiple ? (opcionMultiSel[gi] ?? []) : (opcionSel[gi] ? [opcionSel[gi]] : [])
-
-  // Precio unitario: el del tamaño elegido, o el precio único del plato
-  const unitPrice = hasSizes
-    ? (sizes.find(s => s.nombre === size)?.precio ?? sizes[0].precio)
-    : dish.price
-
-  const toggleExtra = (e: string) =>
-    setExtras(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e])
+  const unitPrice = unitPriceFor(dish, sel)
+  const optionsValid = selIsValid(dish, sel)
+  const chosenFlavors = Object.values(sel.helado ?? {}).flat()
+  const toppings = (dish.toppings ?? []).filter(t => !menu.toppingsOff.includes(t.nombre) || sel.toppings?.includes(t.nombre))
 
   // Marca/desmarca un sabor en un grupo (respeta el máximo)
-  const toggleFlavor = (gi: number, flavor: string, max: number) =>
-    setHeladoSel(prev => {
-      const cur = prev[gi] ?? []
-      if (cur.includes(flavor)) return { ...prev, [gi]: cur.filter(f => f !== flavor) }
-      if (cur.length >= max) return prev   // ya llegó al máximo
-      return { ...prev, [gi]: [...cur, flavor] }
-    })
-
-  // ¿Cuántos sabores requiere el grupo gi? (helado/jugo directo u opción "Con helado")
-  const heladoNeeded = (g: typeof optionGroups[number], gi: number): number => {
-    if (g.tipo === 'helado' || g.tipo === 'jugo') return g.cantidad ?? 1
-    if (g.tipo === 'opcion') {
-      const chosen = (g.opciones ?? []).filter(o => selectedLabels(g, gi).includes(o.label))
-      return Math.max(0, ...chosen.map(o => o.helado ?? 0))
-    }
-    return 0
-  }
-
-  // Validación: todos los grupos deben estar completos
-  const optionsValid = optionGroups.every((g, gi) => {
-    if (g.tipo === 'opcion' && selectedLabels(g, gi).length === 0) return false
-    const need = heladoNeeded(g, gi)
-    if (need > 0) return (heladoSel[gi]?.length ?? 0) >= 1 && (heladoSel[gi]?.length ?? 0) <= need
-    return true
+  const toggleFlavor = (gi: number, flavor: string, max: number) => setSel(s => {
+    const k = String(gi)
+    const cur = s.helado?.[k] ?? []
+    if (cur.includes(flavor)) return { ...s, helado: { ...s.helado, [k]: cur.filter(f => f !== flavor) } }
+    if (cur.length >= max) return s   // ya llegó al máximo
+    return { ...s, helado: { ...s.helado, [k]: [...cur, flavor] } }
   })
 
-  // Resumen de opciones para el pedido
-  const buildOptsText = () => {
-    const parts: string[] = []
-    optionGroups.forEach((g, gi) => {
-      if (g.tipo === 'helado' || g.tipo === 'jugo') {
-        const sel = heladoSel[gi] ?? []
-        if (sel.length) parts.push(`${g.nombre}: ${sel.join(', ')}`)
-      } else if (g.tipo === 'opcion') {
-        const labels = selectedLabels(g, gi)
-        if (!labels.length) return
-        const sel = heladoSel[gi] ?? []
-        const base = labels.join(' + ')
-        parts.push(sel.length ? `${base} (${sel.join(', ')})` : base)
-      }
+  const pickOption = (g: DishOptionGroup, gi: number, label: string) => setSel(s => {
+    const k = String(gi)
+    if (g.multiple) {
+      const next = toggleIn(s.opcionMulti?.[k], label)
+      const stillNeedsHelado = (g.opciones ?? []).some(op => next.includes(op.label) && (op.helado ?? 0) > 0)
+      return { ...s, opcionMulti: { ...s.opcionMulti, [k]: next }, helado: stillNeedsHelado ? s.helado : { ...s.helado, [k]: [] } }
+    }
+    return { ...s, opcion: { ...s.opcion, [k]: label }, helado: { ...s.helado, [k]: [] } }
+  })
+
+  const confirm = () => {
+    if (!optionsValid) return
+    onAdd({
+      dish, qty, notes: notes.trim(), size: hasSizes ? (sel.size ?? '') : '', price: unitPrice,
+      extras: sel.extras ?? [], toppings: sel.toppings ?? [], optsText: describeSel(dish, sel),
+      sel: { ...sel, comment: notes.trim() || undefined },
     })
-    return parts.join(' · ')
+    onClose()
   }
 
   const chip = (active: boolean): React.CSSProperties => ({
@@ -239,7 +232,7 @@ const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'oklch(0.25 0.03 55 / 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'oklch(0.25 0.03 55 / 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <motion.div
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
@@ -260,13 +253,19 @@ const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
           </div>
         </div>
 
+        {initial?.previousNotes && (
+          <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 1.25rem', color: 'var(--w-ink-mut)', background: 'var(--w-bg)', border: '1px solid var(--w-line)', borderRadius: '0.75rem', padding: '0.625rem 0.75rem' }}>
+            Tu pedido decía: {initial.previousNotes}
+          </p>
+        )}
+
         {hasSizes && (
           <div style={{ marginBottom: '1.25rem' }}>
             <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Tamaño</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
               {sizes.map(s => (
-                <button key={s.nombre} onClick={() => setSize(s.nombre)}
-                  style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...chip(size === s.nombre) }}>
+                <button key={s.nombre} onClick={() => setSel(p => ({ ...p, size: s.nombre }))}
+                  style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, ...chip(sel.size === s.nombre) }}>
                   <span>{s.nombre}</span>
                   <span style={{ fontSize: '0.6875rem', opacity: 0.9 }}>{fmtCOP(s.precio)}</span>
                 </button>
@@ -277,8 +276,11 @@ const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
 
         {/* Grupos de opciones: sabores de helado, queso/helado, etc. */}
         {optionGroups.map((g, gi) => {
-          const need = heladoNeeded(g, gi)
-          const flavorOptions = g.tipo === 'jugo' ? jugoFlavors : flavors
+          const need = flavorsNeeded(g, gi, sel)
+          const flavorOptions = g.tipo === 'jugo'
+            ? visibleOptions(menu.jugoFlavors, menu.jugoOff, chosenFlavors)
+            : visibleOptions(menu.heladoFlavors, menu.heladoOff, chosenFlavors)
+          const picked = sel.helado?.[String(gi)] ?? []
           return (
             <div key={gi} style={{ marginBottom: '1.25rem' }}>
               <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>
@@ -287,20 +289,8 @@ const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
               {g.tipo === 'opcion' && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: need > 0 ? '0.875rem' : 0 }}>
                   {(g.opciones ?? []).map(o => (
-                    <button key={o.label}
-                      onClick={() => {
-                        if (g.multiple) {
-                          const cur = opcionMultiSel[gi] ?? []
-                          const next = cur.includes(o.label) ? cur.filter(x => x !== o.label) : [...cur, o.label]
-                          setOpcionMultiSel(p => ({ ...p, [gi]: next }))
-                          const stillNeedsHelado = (g.opciones ?? []).some(op => next.includes(op.label) && (op.helado ?? 0) > 0)
-                          if (!stillNeedsHelado) setHeladoSel(p => ({ ...p, [gi]: [] }))
-                        } else {
-                          setOpcionSel(p => ({ ...p, [gi]: o.label }))
-                          setHeladoSel(p => ({ ...p, [gi]: [] }))
-                        }
-                      }}
-                      style={{ flex: '1 1 auto', ...chip(selectedLabels(g, gi).includes(o.label)) }}>
+                    <button key={o.label} onClick={() => pickOption(g, gi, o.label)}
+                      style={{ flex: '1 1 auto', ...chip(selectedLabels(g, gi, sel).includes(o.label)) }}>
                       {o.label}
                     </button>
                   ))}
@@ -315,25 +305,25 @@ const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
                   )}
                   {flavorOptions.length === 0 ? (
                     <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>
-                      (Aún no hay sabores configurados)
+                      (No hay sabores disponibles ahora)
                     </p>
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                       {flavorOptions.map(f => {
-                        const sel = (heladoSel[gi] ?? []).includes(f)
-                        const full = (heladoSel[gi]?.length ?? 0) >= need
+                        const on = picked.includes(f)
+                        const full = picked.length >= need
                         return (
                           <button key={f} onClick={() => toggleFlavor(gi, f, need)}
-                            disabled={!sel && full}
-                            style={{ borderRadius: '9999px', opacity: !sel && full ? 0.45 : 1, ...chip(sel) }}>
-                            {sel ? '✓ ' : ''}{f}
+                            disabled={!on && full}
+                            style={{ borderRadius: '9999px', opacity: !on && full ? 0.45 : 1, ...chip(on) }}>
+                            {on ? '✓ ' : ''}{f}
                           </button>
                         )
                       })}
                     </div>
                   )}
                   <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: '0.375rem 0 0' }}>
-                    {(heladoSel[gi]?.length ?? 0)} / {need}
+                    {picked.length} / {need}
                   </p>
                 </>
               )}
@@ -341,13 +331,30 @@ const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
           )
         })}
 
+        {toppings.length > 0 && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Toppings</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {toppings.map(t => {
+                const on = !!sel.toppings?.includes(t.nombre)
+                return (
+                  <button key={t.nombre} onClick={() => setSel(s => ({ ...s, toppings: toggleIn(s.toppings, t.nombre) }))}
+                    style={{ borderRadius: '9999px', ...chip(on) }}>
+                    {on ? '✓ ' : '+ '}{t.nombre}{Number(t.precio) > 0 ? ` · ${fmtCOP(Number(t.precio))}` : ''}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {(dish.tags ?? []).length > 0 && (
           <div style={{ marginBottom: '1.25rem' }}>
             <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Adicionales</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
               {(dish.tags ?? []).map(tag => (
-                <button key={tag} onClick={() => toggleExtra(tag)} style={{ borderRadius: '9999px', ...chip(extras.includes(tag)) }}>
-                  {extras.includes(tag) ? '✓ ' : '+ '}{tag}
+                <button key={tag} onClick={() => setSel(s => ({ ...s, extras: toggleIn(s.extras, tag) }))} style={{ borderRadius: '9999px', ...chip(!!sel.extras?.includes(tag)) }}>
+                  {sel.extras?.includes(tag) ? '✓ ' : '+ '}{tag}
                 </button>
               ))}
             </div>
@@ -364,17 +371,17 @@ const CustomizeModal = memo(({ dish, flavors, jugoFlavors, onAdd, onClose }: {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', background: 'var(--w-bg)', borderRadius: '1rem', padding: '0.5rem 0.875rem', border: '1px solid var(--w-line)' }}>
-            <button className="w-press" onClick={() => setQty(q => Math.max(1, q - 1))}
+            <button className="w-press" onClick={() => setQty(q => Math.max(1, q - 1))} aria-label="Menos"
               style={{ width: 30, height: 30, borderRadius: '0.625rem', border: '1px solid var(--w-line)', background: 'var(--w-surface)', fontWeight: 700, fontSize: '1.125rem', color: 'var(--w-ink)' }}>−</button>
             <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-ink)', minWidth: 22, textAlign: 'center' }}>{qty}</span>
-            <button className="w-press" onClick={() => setQty(q => q + 1)}
+            <button className="w-press" onClick={() => setQty(q => Math.min(50, q + 1))} aria-label="Más"
               style={{ width: 30, height: 30, borderRadius: '0.625rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, fontSize: '1.125rem' }}>+</button>
           </div>
           <button className="lg-accent w-press"
             disabled={!optionsValid}
-            onClick={() => { onAdd({ dish, qty, notes, size, price: unitPrice, extras, optsText: buildOptsText() }); onClose() }}
+            onClick={confirm}
             style={{ flex: 1, padding: '0.95rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: optionsValid ? 1 : 0.5, cursor: optionsValid ? 'pointer' : 'not-allowed' }}>
-            {optionsValid ? `Agregar ${qty > 1 ? `×${qty}` : ''} · ${fmtCOP(unitPrice * qty)}` : 'Elige las opciones'}
+            {optionsValid ? `${confirmLabel ?? 'Agregar'} ${qty > 1 ? `×${qty}` : ''} · ${fmtCOP(unitPrice * qty)}` : 'Elige las opciones'}
           </button>
         </div>
       </motion.div>
@@ -475,7 +482,7 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
       available:   true,
     }
     onAdd({
-      dish: customDish, qty: 1, notes, size: '', price: total, extras: [], optsText: summary,
+      dish: customDish, qty: 1, notes, size: '', price: total, extras: [], toppings: [], optsText: summary,
       customIngredients: chosen.map(c => ({ id: c.id, cantidad: c.cantidad })),
     })
     onClose()
@@ -994,9 +1001,7 @@ export default function PublicMenu() {
   const [bizName,       setBizName]       = useState('RestaurantOS')
   const [promo,         setPromo]         = useState<string | null>(null)
   const [logoUrl,       setLogoUrl]       = useState<string | null>(null)
-  const [catLabels,     setCatLabels]     = useState<Record<string, string>>({})
-  const [flavors,       setFlavors]       = useState<string[]>([])
-  const [jugoFlavors,   setJugoFlavors]   = useState<string[]>([])
+  const [menuCfg,       setMenuCfg]       = useState<MenuConfig>(() => parseMenuConfig(null))
   const [activeCat,     setActiveCat]     = useState<DishCategory | 'all'>('all')
   const [search,        setSearch]        = useState('')
   const [cart,          setCart]          = useState<CartItem[]>([])
@@ -1022,7 +1027,9 @@ export default function PublicMenu() {
   const [payingOnline,  setPayingOnline]  = useState(false)
   const [cancelling,    setCancelling]    = useState(false)
   const [editingOrder,  setEditingOrder]  = useState(false)
-  const [editItems,     setEditItems]     = useState<{ id: string; name: string; price: number; quantity: number; notes?: string | null }[]>([])
+  const [editLines,     setEditLines]     = useState<EditLine[]>([])
+  const [editLineIdx,   setEditLineIdx]   = useState<number | null>(null)
+  const [editLoading,   setEditLoading]   = useState(false)
   const [savingEdit,    setSavingEdit]    = useState(false)
   const [socialMap,     setSocialMap]     = useState<Record<string, DishSocial>>({})
   const [reviewDish,    setReviewDish]    = useState<Dish | null>(null)
@@ -1130,16 +1137,8 @@ export default function PublicMenu() {
       })
       // Marca del restaurante: aplicar su color como acento del menú
       if (cr.data?.color_primario) document.documentElement.style.setProperty('--w-terra', cr.data.color_primario as string)
-      // Etiquetas de categoría personalizadas (definidas en el panel admin)
-      const mods = cr.data?.modules_enabled as { categories?: { value: string; label: string }[]; helado_flavors?: string[]; jugo_flavors?: string[] } | null
-      const cats = mods?.categories
-      if (Array.isArray(cats)) {
-        const map: Record<string, string> = {}
-        for (const c of cats) if (c?.value) map[c.value] = c.label
-        setCatLabels(map)
-      }
-      if (Array.isArray(mods?.helado_flavors)) setFlavors(mods!.helado_flavors!)
-      if (Array.isArray(mods?.jugo_flavors)) setJugoFlavors(mods!.jugo_flavors!)
+      // Categorías (nombre y orden), sabores y lo que caja marcó como agotado
+      setMenuCfg(parseMenuConfig(cr.data?.modules_enabled))
       setLoading(false)
     })
   }, [restaurantId, refreshSocial])
@@ -1183,9 +1182,10 @@ export default function PublicMenu() {
   }, [orderId, orderStatus])
 
   // ── derived state ──────────────────────────────────────────────
+  // Orden de aparición: el que define el restaurante (Menú → Configurar)
   const categories = useMemo(() =>
-    Array.from(new Set(dishes.map(d => d.category))) as DishCategory[]
-  , [dishes])
+    orderCategories(Array.from(new Set(dishes.map(d => d.category))), menuCfg.categories) as DishCategory[]
+  , [dishes, menuCfg.categories])
 
   const isSearching = search.trim().length > 0
 
@@ -1238,10 +1238,10 @@ export default function PublicMenu() {
       // lo recalcula en el servidor a partir de dishes/ingredientes reales, para
       // que nadie pueda manipular el total del pedido (y lo que luego cobra Wompi).
       const items = cart.map(i => {
-        const line_notes = [i.size && `Tamaño: ${i.size}`, i.optsText || null, ...(i.extras.length ? [`Adicionales: ${i.extras.join(', ')}`] : []), i.notes].filter(Boolean).join(' | ') || null
+        const line_notes = lineNotes(i.optsText, i.notes) || null
         return i.customIngredients
           ? { kind: 'custom', quantity: i.qty, line_notes, ingredients: i.customIngredients }
-          : { kind: 'dish', dish_id: i.dish.id, quantity: i.qty, size: i.size || null, line_notes }
+          : { kind: 'dish', dish_id: i.dish.id, quantity: i.qty, size: i.size || null, toppings: i.toppings, sel: i.sel ?? null, line_notes }
       })
       const tableNum = mesa.trim() ? parseInt(mesa) : null
       const noteParts = [
@@ -1331,7 +1331,7 @@ export default function PublicMenu() {
     else    sectionRefs.current.delete(cat)
   }
 
-  const catLabel = (c: string) => catLabels[c] ?? CATEGORY_LABELS[c] ?? c
+  const catLabel = (c: string) => menuCfg.categories.find(x => x.value === c)?.label ?? CATEGORY_LABELS[c] ?? c
   const categoryNavItems = [{ key: 'all' as const, label: 'Todo' }, ...categories.map(c => ({ key: c, label: catLabel(c) }))]
 
   return (
@@ -1451,7 +1451,7 @@ export default function PublicMenu() {
                 border: orderStatus === 'pending' && !isPaid ? '1px solid var(--w-saffron)' : '1px solid var(--w-line)',
               }}>
                 <p style={{ fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontSize: '0.875rem' }}>
-                  {orderStatus === 'pending' && !isPaid && 'Para que tu pedido pase a cocina, ve a caja y paga (efectivo, transferencia o Nequi/Daviplata).'}
+                  {orderStatus === 'pending' && !isPaid && 'Acércate a caja y paga para que se procese tu pedido.'}
                   {orderStatus === 'pending' && isPaid  && 'Tu pedido fue recibido. Pronto comenzamos a prepararlo.'}
                   {orderStatus === 'cooking'   && 'Estamos preparando tu pedido. Ya casi está.'}
                   {orderStatus === 'ready'     && 'Tu pedido está listo. El mesero te lo llevará enseguida.'}
@@ -1486,19 +1486,26 @@ export default function PublicMenu() {
 
               {orderStatus === 'pending' && (
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button
+                  {!isPaid && <button
                     disabled={editingOrder}
                     onClick={async () => {
                       if (!orderId) return
                       setEditingOrder(true)
+                      setEditLoading(true)
+                      setEditLines([])
                       const { data, error } = await supabase.rpc('obtener_items_pedido_cliente', { p_order_id: orderId })
+                      setEditLoading(false)
                       if (error) { alert('No se pudo cargar el pedido: ' + error.message); setEditingOrder(false); return }
-                      setEditItems(Array.isArray(data) ? data : [])
+                      const raw = (Array.isArray(data) ? data : []) as { id: string | null; name: string; price: number; quantity: number; notes?: string | null; size?: string | null; toppings?: string[] | null; sel?: ItemSel | null; cancelled?: boolean }[]
+                      setEditLines(raw.map((it, idx) => ({ it, idx })).filter(({ it }) => !it.cancelled).map(({ it, idx }) => ({
+                        idx, dishId: it.id, name: it.name, quantity: it.quantity, unitPrice: Number(it.price),
+                        notes: it.notes ?? null, size: it.size ?? null, toppings: it.toppings ?? [], sel: it.sel ?? null,
+                      })))
                     }}
                     className="w-press"
                     style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-saffron)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: editingOrder ? 'not-allowed' : 'pointer', opacity: editingOrder ? 0.7 : 1 }}>
                     {editingOrder ? 'Abriendo...' : '✏️ Editar'}
-                  </button>
+                  </button>}
                   <button
                     disabled={cancelling}
                     onClick={async () => {
@@ -1536,30 +1543,52 @@ export default function PublicMenu() {
                       onClick={e => e.stopPropagation()}>
                       <h3 style={{ fontFamily: 'var(--w-display)', fontWeight: 600, fontSize: '1.25rem', margin: '0 0 1rem', color: 'var(--w-ink)' }}>Editar pedido</h3>
 
-                      {editItems.length === 0 ? (
-                        <p style={{ color: 'var(--w-ink-mut)', textAlign: 'center', padding: '2rem 0' }}>Cargando…</p>
+                      {editLoading || editLines.length === 0 ? (
+                        <p style={{ color: 'var(--w-ink-mut)', textAlign: 'center', padding: '2rem 0' }}>
+                          {editLoading ? 'Cargando…' : 'Quitaste todos los productos. Si ya no quieres nada, cancela el pedido.'}
+                        </p>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                          {editItems.map((item, i) => (
-                            <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: 'var(--w-bg)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)' }}>
-                              <div style={{ flex: 1 }}>
-                                <p style={{ fontWeight: 600, margin: '0 0 0.25rem', color: 'var(--w-ink)', fontSize: '0.9375rem' }}>{item.name}</p>
-                                <p style={{ color: 'var(--w-ink-mut)', margin: 0, fontSize: '0.8125rem' }}>${(item.price * item.quantity).toLocaleString('es-CO')}</p>
+                          {editLines.map(l => {
+                            const d = l.dishId ? dishes.find(x => x.id === l.dishId) : undefined
+                            return (
+                              <div key={l.idx} style={{ background: 'var(--w-bg)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                                  <div style={{ minWidth: 0 }}>
+                                    <p style={{ fontWeight: 600, margin: 0, color: 'var(--w-ink)', fontSize: '0.9375rem' }}>{l.quantity}× {l.name}</p>
+                                    {l.notes && <p style={{ color: 'var(--w-ink-mut)', margin: '0.125rem 0 0', fontSize: '0.8125rem' }}>{l.notes}</p>}
+                                  </div>
+                                  <p style={{ fontWeight: 700, margin: 0, color: 'var(--w-ink)', whiteSpace: 'nowrap' }}>{fmtCOP(Math.round(l.unitPrice * l.quantity))}</p>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.625rem', alignItems: 'center' }}>
+                                  {d ? (
+                                    <button onClick={() => setEditLineIdx(l.idx)}
+                                      style={{ flex: 1, padding: '0.55rem', border: 'none', borderRadius: '0.625rem', background: 'var(--w-saffron)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--w-sans)' }}>
+                                      Editar
+                                    </button>
+                                  ) : (
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <button onClick={() => setEditLines(prev => prev.map(x => x.idx === l.idx ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))}
+                                        style={{ width: 34, height: 34, borderRadius: '0.5rem', border: '1px solid var(--w-line)', background: 'var(--w-surface)', color: 'var(--w-ink)', fontWeight: 700, cursor: 'pointer' }}>−</button>
+                                      <span style={{ minWidth: '1.5rem', textAlign: 'center', fontWeight: 700, color: 'var(--w-ink)' }}>{l.quantity}</span>
+                                      <button onClick={() => setEditLines(prev => prev.map(x => x.idx === l.idx ? { ...x, quantity: Math.min(50, x.quantity + 1) } : x))}
+                                        style={{ width: 34, height: 34, borderRadius: '0.5rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>+</button>
+                                    </div>
+                                  )}
+                                  <button onClick={() => setEditLines(prev => prev.filter(x => x.idx !== l.idx))}
+                                    style={{ padding: '0.55rem 0.875rem', border: 'none', borderRadius: '0.625rem', background: 'var(--w-wine)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--w-sans)' }}>
+                                    Quitar
+                                  </button>
+                                </div>
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--w-surface)', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid var(--w-line)' }}>
-                                <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: Math.max(0, newItems[i].quantity - 1) }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>−</button>
-                                <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600 }}>{item.quantity}</span>
-                                <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: newItems[i].quantity + 1 }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem' }}>+</button>
-                              </div>
-                              <button onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))} style={{ background: 'var(--w-wine)', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer', fontWeight: 600 }}>✕</button>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
 
                       <div style={{ background: 'var(--w-bg)', padding: '1rem', borderRadius: '0.875rem', marginBottom: '1.5rem', border: '1px solid var(--w-line)' }}>
                         <p style={{ margin: 0, color: 'var(--w-ink-mut)', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Total nuevo</p>
-                        <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-terra)' }}>${editItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toLocaleString('es-CO')}</p>
+                        <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-terra)' }}>{fmtCOP(Math.round(editLines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)))}</p>
                       </div>
 
                       <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -1567,12 +1596,12 @@ export default function PublicMenu() {
                           disabled={savingEdit}
                           onClick={async () => {
                             if (!orderId) return
-                            if (editItems.length === 0) { alert('Agrega al menos 1 item'); return }
+                            if (editLines.length === 0) { alert('Tu pedido debe tener al menos un producto. Si ya no quieres nada, cancélalo.'); return }
                             setSavingEdit(true)
                             try {
-                              const { data, error } = await supabase.rpc('editar_pedido_cliente', {
+                              const { error } = await supabase.rpc('editar_items_pedido', {
                                 p_order_id: orderId,
-                                p_items: editItems.map(it => ({ id: it.id, quantity: it.quantity })),
+                                p_items: editLines.map(l => ({ idx: l.idx, quantity: l.quantity, size: l.size, toppings: l.toppings, notes: l.notes, sel: l.sel })),
                               })
                               if (error) throw error
                               alert('Pedido actualizado')
@@ -1730,7 +1759,29 @@ export default function PublicMenu() {
 
       {/* ── Customize modal ── */}
       <AnimatePresence>
-        {customizing && <CustomizeModal dish={customizing} flavors={flavors} jugoFlavors={jugoFlavors} onAdd={addToCart} onClose={() => setCustomizing(null)} />}
+        {customizing && <CustomizeModal dish={customizing} menu={menuCfg} onAdd={addToCart} onClose={() => setCustomizing(null)} />}
+      </AnimatePresence>
+
+      {/* ── Editar un producto de un pedido ya enviado (mismo constructor, precargado) ── */}
+      <AnimatePresence>
+        {(() => {
+          const l = editLines.find(x => x.idx === editLineIdx)
+          const d = l?.dishId ? dishes.find(x => x.id === l.dishId) : undefined
+          if (!l || !d) return null
+          const initial = l.sel
+            ? { qty: l.quantity, sel: l.sel }
+            : hasOptions(d)
+              ? { qty: l.quantity, sel: l.size ? { size: l.size } : undefined, previousNotes: l.notes }
+              : { qty: l.quantity, sel: { comment: l.notes ?? '' } }
+          return (
+            <CustomizeModal key={l.idx} dish={d} menu={menuCfg} initial={initial} confirmLabel="Guardar"
+              onClose={() => setEditLineIdx(null)}
+              onAdd={item => setEditLines(prev => prev.map(x => x.idx === l.idx ? {
+                ...x, quantity: item.qty, unitPrice: item.price, size: item.size || null, toppings: item.toppings,
+                sel: item.sel ?? null, notes: lineNotes(item.optsText, item.notes) || null,
+              } : x))} />
+          )
+        })()}
       </AnimatePresence>
 
       {/* ── Plato personalizado ── */}
@@ -1770,9 +1821,7 @@ export default function PublicMenu() {
                         <span style={{ minWidth: 24, height: 24, padding: '0 6px', borderRadius: '0.5rem', background: 'var(--w-terra)', color: '#fff', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{item.qty}</span>
                         <div>
                           <p style={{ fontWeight: 600, color: 'var(--w-ink)', fontSize: '0.9375rem', margin: 0, fontFamily: 'var(--w-display)' }}>{item.dish.name}</p>
-                          {item.size && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>Tamaño: {item.size}</p>}
                           {item.optsText && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>{item.optsText}</p>}
-                          {item.extras.length > 0 && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>+ {item.extras.join(', ')}</p>}
                           {item.notes && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>Nota: {item.notes}</p>}
                         </div>
                       </div>

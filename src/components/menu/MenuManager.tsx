@@ -78,6 +78,7 @@ const EMOJI_OPTIONS = [
 ]
 
 interface SizeRow { nombre: string; precio: string }
+interface ToppingRow { nombre: string; precio: string }
 
 interface DishForm {
   name:          string
@@ -92,6 +93,7 @@ interface DishForm {
   quesoHelado:   boolean  // opción "Con queso / Con helado"
   quesoHeladoMulti: boolean  // permite elegir los dos a la vez (ej: el Salpicrem)
   jugoCount:     string   // nº de sabores de jugo a elegir (0/'' = ninguno)
+  toppings:      ToppingRow[]   // toppings opcionales (precio 0 = gratis)
   image_file?:   File | null
   image_preview? :string | null
 }
@@ -100,6 +102,7 @@ const FORM_EMPTY: DishForm = {
   name:'', description:'', price:'', category:'principal',
   tags:'', available:true, has_sizes:false, sizes:[{ nombre:'', precio:'' }],
   heladoCount:'', quesoHelado:false, quesoHeladoMulti:false, jugoCount:'',
+  toppings:[],
   image_file:null, image_preview:null,
 }
 
@@ -143,6 +146,7 @@ function dishToForm(d: Dish): DishForm {
     quesoHelado:   !!quesoHeladoGroup,
     quesoHeladoMulti: !!quesoHeladoGroup?.multiple,
     jugoCount:     jugoGroup?.cantidad ? String(jugoGroup.cantidad) : '',
+    toppings:      (d.toppings ?? []).map(t => ({ nombre: t.nombre, precio: String(t.precio ?? 0) })),
     image_file:    null,
     image_preview: d.image_url ?? null,
   }
@@ -401,6 +405,9 @@ export const MenuManager = memo(() => {
         has_sizes:           form.has_sizes,
         sizes:               sizesPayload,
         options:             buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
+        toppings:            form.toppings
+          .map(t => ({ nombre: t.nombre.trim(), precio: Math.max(0, parseFloat(t.precio) || 0) }))
+          .filter((t, i, arr) => t.nombre !== '' && arr.findIndex(x => x.nombre === t.nombre) === i),
         availability_status: form.available ? 'available' : 'out_of_stock',
         updated_at:          new Date().toISOString(),
       }
@@ -520,6 +527,16 @@ export const MenuManager = memo(() => {
       message.error(`❌ ${msg}`)
       console.error('[MenuManager deleteCategory]', e)
     }
+  }
+
+  // Mover categoría arriba/abajo: este orden es el que ve el cliente en el menú
+  const handleMoveCategory = async (index: number, dir: -1 | 1) => {
+    const to = index + dir
+    if (to < 0 || to >= categories.length) return
+    const updated = [...categories]
+    ;[updated[index], updated[to]] = [updated[to], updated[index]]
+    setCategories(updated)
+    await persistCategories(updated)
   }
 
   // Guardar label de categoría
@@ -733,11 +750,22 @@ export const MenuManager = memo(() => {
                 <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
                   Categorías del menú
                 </label>
+                <p className="text-xs mb-2" style={{ color: txtLt }}>
+                  Usa ▲▼ para cambiar el orden en que aparecen en el menú del cliente y al tomar pedidos.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                  {categories.map(cat => (
+                  {categories.map((cat, idx) => (
                     <div key={cat.value}
                       className="flex items-center gap-2 rounded-xl px-3 py-2"
                       style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+
+                      <span className="flex flex-col shrink-0">
+                        <button onClick={() => handleMoveCategory(idx, -1)} disabled={idx === 0} title="Subir" aria-label={`Subir ${cat.label}`}
+                          style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: txtMid, opacity: idx === 0 ? 0.3 : 1, fontSize: '0.75rem', lineHeight: 1, padding: '0.125rem 0.25rem' }}>▲</button>
+                        <button onClick={() => handleMoveCategory(idx, 1)} disabled={idx === categories.length - 1} title="Bajar" aria-label={`Bajar ${cat.label}`}
+                          style={{ background: 'none', border: 'none', cursor: idx === categories.length - 1 ? 'default' : 'pointer', color: txtMid, opacity: idx === categories.length - 1 ? 0.3 : 1, fontSize: '0.75rem', lineHeight: 1, padding: '0.125rem 0.25rem' }}>▼</button>
+                      </span>
+                      <span className="text-xs font-bold shrink-0" style={{ color: txtLt, minWidth: '1.25rem' }}>{idx + 1}.</span>
 
                       {/* Emoji — editable */}
                       <button
@@ -1020,7 +1048,7 @@ export const MenuManager = memo(() => {
         ].map(s => (
           <div key={s.label} className="rounded-2xl p-3 text-center" style={{ backgroundColor: bg, ...S.neoOutSm }}>
             <p className="text-xl font-bold" style={{ color: s.color }}>{s.val}</p>
-            <p className="text-[10px]" style={{ color: txtLt }}>{s.label}</p>
+            <p className="text-[0.625rem]" style={{ color: txtLt }}>{s.label}</p>
           </div>
         ))}
       </div>
@@ -1123,7 +1151,7 @@ export const MenuManager = memo(() => {
                   {form.tags && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {parseTags(form.tags).map(t => (
-                        <span key={t} className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        <span key={t} className="text-[0.625rem] font-bold px-2 py-0.5 rounded-full"
                           style={{ backgroundColor: bgSurf, color: txtMid }}>
                           #{t}
                         </span>
@@ -1141,7 +1169,7 @@ export const MenuManager = memo(() => {
                           ? { background: acc, color: 'white', ...S.coral }
                           : { backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
                         <span className="text-base leading-none">{c.emoji}</span>
-                        <span className="truncate w-full text-center text-[10px]">{c.label}</span>
+                        <span className="truncate w-full text-center text-[0.625rem]">{c.label}</span>
                       </button>
                     ))}
                   </div>
@@ -1171,7 +1199,7 @@ export const MenuManager = memo(() => {
                       <span className="text-sm font-medium" style={{ color: txt }}>
                         {form.has_sizes ? '📏 Tiene tamaños (Pequeño / Mediano / Grande)' : '1️⃣ Tamaño único'}
                       </span>
-                      <p className="text-[11px]" style={{ color: txtLt }}>
+                      <p className="text-[0.6875rem]" style={{ color: txtLt }}>
                         {form.has_sizes ? 'El cliente elige tamaño y paga el precio de ese tamaño' : 'Sin selector de tamaño para el cliente'}
                       </p>
                     </div>
@@ -1209,7 +1237,7 @@ export const MenuManager = memo(() => {
                   {/* ── Opciones: helado / queso ── */}
                   <div className="pt-3 mt-1 border-t" style={{ borderColor: bgSurf }}>
                     <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: txtLt }}>Opciones del plato</p>
-                    <p className="text-[11px] mb-3" style={{ color: txtLt }}>
+                    <p className="text-[0.6875rem] mb-3" style={{ color: txtLt }}>
                       Los sabores de helado y de jugos se gestionan en ⚙️ Ajustes → “Sabores de helado” / “Sabores de jugos”.
                     </p>
 
@@ -1222,7 +1250,7 @@ export const MenuManager = memo(() => {
                       </div>
                       <div>
                         <span className="text-sm font-medium" style={{ color: txt }}>Opción “Con queso / Con helado”</span>
-                        <p className="text-[11px]" style={{ color: txtLt }}>
+                        <p className="text-[0.6875rem]" style={{ color: txtLt }}>
                           El cliente elige queso o helado; si elige helado, escoge 1 sabor (ej: el Mix).
                         </p>
                       </div>
@@ -1238,7 +1266,7 @@ export const MenuManager = memo(() => {
                         </div>
                         <div>
                           <span className="text-sm font-medium" style={{ color: txt }}>Permitir elegir los dos</span>
-                          <p className="text-[11px]" style={{ color: txtLt }}>
+                          <p className="text-[0.6875rem]" style={{ color: txtLt }}>
                             El cliente puede pedir queso Y helado juntos, no solo uno de los dos (ej: el Salpicrem).
                           </p>
                         </div>
@@ -1250,7 +1278,7 @@ export const MenuManager = memo(() => {
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
                           <span className="text-sm font-medium" style={{ color: txt }}>Sabores de helado a elegir</span>
-                          <p className="text-[11px]" style={{ color: txtLt }}>
+                          <p className="text-[0.6875rem]" style={{ color: txtLt }}>
                             Ej: Banana Split = 3 · Vaso Doble = 2 · Cono Sencillo = 1 · (0 = sin helado)
                           </p>
                         </div>
@@ -1262,11 +1290,39 @@ export const MenuManager = memo(() => {
                       </div>
                     )}
 
+                    {/* Toppings opcionales del plato (el cliente marca los que quiera) */}
+                    <div className="mt-3 mb-3 rounded-2xl p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Toppings (opcionales)</p>
+                      <p className="text-[0.6875rem]" style={{ color: txtLt }}>Precio 0 = gratis. Caja puede marcarlos agotados en “Gestión menú”.</p>
+                      {form.toppings.map((t, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          <input value={t.nombre}
+                            onChange={e => setForm(p => ({ ...p, toppings: p.toppings.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x) }))}
+                            placeholder="Topping (ej: Leche condensada)"
+                            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none min-w-0"
+                            style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
+                          <input type="number" min="0" value={t.precio}
+                            onChange={e => setForm(p => ({ ...p, toppings: p.toppings.map((x, j) => j === i ? { ...x, precio: e.target.value } : x) }))}
+                            placeholder="0"
+                            className="w-24 rounded-xl px-3 py-2 text-sm outline-none text-right"
+                            style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
+                          <button onClick={() => setForm(p => ({ ...p, toppings: p.toppings.filter((_, j) => j !== i) }))}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" title="Quitar"
+                            style={{ color: '#EF4444', backgroundColor: bg, ...S.neoOutSm }}>✕</button>
+                        </div>
+                      ))}
+                      <button onClick={() => setForm(p => ({ ...p, toppings: [...p.toppings, { nombre: '', precio: '0' }] }))}
+                        className="self-start text-xs font-bold px-3 py-1.5 rounded-xl"
+                        style={{ color: acc, backgroundColor: bg, ...S.neoOutSm }}>
+                        + Agregar topping
+                      </button>
+                    </div>
+
                     {/* Sabores de jugo a elegir (ej: jugos naturales) */}
                     <div className="flex items-center gap-3 mt-3">
                       <div className="flex-1">
                         <span className="text-sm font-medium" style={{ color: txt }}>Sabores de jugo a elegir</span>
-                        <p className="text-[11px]" style={{ color: txtLt }}>
+                        <p className="text-[0.6875rem]" style={{ color: txtLt }}>
                           Ej: Jugo natural = 1 · Jugo mixto = 2 · (0 = sin jugo). Sabores en ⚙️ Ajustes → “Sabores de jugos”.
                         </p>
                       </div>
@@ -1335,7 +1391,7 @@ export const MenuManager = memo(() => {
                   {(dish.tags ?? []).length > 0 && (
                     <div className="flex gap-1 mt-0.5 flex-wrap">
                       {(dish.tags ?? []).slice(0,3).map(t => (
-                        <span key={t} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                        <span key={t} className="text-[0.5625rem] font-bold px-1.5 py-0.5 rounded-full"
                           style={{ backgroundColor: bgSurf, color: txtMid }}>#{t}</span>
                       ))}
                     </div>

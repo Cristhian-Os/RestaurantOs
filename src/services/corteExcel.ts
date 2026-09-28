@@ -35,6 +35,8 @@ export interface CorteTotales {
   total_gastos?:       number
   total_neto?:         number
   total_propinas?:     number
+  base_caja?:          number   // efectivo con el que arrancó el cajón
+  efectivo_esperado?:  number   // base + ventas en efectivo + propinas en efectivo
   fecha?:              string
 }
 
@@ -73,17 +75,21 @@ export async function descargarCorteExcel(opts: {
   if (n(totales.total_propinas) > 0) {
     rows.push(['Propinas (NO es venta, se reparte al equipo)', '', '', '', n(totales.total_propinas)])
   }
+  const efectivoEsperado = totales.efectivo_esperado ?? n(totales.total_efectivo)
+  rows.push([])
+  rows.push(['Base de caja (efectivo inicial)', '', '', '', n(totales.base_caja)])
+  rows.push(['Efectivo esperado en caja', '', '', '', efectivoEsperado])
 
   if (denominaciones.length > 0) {
     const totalContado = denominaciones.reduce((s, d) => s + n(d.subtotal), 0)
-    const diferencia = totalContado - n(totales.total_efectivo)
+    const diferencia = totalContado - efectivoEsperado
     rows.push([])
     rows.push(['CONTEO DE EFECTIVO', 'Cantidad', '', '', 'Subtotal'])
     for (const d of denominaciones) {
       rows.push([`$${d.valor.toLocaleString('es-CO')}`, n(d.cantidad), '', '', n(d.subtotal)])
     }
     rows.push(['Total contado', '', '', '', totalContado])
-    rows.push(['Efectivo esperado (sistema)', '', '', '', n(totales.total_efectivo)])
+    rows.push(['Efectivo esperado (sistema)', '', '', '', efectivoEsperado])
     rows.push([diferencia === 0 ? 'Cuadra' : 'Diferencia', '', '', '', diferencia])
   }
 

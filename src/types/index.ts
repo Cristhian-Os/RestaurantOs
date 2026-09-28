@@ -41,6 +41,26 @@ export interface DishOptionGroup {
   multiple?: boolean             // tipo 'opcion': permite elegir más de una (ej: queso Y helado)
 }
 
+// Topping opcional del plato (el servidor recalcula su precio por nombre)
+export interface DishTopping {
+  nombre: string
+  precio: number
+}
+
+// Selección completa del constructor de producto, guardada en cada línea del
+// pedido (items[].sel) para poder reabrir el constructor precargado al editar.
+// Las llaves numéricas son el índice del grupo de opciones del plato.
+export interface ItemSel {
+  size?:        string
+  helado?:      Record<string, string[]>  // sabores elegidos por grupo (helado/jugo o submenú de 'opcion')
+  opcion?:      Record<string, string>    // grupos 'opcion' de una sola elección
+  opcionMulti?: Record<string, string[]>  // grupos 'opcion' con multiple:true
+  extras?:      string[]
+  toppings?:    string[]
+  swaps?:       string[]                  // cambios por ingrediente agotado (ingrediente_id)
+  comment?:     string
+}
+
 export interface Dish {
   id:          string
   name:        string
@@ -54,6 +74,7 @@ export interface Dish {
   has_sizes?:  boolean      // true = el plato se vende por tamaños, cada uno con su precio
   sizes?:      DishSize[]   // tamaños con precio propio cuando has_sizes = true
   options?:    DishOptionGroup[]  // grupos de opciones (sabores de helado, queso/helado…)
+  toppings?:   DishTopping[]      // toppings opcionales (precio 0 = gratis)
   created_at?: string       // timestamp de creación
   updated_at?: string       // timestamp de actualización
   sort_order?: number       // orden de visualización

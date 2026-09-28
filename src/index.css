@@ -125,7 +125,10 @@
 /* ── Reset base ───────────────────────────────────────────── */
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
+  /* Tamaño de letra de toda la app (menú, caja, cocina, meseros): todo lo que
+     está en rem escala parejo con este valor. 112.5% = 18px sobre los 16px
+     del navegador, y respeta si la persona agrandó la letra en su celular. */
+  html { font-size: 112.5%; scroll-behavior: smooth; }
   body {
     background-color: var(--bg);
     background-image: var(--bg-gradient, none);
@@ -729,3 +732,7 @@
   .landing-features { grid-template-columns: repeat(3, 1fr); }
   .landing-plans    { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* Avisos de Ant Design (message.success/error…) se montan fuera del
+   ConfigProvider: se agrandan aquí para que escalen igual que el resto. */
+.ant-message .ant-message-notice-content { font-size: 1rem; }

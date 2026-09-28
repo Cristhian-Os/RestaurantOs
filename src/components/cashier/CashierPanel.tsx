@@ -4,13 +4,17 @@
  * Panel completo de caja:
  *  • Órdenes listas para cobrar con Realtime
  *  • Modal de cobro: efectivo (con cambio) o transferencia
- *  • Resumen del día
- *  • Corte de caja
+ *  • Base de caja del día (efectivo inicial del cajón)
+ *  • Resumen del día (sin Rappi: sus precios no son los del menú)
+ *  • Corte de caja diario y mensual
  */
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { descargarCorteExcel, type CorteProducto } from '../../services/corteExcel'
+import { pushNotificationService } from '../../services/pushNotificationService'
+import { hoyBogota } from '../../services/menuOptions'
+import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
 import message from 'antd/es/message'
 import type { Profile } from '../../pages/Dashboard'
 
@@ -29,7 +33,7 @@ interface Order {
   mesa_id:    string | null
   table_num:  number | null
   customer_name: string | null
-  items:      Array<{ id: string; name: string; price: number; quantity: number; notes?: string }>
+  items:      OrderItemRow[]
   total:      number
   status:     string
   tipo_pedido:string
@@ -45,10 +49,23 @@ interface Order {
 interface DaySummary {
   total_efectivo:     number
   total_transferencia:number
-  total_rappi:        number
   total_ordenes:      number
   total_propinas:     number
 }
+
+interface CorteMensual {
+  mes: string; desde: string; hasta: string
+  total_efectivo: number; total_transferencia: number; total_general: number
+  total_ordenes: number; total_propinas: number; total_gastos: number; total_neto: number
+  dias: { fecha: string; efectivo: number; transferencia: number; total: number; ordenes: number; gastos: number }[]
+}
+
+const fmt = (n: number | string | null | undefined) => '$' + Math.round(Number(n ?? 0)).toLocaleString('es-CO')
+
+// Rappi no cuenta en ventas: sus precios no son los del menú físico y la
+// plata la paga Rappi por fuera.
+const esRappi = (o: { tipo_pedido?: string | null; payment_method?: string | null }) =>
+  o.tipo_pedido === 'RAPPI' || o.payment_method === 'rappi'
 
 interface Gasto {
   id:         string
@@ -80,7 +97,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [readyOrders,  setReady]     = useState<Order[]>([])
   const [pendingPayment, setPendingPayment] = useState<Order[]>([])
   const [cookingOrders, setCooking]  = useState<Order[]>([])
-  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_rappi: 0, total_ordenes: 0, total_propinas: 0 })
+  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0, total_propinas: 0 })
   const [loading,      setLoading]   = useState(true)
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
   const [payingKind,   setPayingKind]  = useState<'inicial' | 'final'>('final')
@@ -103,10 +120,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [propinaSugeridaPct, setPropinaSugeridaPct] = useState<number | null>(null)
   const [propinaInput,  setPropinaInput] = useState('')
   const [propinaRespuesta, setPropinaRespuesta] = useState<'si' | 'no' | null>(null)
-  const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
-  const [editItems,     setEditItems]     = useState<any[]>([])
-  const [savingEdit,    setSavingEdit]    = useState(false)
+  const [editingOrder,  setEditingOrder]  = useState<Order | null>(null)
   const [cancellingOrder, setCancellingOrder] = useState<string | null>(null)
+  const [baseHoy,       setBaseHoy]       = useState<number | null>(null)
+  const [baseInput,     setBaseInput]     = useState('')
+  const [editandoBase,  setEditandoBase]  = useState(false)
+  const [savingBase,    setSavingBase]    = useState(false)
+  const [corteMensual,  setCorteMensual]  = useState<CorteMensual | null>(null)
+  const [loadingMensual,setLoadingMensual]= useState(false)
 
   const fetchData = useCallback(async () => {
     const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
@@ -114,16 +135,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       ...o,
       items: (() => { try { const p = typeof o.items === 'string' ? JSON.parse(o.items) : o.items; return Array.isArray(p) ? p : [] } catch { return [] } })()
     })
-    const [pendingRes, ordersRes, cookingRes, completedRes, gastosRes] = await Promise.all([
+    const [pendingRes, ordersRes, cookingRes, completedRes, gastosRes, baseRes] = await Promise.all([
       // Plan B: pedidos recién creados (mesero o QR) esperando cobro ANTES de pasar a cocina.
       supabase.from('orders').select('*').eq('status', 'pending').is('paid_at', null).order('created_at', { ascending: true }),
       supabase.from('orders').select('*').eq('status', 'ready').order('created_at', { ascending: true }),
       supabase.from('orders').select('*').eq('status', 'cooking').order('created_at', { ascending: true }),
-      supabase.from('orders').select('total, payment_method, propina')
+      supabase.from('orders').select('total, payment_method, propina, tipo_pedido')
         .eq('status', 'completed')
         .gte('created_at', inicioDia),
       supabase.from('gastos').select('id, concepto, monto, created_at')
         .gte('created_at', inicioDia).order('created_at', { ascending: false }),
+      supabase.from('bases_caja').select('monto').eq('fecha', hoyBogota()).maybeSingle(),
     ])
 
     if (!pendingRes.error) setPendingPayment((pendingRes.data || []).map(parseItems))
@@ -135,17 +157,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     if (!cookingRes.error) setCooking((cookingRes.data || []).map(parseItems))
 
     if (!completedRes.error) {
-      const orders = completedRes.data || []
+      const orders = (completedRes.data || []).filter(o => !esRappi(o))
       setSummary({
-        total_efectivo:      orders.filter(o => o.payment_method === 'efectivo').reduce((s,o) => s + o.total, 0),
-        total_transferencia: orders.filter(o => o.payment_method === 'transferencia').reduce((s,o) => s + o.total, 0),
-        total_rappi:         orders.filter(o => o.payment_method === 'rappi').reduce((s,o) => s + o.total, 0),
+        total_efectivo:      orders.filter(o => o.payment_method === 'efectivo').reduce((s,o) => s + Number(o.total), 0),
+        total_transferencia: orders.filter(o => o.payment_method === 'transferencia').reduce((s,o) => s + Number(o.total), 0),
         total_ordenes:       orders.length,
         total_propinas:      orders.reduce((s,o) => s + Number(o.propina || 0), 0),
       })
     }
 
     if (!gastosRes.error) setGastos(gastosRes.data || [])
+    if (!baseRes.error) setBaseHoy(baseRes.data ? Number(baseRes.data.monto) : null)
 
     setLoading(false)
   }, [])
@@ -293,6 +315,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         }
       )
       if (error) throw error
+      if (payingKind === 'inicial') {
+        // Ya pagado: pasa a cocina. Aviso push por si la pantalla de cocina está apagada.
+        const dest = payingOrder.table_num ? `Mesa ${payingOrder.table_num}` : (payingOrder.customer_name || 'Pedido')
+        pushNotificationService.notify(['kitchen'], 'Nuevo pedido', `${dest} — ${payingOrder.items.length} producto(s)`, '/')
+      }
       message.success(
         payMethod === 'efectivo' && data.change > 0
           ? `Cobrado · Cambio: $${Math.round(data.change).toLocaleString('es-CO')}`
@@ -327,6 +354,27 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     }
   }, [fetchData])
 
+  // Base de caja: efectivo con el que arranca el cajón hoy (punto de partida del arqueo)
+  const handleGuardarBase = useCallback(async () => {
+    const monto = parseFloat(baseInput)
+    if (isNaN(monto) || monto < 0) { message.error('Escribe cuánto efectivo hay en la caja'); return }
+    setSavingBase(true)
+    const { data, error } = await supabase.rpc('registrar_base_caja', { p_monto: monto })
+    setSavingBase(false)
+    if (error) { message.error('Error: ' + error.message); return }
+    setBaseHoy(Number(data?.monto ?? monto))
+    setEditandoBase(false)
+    message.success('Base de caja registrada')
+  }, [baseInput])
+
+  const handleCorteMensual = useCallback(async () => {
+    setLoadingMensual(true)
+    const { data, error } = await supabase.rpc('get_corte_mensual')
+    setLoadingMensual(false)
+    if (error) { message.error('Error: ' + error.message); return }
+    setCorteMensual(data as CorteMensual)
+  }, [])
+
   // Conteo físico de efectivo (arqueo): cantidad de billetes/monedas por denominación
   const denominacionesConteo = DENOMINACIONES
     .map(valor => ({ valor, cantidad: parseInt(conteo[valor] || '0', 10) || 0 }))
@@ -359,6 +407,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           total_gastos:        Number(corteResult.total_gastos ?? 0),
           total_neto:          Number(corteResult.total_neto ?? corteResult.total_general),
           total_propinas:      Number(corteResult.total_propinas ?? 0),
+          base_caja:           Number(corteResult.base_caja ?? 0),
+          efectivo_esperado:   Number(corteResult.efectivo_esperado_cajon ?? corteResult.total_efectivo),
           fecha:               corteResult.fecha,
         },
         productos: corteProductos,
@@ -381,21 +431,53 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   return (
     <div className="space-y-6">
-      {/* Resumen del día */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      {/* Base de caja: efectivo con el que arranca el cajón (punto de partida del corte) */}
+      <div className="bg-[#D8DAE4] rounded-2xl p-4 flex flex-wrap items-center gap-3 justify-between" style={S.neoOutSm}>
+        <div>
+          <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">Base de caja de hoy</p>
+          {baseHoy !== null && !editandoBase ? (
+            <p className="text-2xl font-bold text-[#2D3561]">{fmt(baseHoy)}</p>
+          ) : (
+            <p className="text-sm text-[#6B7280]">¿Con cuánto efectivo arranca la caja hoy?</p>
+          )}
+        </div>
+        {baseHoy !== null && !editandoBase ? (
+          <button onClick={() => { setBaseInput(String(baseHoy)); setEditandoBase(true) }}
+            className="px-4 py-2 rounded-2xl text-sm font-bold text-[#2D3561]" style={S.neoOutSm}>
+            Cambiar
+          </button>
+        ) : (
+          <div className="flex gap-2 items-center">
+            <input type="number" min={0} inputMode="numeric" value={baseInput}
+              onChange={e => setBaseInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleGuardarBase() }}
+              placeholder="Ej: 100000" aria-label="Base de caja"
+              className="w-36 bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn} />
+            <button onClick={handleGuardarBase} disabled={savingBase}
+              className="px-4 py-2 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingBase ? 0.6 : 1 }}>
+              {savingBase ? 'Guardando…' : 'Guardar base'}
+            </button>
+            {baseHoy !== null && (
+              <button onClick={() => setEditandoBase(false)} className="text-sm font-bold text-[#6B7280] px-2">Cancelar</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Resumen del día (Rappi no cuenta: precios distintos al menú físico) */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
           { label: 'Efectivo hoy',       val: `$${Math.round(daySummary.total_efectivo).toLocaleString('es-CO')}`,     color: 'text-emerald-600' },
           { label: 'Transferencias hoy', val: `$${Math.round(daySummary.total_transferencia).toLocaleString('es-CO')}`, color: 'text-blue-600'    },
-          { label: 'Rappi hoy',          val: `$${Math.round(daySummary.total_rappi).toLocaleString('es-CO')}`,         color: 'text-orange-500'  },
           { label: 'Propinas hoy',       val: `$${Math.round(daySummary.total_propinas).toLocaleString('es-CO')}`,      color: 'text-purple-500'  },
           { label: 'Gastos hoy',         val: `$${Math.round(totalGastosHoy).toLocaleString('es-CO')}`,                 color: 'text-red-500'     },
           { label: 'Neto del día',       val: `$${Math.round(netoDia).toLocaleString('es-CO')}`,                        color: 'text-[#FF5722]'   },
         ].map(s => (
           <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
-            <p className="text-[10px] text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
+            <p className="text-[0.625rem] text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
             {s.label === 'Neto del día' && (
-              <p className="text-[10px] text-[#9CA3AF]">{daySummary.total_ordenes} órdenes</p>
+              <p className="text-[0.625rem] text-[#9CA3AF]">{daySummary.total_ordenes} órdenes</p>
             )}
           </div>
         ))}
@@ -434,13 +516,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
             {gastoModo === 'simple' ? (
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="flex-1 min-w-[160px]">
-                  <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
+                  <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
                   <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
                     placeholder="Ej: Domicilio de insumos"
                     className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
                 </div>
                 <div className="w-32">
-                  <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Monto</label>
+                  <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Monto</label>
                   <input type="number" min={0} value={gastoMonto} onChange={e => setGastoMonto(e.target.value)}
                     placeholder="0"
                     className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
@@ -453,13 +535,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
             ) : (
               <div>
                 <div className="mb-3">
-                  <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">Proveedor / concepto</label>
+                  <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Proveedor / concepto</label>
                   <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
                     placeholder="Ej: Distribuidora La Cosecha"
                     className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
                 </div>
 
-                <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase mb-2">Productos que trajo</label>
+                <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-2">Productos que trajo</label>
                 <div className="flex flex-col gap-2 mb-3">
                   {provItems.map((it, idx) => (
                     <div key={idx} className="flex flex-wrap gap-2 items-center bg-[#CDD0DC] rounded-xl p-2" style={S.neoIn}>
@@ -516,7 +598,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <div key={g.id} className="flex items-center justify-between bg-[#D8DAE4] rounded-2xl px-4 py-3" style={S.neoOutSm}>
                 <div>
                   <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
-                  <p className="text-[11px] text-[#9CA3AF]">{new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-[0.6875rem] text-[#9CA3AF]">{new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-red-500">${Math.round(Number(g.monto)).toLocaleString('es-CO')}</span>
@@ -576,10 +658,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div className="flex gap-2 mt-2">
                   <motion.button
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      setEditingOrderId(order.id)
-                      setEditItems(order.items || [])
-                    }}
+                    onClick={() => setEditingOrder(order)}
                     className="flex-1 py-2 rounded-2xl font-bold text-white bg-amber-500 text-xs"
                   >
                     ✏️ Editar
@@ -758,10 +837,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div className="flex gap-2 mt-2">
                   <motion.button
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      setEditingOrderId(order.id)
-                      setEditItems(order.items || [])
-                    }}
+                    onClick={() => setEditingOrder(order)}
                     className="flex-1 py-2 rounded-2xl font-bold text-white bg-amber-500 text-xs"
                   >
                     ✏️ Editar
@@ -793,8 +869,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         )}
       </div>
 
-      {/* Botón corte de caja */}
-      <div className="pt-4 border-t border-[#D1D5E0]">
+      {/* Corte de caja: diario y mensual */}
+      <div className="pt-4 border-t border-[#D1D5E0] grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           onClick={handleCorte}
           disabled={cortingLoading || daySummary.total_ordenes === 0}
@@ -802,6 +878,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           style={S.neoOut}
         >
           {cortingLoading ? 'Generando corte...' : `Hacer corte de caja · ${daySummary.total_ordenes} órdenes`}
+        </button>
+        <button
+          onClick={handleCorteMensual}
+          disabled={loadingMensual}
+          className={`w-full py-3.5 rounded-2xl font-bold text-sm text-[#2D3561] ${loadingMensual ? 'opacity-50' : ''}`}
+          style={S.neoOut}
+        >
+          {loadingMensual ? 'Calculando...' : 'Corte mensual · ventas del mes'}
         </button>
       </div>
 
@@ -844,7 +928,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <div className="grid grid-cols-2 gap-2 mb-4">
                 {(['efectivo', 'transferencia'] as PaymentMethod[]).map(m => (
                   <button key={m}
-                    onClick={() => { setPayMethod(m); if (m === 'transferencia') setAmountPaid(payingOrder.total.toFixed(2)) }}
+                    onClick={() => { setPayMethod(m); if (m === 'transferencia') setAmountPaid(String(Math.round(payingOrder.total))) }}
                     className="py-3 rounded-2xl text-sm font-bold capitalize"
                     style={payMethod === m ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
                   >
@@ -876,12 +960,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       className="mt-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center justify-between"
                     >
                       <span className="text-sm font-bold text-emerald-700">Cambio</span>
-                      <span className="text-2xl font-bold text-emerald-600">${cambio.toFixed(2)}</span>
+                      <span className="text-2xl font-bold text-emerald-600">{fmt(cambio)}</span>
                     </motion.div>
                   )}
                   {pagoInsuficiente && (
                     <p className="mt-2 text-xs text-red-500 font-medium">
-                      Falta ${(totalConPropina - parseFloat(amountPaid)).toFixed(2)}
+                      Falta {fmt(totalConPropina - parseFloat(amountPaid))}
                     </p>
                   )}
                 </div>
@@ -892,8 +976,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <p className="text-sm font-bold text-blue-700">Confirmar transferencia</p>
                   <p className="text-xs text-blue-600 mt-0.5">
                     {propinaNum > 0
-                      ? `Venta: $${payingOrder.total.toFixed(2)} + Propina: $${propinaNum.toFixed(2)} = $${totalConPropina.toFixed(2)}`
-                      : `Total: $${payingOrder.total.toFixed(2)}`}
+                      ? `Venta: ${fmt(payingOrder.total)} + Propina: ${fmt(propinaNum)} = ${fmt(totalConPropina)}`
+                      : `Total: ${fmt(payingOrder.total)}`}
                   </p>
                 </div>
               )}
@@ -923,7 +1007,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       <button type="button"
                         onClick={() => setPropinaInput(Math.round(payingOrder.total * propinaSugeridaPct / 100).toString())}
                         className="text-xs font-bold text-[#FF5722] mb-2 block">
-                        Sugerida {propinaSugeridaPct}% · ${Math.round(payingOrder.total * propinaSugeridaPct / 100).toFixed(2)}
+                        Sugerida {propinaSugeridaPct}% · {fmt(payingOrder.total * propinaSugeridaPct / 100)}
                       </button>
                     )}
                     <input type="number" min={0} value={propinaInput} onChange={e => setPropinaInput(e.target.value)}
@@ -991,33 +1075,35 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <div key={item.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
                     <span className="text-sm text-[#6B7280]">{item.label}</span>
                     <span className="font-bold text-[#2D3561]">
-                      {item.isCurrency === false ? item.val : `$${Number(item.val).toFixed(2)}`}
+                      {item.isCurrency === false ? item.val : fmt(item.val)}
                     </span>
                   </div>
                 ))}
                 <div className="flex justify-between items-center bg-[#FF5722] rounded-2xl px-4 py-3" style={S.coral}>
                   <span className="text-sm font-bold text-white">Ganancias (ventas)</span>
-                  <span className="text-xl font-bold text-white">${Number(corteResult.total_general).toFixed(2)}</span>
+                  <span className="text-xl font-bold text-white">{fmt(corteResult.total_general)}</span>
                 </div>
                 {Number(corteResult.total_propinas ?? 0) > 0 && (
                   <div className="flex justify-between items-center bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3">
                     <span className="text-sm font-bold text-purple-600">Propinas (no es venta)</span>
-                    <span className="font-bold text-purple-600">${Number(corteResult.total_propinas).toFixed(2)}</span>
-                  </div>
-                )}
-                {Number(corteResult.total_rappi ?? 0) > 0 && (
-                  <div className="flex justify-between items-center bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3">
-                    <span className="text-sm font-bold text-orange-600">Rappi (no cuenta en ganancias)</span>
-                    <span className="font-bold text-orange-600">${Number(corteResult.total_rappi).toFixed(2)}</span>
+                    <span className="font-bold text-purple-600">{fmt(corteResult.total_propinas)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
                   <span className="text-sm font-bold text-red-600">Gastos del día</span>
-                  <span className="font-bold text-red-600">−${Number(corteResult.total_gastos ?? 0).toFixed(2)}</span>
+                  <span className="font-bold text-red-600">−{fmt(corteResult.total_gastos)}</span>
                 </div>
                 <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
                   <span className="text-sm font-bold text-white">Beneficio neto</span>
-                  <span className="text-xl font-bold text-white">${Number(corteResult.total_neto ?? corteResult.total_general).toFixed(2)}</span>
+                  <span className="text-xl font-bold text-white">{fmt(corteResult.total_neto ?? corteResult.total_general)}</span>
+                </div>
+                <div className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
+                  <span className="text-sm text-[#6B7280]">Base de caja</span>
+                  <span className="font-bold text-[#2D3561]">{fmt(corteResult.base_caja)}</span>
+                </div>
+                <div className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
+                  <span className="text-sm text-[#6B7280]">Efectivo esperado en caja<br /><span className="text-[0.6875rem]">base + efectivo + propinas en efectivo</span></span>
+                  <span className="font-bold text-[#2D3561]">{fmt(corteResult.efectivo_esperado_cajon)}</span>
                 </div>
               </div>
 
@@ -1043,8 +1129,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   ))}
                 </div>
                 {Number(corteResult.total_propinas_efectivo ?? 0) > 0 && (
-                  <p className="text-[11px] text-[#9CA3AF] mb-2">
-                    Incluye ${Number(corteResult.total_propinas_efectivo).toFixed(2)} de propinas en efectivo — recuerda separarlas, no son venta del restaurante.
+                  <p className="text-[0.6875rem] text-[#9CA3AF] mb-2">
+                    Incluye {fmt(corteResult.total_propinas_efectivo)} de propinas en efectivo — recuerda separarlas, no son venta del restaurante.
                   </p>
                 )}
                 {denominacionesConteo.length > 0 && (() => {
@@ -1052,9 +1138,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   const diferencia = totalContado - efectivoEsperado
                   return (
                     <div className="flex justify-between items-center bg-[#CDD0DC] rounded-xl px-3 py-2 text-xs" style={S.neoIn}>
-                      <span className="text-[#6B7280]">Contado: ${totalContado.toFixed(2)} · Esperado: ${efectivoEsperado.toFixed(2)}</span>
+                      <span className="text-[#6B7280]">Contado: {fmt(totalContado)} · Esperado: {fmt(efectivoEsperado)}</span>
                       <span className={`font-bold ${Math.abs(diferencia) < 0.01 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {Math.abs(diferencia) < 0.01 ? '✓ Cuadra' : `Diferencia: $${diferencia.toFixed(2)}`}
+                        {Math.abs(diferencia) < 0.01 ? '✓ Cuadra' : `Diferencia: ${diferencia < 0 ? '−' : ''}${fmt(Math.abs(diferencia))}`}
                       </span>
                     </div>
                   )
@@ -1089,79 +1175,85 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           </motion.div>
         )}
 
-        {editingOrderId && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '1rem' }}
-            onClick={() => !savingEdit && setEditingOrderId(null)}>
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              style={{ background: '#F5F5F5', borderRadius: '1.25rem', padding: '1.5rem', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflow: 'auto' }}
-              onClick={e => e.stopPropagation()}>
-              <h3 style={{ fontWeight: 600, fontSize: '1.25rem', margin: '0 0 1rem', color: '#2D3561' }}>Editar pedido</h3>
+        {editingOrder && (
+          <EditOrderModal
+            key={editingOrder.id}
+            order={editingOrder}
+            onClose={() => setEditingOrder(null)}
+            onSaved={() => { setEditingOrder(null); fetchData() }}
+          />
+        )}
 
-              {editItems.length === 0 ? (
-                <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '2rem 0' }}>Sin items</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                  {editItems.map((item, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#fff', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid #D1D5E0' }}>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontWeight: 600, margin: '0 0 0.25rem', color: '#2D3561', fontSize: '0.9375rem' }}>{item.name}</p>
-                        <p style={{ color: '#9CA3AF', margin: 0, fontSize: '0.8125rem' }}>${(item.price * item.quantity).toLocaleString('es-CO')}</p>
+        {/* ── Modal corte mensual ── */}
+        {corteMensual && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setCorteMensual(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-md" style={{ ...S.neoOut, maxHeight: '88vh', overflowY: 'auto' }}
+            >
+              <div className="text-center mb-5">
+                <h3 className="font-bold text-[#2D3561] text-xl">Corte mensual</h3>
+                <p className="text-xs text-[#9CA3AF]">
+                  {(m => m.charAt(0).toUpperCase() + m.slice(1))(new Date(corteMensual.desde + 'T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }))}
+                  {' · '}del {Number(corteMensual.desde.slice(8))} al {Number(corteMensual.hasta.slice(8))} · sin Rappi
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 mb-5">
+                {[
+                  { label: 'Efectivo',      val: fmt(corteMensual.total_efectivo) },
+                  { label: 'Transferencia', val: fmt(corteMensual.total_transferencia) },
+                  { label: 'Órdenes',       val: String(corteMensual.total_ordenes) },
+                ].map(it => (
+                  <div key={it.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
+                    <span className="text-sm text-[#6B7280]">{it.label}</span>
+                    <span className="font-bold text-[#2D3561]">{it.val}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center bg-[#FF5722] rounded-2xl px-4 py-3" style={S.coral}>
+                  <span className="text-sm font-bold text-white">Ventas del mes</span>
+                  <span className="text-xl font-bold text-white">{fmt(corteMensual.total_general)}</span>
+                </div>
+                {Number(corteMensual.total_propinas) > 0 && (
+                  <div className="flex justify-between items-center bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3">
+                    <span className="text-sm font-bold text-purple-600">Propinas (no es venta)</span>
+                    <span className="font-bold text-purple-600">{fmt(corteMensual.total_propinas)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+                  <span className="text-sm font-bold text-red-600">Gastos del mes</span>
+                  <span className="font-bold text-red-600">−{fmt(corteMensual.total_gastos)}</span>
+                </div>
+                <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
+                  <span className="text-sm font-bold text-white">Beneficio neto del mes</span>
+                  <span className="text-xl font-bold text-white">{fmt(corteMensual.total_neto)}</span>
+                </div>
+              </div>
+
+              {corteMensual.dias.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">Por día</p>
+                  <div className="flex flex-col gap-1">
+                    {corteMensual.dias.map(d => (
+                      <div key={d.fecha} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center text-sm bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
+                        <span className="text-[#2D3561] font-semibold capitalize">
+                          {new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
+                        </span>
+                        <span className="text-[#9CA3AF] text-xs">{d.ordenes} órd.</span>
+                        <span className="font-bold text-[#2D3561] text-right">{fmt(d.total)}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#F5F5F5', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid #D1D5E0' }}>
-                        <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: Math.max(0, newItems[i].quantity - 1) }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem', color: '#2D3561' }}>−</button>
-                        <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600, color: '#2D3561' }}>{item.quantity}</span>
-                        <button onClick={() => { const newItems = [...editItems]; newItems[i] = { ...newItems[i], quantity: newItems[i].quantity + 1 }; setEditItems(newItems) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem 0.5rem', color: '#2D3561' }}>+</button>
-                      </div>
-                      <button onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))} style={{ background: '#FF5722', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer', fontWeight: 600 }}>✕</button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <div style={{ background: '#CDD0DC', padding: '1rem', borderRadius: '0.875rem', marginBottom: '1.5rem', border: '1px solid #D1D5E0' }}>
-                <p style={{ margin: 0, color: '#9CA3AF', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Total nuevo</p>
-                <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#FF5722' }}>${editItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toLocaleString('es-CO')}</p>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  disabled={savingEdit}
-                  onClick={async () => {
-                    if (!editingOrderId) return
-                    if (editItems.length === 0) { alert('Agrega al menos 1 item'); return }
-                    setSavingEdit(true)
-                    try {
-                      const { error } = await supabase.rpc('editar_pedido_cliente', {
-                        p_order_id: editingOrderId,
-                        p_items: editItems.map(it => ({ id: it.id, quantity: it.quantity })),
-                      })
-                      if (error) throw error
-                      alert('Pedido actualizado')
-                      await fetchData()
-                      setEditingOrderId(null)
-                    } catch (err: any) {
-                      alert('Error: ' + err.message)
-                    } finally {
-                      setSavingEdit(false)
-                    }
-                  }}
-                  style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.875rem', background: '#FF5722', color: '#fff', fontFamily: 'sans-serif', fontWeight: 700, cursor: savingEdit ? 'not-allowed' : 'pointer', opacity: savingEdit ? 0.7 : 1 }}>
-                  {savingEdit ? 'Guardando...' : 'Guardar cambios'}
-                </button>
-                <button
-                  disabled={savingEdit}
-                  onClick={() => setEditingOrderId(null)}
-                  style={{ flex: 1, padding: '0.9rem', border: '1px solid #D1D5E0', borderRadius: '0.875rem', background: '#F5F5F5', color: '#2D3561', fontFamily: 'sans-serif', fontWeight: 700, cursor: 'pointer' }}>
-                  Cancelar
-                </button>
-              </div>
+              <button onClick={() => setCorteMensual(null)} className="w-full py-3 rounded-2xl font-bold text-[#2D3561]" style={S.neoOut}>
+                Cerrar
+              </button>
             </motion.div>
           </motion.div>
         )}

@@ -2,11 +2,12 @@
  * WaiterNotifications.tsx v2
  * - Usa REPLICA IDENTITY FULL → payload.new contiene todos los campos
  * - Fallback: polling cada 15s por si Realtime falla
- * - Beep + vibración al llegar notificación nueva
+ * - Tono según el tipo de pedido (orderSounds) + vibración al llegar
  */
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
+import { playOrderSound, TIPO_LABEL } from '../../services/orderSounds'
 
 interface ReadyOrder {
   id:            string
@@ -14,6 +15,7 @@ interface ReadyOrder {
   customer_name: string | null
   created_at:    string
   user_id:       string | null
+  tipo_pedido:   string | null
 }
 
 interface WaiterNotificationsProps {
@@ -22,22 +24,6 @@ interface WaiterNotificationsProps {
   /** admin ve todos los pedidos listos del restaurante; mesero solo los suyos
    *  (o los sin mesero asignado, ej. autoservicio por QR). */
   isAdmin: boolean
-}
-
-function beep() {
-  try {
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
-    ;[0, 0.2].forEach(t => {
-      const o = ctx.createOscillator(), g = ctx.createGain()
-      o.connect(g); g.connect(ctx.destination)
-      o.frequency.value = 880
-      g.gain.setValueAtTime(0.25, ctx.currentTime + t)
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3)
-      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3)
-    })
-  } catch { /* sin audio */ }
 }
 
 export const WaiterNotifications = memo(({ userId, isAdmin }: WaiterNotificationsProps) => {
@@ -52,7 +38,7 @@ export const WaiterNotifications = memo(({ userId, isAdmin }: WaiterNotification
   const fetchReady = useCallback(async () => {
     const { data } = await supabase
       .from('orders')
-      .select('id, table_num, customer_name, created_at, user_id')
+      .select('id, table_num, customer_name, created_at, user_id, tipo_pedido')
       .eq('status', 'ready')
       .is('delivered_at', null)
     if (data) setReady(data.filter(isMine))
@@ -90,18 +76,17 @@ export const WaiterNotifications = memo(({ userId, isAdmin }: WaiterNotification
             const row = payload.new as {
               id: string; status: string; table_num: number | null
               customer_name: string | null; created_at: string; delivered_at: string | null
-              user_id: string | null
+              user_id: string | null; tipo_pedido: string | null
             }
 
             if (row.status === 'ready' && !row.delivered_at && isMine(row)) {
               setReady(prev => {
                 if (prev.some(o => o.id === row.id)) return prev
-                beep()
-                if ('vibrate' in navigator) navigator.vibrate([300, 100, 300])
+                playOrderSound(row.tipo_pedido)
                 return [...prev, {
                   id: row.id, table_num: row.table_num,
                   customer_name: row.customer_name, created_at: row.created_at,
-                  user_id: row.user_id,
+                  user_id: row.user_id, tipo_pedido: row.tipo_pedido,
                 }]
               })
             }
@@ -160,7 +145,7 @@ export const WaiterNotifications = memo(({ userId, isAdmin }: WaiterNotification
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontSize: '0.9375rem', fontFamily: 'DM Sans, sans-serif' }}>
-                  Mesa {order.table_num ?? '?'} — ¡Listo!
+                  {order.table_num ? `Mesa ${order.table_num}` : TIPO_LABEL[order.tipo_pedido ?? ''] ?? 'Pedido'} — ¡Listo!
                 </p>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--green)', margin: 0, fontWeight: 600 }}>
                   Entregar ahora{order.customer_name ? ` · ${order.customer_name}` : ''}

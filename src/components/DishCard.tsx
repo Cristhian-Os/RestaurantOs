@@ -115,7 +115,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
           >
             {dish.name}
           </h3>
-          <span className={`${color} text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0`}>
+          <span className={`${color} text-[0.625rem] font-bold px-2 py-0.5 rounded-full shrink-0`}>
             {label}
           </span>
         </div>
@@ -129,7 +129,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
             {dish.tags.map(tag => (
               <span
                 key={tag}
-                className="text-[10px] text-[#6B7280] bg-[#CDD0DC] px-2 py-0.5 rounded-full"
+                className="text-[0.625rem] text-[#6B7280] bg-[#CDD0DC] px-2 py-0.5 rounded-full"
                 style={S.neoOutSm}
               >
                 {tag}

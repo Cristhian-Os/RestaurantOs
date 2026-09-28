@@ -9,7 +9,7 @@ import { supabase } from '../../services/supabaseClient'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import message from 'antd/es/message'
 
-interface OrderItem { id: string; name: string; price: number; quantity: number; notes?: string }
+interface OrderItem { id: string; name: string; price: number; quantity: number; notes?: string; cancelled?: boolean }
 interface Order {
   id:         string
   table_num:  number | null

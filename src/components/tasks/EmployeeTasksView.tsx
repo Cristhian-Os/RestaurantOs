@@ -207,7 +207,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
           {/* Prioridad */}
           <div className="flex items-center gap-1.5 mb-1.5">
             <span className={`w-2 h-2 rounded-full ${pri.dot}`} />
-            <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">{pri.label}</span>
+            <span className="text-[0.625rem] font-bold text-[#9CA3AF] uppercase tracking-wider">{pri.label}</span>
           </div>
           <h3 className="font-bold text-[#2D3561] leading-snug" style={{ fontFamily: 'DM Sans, sans-serif' }}>
             {task.title}
