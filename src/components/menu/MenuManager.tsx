@@ -21,7 +21,7 @@ const S = {
   coral:   { boxShadow: 'var(--shadow-coral)' },
 } as const
 
-interface Category { value: string; label: string; emoji: string }
+interface Category { value: string; label: string; emoji: string; color?: string }
 
 interface PendingResena {
   id:             string
@@ -75,6 +75,21 @@ const EMOJI_OPTIONS = [
   '☕','🍵','🧃','🥤','🍷','🍸','🍹','🍺','🥂','🍾','🧋','🫖','🍶','🥛','🧉',
   // ⭐ Especiales & Comodines
   '⭐','✨','🔥','💎','🏆','🎉','👑','💫','🎊','🌟','🍽️',
+]
+
+const COLOR_PALETTE = [
+  { name: 'Coral/Terracota', value: '#FF6B4A' },
+  { name: 'Naranja', value: '#FF9500' },
+  { name: 'Amarillo', value: '#F59E0B' },
+  { name: 'Verde', value: '#10B981' },
+  { name: 'Verde oscuro', value: '#059669' },
+  { name: 'Azul', value: '#3B82F6' },
+  { name: 'Azul oscuro', value: '#1e40af' },
+  { name: 'Púrpura', value: '#A855F7' },
+  { name: 'Rosa', value: '#EC4899' },
+  { name: 'Rojo', value: '#DC2626' },
+  { name: 'Marrón', value: '#92400E' },
+  { name: 'Gris', value: '#6B7280' },
 ]
 
 interface SizeRow { nombre: string; precio: string }
@@ -239,6 +254,79 @@ function EmojiPortal({ anchorRef, onSelect, onClose }: EmojiPortalProps) {
   )
 }
 
+// ── Portal para el color picker ──────────────────────────────
+interface ColorPortalProps {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+  onSelect:  (c: string) => void
+  onClose:   () => void
+}
+function ColorPortal({ anchorRef, onSelect, onClose }: ColorPortalProps) {
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const portalRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const r = anchorRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 8 + window.scrollY, left: r.left + window.scrollX })
+    }
+    const handleClick = (e: MouseEvent) => {
+      if (portalRef.current && portalRef.current.contains(e.target as Node)) return
+      if (anchorRef.current && !anchorRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [anchorRef, onClose])
+
+  return createPortal(
+    <div
+      ref={portalRef}
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: 'absolute',
+        top: pos.top,
+        left: Math.min(pos.left, window.innerWidth - 280),
+        zIndex: 99999,
+        backgroundColor: 'var(--bg, #D8DAE4)',
+        borderRadius: '1rem',
+        padding: '0.75rem',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '0.5rem',
+        width: 260,
+        boxShadow: 'var(--shadow-out)',
+      }}
+    >
+      {COLOR_PALETTE.map(c => (
+        <button
+          key={c.value}
+          onClick={() => { onSelect(c.value); onClose() }}
+          title={c.name}
+          style={{
+            width: '100%',
+            height: 44,
+            borderRadius: '0.75rem',
+            backgroundColor: c.value,
+            border: '2px solid transparent',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'scale(1.05)'
+            e.currentTarget.style.borderColor = 'rgba(0,0,0,0.3)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'scale(1)'
+            e.currentTarget.style.borderColor = 'transparent'
+          }}
+        />
+      ))}
+    </div>,
+    document.body
+  )
+}
+
 export const MenuManager = memo(() => {
   const [dishes,      setDishes]      = useState<Dish[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -274,6 +362,10 @@ export const MenuManager = memo(() => {
   const [editEmojiForCat,  setEditEmojiForCat]  = useState<string | null>(null)
   const newCatEmojiRef  = useRef<HTMLButtonElement>(null)
   const editEmojiRefs   = useRef<Record<string, HTMLButtonElement | null>>({})
+  // Color pickers
+  const [editColorForCat, setEditColorForCat]   = useState<string | null>(null)
+  const [newCatColor,     setNewCatColor]       = useState('#FF6B4A')
+  const editColorRefs   = useRef<Record<string, HTMLButtonElement | null>>({})
   const imageRef        = useRef<HTMLInputElement>(null)
 
   // Interacciones de comensales: likes + reseñas (moderación)
@@ -496,11 +588,11 @@ export const MenuManager = memo(() => {
       return
     }
     setSavingCat(true)
-    const newCat: Category = { value, label: newCatLabel.trim(), emoji: newCatEmoji }
+    const newCat: Category = { value, label: newCatLabel.trim(), emoji: newCatEmoji, color: newCatColor }
     const updated = [...categories, newCat]
     setCategories(updated)
     await persistCategories(updated)
-    setNewCatLabel(''); setNewCatEmoji('🍽️'); setSavingCat(false)
+    setNewCatLabel(''); setNewCatEmoji('🍽️'); setNewCatColor('#FF6B4A'); setSavingCat(false)
     message.success(`Categoría "${newCat.label}" creada`)
   }
 
@@ -556,6 +648,15 @@ export const MenuManager = memo(() => {
     await persistCategories(updated)
     setEditEmojiForCat(null)
     message.success('Emoji actualizado')
+  }
+
+  // Guardar color de categoría existente
+  const handleSaveCatColor = async (catValue: string, color: string) => {
+    const updated = categories.map(c => c.value === catValue ? { ...c, color } : c)
+    setCategories(updated)
+    await persistCategories(updated)
+    setEditColorForCat(null)
+    message.success('Color actualizado')
   }
 
   // ── Sabores de helado (config.helado_flavors) ──────────────
@@ -786,6 +887,31 @@ export const MenuManager = memo(() => {
                         />
                       )}
 
+                      {/* Color — editable */}
+                      <button
+                        ref={el => { editColorRefs.current[cat.value] = el }}
+                        onClick={() => setEditColorForCat(editColorForCat === cat.value ? null : cat.value)}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: '0.4rem',
+                          backgroundColor: cat.color || '#FF6B4A',
+                          border: 'none',
+                          cursor: 'pointer',
+                          boxShadow: 'var(--shadow-out-sm)',
+                        }}
+                        title="Cambiar color"
+                      />
+
+                      {/* Color portal para categoría existente */}
+                      {editColorForCat === cat.value && (
+                        <ColorPortal
+                          anchorRef={{ current: editColorRefs.current[cat.value] }}
+                          onSelect={c => handleSaveCatColor(cat.value, c)}
+                          onClose={() => setEditColorForCat(null)}
+                        />
+                      )}
+
                       {editingCat === cat.value
                         ? <>
                             <input value={catLabel} onChange={e => setCatLabel(e.target.value)}
@@ -827,6 +953,30 @@ export const MenuManager = memo(() => {
                         anchorRef={newCatEmojiRef}
                         onSelect={e => setNewCatEmoji(e)}
                         onClose={() => setShowNewCatPicker(false)}
+                      />
+                    )}
+
+                    {/* Botón color con portal */}
+                    <button
+                      ref={el => { if (el) editColorRefs.current['new'] = el }}
+                      onClick={() => setEditColorForCat(editColorForCat === 'new' ? null : 'new')}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: '0.75rem',
+                        backgroundColor: newCatColor,
+                        border: 'none',
+                        cursor: 'pointer',
+                        ...S.neoOutSm,
+                      }}
+                      title="Cambiar color"
+                    />
+
+                    {editColorForCat === 'new' && (
+                      <ColorPortal
+                        anchorRef={{ current: editColorRefs.current['new'] }}
+                        onSelect={c => setNewCatColor(c)}
+                        onClose={() => setEditColorForCat(null)}
                       />
                     )}
 

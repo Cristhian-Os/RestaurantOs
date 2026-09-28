@@ -27,6 +27,11 @@ interface CustomDish {
   price: number
   ingredients: Record<string, number>
 }
+interface CategoryMeta {
+  label: string
+  emoji: string
+  color?: string
+}
 
 const S = {
   neoOut:  { boxShadow: 'var(--shadow-out)' },
@@ -45,7 +50,7 @@ export const ClientMenuSection = memo(() => {
   const [submitting,        setSubmitting]   = useState(false)
   const [submitted,         setSubmitted]    = useState(false)
   const [showCustomBuilder, setShowCustom]   = useState(false)
-  const [catMeta, setCatMeta] = useState<Record<string, { label: string; emoji: string }>>({})
+  const [catMeta, setCatMeta] = useState<Record<string, CategoryMeta>>({})
 
   // Cargar menú real desde Supabase
   useEffect(() => {
@@ -62,11 +67,11 @@ export const ClientMenuSection = memo(() => {
   useEffect(() => {
     supabase.from('restaurant_config').select('modules_enabled').single()
       .then(({ data }) => {
-        const mods = data?.modules_enabled as { categories?: { value: string; label: string; emoji?: string }[] } | null
+        const mods = data?.modules_enabled as { categories?: { value: string; label: string; emoji?: string; color?: string }[] } | null
         const cats = mods?.categories
         if (Array.isArray(cats)) {
-          const map: Record<string, { label: string; emoji: string }> = {}
-          for (const c of cats) if (c?.value) map[c.value] = { label: c.label, emoji: c.emoji || '' }
+          const map: Record<string, CategoryMeta> = {}
+          for (const c of cats) if (c?.value) map[c.value] = { label: c.label, emoji: c.emoji || '', color: c.color }
           setCatMeta(map)
         }
       })
@@ -238,7 +243,7 @@ export const ClientMenuSection = memo(() => {
           onClick={() => setShowCustom(true)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="w-full py-3 rounded-2xl font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 text-sm"
+          className="w-full py-3 rounded-2xl font-bold text-white text-sm btn-gradient"
           style={S.coral}
         >
           Crear mi propio plato (con ingredientes disponibles)
@@ -275,21 +280,28 @@ export const ClientMenuSection = memo(() => {
       <ScrollReveal delay={0.1} y={16}>
         <div className="flex gap-2 overflow-x-auto pb-2">
           <button onClick={() => setCategory('all')}
-            className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold"
+            className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold transition-all duration-200"
             style={activeCategory === 'all'
-              ? { background: 'var(--accent)', color: 'white', ...S.coral }
+              ? { background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%)', color: 'white', ...S.coral }
               : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
             Todo
           </button>
-          {availableCategories.map(cat => (
-            <button key={cat} onClick={() => setCategory(cat)}
-              className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold"
-              style={activeCategory === cat
-                ? { background: 'var(--accent)', color: 'white', ...S.coral }
-                : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
-              {catLabel(cat)}
-            </button>
-          ))}
+          {availableCategories.map(cat => {
+            const catColor = catMeta[cat]?.color || 'var(--accent)'
+            return (
+              <button key={cat} onClick={() => setCategory(cat)}
+                className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold transition-all duration-200"
+                style={activeCategory === cat
+                  ? {
+                      background: `linear-gradient(135deg, ${catColor} 0%, ${catColor}dd 100%)`,
+                      color: 'white',
+                      boxShadow: `0 2px 8px ${catColor}40`
+                    }
+                  : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
+                {catLabel(cat)}
+              </button>
+            )
+          })}
         </div>
       </ScrollReveal>
 
@@ -310,7 +322,8 @@ export const ClientMenuSection = memo(() => {
           {filteredDishes.map(dish => (
             <ScrollRevealItem key={dish.id}>
               <DishCard dish={dish} onAdd={handleAdd} quantity={getQuantity(dish.id)}
-                categoryLabel={catLabel(dish.category)} categoryIcon={catIcon(dish.category)} />
+                categoryLabel={catLabel(dish.category)} categoryIcon={catIcon(dish.category)}
+                categoryColor={catMeta[dish.category]?.color} />
             </ScrollRevealItem>
           ))}
         </ScrollRevealList>
@@ -360,7 +373,7 @@ export const ClientMenuSection = memo(() => {
 
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleOrder}
                 disabled={submitting || !tableNum}
-                className={`w-full py-3.5 rounded-2xl font-bold text-white bg-[#FF5722] mt-4 text-sm ${submitting || !tableNum ? 'opacity-60' : ''}`}
+                className={`w-full py-3.5 rounded-2xl font-bold text-white mt-4 text-sm btn-gradient ${submitting || !tableNum ? 'opacity-60' : ''}`}
                 style={S.coral}>
                 {submitting ? 'Enviando...' : 'Enviar pedido a cocina'}
               </motion.button>

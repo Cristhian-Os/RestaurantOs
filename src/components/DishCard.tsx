@@ -45,15 +45,18 @@ interface DishCardProps {
   /** Etiqueta/ícono de categoría ya resueltos (categorías personalizadas del negocio). */
   categoryLabel?: string
   categoryIcon?: ReactNode
+  /** Color hexadecimal de la categoría (para gradientes). */
+  categoryColor?: string
 }
 
 // ─── Componente ───────────────────────────────────────────────
-export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, categoryLabel, categoryIcon }) => {
+export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, categoryLabel, categoryIcon, categoryColor }) => {
   const [justAdded, setJustAdded] = useState(false)
   const cat = CATEGORY_CONFIG[dish.category as keyof typeof CATEGORY_CONFIG]
   const icon = categoryIcon ?? <CategoryIcon category={dish.category} size={40} />
   const label = categoryLabel ?? cat?.label ?? dish.category
   const color = cat?.color ?? 'bg-gray-100 text-gray-600'
+  const badgeColor = categoryColor || '#FF5722'
 
   const handleAdd = useCallback(() => {
     if (!dish.available) return
@@ -77,8 +80,11 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1, transition: springBouncy }}
             exit={{ scale: 0, opacity: 0, transition: fadeOut }}
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#FF5722] text-white text-xs font-bold flex items-center justify-center z-10"
-            style={{ boxShadow: '0 2px 8px rgba(255,87,34,0.5)' }}
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center z-10"
+            style={{
+              backgroundColor: badgeColor,
+              boxShadow: `0 2px 8px ${badgeColor}66`
+            }}
           >
             {quantity > 9 ? '9+' : quantity}
           </motion.span>
