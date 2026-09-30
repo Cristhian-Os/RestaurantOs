@@ -8,6 +8,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryService } from '../../services/inventoryService'
 import message from 'antd/es/message'
+import { VoiceButton } from '../VoiceButton'
 import type { Ingrediente } from '../../types/inventory'
 
 const UNIDADES = ['kg', 'litro', 'pieza', 'gramo', 'ml', 'paquete'] as const
@@ -20,12 +21,19 @@ const inputBase: React.CSSProperties = {
   fontSize: '0.875rem', outline: 'none', width: '100%', boxSizing: 'border-box',
 }
 
+type Nuevo = ReturnType<typeof emptyNuevo>
+interface VoiceIngredientes {
+  ingredientes: { nombre: string; unidad_medida: typeof UNIDADES[number]; stock_actual?: number; stock_minimo?: number; costo_unitario?: number }[]
+}
+
 const emptyNuevo = () => ({ nombre: '', unidad_medida: 'kg' as typeof UNIDADES[number], costo_unitario: '', stock_minimo: '', stock_actual: '' })
 
 export function IngredientesManager() {
   const queryClient = useQueryClient()
   const [showNuevo, setShowNuevo] = useState(false)
   const [nuevo, setNuevo] = useState(emptyNuevo())
+  // Ingredientes dictados que faltan por revisar: se cargan al formulario de a uno.
+  const [pendientes, setPendientes] = useState<Nuevo[]>([])
   const [compraFor, setCompraFor] = useState<Ingrediente | null>(null)
   const [compraCantidad, setCompraCantidad] = useState('')
   const [compraPrecio, setCompraPrecio] = useState('')
@@ -47,8 +55,9 @@ export function IngredientesManager() {
       stock_actual: parseFloat(nuevo.stock_actual) || 0,
     }),
     onSuccess: () => {
-      message.success('Ingrediente creado')
-      setShowNuevo(false); setNuevo(emptyNuevo())
+      message.success(pendientes.length ? `Ingrediente creado · faltan ${pendientes.length}` : 'Ingrediente creado')
+      if (pendientes.length) { setNuevo(pendientes[0]); setPendientes(pendientes.slice(1)) }
+      else { setShowNuevo(false); setNuevo(emptyNuevo()) }
       invalidate()
     },
     onError: (e) => message.error(e instanceof Error ? e.message : 'Error al crear'),
@@ -107,7 +116,15 @@ export function IngredientesManager() {
             Agrega materias primas y registra compras (sube el stock y actualiza el precio)
           </p>
         </div>
-        <button onClick={() => setShowNuevo(v => !v)}
+        <VoiceButton<VoiceIngredientes> kind="ingredient" label="Dictar ingredientes" onResult={r => {
+          const list: Nuevo[] = (r.ingredientes ?? []).map(i => ({
+            nombre: i.nombre ?? '', unidad_medida: UNIDADES.includes(i.unidad_medida) ? i.unidad_medida : 'kg',
+            costo_unitario: String(i.costo_unitario ?? ''), stock_minimo: String(i.stock_minimo ?? ''), stock_actual: String(i.stock_actual ?? ''),
+          }))
+          if (list.length === 0) { message.warning('No entendí ningún ingrediente'); return }
+          setNuevo(list[0]); setPendientes(list.slice(1)); setShowNuevo(true)
+        }} />
+        <button onClick={() => { setShowNuevo(v => !v); setPendientes([]) }}
           style={{ padding: '0.625rem 1.125rem', borderRadius: '0.75rem', border: 'none', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', background: showNuevo ? 'var(--accent)' : 'var(--bg-surface)', color: showNuevo ? '#fff' : 'var(--text-primary)', boxShadow: 'var(--shadow-out-sm)' }}>
           + Nuevo ingrediente
         </button>
@@ -117,7 +134,10 @@ export function IngredientesManager() {
         <div style={{ background: 'var(--bg)', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end', boxShadow: 'var(--shadow-out)' }}>
           <div style={{ flex: '1 1 160px' }}>
             <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Nombre</label>
-            <input value={nuevo.nombre} onChange={e => setNuevo(n => ({ ...n, nombre: e.target.value }))} style={inputBase} placeholder="Ej: Queso mozzarella" />
+            <div style={{ display: 'flex', gap: '0.375rem' }}>
+              <input value={nuevo.nombre} onChange={e => setNuevo(n => ({ ...n, nombre: e.target.value }))} style={inputBase} placeholder="Ej: Queso mozzarella" />
+              <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setNuevo(n => ({ ...n, nombre: r.transcript.trim().replace(/.$/, '') }))} />
+            </div>
           </div>
           <div style={{ width: 110 }}>
             <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Unidad</label>

@@ -7,6 +7,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryService } from '../../services/inventoryService'
+import { VoiceButton } from '../VoiceButton'
+import { matchName } from '../../services/voiceMatch'
 import message from 'antd/es/message'
 import Button from 'antd/es/button'
 import Modal from 'antd/es/modal'
@@ -97,6 +99,23 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
     () => lines.filter(l => l.nombre.trim() !== '' && l.cantidad_necesaria > 0).length,
     [lines],
   )
+
+  // Receta dictada: se AGREGA a las filas (no pisa lo ya escrito) y cada fila queda
+  // editable. Si el ingrediente existe en inventario se vincula (descuenta stock).
+  const addVoiceLines = useCallback((r: { lineas: { nombre: string; cantidad: number; unidad?: string }[] }) => {
+    const nuevas: RecetaLine[] = (r.lineas ?? []).map(l => {
+      const ing = matchName(l.nombre, ingredientesOpts, i => i.nombre)
+      return {
+        nombre: ing?.nombre ?? l.nombre,
+        costo_unitario: ing ? Number(ing.costo_unitario) || 0 : 0,
+        cantidad_necesaria: Number(l.cantidad) || 0,
+        unidad: ing?.unidad_medida ?? l.unidad ?? '',
+        ingrediente_id: ing?.id ?? null,
+      }
+    })
+    if (nuevas.length === 0) { message.warning('No entendí ningún ingrediente'); return }
+    setLines(prev => [...prev.filter(l => l.nombre.trim() !== '' || l.cantidad_necesaria > 0), ...nuevas])
+  }, [ingredientesOpts])
 
   // ─── Handlers de filas ────────────────────────────────────
   const updateLine = useCallback((idx: number, field: keyof RecetaLine, value: string | number) => {
@@ -211,6 +230,9 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                   <h4 style={{ margin: 0, fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem' }}>
                     Materias primas
                   </h4>
+                  <VoiceButton<{ lineas: { nombre: string; cantidad: number; unidad?: string }[] }>
+                    kind="recipe" label="Dictar receta" onResult={addVoiceLines}
+                    context={() => ({ dishes: [productName], ingredients: ingredientesOpts.map(i => i.nombre) })} />
                   <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '1px solid var(--divider)', padding: '0.35rem 0.75rem', borderRadius: '0.625rem' }}>
                     Costo total:{' '}
                     <span style={{ color: 'var(--accent)', fontSize: '1.0625rem' }}>{fmtCOP(total)}</span>

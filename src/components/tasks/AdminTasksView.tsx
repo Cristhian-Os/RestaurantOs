@@ -6,6 +6,8 @@
 import { useState, useCallback, useMemo, memo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }          from '../../services/supabaseClient'
+import { VoiceButton } from '../VoiceButton'
+import { matchName } from '../../services/voiceMatch'
 import message               from 'antd/es/message'
 import Popconfirm            from 'antd/es/popconfirm'
 import { useRealtimeTasks }  from './useRealtimeTasks'
@@ -51,6 +53,8 @@ const FORM_INITIAL: NewTaskForm = {
   priority: 'medium', due_date: '',
 }
 
+interface VoiceTask { transcript: string; title: string; description?: string; assignee_name?: string; priority: TaskPriority; due_date?: string }
+
 // ─── Componente principal ─────────────────────────────────────
 interface AdminTasksViewProps { profile: Profile }
 
@@ -86,6 +90,19 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
       setLoadingEmployees(false)
     }
   }, [])
+
+  // Lo dictado llena el formulario; el admin lo revisa/corrige y pulsa Crear.
+  const fillFromVoice = useCallback((r: VoiceTask) => {
+    const emp = matchName(r.assignee_name, employees, e => e.full_name ?? '')
+    setForm(p => ({
+      title: r.title?.trim() || p.title,
+      description: r.description?.trim() || p.description,
+      assigned_to: emp?.id ?? p.assigned_to,
+      priority: (['low', 'medium', 'high', 'urgent'] as const).includes(r.priority) ? r.priority : p.priority,
+      due_date: /^\d{4}-\d{2}-\d{2}$/.test(r.due_date ?? '') ? r.due_date : p.due_date,
+    }))
+    if (r.assignee_name && !emp) message.warning('No encontré al empleado "' + r.assignee_name + '". Elígelo en la lista.')
+  }, [employees])
 
   const handleOpenForm = useCallback(() => {
     setShowForm(true)
@@ -215,13 +232,23 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
             style={{ overflow: 'visible' }}
           >
             <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
-              <h2 className="font-bold text-[#2D3561] mb-5" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-                Nueva tarea
-              </h2>
+              <div className="flex items-center justify-between mb-5 gap-3">
+                <h2 className="font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                  Nueva tarea
+                </h2>
+                <VoiceButton<VoiceTask>
+                  kind="task" label="Dictar tarea"
+                  context={() => ({ employees: employees.map(e => e.full_name), today: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) })}
+                  onResult={fillFromVoice}
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 {/* Título */}
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Título *</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">Título *</label>
+                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setForm(p => ({ ...p, title: (p.title ? p.title + ' ' : '') + r.transcript.trim() }))} />
+                  </div>
                   <input
                     value={form.title}
                     onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
@@ -233,7 +260,10 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                 </div>
                 {/* Descripción */}
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Descripción</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">Descripción</label>
+                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setForm(p => ({ ...p, description: (p.description ? p.description + ' ' : '') + r.transcript.trim() }))} />
+                  </div>
                   <textarea
                     value={form.description}
                     onChange={e => setForm(p => ({ ...p, description: e.target.value }))}

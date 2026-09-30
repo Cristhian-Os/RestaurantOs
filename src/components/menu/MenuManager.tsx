@@ -12,6 +12,8 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
+import { VoiceButton } from '../VoiceButton'
+import { VoiceMenuModal } from './VoiceMenuModal'
 import type { Dish, DishCategory, DishOptionGroup } from '../../types'
 
 const S = {
@@ -447,6 +449,7 @@ export const MenuManager = memo(() => {
     if (accion === 'ocultar') fetchReviews()
   }
 
+  const [showVoiceMenu, setShowVoiceMenu] = useState(false)
   const openCreate = () => { setEditing(null); setForm(FORM_EMPTY); setFormError(null); setShowForm(true) }
   const openEdit   = (d: Dish) => {
     setEditing(d)
@@ -789,6 +792,11 @@ export const MenuManager = memo(() => {
             style={{ backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
             ⚙️ Configurar
           </button>
+          <button onClick={() => setShowVoiceMenu(true)}
+            className="flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-2xl"
+            style={{ backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
+            🎙️ Menú por voz
+          </button>
           <motion.button whileTap={{ scale: 0.96 }} onClick={openCreate}
             className="flex items-center gap-2 text-sm font-bold text-white px-4 py-2.5 rounded-2xl"
             style={{ backgroundColor: acc, ...S.coral }}>
@@ -796,6 +804,10 @@ export const MenuManager = memo(() => {
           </motion.button>
         </div>
       </div>
+
+      {showVoiceMenu && (
+        <VoiceMenuModal categories={categories} onSaved={fetchDishes} onClose={() => setShowVoiceMenu(false)} />
+      )}
 
       {/* Panel configuración — SIN overflow-hidden para evitar clipping */}
       <AnimatePresence>
@@ -1267,14 +1279,20 @@ export const MenuManager = memo(() => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>Nombre *</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Nombre *</label>
+                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setForm(p => ({ ...p, name: r.transcript.trim().replace(/.$/, '') }))} />
+                  </div>
                   <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                     placeholder="Ej: Sundae Tropical"
                     className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                     style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>Descripción</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Descripción</label>
+                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setForm(p => ({ ...p, description: ((p.description ? p.description + ' ' : '') + r.transcript.trim()).slice(0, 500) }))} />
+                  </div>
                   <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                     placeholder="Breve descripción..." rows={2} maxLength={500}
                     className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
@@ -1442,7 +1460,11 @@ export const MenuManager = memo(() => {
 
                     {/* Toppings opcionales del plato (el cliente marca los que quiera) */}
                     <div className="mt-3 mb-3 rounded-2xl p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
-                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Toppings (opcionales)</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Toppings (opcionales)</p>
+                        <VoiceButton<{ toppings: { nombre: string; precio: number }[] }> kind="topping" label="Dictar toppings"
+                          onResult={r => setForm(p => ({ ...p, toppings: [...p.toppings, ...(r.toppings ?? []).filter(t => !p.toppings.some(x => x.nombre.toLowerCase() === t.nombre.toLowerCase())).map(t => ({ nombre: t.nombre, precio: String(t.precio ?? 0) }))] }))} />
+                      </div>
                       <p className="text-[0.6875rem]" style={{ color: txtLt }}>Precio 0 = gratis. Caja puede marcarlos agotados en “Gestión menú”.</p>
                       {form.toppings.map((t, i) => (
                         <div key={i} className="flex gap-2 items-center">

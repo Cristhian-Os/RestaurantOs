@@ -14,6 +14,8 @@ import { supabase } from '../../services/supabaseClient'
 import { descargarCorteExcel, descargarCorteMensualExcel, type CorteProducto } from '../../services/corteExcel'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import { hoyBogota } from '../../services/menuOptions'
+import { VoiceButton } from '../VoiceButton'
+import { matchName } from '../../services/voiceMatch'
 import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
 import message from 'antd/es/message'
 import type { Profile } from '../../pages/Dashboard'
@@ -244,6 +246,22 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const updateProvItem = useCallback((idx: number, patch: Partial<ProvItem>) => {
     setProvItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it))
   }, [])
+
+  // Compra dictada: llena proveedor y productos; todo queda editable antes de guardar.
+  const fillPurchaseFromVoice = useCallback((r: { concepto?: string; items: { nombre_producto: string; cantidad: number; unidad?: string; precio_unitario: number }[] }) => {
+    if (!r.items?.length) { message.warning('No entendí ningún producto'); return }
+    if (r.concepto) setGastoConcepto(r.concepto)
+    setProvItems(r.items.map(it => {
+      const ing = matchName(it.nombre_producto, ingredientesOpts, o => o.nombre)
+      return {
+        ingrediente_id:  ing?.id ?? '',
+        nombre_producto: ing?.nombre ?? it.nombre_producto,
+        cantidad:        String(it.cantidad ?? ''),
+        unidad:          ing?.unidad_medida ?? it.unidad ?? '',
+        precio_unitario: String(it.precio_unitario ?? ''),
+      }
+    }))
+  }, [ingredientesOpts])
 
   const provTotal = provItems.reduce((s, it) => s + (parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0), 0)
 
@@ -590,9 +608,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="flex-1 min-w-[160px]">
                   <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
-                  <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
-                    placeholder="Ej: Domicilio de insumos"
-                    className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                  <div className="flex gap-2">
+                    <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
+                      placeholder="Ej: Domicilio de insumos"
+                      className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setGastoConcepto(r.transcript.trim().replace(/.$/, ''))} />
+                  </div>
                 </div>
                 <div className="w-32">
                   <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Monto</label>
@@ -607,6 +628,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               </div>
             ) : (
               <div>
+                <div className="mb-3">
+                  <VoiceButton kind="purchase" label="Dictar compra" onResult={fillPurchaseFromVoice}
+                    context={() => ({ ingredients: ingredientesOpts.map(o => o.nombre) })} />
+                </div>
                 <div className="mb-3">
                   <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Proveedor / concepto</label>
                   <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}

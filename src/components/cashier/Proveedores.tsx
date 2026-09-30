@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
+import { VoiceButton } from '../VoiceButton'
 
 interface Proveedor { id: string; nombre: string; telefono: string | null; producto: string | null }
 type Form = { nombre: string; telefono: string; producto: string }
@@ -24,12 +25,18 @@ const btn: React.CSSProperties = {
 function Fields({ value, onChange }: { value: Form; onChange: (f: Form) => void }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(11rem, 1fr))', gap: '0.5rem' }}>
-      <input style={input} value={value.nombre} maxLength={120} placeholder="Nombre *" aria-label="Nombre"
-        onChange={e => onChange({ ...value, nombre: e.target.value })} />
+      <div style={{ display: 'flex', gap: '0.375rem' }}>
+        <input style={input} value={value.nombre} maxLength={120} placeholder="Nombre *" aria-label="Nombre"
+          onChange={e => onChange({ ...value, nombre: e.target.value })} />
+        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, nombre: r.transcript.trim().replace(/.$/, '') })} />
+      </div>
       <input style={input} value={value.telefono} maxLength={40} placeholder="Teléfono" aria-label="Teléfono"
         type="tel" inputMode="tel" onChange={e => onChange({ ...value, telefono: e.target.value })} />
-      <input style={input} value={value.producto} maxLength={200} placeholder="Producto que provee" aria-label="Producto que provee"
-        onChange={e => onChange({ ...value, producto: e.target.value })} />
+      <div style={{ display: 'flex', gap: '0.375rem' }}>
+        <input style={input} value={value.producto} maxLength={200} placeholder="Producto que provee" aria-label="Producto que provee"
+          onChange={e => onChange({ ...value, producto: e.target.value })} />
+        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, producto: r.transcript.trim().replace(/.$/, '') })} />
+      </div>
     </div>
   )
 }
