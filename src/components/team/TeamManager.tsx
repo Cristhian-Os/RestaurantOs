@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { ScheduleCalendar } from './ScheduleCalendar'
+import { ShiftCheckinsReview } from './ShiftCheckinsReview'
 import message from 'antd/es/message'
 
 const S = {
@@ -309,6 +310,7 @@ export const TeamManager = memo(() => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <ShiftCheckinsReview />
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>

@@ -18,6 +18,7 @@ import { TableMap }          from '../components/tables/TableMap'
 import { KitchenBoard }      from '../components/kitchen/KitchenBoard'
 import { CashierPanel }      from '../components/cashier/CashierPanel'
 import { TeamManager }       from '../components/team/TeamManager'
+import { MyShifts }          from '../components/team/MyShifts'
 import { MenuManager }       from '../components/menu/MenuManager'
 import { ClientMenuSection } from '../components/ClientMenuSection'
 import { AdminTasksView }    from '../components/tasks/AdminTasksView'
@@ -39,7 +40,7 @@ import { Proveedores }      from '../components/cashier/Proveedores'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'proveedores' | 'branding' | 'billing' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'proveedores' | 'branding' | 'billing' | 'platform'
 
 export interface Profile {
   id:          string
@@ -113,12 +114,17 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'orders', icon:<Icons.Orders />, label:'Pedidos' },
     { view:'tables', icon:<Icons.Tables />, label:'Mesas'   },
     { view:'tasks',  icon:<Icons.Tasks />,  label:'Tareas'  },
+    { view:'shifts', icon:<Icons.Team />,   label:'Mis turnos' },
   ],
-  kitchen: [{ view:'kitchen', icon:<Icons.Kitchen />, label:'Cocina' }],
+  kitchen: [
+    { view:'kitchen', icon:<Icons.Kitchen />, label:'Cocina' },
+    { view:'shifts',  icon:<Icons.Team />,    label:'Mis turnos' },
+  ],
   cashier: [
     { view:'cashier',      icon:<Icons.Cashier />, label:'Caja'         },
     { view:'orders',       icon:<Icons.Orders />,  label:'Pedidos'      },
     { view:'tasks',        icon:<Icons.Tasks />,   label:'Tareas'       },
+    { view:'shifts',       icon:<Icons.Team />,    label:'Mis turnos'   },
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú' },
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'  },
   ],
@@ -399,6 +405,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'tasks':     return profile.role === 'admin'
         ? <AdminTasksView profile={profile} />
         : <EmployeeTasksView profile={profile} />
+      case 'shifts':    return <MyShifts profile={profile} />
       case 'inventory': return (
         <Tabs defaultActiveKey="1" items={[
           { key:'1', label:'Ingredientes',     children:<IngredientesManager /> },
