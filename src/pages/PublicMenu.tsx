@@ -1014,6 +1014,7 @@ export default function PublicMenu() {
   const [customizing,   setCustomizing]   = useState<Dish | null>(null)
   const [showCustom,    setShowCustom]    = useState(false)
   const [orderId,       setOrderId]       = useState<string | null>(null)
+  const [orderNumber,   setOrderNumber]   = useState<number | null>(null)
   const [orderStatus,   setOrderStatus]   = useState<string | null>(null)
   const [isPaid,        setIsPaid]        = useState(false)
   const [showTracking,  setShowTracking]  = useState(false)
@@ -1167,6 +1168,14 @@ export default function PublicMenu() {
   // Realtime respeta RLS, así que ese canal nunca recibía nada. Se usa
   // en su lugar la vista pública pedido_estado_publico (solo expone
   // id/status/mesa, sin total ni datos del cliente) con polling.
+  // Número del pedido (secuencial del día). Consulta aparte y una sola vez: si la
+  // columna aún no existe en la vista, falla sin afectar el seguimiento de estado.
+  useEffect(() => {
+    if (!orderId) { setOrderNumber(null); return }
+    supabase.from('pedido_estado_publico').select('order_number_today').eq('id', orderId).maybeSingle()
+      .then(({ data }) => setOrderNumber(data?.order_number_today ?? null))
+  }, [orderId])
+
   useEffect(() => {
     if (!orderId || orderStatus === 'completed' || orderStatus === 'cancelled') return
     let cancelled = false
@@ -1419,7 +1428,7 @@ export default function PublicMenu() {
             <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
               style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'var(--w-surface)', borderRadius: '1.25rem', border: '1px solid var(--w-line)', boxShadow: 'var(--w-shadow-md)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <p className="ed-kicker">Tu pedido</p>
+                <p className="ed-kicker">Tu pedido{orderNumber ? ` · #${orderNumber}` : ''}</p>
                 <button onClick={() => setShowTracking(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1.125rem' }}>✕</button>
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, marginBottom: '1rem' }}>
