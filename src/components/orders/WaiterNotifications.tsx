@@ -18,31 +18,19 @@ interface ReadyOrder {
   tipo_pedido:   string | null
 }
 
-interface WaiterNotificationsProps {
-  /** id del profile actual — se usa para filtrar solo sus propios pedidos. */
-  userId:  string
-  /** admin ve todos los pedidos listos del restaurante; mesero solo los suyos
-   *  (o los sin mesero asignado, ej. autoservicio por QR). */
-  isAdmin: boolean
-}
-
-export const WaiterNotifications = memo(({ userId, isAdmin }: WaiterNotificationsProps) => {
+export const WaiterNotifications = memo(() => {
   const [ready, setReady] = useState<ReadyOrder[]>([])
 
-  // Dirigido: un mesero solo ve/oye los pedidos que él tomó, o los que no
-  // tienen mesero asignado (ej. pedido de autoservicio por QR). Admin ve todo
-  // — antes CUALQUIER mesero recibía el aviso de pedidos de otros meseros.
-  const isMine = useCallback((o: { user_id: string | null }) =>
-    isAdmin || o.user_id === userId || o.user_id === null, [isAdmin, userId])
-
+  // Todos los meseros ven el aviso de "pedido listo": cualquiera puede ir a
+  // buscarlo. "Ya lo tengo" lo quita en todos los dispositivos.
   const fetchReady = useCallback(async () => {
     const { data } = await supabase
       .from('orders')
       .select('id, table_num, customer_name, created_at, user_id, tipo_pedido')
       .eq('status', 'ready')
       .is('delivered_at', null)
-    if (data) setReady(data.filter(isMine))
-  }, [isMine])
+    if (data) setReady(data)
+  }, [])
 
   // Marcar como entregada: persiste en la base (visible en Caja) y quita
   // el aviso de todos los dispositivos, no solo de esta pantalla.
@@ -79,7 +67,7 @@ export const WaiterNotifications = memo(({ userId, isAdmin }: WaiterNotification
               user_id: string | null; tipo_pedido: string | null
             }
 
-            if (row.status === 'ready' && !row.delivered_at && isMine(row)) {
+            if (row.status === 'ready' && !row.delivered_at) {
               setReady(prev => {
                 if (prev.some(o => o.id === row.id)) return prev
                 playOrderSound(row.tipo_pedido)

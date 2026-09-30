@@ -20,9 +20,14 @@ interface Order {
   status:     'pending' | 'cooking' | 'ready' | 'completed'
   created_at: string
   user_id:    string | null
+  order_number_today?: number | null
 }
 
-const tint = (c: string, pct: number) => `color-mix(in oklch, ${c} ${pct}%, var(--w-surface))`
+// Número secuencial del día; los pedidos anteriores a ese cambio usan el id corto.
+const orderRef = (o: { id: string; order_number_today?: number | null }) =>
+  `#${o.order_number_today ?? o.id.slice(0, 8)}`
+
+const tint =(c: string, pct: number) => `color-mix(in oklch, ${c} ${pct}%, var(--w-surface))`
 
 // ─── Timer hook ───────────────────────────────────────────────
 function useElapsed(createdAt: string): string {
@@ -99,7 +104,7 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
             {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
             {order.customer_name ? ` · ${order.customer_name}` : ''}
           </p>
-          <p style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>#{order.id.slice(0,8)}</p>
+          <p style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>{orderRef(order)}</p>
         </div>
         <div style={{ textAlign: 'right' }}>
           <p style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1.0625rem', margin: 0,
@@ -180,7 +185,7 @@ export const KitchenBoard = memo(() => {
     // el que aún no tiene paid_at está esperando cobro en Caja.
     const { data, error } = await supabase
       .from('orders')
-      .select('id, table_num, customer_name, tipo_pedido, items, notes, status, created_at, user_id')
+      .select('*')
       .in('status', ['pending','cooking','ready'])
       .not('paid_at', 'is', null)
       .order('created_at', { ascending: true })
@@ -221,17 +226,15 @@ export const KitchenBoard = memo(() => {
     fetchOrders()
     if (nextStatus === 'ready') {
       const dest = order?.table_num ? `Mesa ${order.table_num}` : 'Pedido'
-      message.success({ content: `${dest} — pedido listo. Notificando al mesero...`, duration: 5 })
-      // Dirigido: solo el mesero dueño del pedido + admin (antes le sonaba a
-      // TODOS los meseros del restaurante, aunque el pedido no fuera suyo).
-      // Si el pedido no tiene mesero asignado (ej. autoservicio por QR), solo
-      // se notifica a admin — no hay "la persona" específica a quién avisar.
+      message.success({ content: `${dest} — pedido listo. Notificando a los meseros...`, duration: 5 })
+      // Todos los meseros (cualquiera puede ir a buscarlo) + admin + quien lo tomó.
       pushNotificationService.notify(
-        ['admin'], 'Pedido listo', `${dest} está listo para entregar`, '/',
+        ['admin', 'waiter'], 'Pedido listo',
+        `${order ? orderRef(order) : 'Pedido'} listo para servir${order?.table_num ? ` en Mesa ${order.table_num}` : ''}`, '/',
         undefined, order?.user_id ? [order.user_id] : undefined,
       )
     }
-  }, [fetchOrders])
+  }, [fetchOrders, orders])
 
   const pending = orders.filter(o => o.status === 'pending')
   const cooking = orders.filter(o => o.status === 'cooking')

@@ -30,6 +30,8 @@ const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 
 interface Order {
   id:         string
+  user_id:    string | null
+  order_number_today?: number | null
   mesa_id:    string | null
   table_num:  number | null
   customer_name: string | null
@@ -51,6 +53,7 @@ interface DaySummary {
   total_transferencia:number
   total_ordenes:      number
   total_propinas:     number
+  ordenes_rappi:      number   // solo conteo: el dinero lo paga Rappi por fuera
 }
 
 interface CorteMensual {
@@ -66,6 +69,40 @@ const fmt = (n: number | string | null | undefined) => '$' + Math.round(Number(n
 // plata la paga Rappi por fuera.
 const esRappi = (o: { tipo_pedido?: string | null; payment_method?: string | null }) =>
   o.tipo_pedido === 'RAPPI' || o.payment_method === 'rappi'
+
+// Número del pedido: secuencial del día; los anteriores a ese cambio usan el id corto.
+const orderRef = (o: { id: string; order_number_today?: number | null }) =>
+  `#${o.order_number_today ?? o.id.slice(0, 8)}`
+
+const PROGRESS_STEPS = [
+  { key: 'pending',   label: 'Pendiente',  color: '#9CA3AF' },
+  { key: 'cooking',   label: 'Cocinando',  color: '#F97316' },
+  { key: 'ready',     label: 'Listo',      color: '#10B981' },
+  { key: 'completed', label: 'Completado', color: '#3B82F6' },
+] as const
+
+// Barra de etapas del pedido; se actualiza sola porque la lista se refresca por Realtime.
+const OrderProgress = ({ status }: { status: string }) => {
+  const idx = Math.max(0, PROGRESS_STEPS.findIndex(s => s.key === status))
+  const current = PROGRESS_STEPS[idx]
+  return (
+    <div className="mb-3" aria-label={`Estado: ${current.label}`}>
+      <div className="flex gap-1">
+        {PROGRESS_STEPS.map((s, i) => (
+          <div key={s.key} className="flex-1 h-2 rounded-full bg-[#CDD0DC] overflow-hidden">
+            <motion.div
+              className="h-full rounded-full"
+              initial={false}
+              animate={{ width: i <= idx ? '100%' : '0%', backgroundColor: current.color }}
+              transition={{ duration: 0.4, ease: EASE }}
+            />
+          </div>
+        ))}
+      </div>
+      <p className="text-[0.625rem] font-bold mt-1" style={{ color: current.color }}>{current.label}</p>
+    </div>
+  )
+}
 
 interface Gasto {
   id:         string
@@ -97,8 +134,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [readyOrders,  setReady]     = useState<Order[]>([])
   const [pendingPayment, setPendingPayment] = useState<Order[]>([])
   const [cookingOrders, setCooking]  = useState<Order[]>([])
-  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0, total_propinas: 0 })
-  const [loading,      setLoading]   = useState(true)
+  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0, total_propinas: 0, ordenes_rappi: 0 })
+  const [loading,     setLoading]   = useState(true)
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
   const [payingKind,   setPayingKind]  = useState<'inicial' | 'final'>('final')
   const [payMethod,    setPayMethod] = useState<PaymentMethod>('efectivo')
@@ -157,8 +194,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     if (!cookingRes.error) setCooking((cookingRes.data || []).map(parseItems))
 
     if (!completedRes.error) {
-      const orders = (completedRes.data || []).filter(o => !esRappi(o))
+      const all = completedRes.data || []
+      const orders = all.filter(o => !esRappi(o))
       setSummary({
+        ordenes_rappi:       all.length - orders.length,
         total_efectivo:      orders.filter(o => o.payment_method === 'efectivo').reduce((s,o) => s + Number(o.total), 0),
         total_transferencia: orders.filter(o => o.payment_method === 'transferencia').reduce((s,o) => s + Number(o.total), 0),
         total_ordenes:       orders.length,
@@ -276,17 +315,30 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const pagoInsuficiente = payingOrder && payMethod === 'efectivo'
     && amountPaid !== '' && parseFloat(amountPaid) < totalConPropina
 
+  // Pedido de mesa marcado listo desde Caja: aviso push a los meseros (y al que lo tomó).
+  const avisarMeseros = (order: Order) => {
+    if (!order.table_num || esRappi(order)) return
+    pushNotificationService.notify(
+      ['waiter'], `Pedido ${orderRef(order)} listo`, `Pedido ${orderRef(order)} listo para entregar — Mesa ${order.table_num}`, '/',
+      undefined, order.user_id ? [order.user_id] : undefined,
+    )
+  }
+
   // Orden ya pagada antes de cocina (Plan B) y ahora lista: solo se completa,
   // sin volver a pedir el pago.
   const handleCompletarPagada = useCallback(async (order: Order) => {
     setProcessing(true)
     try {
+      // Rappi nace con payment_method='rappi', que cobrar_orden rechaza como
+      // argumento. La función conserva el método ya guardado en la orden
+      // (COALESCE), así que aquí basta con mandar uno válido.
       const { error } = await supabase.rpc('cobrar_orden', {
         p_order_id:       order.id,
-        p_payment_method: order.payment_method ?? 'efectivo',
+        p_payment_method: esRappi(order) ? 'efectivo' : (order.payment_method ?? 'efectivo'),
         p_amount_paid:    order.amount_paid ?? order.total,
       })
       if (error) throw error
+      avisarMeseros(order)
       message.success('Pedido completado')
       fetchData()
     } catch (e) {
@@ -319,6 +371,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         // Ya pagado: pasa a cocina. Aviso push por si la pantalla de cocina está apagada.
         const dest = payingOrder.table_num ? `Mesa ${payingOrder.table_num}` : (payingOrder.customer_name || 'Pedido')
         pushNotificationService.notify(['kitchen'], 'Nuevo pedido', `${dest} — ${payingOrder.items.length} producto(s)`, '/')
+      } else {
+        avisarMeseros(payingOrder)
       }
       message.success(
         payMethod === 'efectivo' && data.change > 0
@@ -498,6 +552,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         ))}
       </div>
 
+      <p className="text-xs font-bold text-[#6B7280] -mt-3">
+        Pedidos Rappi: {daySummary.ordenes_rappi} {daySummary.ordenes_rappi === 1 ? 'orden' : 'órdenes'} — $0 (dinero en Rappi app)
+      </p>
+
       {/* Gastos del día */}
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -648,12 +706,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
                     {order.notes && <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>}
                   </div>
                   <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
                 </div>
+                <OrderProgress status={order.status} />
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.slice(0, 4).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
@@ -728,12 +787,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
                     <p className="text-xs font-bold mt-0.5 text-amber-600">Preparándose en cocina</p>
                   </div>
                   <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
                 </div>
+                <OrderProgress status={order.status} />
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.filter((it: any) => !it.cancelled).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
@@ -804,7 +864,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      #{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
                     <p className={`text-xs font-bold mt-0.5 ${order.delivered_at ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {order.delivered_at ? '✓ Entregado al mesero' : 'Esperando que el mesero lo recoja'}
@@ -812,6 +872,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   </div>
                   <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
                 </div>
+
+                <OrderProgress status={order.status} />
 
                 {/* Items */}
                 <div className="flex flex-col gap-1 mb-4">
@@ -829,6 +891,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   )}
                 </div>
 
+                {order.paid_at && (
+                  <p className="text-xs font-bold text-[#6B7280] mb-2">
+                    Pagado · {esRappi(order) ? 'Rappi' : order.payment_method === 'transferencia' ? 'Transferencia' : order.payment_method === 'tarjeta' ? 'Tarjeta' : 'Efectivo'}
+                  </p>
+                )}
                 {order.paid_at ? (
                   <motion.button
                     whileTap={{ scale: 0.97 }}
@@ -1086,6 +1153,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   { label: 'Efectivo',      val: corteResult.total_efectivo },
                   { label: 'Transferencia', val: corteResult.total_transferencia },
                   { label: 'Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
+                  { label: 'Pedidos Rappi', val: `${daySummary.ordenes_rappi} — $0 (dinero en Rappi app)`, isCurrency: false },
                 ].map(item => (
                   <div key={item.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
                     <span className="text-sm text-[#6B7280]">{item.label}</span>

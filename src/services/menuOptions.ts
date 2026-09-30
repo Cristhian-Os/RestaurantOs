@@ -91,21 +91,22 @@ export function unitPriceFor(dish: Dish, sel: ItemSel): number {
 
 interface Swap { ingrediente_id: string; ingrediente_nombre: string; sustituto_nombre: string | null }
 
-// Texto de la selección para las notas del pedido (lo que lee cocina).
+// Texto de la selección para las notas del pedido (lo que lee cocina):
+// solo lo elegido — tamaño · sabores/opciones · toppings — sin etiquetas.
 export function describeSel(dish: Dish, sel: ItemSel, shortages: Swap[] = []): string {
   const parts: string[] = []
-  if (dish.has_sizes && sel.size) parts.push(`Tamaño: ${sel.size}`)
+  if (dish.has_sizes && sel.size) parts.push(sel.size)
   ;(dish.options ?? []).forEach((g, gi) => {
     const flavors = sel.helado?.[String(gi)] ?? []
     if (g.tipo === 'helado' || g.tipo === 'jugo') {
-      if (flavors.length) parts.push(`${g.nombre}: ${flavors.join(', ')}`)
+      if (flavors.length) parts.push(flavors.join(', '))
       return
     }
     const labels = selectedLabels(g, gi, sel)
     if (labels.length) parts.push(labels.join(' + ') + (flavors.length ? ` (${flavors.join(', ')})` : ''))
   })
-  if (sel.toppings?.length) parts.push(`Toppings: ${sel.toppings.join(', ')}`)
-  if (sel.extras?.length) parts.push(`Adicionales: ${sel.extras.join(', ')}`)
+  if (sel.toppings?.length) parts.push(sel.toppings.join(', '))
+  if (sel.extras?.length) parts.push(sel.extras.join(', '))
   for (const s of shortages) {
     if (s.sustituto_nombre && sel.swaps?.includes(s.ingrediente_id)) parts.push(`Cambio: ${s.ingrediente_nombre} → ${s.sustituto_nombre}`)
   }

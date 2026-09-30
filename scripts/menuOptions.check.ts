@@ -32,7 +32,7 @@ assert.equal(selIsValid(cholao, { helado: { 0: ['Oreo'], 1: ['Fresa'] }, opcionM
 
 assert.equal(
   describeSel(cholao, { size: 'Grande', helado: { 0: ['Oreo'], 1: ['Fresa'] }, opcionMulti: { 1: ['Con queso', 'Con helado'] }, toppings: ['Limón'] }),
-  'Tamaño: Grande · Elige el sabor del helado: Oreo · Con queso + Con helado (Fresa) · Toppings: Limón',
+  'Grande · Oreo · Con queso + Con helado (Fresa) · Limón',
 )
 
 // Agotados: se ocultan, salvo si ya venían elegidos en el pedido que se edita.

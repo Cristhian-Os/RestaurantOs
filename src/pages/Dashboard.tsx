@@ -453,7 +453,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {/* Notificaciones pedido listo — mesero (solo lo suyo) y admin (todo) */}
       {(profile!.role === 'waiter' || profile!.role === 'admin') && (
-        <WaiterNotifications userId={profile!.id} isAdmin={profile!.role === 'admin'} />
+        <WaiterNotifications />
       )}
 
       {/* Sonido por tipo de pedido: cocina (pedido para preparar) y caja/admin (pedido nuevo) */}

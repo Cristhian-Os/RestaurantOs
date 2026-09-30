@@ -434,10 +434,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           unitPrice: r.unitPrice, size: r.size, toppings: r.toppings, sel: r.sel,
         }]
       }
-      const ex = prev.find(i => i.dish.id === dish.id)
-      return ex
-        ? prev.map(i => i.uid === ex.uid ? { ...i, quantity: i.quantity + 1 } : i)
-        : [...prev, { uid: crypto.randomUUID(), dish, quantity: 1, notes: '', optsText: '', unitPrice: dish.price, size: null, toppings: [] }]
+      // Nunca se suma a una línea existente: cada unidad es su propia línea
+      // para poder darle notas distintas.
+      return [...prev, { uid: crypto.randomUUID(), dish, quantity: 1, notes: '', optsText: '', unitPrice: dish.price, size: null, toppings: [] }]
     })
   }, [])
 
@@ -492,6 +491,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           p_customer_name:  customerName.trim() || null,
         })
         if (error) throw error
+        // Número secuencial del día (lo asigna un trigger en la base); si aún no existe, sin número.
+        const { data: num } = await supabase.from('orders').select('order_number_today').eq('id', data.order_id).maybeSingle()
+        const ref = num?.order_number_today ? `#${num.order_number_today}` : ''
         const dest = (selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : 'Mostrador') + (customerName.trim() ? ` · ${customerName.trim()}` : '')
         if (tipoPedido === 'RAPPI') {
           // Rappi nace pagado: va directo a cocina, no pasa por cobro.
@@ -502,6 +504,11 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           message.success(`Pedido enviado a caja para cobro — Total: $${Math.round(cartTotal).toLocaleString('es-CO')}`)
           pushNotificationService.notify(['cashier', 'admin'], 'Pedido por cobrar', `${dest} — ${items.length} ítem(s) · $${Math.round(cartTotal).toLocaleString('es-CO')}`, '/')
         }
+        // Confirmación push a quien tomó el pedido (llega aunque cierre la app).
+        pushNotificationService.notify(
+          [], `Pedido ${ref}`.trim(), `Pedido ${ref} listo para ir a cocina — ${dest}`.replace('  ', ' '), '/',
+          undefined, [profile.id],
+        )
         onOrderCreated?.(data.order_id, data.total)
       } else {
         const { data: { user: offlineUser } } = await supabase.auth.getUser()
@@ -535,7 +542,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     } finally {
       setSubmitting(false)
     }
-  }, [cart, tipoPedido, selectedMesa, isOnline, cartTotal, orderNotes, customerName, onOrderCreated])
+  }, [cart, tipoPedido, selectedMesa, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])
 
   // ─── RENDER ───────────────────────────────────────────────
   return (
@@ -836,7 +843,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   <div key={item.uid} className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-lg bg-[#FF5722] text-white text-xs font-bold flex items-center justify-center" style={S.coral}>
+                        <span className="text-8xl font-bold leading-none text-[#FF5722]">
                           {item.quantity}
                         </span>
                         <span className="text-sm font-medium text-[#2D3561]">{item.dish.name}</span>
@@ -846,7 +853,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                       </span>
                     </div>
                     {item.optsText && (
-                      <p className="text-xs font-bold text-[#FF5722] pl-8">{item.optsText}</p>
+                      <p className="text-xs font-bold text-[#FF5722]">{item.optsText}</p>
                     )}
                     {/* Nota por plato */}
                     <input
