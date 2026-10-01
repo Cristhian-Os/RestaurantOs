@@ -1,7 +1,7 @@
 /**
  * VoiceCommandModal.tsx
  * Cambia datos que ya existen hablando: precio/disponibilidad de platos, inventario,
- * tareas, turnos y mesas. Se dicta, se muestra cada cambio como "antes → después",
+ * recetas, tareas, turnos y mesas. Se dicta, se muestra cada cambio como "antes → después",
  * y solo se aplica lo que la persona aprueba. Nada se guarda sin esa revisión.
  *
  * Colores con las variables --w-* del tema: el modo claro/oscuro de la app se
@@ -137,7 +137,7 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
 
         <p className="m-0 text-xs text-[var(--w-ink-mut)]">
           Di por ejemplo: {role === 'admin'
-            ? '“sube el cholao grande a 15 mil”, “se acabó la fresa”, “agrégale 3 kilos al limón”, “mesa 4 ocupada”, “Juan trabaja el lunes de 8 a 5”, “ponle una tarea a María: limpiar la nevera”.'
+            ? '“sube el cholao grande a 15 mil”, “se acabó la fresa”, “agrégale 3 kilos al limón”, “mesa 4 ocupada”, “la receta del cholao lleva 200 gramos de fresa y 100 de leche”, “Juan trabaja el lunes de 8 a 5”, “ponle una tarea a María: limpiar la nevera”.'
             : '“se acabó la limonada”, “se acabó la fresa”, “quedan 2 kilos de limón”, “mesa 4 ocupada”, “mesa 4 libre”.'}
           {' '}Revisa los cambios antes de aplicarlos.
         </p>

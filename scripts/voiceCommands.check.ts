@@ -12,9 +12,10 @@ const base = (): CommandContext => ({
     { id: 'd3', name: 'Jugo único', price: 6000, has_sizes: true, available: true, sizes: [{ nombre: 'Normal', precio: 6000 }] },
   ],
   ingredients: [
-    { id: 'i1', nombre: 'Fresa', unidad_medida: 'kg', stock_actual: 5 },
-    { id: 'i2', nombre: 'Limón', unidad_medida: 'kg', stock_actual: 1 },
+    { id: 'i1', nombre: 'Fresa', unidad_medida: 'kg', stock_actual: 5, costo_unitario: 8000 },
+    { id: 'i2', nombre: 'Limón', unidad_medida: 'kg', stock_actual: 1, costo_unitario: 3000 },
   ],
+  recipes: { d2: [{ nombre: 'Limón', costo_unitario: 3000, unidad: 'kg', cantidad_necesaria: 0.1, ingrediente_id: 'i2' }] },
   employees: [{ id: 'e1', full_name: 'Juan Pérez' }, { id: 'e2', full_name: 'María López' }],
   mesas: [{ id: 'm1', numero: 4, capacidad: 4, estado: 'libre' }, { id: 'm2', numero: 5, capacidad: 2, estado: 'ocupada' }],
 })
@@ -175,6 +176,49 @@ assert.deepEqual(buildProposals([{ type: 'x' }, { type: 'table_status', mesa: 4,
   // el admin conserva todo, y sin rol explícito se asume admin (compatibilidad)
   assert.equal(buildProposals([{ type: 'dish_price', dish: 'Limonada', price: 1 }], base(), 'a', 'admin')[0].change?.op, 'dish_price')
   assert.equal(one({ type: 'table_capacity', mesa: 4, capacidad: 6 }).change?.op, 'table_capacity')
+}
+
+// ── Recetas ──
+{ // sumar a una receta existente: lo nuevo se agrega, lo que ya estaba se conserva
+  const p = one({ type: 'recipe_set', dish: 'Limonada', lineas: [{ nombre: 'fresas', cantidad: 0.05, unidad: 'kg' }] })
+  const lines = (p.change as { lines: { nombre: string; ingrediente_id: string | null; costo_unitario: number }[] }).lines
+  assert.deepEqual(lines.map(l => l.nombre), ['Limón', 'Fresa'])
+  assert.equal(lines[1].ingrediente_id, 'i1')
+  assert.equal(lines[1].costo_unitario, 8000)
+  assert.match(p.detail, /Se suma a la receta actual \(1 ingrediente\)/)
+}
+{ // un ingrediente que ya está se actualiza, no se duplica
+  const p = one({ type: 'recipe_set', dish: 'Limonada', lineas: [{ nombre: 'Limón', cantidad: 0.2 }] })
+  const lines = (p.change as { lines: { nombre: string; cantidad_necesaria: number }[] }).lines
+  assert.equal(lines.length, 1)
+  assert.equal(lines[0].cantidad_necesaria, 0.2)
+}
+{ // "set" reemplaza todo
+  const p = one({ type: 'recipe_set', dish: 'Limonada', mode: 'set', lineas: [{ nombre: 'Fresa', cantidad: 1 }] })
+  assert.equal((p.change as { lines: unknown[] }).lines.length, 1)
+  assert.match(p.detail, /Reemplaza la receta actual/)
+}
+{ // plato sin receta + ingrediente que no está en inventario: avisa que no descuenta stock
+  const p = one({ type: 'recipe_set', dish: 'Cholao con helado', lineas: [{ nombre: 'Oreo', cantidad: 3, unidad: 'pieza' }] })
+  assert.match(p.detail, /Receta nueva/)
+  assert.match(p.detail, /1 sin inventario/)
+  assert.equal((p.change as { lines: { ingrediente_id: string | null }[] }).lines[0].ingrediente_id, null)
+}
+{ // dos órdenes sobre el mismo plato se acumulan
+  const ps = buildProposals([
+    { type: 'recipe_set', dish: 'Cholao con helado', lineas: [{ nombre: 'Fresa', cantidad: 0.2 }] },
+    { type: 'recipe_set', dish: 'Cholao con helado', lineas: [{ nombre: 'Limón', cantidad: 0.1 }] },
+  ], base(), 'a')
+  assert.equal((ps[1].change as { lines: unknown[] }).lines.length, 2)
+}
+assert.match(one({ type: 'recipe_set', dish: 'Pizza', lineas: [{ nombre: 'Fresa', cantidad: 1 }] }).problem!, /No encontré el plato/)
+assert.match(one({ type: 'recipe_set', dish: 'Limonada' }).problem!, /ingredientes/)
+assert.match(one({ type: 'recipe_set', dish: 'Limonada', lineas: [{ nombre: 'Fresa' }] }).problem!, /cantidad de "Fresa"/)
+assert.match(one({ type: 'recipe_set', dish: 'Limonada', lineas: [{ nombre: 'Fresa', cantidad: 0 }] }).problem!, /cantidad/)
+{ // el cajero no edita recetas
+  const p = buildProposals([{ type: 'recipe_set', dish: 'Limonada', lineas: [{ nombre: 'Fresa', cantidad: 1 }] }], base(), 'c', 'cashier')[0]
+  assert.equal(p.change, null)
+  assert.match(p.problem!, /solo lo puede hacer el administrador/)
 }
 
 process.stdout.write('voiceCommands: todo OK\n')

@@ -7,20 +7,28 @@ import { supabase } from './supabaseClient'
 import { bogotaNow, type Change, type CommandContext, type VoiceRole } from './voiceCommands'
 
 interface Size { nombre: string; precio: number }
+interface RecetaRow {
+  producto_id: string; ingrediente_id: string | null; nombre: string | null
+  costo_unitario: number | null; unidad: string | null; cantidad_necesaria: number
+}
 
 // ─── Carga del contexto ──────────────────────────────────────────────────────
 
 export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<CommandContext> {
-  const [dishes, ingredients, employees, mesas] = await Promise.all([
+  const [dishes, ingredients, employees, mesas, recetas] = await Promise.all([
     supabase.from('dishes').select('id, name, price, has_sizes, sizes, available').neq('availability_status', 'discontinued').order('name'),
-    supabase.from('ingredientes').select('id, nombre, unidad_medida, stock_actual').order('nombre'),
+    supabase.from('ingredientes').select('id, nombre, unidad_medida, stock_actual, costo_unitario').order('nombre'),
     // Empleados solo se necesitan para tareas y turnos, que son del admin.
     role === 'admin'
       ? supabase.from('profiles').select('id, full_name').in('role', ['waiter', 'kitchen', 'cashier']).order('full_name')
       : Promise.resolve({ data: [] as { id: string; full_name: string | null }[], error: null }),
     supabase.from('mesas').select('id, numero, capacidad, estado').eq('activa', true).order('numero'),
+    // Recetas actuales: solo el admin las edita por voz.
+    role === 'admin'
+      ? supabase.from('recetas').select('producto_id, ingrediente_id, nombre, costo_unitario, unidad, cantidad_necesaria')
+      : Promise.resolve({ data: [] as RecetaRow[], error: null }),
   ])
-  const failed = [dishes, ingredients, employees, mesas].find(r => r.error)
+  const failed = [dishes, ingredients, employees, mesas, recetas].find(r => r.error)
   if (failed?.error) throw new Error('No pude cargar los datos del restaurante: ' + failed.error.message)
 
   return {
@@ -29,10 +37,24 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
       id: d.id, name: d.name, price: Number(d.price), has_sizes: !!d.has_sizes,
       sizes: Array.isArray(d.sizes) ? (d.sizes as Size[]) : [], available: !!d.available,
     })),
-    ingredients: (ingredients.data ?? []).map(i => ({ id: i.id, nombre: i.nombre, unidad_medida: i.unidad_medida, stock_actual: Number(i.stock_actual) })),
+    ingredients: (ingredients.data ?? []).map(i => ({ id: i.id, nombre: i.nombre, unidad_medida: i.unidad_medida, stock_actual: Number(i.stock_actual), costo_unitario: Number(i.costo_unitario) || 0 })),
+    recipes:     groupRecipes((recetas.data ?? []) as RecetaRow[], new Map((ingredients.data ?? []).map(i => [i.id, i.nombre as string]))),
     employees:   (employees.data ?? []).filter(e => e.full_name).map(e => ({ id: e.id, full_name: e.full_name as string })),
     mesas:       (mesas.data ?? []).map(m => ({ id: m.id, numero: m.numero, capacidad: m.capacidad, estado: m.estado })),
   }
+}
+
+function groupRecipes(rows: RecetaRow[], names: Map<string, string>): CommandContext['recipes'] {
+  const out: CommandContext['recipes'] = {}
+  for (const r of rows) {
+    const nombre = (r.nombre ?? (r.ingrediente_id ? names.get(r.ingrediente_id) : '') ?? '').trim()
+    if (!nombre) continue
+    ;(out[r.producto_id] ??= []).push({
+      nombre, costo_unitario: Number(r.costo_unitario) || 0, unidad: r.unidad,
+      cantidad_necesaria: Number(r.cantidad_necesaria), ingrediente_id: r.ingrediente_id,
+    })
+  }
+  return out
 }
 
 // ─── Aplicar ─────────────────────────────────────────────────────────────────
@@ -94,6 +116,13 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
     }
     case 'table_status':
       return expectRows(await supabase.from('mesas').update({ estado: c.estado, updated_at: now }).eq('id', c.mesaId).select('id'), 'Mesa')
+    case 'recipe_save': {
+      // Función transaccional de la base: reemplaza la receta completa o no toca nada.
+      const { data, error } = await supabase.rpc('guardar_receta_manual', { p_producto_id: c.dishId, p_lineas: c.lines })
+      if (error) throw new Error(error.message)
+      if ((data as number) < c.lines.length) throw new Error('La receta se guardó incompleta: revisa los ingredientes.')
+      return
+    }
     case 'table_capacity':
       return expectRows(await supabase.from('mesas').update({ capacidad: c.capacidad, updated_at: now }).eq('id', c.mesaId).select('id'), 'Mesa')
   }

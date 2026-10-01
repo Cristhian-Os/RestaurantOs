@@ -19,15 +19,27 @@ export interface RawAction {
   title?: string; description?: string; assignee?: string; priority?: string; due_date?: string
   employee?: string; date?: string; start?: string; end?: string; notes?: string
   mesa?: number; estado?: string; capacidad?: number
+  lineas?: { nombre?: string; cantidad?: number; unidad?: string }[]
 }
 
 interface Size { nombre: string; precio: number }
+
+/** Línea de receta tal como la guarda `guardar_receta_manual`. */
+export interface RecipeLine {
+  nombre: string
+  costo_unitario: number
+  unidad: string | null
+  cantidad_necesaria: number
+  ingrediente_id: string | null
+}
 
 export interface CommandContext {
   today: string
   weekday: string
   dishes: { id: string; name: string; price: number; has_sizes: boolean; sizes: Size[]; available: boolean }[]
-  ingredients: { id: string; nombre: string; unidad_medida: string; stock_actual: number }[]
+  ingredients: { id: string; nombre: string; unidad_medida: string; stock_actual: number; costo_unitario: number }[]
+  /** Receta actual por id de plato (solo el admin la carga). */
+  recipes: Record<string, RecipeLine[]>
   employees: { id: string; full_name: string }[]
   mesas: { id: string; numero: number; capacidad: number; estado: string }[]
 }
@@ -41,6 +53,7 @@ export type Change =
   | { op: 'shift_delete'; employeeId: string; date: string }
   | { op: 'table_status'; mesaId: string; estado: Estado }
   | { op: 'table_capacity'; mesaId: string; capacidad: number }
+  | { op: 'recipe_save'; dishId: string; lines: RecipeLine[] }
 
 export interface Proposal {
   /** Posición de la acción cruda de la que salió (para poder quitarla). */
@@ -56,7 +69,7 @@ export type VoiceRole = 'admin' | 'cashier'
 
 /** Qué puede dictar cada rol. El cajero solo toca lo operativo; precios, tareas y turnos son del admin. */
 export const ALLOWED_ACTIONS: Record<VoiceRole, readonly string[]> = {
-  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity'],
+  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set'],
   cashier: ['dish_availability', 'ingredient_stock', 'table_status'],
 }
 
@@ -226,6 +239,55 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       const old = m.capacidad
       m.capacidad = cap
       return { title: `Mesa ${m.numero} · capacidad`, detail: `${old} → ${cap} personas`, change: { op: 'table_capacity', mesaId: m.id, capacidad: cap } }
+    }
+
+    case 'recipe_set': {
+      const d = matchName(a.dish, ctx.dishes, x => x.name)
+      if (!d) return bad(`Receta de "${a.dish ?? '?'}"`, `No encontré el plato "${a.dish ?? ''}" en el menú.`)
+      const title = `${d.name} · receta`
+      const spoken = a.lineas ?? []
+      if (spoken.length === 0) return bad(title, 'No entendí los ingredientes de la receta.')
+      const incoming: RecipeLine[] = []
+      for (const l of spoken) {
+        const name = (l.nombre ?? '').trim()
+        const qty = Number(l.cantidad)
+        if (!name) return bad(title, 'Un ingrediente quedó sin nombre.')
+        if (!Number.isFinite(qty) || qty <= 0) return bad(title, `No entendí la cantidad de "${name}".`)
+        const ing = matchName(name, ctx.ingredients, x => x.nombre)
+        incoming.push({
+          nombre: ing?.nombre ?? name,
+          costo_unitario: ing ? Number(ing.costo_unitario) || 0 : 0,
+          unidad: ing?.unidad_medida ?? ((l.unidad ?? '').trim() || null),
+          cantidad_necesaria: Math.round(qty * 1000) / 1000,
+          ingrediente_id: ing?.id ?? null,
+        })
+      }
+      const current = ctx.recipes[d.id] ?? []
+      const replace = a.mode === 'set'
+      const keyOf = (l: RecipeLine) => l.ingrediente_id ?? 'n:' + l.nombre.trim().toLowerCase()
+      let lines: RecipeLine[]
+      if (replace) {
+        lines = incoming
+      } else {
+        // Sumar a la receta: un ingrediente que ya estaba se actualiza, no se duplica.
+        lines = current.map(l => ({ ...l }))
+        for (const n of incoming) {
+          const at = lines.findIndex(l => keyOf(l) === keyOf(n))
+          if (at >= 0) lines[at] = { ...lines[at], cantidad_necesaria: n.cantidad_necesaria, unidad: n.unidad ?? lines[at].unidad }
+          else lines.push(n)
+        }
+      }
+      ctx.recipes[d.id] = lines
+      const show = (l: RecipeLine) => `${l.nombre} ${num(l.cantidad_necesaria)}${l.unidad ? ' ' + l.unidad : ''}`
+      const unlinked = incoming.filter(l => !l.ingrediente_id).length
+      const parts = [
+        incoming.map(show).join(' · '),
+        replace
+          ? (current.length > 0 ? `Reemplaza la receta actual (${current.length} ${current.length === 1 ? 'ingrediente' : 'ingredientes'})` : 'Receta nueva')
+          : (current.length > 0 ? `Se suma a la receta actual (${current.length} ${current.length === 1 ? 'ingrediente' : 'ingredientes'})` : 'Receta nueva'),
+      ]
+      if (unlinked > 0) parts.push(`${unlinked} sin inventario: no descontará stock`)
+      return { title, detail: parts.join(' · '), change: { op: 'recipe_save', dishId: d.id, lines } }
     }
 
     default:
