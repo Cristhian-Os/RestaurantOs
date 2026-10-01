@@ -15,7 +15,7 @@ interface RecetaRow {
 // ─── Carga del contexto ──────────────────────────────────────────────────────
 
 export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<CommandContext> {
-  const [dishes, ingredients, employees, mesas, recetas] = await Promise.all([
+  const [dishes, ingredients, employees, mesas, recetas, suppliers] = await Promise.all([
     supabase.from('dishes').select('id, name, price, has_sizes, sizes, available').neq('availability_status', 'discontinued').order('name'),
     supabase.from('ingredientes').select('id, nombre, unidad_medida, stock_actual, costo_unitario').order('nombre'),
     // Empleados solo se necesitan para tareas y turnos, que son del admin.
@@ -27,8 +27,9 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
     role === 'admin'
       ? supabase.from('recetas').select('producto_id, ingrediente_id, nombre, costo_unitario, unidad, cantidad_necesaria')
       : Promise.resolve({ data: [] as RecetaRow[], error: null }),
+    supabase.from('proveedores').select('id, nombre').order('nombre'),
   ])
-  const failed = [dishes, ingredients, employees, mesas, recetas].find(r => r.error)
+  const failed = [dishes, ingredients, employees, mesas, recetas, suppliers].find(r => r.error)
   if (failed?.error) throw new Error('No pude cargar los datos del restaurante: ' + failed.error.message)
 
   return {
@@ -40,6 +41,7 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
     ingredients: (ingredients.data ?? []).map(i => ({ id: i.id, nombre: i.nombre, unidad_medida: i.unidad_medida, stock_actual: Number(i.stock_actual), costo_unitario: Number(i.costo_unitario) || 0 })),
     recipes:     groupRecipes((recetas.data ?? []) as RecetaRow[], new Map((ingredients.data ?? []).map(i => [i.id, i.nombre as string]))),
     employees:   (employees.data ?? []).filter(e => e.full_name).map(e => ({ id: e.id, full_name: e.full_name as string })),
+    suppliers:   (suppliers.data ?? []).filter(x => x.nombre).map(x => ({ id: x.id, nombre: x.nombre as string })),
     mesas:       (mesas.data ?? []).map(m => ({ id: m.id, numero: m.numero, capacidad: m.capacidad, estado: m.estado })),
   }
 }
@@ -134,6 +136,8 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
       if (error) throw new Error(error.message)
       return
     }
+    case 'supplier_add':
+      return expectRows(await supabase.from('proveedores').insert({ nombre: c.nombre, telefono: c.telefono, producto: c.producto }).select('id'), 'Proveedor')
     case 'table_capacity':
       return expectRows(await supabase.from('mesas').update({ capacidad: c.capacidad, updated_at: now }).eq('id', c.mesaId).select('id'), 'Mesa')
   }

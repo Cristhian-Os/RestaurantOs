@@ -137,7 +137,7 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
 
         <p className="m-0 text-xs text-[var(--w-ink-mut)]">
           Di por ejemplo: {role === 'admin'
-            ? '“sube el cholao grande a 15 mil”, “se acabó la fresa”, “agrégale 3 kilos al limón”, “mesa 4 ocupada”, “la receta del cholao lleva 200 gramos de fresa y 100 de leche”, “gasto de 50 mil en gas”, “compré a Frutas Pérez 2 kilos de fresa a 8 mil el kilo”, “Juan trabaja el lunes de 8 a 5”, “ponle una tarea a María: limpiar la nevera”.'
+            ? '“sube el cholao grande a 15 mil”, “se acabó la fresa”, “agrégale 3 kilos al limón”, “mesa 4 ocupada”, “la receta del cholao lleva 200 gramos de fresa y 100 de leche”, “gasto de 50 mil en gas”, “compré a Frutas Pérez 2 kilos de fresa a 8 mil el kilo”, “agrega al proveedor Frutas Pérez, vende fruta”, “Juan trabaja el lunes de 8 a 5”, “ponle una tarea a María: limpiar la nevera”.'
             : '“se acabó la limonada”, “se acabó la fresa”, “quedan 2 kilos de limón”, “mesa 4 ocupada”, “gasto de 30 mil en domicilio”, “le pagué 50 mil a Coca-Cola”, “compré a Frutas Pérez 2 kilos de fresa a 8 mil el kilo”.'}
           {' '}Revisa los cambios antes de aplicarlos.
         </p>

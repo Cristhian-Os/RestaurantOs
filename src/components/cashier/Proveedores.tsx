@@ -1,6 +1,7 @@
 /**
  * Proveedores.tsx — lista simple y editable de proveedores del restaurante:
- * nombre, teléfono y qué producto provee. La ven y editan caja y admin.
+ * nombre, teléfono y qué producto provee. La ven caja y admin; solo el admin la edita
+ * (lo exige también la base de datos).
  */
 import { useCallback, useEffect, useState } from 'react'
 import message from 'antd/es/message'
@@ -45,7 +46,7 @@ const toRow = (f: Form) => ({
   nombre: f.nombre.trim(), telefono: f.telefono.trim() || null, producto: f.producto.trim() || null,
 })
 
-export function Proveedores() {
+export function Proveedores({ canEdit }: { canEdit: boolean }) {
   const [list, setList]       = useState<Proveedor[]>([])
   const [loading, setLoading] = useState(true)
   const [nuevo, setNuevo]     = useState<Form>(EMPTY)
@@ -95,16 +96,16 @@ export function Proveedores() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans)' }}>
       <div>
         <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', margin: 0 }}>Proveedores</h2>
-        <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>A quién llamar y qué trae cada uno.</p>
+        <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>A quién llamar y qué trae cada uno.{!canEdit && ' Solo el administrador puede editar la lista.'}</p>
       </div>
 
-      <section style={{ background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }}>
+      {canEdit && <section style={{ background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }}>
         <p className="ed-kicker" style={{ margin: '0 0 0.625rem' }}>Nuevo proveedor</p>
         <Fields value={nuevo} onChange={setNuevo} />
         <button onClick={agregar} disabled={saving} style={{ ...btn, marginTop: '0.75rem', background: 'var(--w-terra)', color: '#fff', opacity: saving ? 0.7 : 1 }}>
           + Agregar proveedor
         </button>
-      </section>
+      </section>}
 
       {loading ? (
         <p style={{ color: 'var(--w-ink-mut)' }}>Cargando…</p>
@@ -131,9 +132,11 @@ export function Proveedores() {
                       {p.telefono && <> · <a href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`} style={{ color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'none' }}>{p.telefono}</a></>}
                     </p>
                   </div>
+                  {canEdit && <>
                   <button onClick={() => { setEditId(p.id); setEdit({ nombre: p.nombre, telefono: p.telefono ?? '', producto: p.producto ?? '' }) }}
                     style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>Editar</button>
                   <button onClick={() => eliminar(p)} style={{ ...btn, background: 'var(--w-wine)', color: '#fff' }}>Eliminar</button>
+                  </>}
                 </div>
               )}
             </div>

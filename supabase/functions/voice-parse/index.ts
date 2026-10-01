@@ -56,7 +56,7 @@ Si un plato se vende por tamaños, llena "sizes" (nombre y precio de cada uno) y
     schema: obj({
       transcript: S, plato: S,
       lineas: arr({ nombre: S, cantidad: N, unidad: S, precio_unitario: N }, ['nombre', 'cantidad']),
-        concepto: S, monto: N, categoria: { type: 'STRING', enum: ['proveedor', 'otro'] },
+        concepto: S, proveedor: S, telefono: S, producto: S, monto: N, categoria: { type: 'STRING', enum: ['proveedor', 'otro'] },
     }, ['transcript', 'lineas']),
   },
   ingredient: {
@@ -94,15 +94,16 @@ Tipos de acción ("type") y los campos que usa cada uno:
 - table_status: cambiar el estado de una mesa. Campos: mesa (número), estado (libre, ocupada, reservada o cuenta).
 - table_capacity: cambiar cuántas personas caben en una mesa. Campos: mesa (número), capacidad.
 - recipe_set: dictar o cambiar la receta de un plato (qué ingredientes y cuánto lleva UNA porción). Campos: dish, lineas (nombre del ingrediente, cantidad numérica y unidad TAL COMO SE DIJO: "g", "kg", "ml", "litro", "pieza"…; NO conviertas unidades aquí, la app lo hace), mode: "add" (por defecto: agregar o actualizar ingredientes de la receta que ya tiene, p. ej. "agrégale 50 gramos de leche condensada al cholao") o "set" (la receta es exactamente esta, p. ej. "la receta del cholao es…"). Cada ingrediente de lineas debe ser el valor EXACTO de context.ingredients cuando alguno encaje.
-- expense_add: registrar un gasto o un pago que NO trae lista de productos (arriendo, servicios, nómina, transporte, o "le pagué 50 mil a Coca-Cola"). Campos: concepto (qué se pagó y a quién), monto (pesos), categoria: "proveedor" si es un pago a un proveedor, "otro" en cualquier otro caso.
-- purchase_add: compra a un proveedor donde SÍ dicen productos con cantidad y precio; suma al inventario. Campos: concepto (nombre del proveedor), lineas (nombre del ingrediente, cantidad, unidad TAL COMO SE DIJO sin convertir, precio_unitario = precio por UNA unidad de la unidad dicha; si solo dicen el total de la línea, divídelo entre la cantidad). Si solo dicen un monto sin productos, usa expense_add, no purchase_add.
+- expense_add: registrar un gasto o un pago que NO trae lista de productos (arriendo, servicios, nómina, transporte, o "le pagué 50 mil a Coca-Cola"). Campos: concepto (qué se pagó), monto (pesos), categoria: "proveedor" si es un pago a un proveedor, "otro" en cualquier otro caso, y proveedor (solo si es pago a un proveedor: su nombre, igual a uno de context.suppliers si alguno encaja).
+- purchase_add: compra a un proveedor donde SÍ dicen productos con cantidad y precio; suma al inventario. Campos: proveedor (nombre del proveedor, igual a uno de context.suppliers si alguno encaja), lineas (nombre del ingrediente, cantidad, unidad TAL COMO SE DIJO sin convertir, precio_unitario = precio por UNA unidad de la unidad dicha; si solo dicen el total de la línea, divídelo entre la cantidad). Si solo dicen un monto sin productos, usa expense_add, no purchase_add.
+- supplier_add: agregar un proveedor nuevo a la lista de proveedores. Campos: proveedor (nombre), telefono (solo dígitos, "" si no lo dicen), producto (qué vende, "" si no lo dicen).
 Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la lista correspondiente del context cuando alguno encaje; si ninguno encaja, déjalo tal como se dijo. No inventes valores que no se dijeron: omite el campo. Si lo dicho no es ninguna de estas acciones, devuelve la lista vacía.`,
     schema: obj({
       transcript: S,
       actions: arr({
         type: { type: 'STRING', enum: [
           'dish_price', 'dish_availability', 'ingredient_stock', 'task_create',
-          'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add',
+          'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add', 'supplier_add',
         ] },
         dish: S, size: S, price: N, available: { type: 'BOOLEAN' },
         ingredient: S, mode: { type: 'STRING', enum: ['set', 'add', 'subtract'] }, quantity: N,
@@ -110,7 +111,7 @@ Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la
         priority: { type: 'STRING', enum: ['low', 'medium', 'high', 'urgent'] }, due_date: S,
         employee: S, date: S, start: S, end: S, notes: S,
         lineas: arr({ nombre: S, cantidad: N, unidad: S, precio_unitario: N }, ['nombre', 'cantidad']),
-        concepto: S, monto: N, categoria: { type: 'STRING', enum: ['proveedor', 'otro'] },
+        concepto: S, proveedor: S, telefono: S, producto: S, monto: N, categoria: { type: 'STRING', enum: ['proveedor', 'otro'] },
         mesa: N, estado: { type: 'STRING', enum: ['libre', 'ocupada', 'reservada', 'cuenta'] }, capacidad: N,
       }, ['type']),
     }, ['transcript', 'actions']),

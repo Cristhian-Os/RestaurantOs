@@ -422,7 +422,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'team':      return <TeamManager />
       case 'menu':      return profile.role === 'admin' ? <MenuManager /> : <ClientMenuSection />
       case 'menu_gestion': return <MenuAvailability />
-      case 'proveedores':  return <Proveedores />
+      case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
       case 'platform':  return profile.role === 'super_admin' ? <PlatformOverview /> : null

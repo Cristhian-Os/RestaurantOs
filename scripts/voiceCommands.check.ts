@@ -20,6 +20,7 @@ const base = (): CommandContext => ({
     { id: 'i5', nombre: 'Oreo', unidad_medida: 'pieza', stock_actual: 30, costo_unitario: 500 },
   ],
   recipes: { d2: [{ nombre: 'Limón', costo_unitario: 3000, unidad: 'kg', cantidad_necesaria: 0.1, ingrediente_id: 'i2' }] },
+  suppliers: [{ id: 's1', nombre: 'Frutas Pérez' }, { id: 's2', nombre: 'Coca-Cola' }],
   employees: [{ id: 'e1', full_name: 'Juan Pérez' }, { id: 'e2', full_name: 'María López' }],
   mesas: [{ id: 'm1', numero: 4, capacidad: 4, estado: 'libre' }, { id: 'm2', numero: 5, capacidad: 2, estado: 'ocupada' }],
 })
@@ -166,6 +167,7 @@ assert.deepEqual(buildProposals([{ type: 'x' }, { type: 'table_status', mesa: 4,
     { type: 'shift_set', employee: 'Juan Pérez', date: '2026-10-05', start: '08:00', end: '17:00' },
     { type: 'shift_delete', employee: 'Juan Pérez', date: '2026-10-05' },
     { type: 'table_capacity', mesa: 4, capacidad: 6 },
+    { type: 'supplier_add', proveedor: 'Frutas del Valle' },
   ]
   for (const a of blocked) {
     const p = cash(a)
@@ -319,6 +321,62 @@ assert.match(one({ type: 'purchase_add', concepto: 'X Y', lineas: [{ nombre: 'Le
   assert.equal(cash({ type: 'expense_add', concepto: 'Gas', monto: 1000 }).change?.op, 'expense_add')
   assert.equal(cash({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 100 }] }).change?.op, 'purchase_add')
   assert.equal((cash({ type: 'expense_add', concepto: 'Gas', monto: 1000 }).change as { registradoPor: string }).registradoPor, 'cajero1')
+}
+
+// ── Proveedores: enlace con la lista ──
+{ // compra: el nombre dictado se empareja con la lista y queda el nombre oficial
+  const p = one({ type: 'purchase_add', proveedor: 'frutas perez', lineas: [{ nombre: 'Fresa', cantidad: 1, unidad: 'kg', precio_unitario: 8000 }] })
+  assert.equal((p.change as { concepto: string }).concepto, 'Frutas Pérez')
+  assert.match(p.detail, /Proveedor: Frutas Pérez/); assert.doesNotMatch(p.detail, /no está en tu lista/)
+}
+{ // compat: si la IA manda el proveedor en "concepto"
+  const p = one({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 100 }] })
+  assert.match(p.detail, /Proveedor: Frutas Pérez/)
+}
+{ // proveedor que no está: se registra igual, pero avisa
+  const p = one({ type: 'purchase_add', proveedor: 'Lácteos del Sur', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 100 }] })
+  assert.equal((p.change as { concepto: string }).concepto, 'Lácteos del Sur')
+  assert.match(p.detail, /no está en tu lista de Proveedores/)
+}
+{ // pago a proveedor: concepto = nombre oficial (convención de la caja), sin "Pago a"
+  const p = one({ type: 'expense_add', concepto: 'Pago a Coca-Cola', proveedor: 'coca cola', monto: 120000, categoria: 'proveedor' })
+  assert.equal((p.change as { concepto: string }).concepto, 'Coca-Cola')
+  assert.equal((p.change as { categoria: string }).categoria, 'proveedor')
+  assert.match(p.detail, /Proveedor: Coca-Cola/)
+}
+{ // pago con un detalle extra: se conserva después del nombre
+  const p = one({ type: 'expense_add', concepto: 'factura de septiembre', proveedor: 'Coca-Cola', monto: 90000, categoria: 'proveedor' })
+  assert.equal((p.change as { concepto: string }).concepto, 'Coca-Cola · factura de septiembre')
+}
+{ // gasto normal (gas) no se enlaza con proveedores ni cambia de categoría
+  const p = one({ type: 'expense_add', concepto: 'Gas', monto: 40000, categoria: 'otro' })
+  assert.equal((p.change as { categoria: null }).categoria, null)
+  assert.doesNotMatch(p.detail, /Proveedor/)
+}
+{ // pago a proveedor desconocido: avisa
+  const p = one({ type: 'expense_add', concepto: 'Pago', proveedor: 'Jispiplast', monto: 10000, categoria: 'proveedor' })
+  assert.match(p.detail, /no está en tu lista de Proveedores/)
+}
+{ // agregar proveedor (solo admin): teléfono limpio, producto
+  const p = one({ type: 'supplier_add', proveedor: 'Lácteos del Sur', telefono: '300 123-4567', producto: 'leche y queso' })
+  assert.deepEqual(p.change, { op: 'supplier_add', nombre: 'Lácteos del Sur', telefono: '300 1234567', producto: 'leche y queso' })
+}
+assert.match(one({ type: 'supplier_add', proveedor: 'frutas pérez' }).problem!, /ya está en tu lista/)
+assert.match(one({ type: 'supplier_add' }).problem!, /nombre del proveedor/)
+{ // proveedor casi igual a uno existente: se permite pero avisa
+  const p = one({ type: 'supplier_add', proveedor: 'Frutas Pérez Express' })
+  assert.equal(p.change?.op, 'supplier_add'); assert.match(p.detail, /Parecido a “Frutas Pérez”/)
+}
+{ // uno claramente distinto no genera aviso
+  const p = one({ type: 'supplier_add', proveedor: 'Frutas del Valle' })
+  assert.equal(p.change?.op, 'supplier_add'); assert.doesNotMatch(p.detail, /Parecido/)
+}
+{ // en la misma orden: agregar y luego comprar → ya queda enlazado
+  const ps = buildProposals([
+    { type: 'supplier_add', proveedor: 'Lácteos del Sur' },
+    { type: 'purchase_add', proveedor: 'Lácteos del Sur', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 100 }] },
+  ], base(), 'a')
+  assert.match(ps[1].detail, /Proveedor: Lácteos del Sur/)
 }
 
 process.stdout.write('voiceCommands: todo OK\n')

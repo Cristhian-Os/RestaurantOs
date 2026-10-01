@@ -22,6 +22,7 @@ export interface RawAction {
   mesa?: number; estado?: string; capacidad?: number
   lineas?: { nombre?: string; cantidad?: number; unidad?: string; precio_unitario?: number }[]
   concepto?: string; monto?: number; categoria?: string
+  proveedor?: string; telefono?: string; producto?: string
 }
 
 interface Size { nombre: string; precio: number }
@@ -52,6 +53,8 @@ export interface CommandContext {
   /** Receta actual por id de plato (solo el admin la carga). */
   recipes: Record<string, RecipeLine[]>
   employees: { id: string; full_name: string }[]
+  /** Lista de Proveedores del restaurante (para enlazar gastos y compras). */
+  suppliers: { id: string; nombre: string }[]
   mesas: { id: string; numero: number; capacidad: number; estado: string }[]
 }
 
@@ -67,6 +70,7 @@ export type Change =
   | { op: 'recipe_save'; dishId: string; lines: RecipeLine[] }
   | { op: 'expense_add'; concepto: string; monto: number; categoria: 'proveedor' | null; registradoPor: string }
   | { op: 'purchase_add'; concepto: string; items: PurchaseLine[] }
+  | { op: 'supplier_add'; nombre: string; telefono: string | null; producto: string | null }
 
 export interface Proposal {
   /** Posición de la acción cruda de la que salió (para poder quitarla). */
@@ -82,7 +86,7 @@ export type VoiceRole = 'admin' | 'cashier'
 
 /** Qué puede dictar cada rol. El cajero solo toca lo operativo; precios, tareas y turnos son del admin. */
 export const ALLOWED_ACTIONS: Record<VoiceRole, readonly string[]> = {
-  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add'],
+  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add', 'supplier_add'],
   cashier: ['dish_availability', 'ingredient_stock', 'table_status', 'expense_add', 'purchase_add'],
 }
 
@@ -130,6 +134,7 @@ export function toPromptContext(ctx: CommandContext) {
     dishes:      ctx.dishes.map(d => ({ name: d.name, sizes: d.has_sizes ? d.sizes.map(s => s.nombre) : [] })),
     ingredients: ctx.ingredients.map(i => ({ name: i.nombre, unit: i.unidad_medida })),
     employees:   ctx.employees.map(e => e.full_name),
+    suppliers:   ctx.suppliers.map(x => x.nombre),
     mesas:       ctx.mesas.map(m => m.numero),
   }
 }
@@ -149,6 +154,17 @@ export function buildProposals(actions: RawAction[], base: CommandContext, userI
     return { index, ...propose(a, ctx, userId) }
   })
 }
+
+const normTxt = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+
+/** Empareja el proveedor dictado con la lista de Proveedores. Sin coincidencia, se conserva lo dictado y se avisa. */
+function resolveSupplier(spoken: string | undefined, ctx: CommandContext): { name: string; linked: boolean } | null {
+  const said = (spoken ?? '').trim()
+  if (!said) return null
+  const hit = matchName(said, ctx.suppliers, x => x.nombre)
+  return hit ? { name: hit.nombre, linked: true } : { name: said, linked: false }
+}
+const notListed = (name: string) => `“${name}” no está en tu lista de Proveedores (se registra igual; di “agrega al proveedor ${name}” para sumarlo)`
 
 type Built = Omit<Proposal, 'index'>
 const bad = (title: string, problem: string): Built => ({ title, detail: '', change: null, problem })
@@ -315,22 +331,34 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
     }
 
     case 'expense_add': {
-      const concepto = (a.concepto ?? '').trim()
+      const said = (a.concepto ?? '').trim()
+      const sup = resolveSupplier(a.proveedor || (a.categoria === 'proveedor' ? said : ''), ctx)
+      // Con proveedor, el concepto sigue la convención de la caja: el nombre del proveedor.
+      let concepto = said
+      if (sup) {
+        const extra = normTxt(said).includes(normTxt(sup.name)) ? '' : said
+        concepto = extra && normTxt(extra) !== normTxt(a.proveedor ?? '') ? `${sup.name} · ${extra}` : sup.name
+      }
       if (concepto.length < 3) return bad('Gasto nuevo', 'No entendí en qué fue el gasto (mínimo 3 letras).')
       const title = `Gasto: ${concepto.slice(0, 120)}`
       const monto = Number(a.monto)
       if (!Number.isFinite(monto) || monto <= 0) return bad(title, 'No entendí el monto.')
       if (monto > 1_000_000_000) return bad(title, 'El monto es demasiado grande: revisa que dijiste bien las cifras.')
-      const categoria = a.categoria === 'proveedor' ? 'proveedor' : null
+      const categoria = sup || a.categoria === 'proveedor' ? 'proveedor' : null
+      const parts = [money(monto)]
+      if (categoria) parts.push('pago a proveedor')
+      if (sup?.linked) parts.push(`Proveedor: ${sup.name}`)
+      if (sup && !sup.linked) parts.push('⚠ ' + notListed(sup.name))
       return {
-        title, detail: `${money(monto)}${categoria ? ' · pago a proveedor' : ''}`,
+        title, detail: parts.join(' · '),
         change: { op: 'expense_add', concepto: concepto.slice(0, 200), monto: Math.round(monto), categoria, registradoPor: userId },
       }
     }
 
     case 'purchase_add': {
-      const concepto = (a.concepto ?? '').trim()
-      if (concepto.length < 2) return bad('Compra a proveedor', 'Di a qué proveedor se le compró.')
+      const sup = resolveSupplier(a.proveedor || a.concepto, ctx)
+      if (!sup || sup.name.length < 2) return bad('Compra a proveedor', 'Di a qué proveedor se le compró.')
+      const concepto = sup.name
       const title = `Compra a ${concepto.slice(0, 120)}`
       const spoken = a.lineas ?? []
       if (spoken.length === 0) return bad(title, 'No entendí los productos de la compra.')
@@ -370,9 +398,25 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       const unlinked = items.filter(i => !i.ingrediente_id).length
       const parts = [items.map(show).join(' · '), `Total ${money(total)}`]
       if (notes.length > 0) parts.push('Convertido: ' + notes.join('; '))
+      parts.push(sup.linked ? `Proveedor: ${sup.name}` : '⚠ ' + notListed(sup.name))
       parts.push(unlinked === items.length ? 'Ningún producto está en inventario: no sumará stock' : 'Suma al inventario')
       if (unlinked > 0 && unlinked < items.length) parts.push(`${unlinked} sin inventario: no sumará stock`)
       return { title, detail: parts.join(' · '), change: { op: 'purchase_add', concepto: concepto.slice(0, 200), items } }
+    }
+
+    case 'supplier_add': {
+      const nombre = (a.proveedor ?? a.concepto ?? '').trim()
+      if (nombre.length < 2) return bad('Proveedor nuevo', 'No entendí el nombre del proveedor.')
+      const title = `Proveedor nuevo: ${nombre.slice(0, 120)}`
+      const dup = matchName(nombre, ctx.suppliers, x => x.nombre)
+      if (dup && normTxt(dup.nombre) === normTxt(nombre)) return bad(title, `“${dup.nombre}” ya está en tu lista de Proveedores.`)
+      const telefono = (a.telefono ?? '').replace(/[^\d+ ]/g, '').trim() || null
+      const producto = (a.producto ?? '').trim().slice(0, 200) || null
+      // Se suma a la lista simulada: una compra dictada después en la misma orden ya lo enlaza.
+      ctx.suppliers.push({ id: 'nuevo:' + normTxt(nombre), nombre })
+      const parts = [telefono ? `Tel. ${telefono}` : 'sin teléfono', producto ? `vende ${producto}` : 'sin producto']
+      if (dup) parts.push(`Parecido a “${dup.nombre}”: revisa que no sea el mismo`)
+      return { title, detail: parts.join(' · '), change: { op: 'supplier_add', nombre: nombre.slice(0, 120), telefono, producto } }
     }
 
     default:
