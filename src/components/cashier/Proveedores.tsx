@@ -8,10 +8,10 @@ import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { VoiceButton } from '../VoiceButton'
 
-interface Proveedor { id: string; nombre: string; telefono: string | null; producto: string | null }
-type Form = { nombre: string; telefono: string; producto: string }
+interface Proveedor { id: string; nombre: string; telefono: string | null; email: string | null; producto: string | null; notas: string | null }
+type Form = { nombre: string; telefono: string; email: string; producto: string; notas: string }
 
-const EMPTY: Form = { nombre: '', telefono: '', producto: '' }
+const EMPTY: Form = { nombre: '', telefono: '', email: '', producto: '', notas: '' }
 
 const input: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.875rem', borderRadius: '0.75rem',
@@ -33,17 +33,25 @@ function Fields({ value, onChange }: { value: Form; onChange: (f: Form) => void 
       </div>
       <input style={input} value={value.telefono} maxLength={40} placeholder="Teléfono" aria-label="Teléfono"
         type="tel" inputMode="tel" onChange={e => onChange({ ...value, telefono: e.target.value })} />
+      <input style={input} value={value.email} maxLength={120} placeholder="Correo" aria-label="Correo"
+        type="email" inputMode="email" onChange={e => onChange({ ...value, email: e.target.value })} />
       <div style={{ display: 'flex', gap: '0.375rem' }}>
         <input style={input} value={value.producto} maxLength={200} placeholder="Producto que provee" aria-label="Producto que provee"
           onChange={e => onChange({ ...value, producto: e.target.value })} />
         <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, producto: r.transcript.trim().replace(/.$/, '') })} />
+      </div>
+      <div style={{ display: 'flex', gap: '0.375rem', gridColumn: '1 / -1' }}>
+        <input style={input} value={value.notas} maxLength={500} placeholder="Notas (WhatsApp, persona de contacto, dirección, horario…)" aria-label="Notas"
+          onChange={e => onChange({ ...value, notas: e.target.value })} />
+        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, notas: r.transcript.trim().replace(/.$/, '') })} />
       </div>
     </div>
   )
 }
 
 const toRow = (f: Form) => ({
-  nombre: f.nombre.trim(), telefono: f.telefono.trim() || null, producto: f.producto.trim() || null,
+  nombre: f.nombre.trim(), telefono: f.telefono.trim() || null, email: f.email.trim() || null,
+  producto: f.producto.trim() || null, notas: f.notas.trim() || null,
 })
 
 export function Proveedores({ canEdit }: { canEdit: boolean }) {
@@ -55,7 +63,7 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
   const [saving, setSaving]   = useState(false)
 
   const fetchList = useCallback(async () => {
-    const { data, error } = await supabase.from('proveedores').select('id, nombre, telefono, producto').order('nombre')
+    const { data, error } = await supabase.from('proveedores').select('id, nombre, telefono, email, producto, notas').order('nombre')
     if (error) message.error('Error: ' + error.message)
     setList(data ?? [])
     setLoading(false)
@@ -131,9 +139,15 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
                       {p.producto || 'Sin producto'}
                       {p.telefono && <> · <a href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`} style={{ color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'none' }}>{p.telefono}</a></>}
                     </p>
+                    {p.email && (
+                      <p style={{ margin: '0.125rem 0 0', fontSize: '0.875rem' }}>
+                        <a href={`mailto:${p.email}`} style={{ color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'none' }}>{p.email}</a>
+                      </p>
+                    )}
+                    {p.notas && <p style={{ margin: '0.125rem 0 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>{p.notas}</p>}
                   </div>
                   {canEdit && <>
-                  <button onClick={() => { setEditId(p.id); setEdit({ nombre: p.nombre, telefono: p.telefono ?? '', producto: p.producto ?? '' }) }}
+                  <button onClick={() => { setEditId(p.id); setEdit({ nombre: p.nombre, telefono: p.telefono ?? '', email: p.email ?? '', producto: p.producto ?? '', notas: p.notas ?? '' }) }}
                     style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>Editar</button>
                   <button onClick={() => eliminar(p)} style={{ ...btn, background: 'var(--w-wine)', color: '#fff' }}>Eliminar</button>
                   </>}

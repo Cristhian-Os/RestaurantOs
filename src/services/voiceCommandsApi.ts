@@ -27,7 +27,7 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
     role === 'admin'
       ? supabase.from('recetas').select('producto_id, ingrediente_id, nombre, costo_unitario, unidad, cantidad_necesaria')
       : Promise.resolve({ data: [] as RecetaRow[], error: null }),
-    supabase.from('proveedores').select('id, nombre').order('nombre'),
+    supabase.from('proveedores').select('id, nombre, telefono, email, producto, notas').order('nombre'),
   ])
   const failed = [dishes, ingredients, employees, mesas, recetas, suppliers].find(r => r.error)
   if (failed?.error) throw new Error('No pude cargar los datos del restaurante: ' + failed.error.message)
@@ -41,7 +41,9 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
     ingredients: (ingredients.data ?? []).map(i => ({ id: i.id, nombre: i.nombre, unidad_medida: i.unidad_medida, stock_actual: Number(i.stock_actual), costo_unitario: Number(i.costo_unitario) || 0 })),
     recipes:     groupRecipes((recetas.data ?? []) as RecetaRow[], new Map((ingredients.data ?? []).map(i => [i.id, i.nombre as string]))),
     employees:   (employees.data ?? []).filter(e => e.full_name).map(e => ({ id: e.id, full_name: e.full_name as string })),
-    suppliers:   (suppliers.data ?? []).filter(x => x.nombre).map(x => ({ id: x.id, nombre: x.nombre as string })),
+    suppliers:   (suppliers.data ?? []).filter(x => x.nombre).map(x => ({
+      id: x.id, nombre: x.nombre as string, telefono: x.telefono ?? null, email: x.email ?? null, producto: x.producto ?? null, notas: x.notas ?? null,
+    })),
     mesas:       (mesas.data ?? []).map(m => ({ id: m.id, numero: m.numero, capacidad: m.capacidad, estado: m.estado })),
   }
 }
@@ -137,7 +139,10 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
       return
     }
     case 'supplier_add':
-      return expectRows(await supabase.from('proveedores').insert({ nombre: c.nombre, telefono: c.telefono, producto: c.producto }).select('id'), 'Proveedor')
+      return expectRows(await supabase.from('proveedores')
+        .insert({ nombre: c.nombre, telefono: c.telefono, email: c.email, producto: c.producto, notas: c.notas }).select('id'), 'Proveedor')
+    case 'supplier_update':
+      return expectRows(await supabase.from('proveedores').update({ ...c.patch, updated_at: now }).eq('id', c.supplierId).select('id'), 'Proveedor')
     case 'table_capacity':
       return expectRows(await supabase.from('mesas').update({ capacidad: c.capacidad, updated_at: now }).eq('id', c.mesaId).select('id'), 'Mesa')
   }

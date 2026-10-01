@@ -22,10 +22,17 @@ export interface RawAction {
   mesa?: number; estado?: string; capacidad?: number
   lineas?: { nombre?: string; cantidad?: number; unidad?: string; precio_unitario?: number }[]
   concepto?: string; monto?: number; categoria?: string
-  proveedor?: string; telefono?: string; producto?: string
+  proveedor?: string; telefono?: string; producto?: string; email?: string; notas?: string
 }
 
 interface Size { nombre: string; precio: number }
+
+export type SupplierPatch = Partial<{ telefono: string | null; email: string | null; producto: string | null; notas: string | null }>
+
+export interface Supplier {
+  id: string; nombre: string
+  telefono: string | null; email: string | null; producto: string | null; notas: string | null
+}
 
 /** Línea de receta tal como la guarda `guardar_receta_manual`. */
 export interface RecipeLine {
@@ -54,7 +61,7 @@ export interface CommandContext {
   recipes: Record<string, RecipeLine[]>
   employees: { id: string; full_name: string }[]
   /** Lista de Proveedores del restaurante (para enlazar gastos y compras). */
-  suppliers: { id: string; nombre: string }[]
+  suppliers: Supplier[]
   mesas: { id: string; numero: number; capacidad: number; estado: string }[]
 }
 
@@ -70,7 +77,8 @@ export type Change =
   | { op: 'recipe_save'; dishId: string; lines: RecipeLine[] }
   | { op: 'expense_add'; concepto: string; monto: number; categoria: 'proveedor' | null; registradoPor: string }
   | { op: 'purchase_add'; concepto: string; items: PurchaseLine[] }
-  | { op: 'supplier_add'; nombre: string; telefono: string | null; producto: string | null }
+  | { op: 'supplier_add'; nombre: string; telefono: string | null; email: string | null; producto: string | null; notas: string | null }
+  | { op: 'supplier_update'; supplierId: string; patch: SupplierPatch }
 
 export interface Proposal {
   /** Posición de la acción cruda de la que salió (para poder quitarla). */
@@ -86,7 +94,7 @@ export type VoiceRole = 'admin' | 'cashier'
 
 /** Qué puede dictar cada rol. El cajero solo toca lo operativo; precios, tareas y turnos son del admin. */
 export const ALLOWED_ACTIONS: Record<VoiceRole, readonly string[]> = {
-  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add', 'supplier_add'],
+  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add', 'supplier_add', 'supplier_update'],
   cashier: ['dish_availability', 'ingredient_stock', 'table_status', 'expense_add', 'purchase_add'],
 }
 
@@ -165,6 +173,60 @@ function resolveSupplier(spoken: string | undefined, ctx: CommandContext): { nam
   return hit ? { name: hit.nombre, linked: true } : { name: said, linked: false }
 }
 const notListed = (name: string) => `“${name}” no está en tu lista de Proveedores (se registra igual; di “agrega al proveedor ${name}” para sumarlo)`
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+interface Contact { telefono?: string; email?: string; producto?: string; notas?: string; problem?: string; warnings: string[] }
+
+/** Limpia los datos de contacto dictados. Solo trae lo que se dijo (lo que no, queda sin definir). */
+function readContact(a: RawAction): Contact {
+  const out: Contact = { warnings: [] }
+  const tel = (a.telefono ?? '').replace(/[^\d+ ]/g, '').replace(/\s+/g, ' ').trim()
+  if (tel) {
+    out.telefono = tel
+    const digits = tel.replace(/\D/g, '').length
+    if (![7, 10, 12].includes(digits)) out.warnings.push(`Revisa el número: tiene ${digits} dígitos`)
+  }
+  const mail = (a.email ?? '').replace(/\s+/g, '').toLowerCase()
+  if (mail) {
+    if (!EMAIL_RE.test(mail)) out.problem = `No entendí el correo “${a.email}”. Dilo de nuevo o escríbelo en la pantalla de Proveedores.`
+    else out.email = mail
+  }
+  const prod = (a.producto ?? '').trim().slice(0, 200)
+  if (prod) out.producto = prod
+  const notas = (a.notas ?? '').trim().slice(0, 500)
+  if (notas) out.notas = notas
+  return out
+}
+
+/** Cambia datos de contacto de un proveedor que ya está en la lista (y deja la lista simulada al día). */
+function updateSupplier(sup: Supplier, c: Contact, ctx: CommandContext): Built {
+  const title = `Proveedor: ${sup.nombre}`
+  if (c.problem) return bad(title, c.problem)
+  const patch: SupplierPatch = {}
+  const lines: string[] = []
+  const show = (v: string | null) => v ?? 'vacío'
+  const set = (label: string, key: 'telefono' | 'email' | 'producto', next: string | undefined) => {
+    if (next === undefined || next === (sup[key] ?? '')) return
+    lines.push(`${label}: ${show(sup[key])} → ${next}`)
+    patch[key] = next
+  }
+  set('Teléfono', 'telefono', c.telefono)
+  set('Correo', 'email', c.email)
+  set('Producto', 'producto', c.producto)
+  if (c.notas && !normTxt(sup.notas ?? '').includes(normTxt(c.notas))) {
+    // Las notas se suman: así no se pierde lo que ya estaba (otro contacto, dirección…).
+    const merged = (sup.notas ? `${sup.notas} · ${c.notas}` : c.notas).slice(0, 500)
+    lines.push(`Notas: ${sup.notas ? 'se agrega' : 'nueva'} “${c.notas}”`)
+    patch.notas = merged
+  }
+  if (lines.length === 0) {
+    const none = c.telefono === undefined && c.email === undefined && c.producto === undefined && c.notas === undefined
+    return bad(title, none ? 'No entendí qué dato cambiar (teléfono, correo, producto o notas).' : 'Ese proveedor ya tiene exactamente esos datos.')
+  }
+  Object.assign(sup, patch)
+  return { title, detail: [...lines, ...c.warnings.map(w => '⚠ ' + w)].join(' · '), change: { op: 'supplier_update', supplierId: sup.id, patch } }
+}
 
 type Built = Omit<Proposal, 'index'>
 const bad = (title: string, problem: string): Built => ({ title, detail: '', change: null, problem })
@@ -409,14 +471,32 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       if (nombre.length < 2) return bad('Proveedor nuevo', 'No entendí el nombre del proveedor.')
       const title = `Proveedor nuevo: ${nombre.slice(0, 120)}`
       const dup = matchName(nombre, ctx.suppliers, x => x.nombre)
-      if (dup && normTxt(dup.nombre) === normTxt(nombre)) return bad(title, `“${dup.nombre}” ya está en tu lista de Proveedores.`)
-      const telefono = (a.telefono ?? '').replace(/[^\d+ ]/g, '').trim() || null
-      const producto = (a.producto ?? '').trim().slice(0, 200) || null
+      const c = readContact(a)
+      // Ya está en la lista: lo dictado completa o corrige sus datos en vez de duplicarlo.
+      if (dup && normTxt(dup.nombre) === normTxt(nombre)) return updateSupplier(dup, c, ctx)
+      if (c.problem) return bad(title, c.problem)
+      const row = {
+        nombre: nombre.slice(0, 120), telefono: c.telefono ?? null, email: c.email ?? null,
+        producto: c.producto ?? null, notas: c.notas ?? null,
+      }
       // Se suma a la lista simulada: una compra dictada después en la misma orden ya lo enlaza.
-      ctx.suppliers.push({ id: 'nuevo:' + normTxt(nombre), nombre })
-      const parts = [telefono ? `Tel. ${telefono}` : 'sin teléfono', producto ? `vende ${producto}` : 'sin producto']
-      if (dup) parts.push(`Parecido a “${dup.nombre}”: revisa que no sea el mismo`)
-      return { title, detail: parts.join(' · '), change: { op: 'supplier_add', nombre: nombre.slice(0, 120), telefono, producto } }
+      ctx.suppliers.push({ id: 'nuevo:' + normTxt(nombre), ...row })
+      const parts = [
+        row.telefono ? `Tel. ${row.telefono}` : 'sin teléfono',
+        row.email ? `correo ${row.email}` : 'sin correo',
+        row.producto ? `vende ${row.producto}` : 'sin producto',
+      ]
+      if (row.notas) parts.push(`notas: ${row.notas}`)
+      for (const w of c.warnings) parts.push('⚠ ' + w)
+      if (dup) parts.push(`⚠ Parecido a “${dup.nombre}”: revisa que no sea el mismo`)
+      return { title, detail: parts.join(' · '), change: { op: 'supplier_add', ...row } }
+    }
+
+    case 'supplier_update': {
+      const said = (a.proveedor ?? '').trim()
+      const sup = matchName(said, ctx.suppliers, x => x.nombre)
+      if (!sup) return bad(`Proveedor “${said || '?'}”`, `No encontré a “${said}” en tu lista de Proveedores. Di “agrega al proveedor ${said || 'Nombre'}” para crearlo.`)
+      return updateSupplier(sup, readContact(a), ctx)
     }
 
     default:

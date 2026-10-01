@@ -20,7 +20,10 @@ const base = (): CommandContext => ({
     { id: 'i5', nombre: 'Oreo', unidad_medida: 'pieza', stock_actual: 30, costo_unitario: 500 },
   ],
   recipes: { d2: [{ nombre: 'Limón', costo_unitario: 3000, unidad: 'kg', cantidad_necesaria: 0.1, ingrediente_id: 'i2' }] },
-  suppliers: [{ id: 's1', nombre: 'Frutas Pérez' }, { id: 's2', nombre: 'Coca-Cola' }],
+  suppliers: [
+    { id: 's1', nombre: 'Frutas Pérez', telefono: '300 1112233', email: null, producto: 'fruta', notas: null },
+    { id: 's2', nombre: 'Coca-Cola', telefono: null, email: null, producto: null, notas: 'Pedidos los lunes' },
+  ],
   employees: [{ id: 'e1', full_name: 'Juan Pérez' }, { id: 'e2', full_name: 'María López' }],
   mesas: [{ id: 'm1', numero: 4, capacidad: 4, estado: 'libre' }, { id: 'm2', numero: 5, capacidad: 2, estado: 'ocupada' }],
 })
@@ -359,9 +362,12 @@ assert.match(one({ type: 'purchase_add', concepto: 'X Y', lineas: [{ nombre: 'Le
 }
 { // agregar proveedor (solo admin): teléfono limpio, producto
   const p = one({ type: 'supplier_add', proveedor: 'Lácteos del Sur', telefono: '300 123-4567', producto: 'leche y queso' })
-  assert.deepEqual(p.change, { op: 'supplier_add', nombre: 'Lácteos del Sur', telefono: '300 1234567', producto: 'leche y queso' })
+  assert.deepEqual(p.change, { op: 'supplier_add', nombre: 'Lácteos del Sur', telefono: '300 1234567', email: null, producto: 'leche y queso', notas: null })
 }
-assert.match(one({ type: 'supplier_add', proveedor: 'frutas pérez' }).problem!, /ya está en tu lista/)
+{ // ya existe y no dijo nada nuevo: no duplica ni inventa
+  const p = one({ type: 'supplier_add', proveedor: 'frutas pérez' })
+  assert.equal(p.change, null); assert.match(p.problem!, /qué dato cambiar/)
+}
 assert.match(one({ type: 'supplier_add' }).problem!, /nombre del proveedor/)
 { // proveedor casi igual a uno existente: se permite pero avisa
   const p = one({ type: 'supplier_add', proveedor: 'Frutas Pérez Express' })
@@ -377,6 +383,61 @@ assert.match(one({ type: 'supplier_add' }).problem!, /nombre del proveedor/)
     { type: 'purchase_add', proveedor: 'Lácteos del Sur', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 100 }] },
   ], base(), 'a')
   assert.match(ps[1].detail, /Proveedor: Lácteos del Sur/)
+}
+
+// ── Proveedores: datos de contacto ──
+{ // crear con todo: teléfono, correo, producto, notas
+  const p = one({ type: 'supplier_add', proveedor: 'Lácteos del Sur', telefono: '311 222 3344', email: 'Ventas@Lacteos.com', producto: 'leche', notas: 'WhatsApp 311 555 6677; pregunta por Marta' })
+  assert.deepEqual(p.change, { op: 'supplier_add', nombre: 'Lácteos del Sur', telefono: '311 222 3344', email: 'ventas@lacteos.com', producto: 'leche', notas: 'WhatsApp 311 555 6677; pregunta por Marta' })
+  assert.match(p.detail, /correo ventas@lacteos\.com/); assert.match(p.detail, /notas: WhatsApp/)
+}
+{ // número con dígitos raros: se crea pero avisa
+  const p = one({ type: 'supplier_add', proveedor: 'Lácteos del Sur', telefono: '300 123' })
+  assert.equal(p.change?.op, 'supplier_add'); assert.match(p.detail, /tiene 6 dígitos/)
+}
+assert.doesNotMatch(one({ type: 'supplier_add', proveedor: 'Lácteos del Sur', telefono: '+57 311 222 3344' }).detail, /Revisa el número/)
+{ // correo mal entendido: no se aplica
+  const p = one({ type: 'supplier_add', proveedor: 'Lácteos del Sur', email: 'ventas arroba' })
+  assert.equal(p.change, null); assert.match(p.problem!, /No entendí el correo/)
+}
+{ // actualizar teléfono de uno existente: muestra antes → después y solo toca eso
+  const p = one({ type: 'supplier_update', proveedor: 'frutas perez', telefono: '311 999 8877' })
+  assert.deepEqual(p.change, { op: 'supplier_update', supplierId: 's1', patch: { telefono: '311 999 8877' } })
+  assert.match(p.detail, /Teléfono: 300 1112233 → 311 999 8877/)
+}
+{ // agregar correo a uno que no tenía
+  const p = one({ type: 'supplier_update', proveedor: 'Frutas Pérez', email: 'ventas@frutasperez.com' })
+  assert.match(p.detail, /Correo: vacío → ventas@frutasperez\.com/)
+}
+{ // las notas se suman, no pisan lo que ya había
+  const p = one({ type: 'supplier_update', proveedor: 'Coca-Cola', notas: 'Contacto: Marta' })
+  assert.deepEqual(p.change, { op: 'supplier_update', supplierId: 's2', patch: { notas: 'Pedidos los lunes · Contacto: Marta' } })
+}
+{ // notas repetidas: no hay cambio
+  const p = one({ type: 'supplier_update', proveedor: 'Coca-Cola', notas: 'pedidos los lunes' })
+  assert.equal(p.change, null); assert.match(p.problem!, /ya tiene exactamente esos datos/)
+}
+{ // mismo teléfono: no hay cambio
+  assert.match(one({ type: 'supplier_update', proveedor: 'Frutas Pérez', telefono: '300 1112233' }).problem!, /ya tiene exactamente/)
+}
+assert.match(one({ type: 'supplier_update', proveedor: 'Frutas Pérez' }).problem!, /qué dato cambiar/)
+assert.match(one({ type: 'supplier_update', proveedor: 'Lácteos Inexistentes', telefono: '3001234567' }).problem!, /No encontré a “Lácteos Inexistentes”/)
+{ // "agrega al proveedor X" de uno que ya existe, con teléfono nuevo: lo actualiza en vez de duplicar
+  const p = one({ type: 'supplier_add', proveedor: 'Frutas Pérez', telefono: '3115550000' })
+  assert.equal(p.change?.op, 'supplier_update'); assert.match(p.detail, /Teléfono: 300 1112233 → 3115550000/)
+}
+{ // varios cambios al mismo proveedor en una orden se acumulan sobre la lista simulada
+  const ps = buildProposals([
+    { type: 'supplier_update', proveedor: 'Frutas Pérez', telefono: '3111111111' },
+    { type: 'supplier_update', proveedor: 'Frutas Pérez', telefono: '3222222222' },
+  ], base(), 'a')
+  assert.match(ps[1].detail, /Teléfono: 3111111111 → 3222222222/)
+}
+{ // el cajero no edita proveedores
+  const cash = (a: RawAction) => buildProposals([a], base(), 'c', 'cashier')[0]
+  for (const a of [{ type: 'supplier_update', proveedor: 'Frutas Pérez', telefono: '3001234567' }, { type: 'supplier_add', proveedor: 'Nuevo SA' }]) {
+    assert.equal(cash(a).change, null); assert.match(cash(a).problem!, /solo lo puede hacer el administrador/)
+  }
 }
 
 process.stdout.write('voiceCommands: todo OK\n')
