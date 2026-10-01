@@ -4,17 +4,20 @@
  * y aplicar un cambio ya aprobado. Escribe con los permisos (RLS) de la sesión.
  */
 import { supabase } from './supabaseClient'
-import { bogotaNow, type Change, type CommandContext } from './voiceCommands'
+import { bogotaNow, type Change, type CommandContext, type VoiceRole } from './voiceCommands'
 
 interface Size { nombre: string; precio: number }
 
 // ─── Carga del contexto ──────────────────────────────────────────────────────
 
-export async function loadCommandContext(): Promise<CommandContext> {
+export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<CommandContext> {
   const [dishes, ingredients, employees, mesas] = await Promise.all([
     supabase.from('dishes').select('id, name, price, has_sizes, sizes, available').neq('availability_status', 'discontinued').order('name'),
     supabase.from('ingredientes').select('id, nombre, unidad_medida, stock_actual').order('nombre'),
-    supabase.from('profiles').select('id, full_name').in('role', ['waiter', 'kitchen', 'cashier']).order('full_name'),
+    // Empleados solo se necesitan para tareas y turnos, que son del admin.
+    role === 'admin'
+      ? supabase.from('profiles').select('id, full_name').in('role', ['waiter', 'kitchen', 'cashier']).order('full_name')
+      : Promise.resolve({ data: [] as { id: string; full_name: string | null }[], error: null }),
     supabase.from('mesas').select('id, numero, capacidad, estado').eq('activa', true).order('numero'),
   ])
   const failed = [dishes, ingredients, employees, mesas].find(r => r.error)
@@ -40,7 +43,7 @@ function expectRows(res: { data: unknown[] | null; error: { message: string } | 
   if (!res.data || res.data.length === 0) throw new Error(`${what}: no se pudo modificar (¿ya no existe o no tienes permiso?)`)
 }
 
-export async function applyChange(c: Change): Promise<void> {
+export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise<void> {
   const now = new Date().toISOString()
   switch (c.op) {
     case 'dish_price': {
@@ -53,8 +56,15 @@ export async function applyChange(c: Change): Promise<void> {
       if (error) throw new Error(error.message)
       return
     }
-    case 'ingredient_stock':
+    case 'ingredient_stock': {
+      if (role === 'cashier') {
+        // El cajero no puede escribir `ingredientes` directo (RLS): usa la función que valida su rol.
+        const { error } = await supabase.rpc('ajustar_stock_ingrediente', { p_ingrediente_id: c.ingredientId, p_stock: c.stock })
+        if (error) throw new Error(error.message)
+        return
+      }
       return expectRows(await supabase.from('ingredientes').update({ stock_actual: c.stock, updated_at: now }).eq('id', c.ingredientId).select('id'), 'Ingrediente')
+    }
     case 'task_create': {
       const { error } = await supabase.from('tasks').insert({
         title: c.title, description: c.description || null, assigned_to: c.assignedTo, created_by: c.createdBy,

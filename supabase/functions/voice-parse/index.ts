@@ -79,7 +79,9 @@ Si un plato se vende por tamaños, llena "sizes" (nombre y precio de cada uno) y
     }, ['transcript', 'items']),
   },
   command: {
-    roles: ['admin'],
+    // El cajero también dicta comandos, pero solo los operativos: eso lo limita el cliente
+    // (ALLOWED_ACTIONS) y, al escribir, la base (RLS / funciones que validan el rol).
+    roles: ['admin', 'cashier'],
     prompt: `El administrador de un restaurante da órdenes de voz para CAMBIAR datos que ya existen. Devuelve una acción por cada cambio pedido, en el orden dicho. ${PESOS}
 Tipos de acción ("type") y los campos que usa cada uno:
 - dish_price: cambiar el precio de un plato. Campos: dish, price, y size SOLO si el plato se vende por tamaños (context.dishes[].sizes no vacío) y dijeron cuál.

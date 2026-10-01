@@ -52,6 +52,14 @@ export interface Proposal {
   problem?: string
 }
 
+export type VoiceRole = 'admin' | 'cashier'
+
+/** Qué puede dictar cada rol. El cajero solo toca lo operativo; precios, tareas y turnos son del admin. */
+export const ALLOWED_ACTIONS: Record<VoiceRole, readonly string[]> = {
+  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity'],
+  cashier: ['dish_availability', 'ingredient_stock', 'table_status'],
+}
+
 type Priority = 'low' | 'medium' | 'high' | 'urgent'
 type Estado = 'libre' | 'ocupada' | 'reservada' | 'cuenta'
 
@@ -105,18 +113,20 @@ export function toPromptContext(ctx: CommandContext) {
  * Convierte acciones crudas en propuestas. Las aplica EN ORDEN sobre una copia del
  * contexto, así "agrega 2 kg de fresa" dos veces suma 4 y no se pisan.
  */
-export function buildProposals(actions: RawAction[], base: CommandContext, adminId: string): Proposal[] {
+export function buildProposals(actions: RawAction[], base: CommandContext, userId: string, role: VoiceRole = 'admin'): Proposal[] {
   const ctx = structuredClone(base)
   return actions.map((a, index) => {
-    const p = propose(a, ctx, adminId)
-    return { index, ...p }
+    if (!ALLOWED_ACTIONS[role].includes(a.type) && ALLOWED_ACTIONS.admin.includes(a.type)) {
+      return { index, ...bad('Solo el administrador', 'Este cambio solo lo puede hacer el administrador.') }
+    }
+    return { index, ...propose(a, ctx, userId) }
   })
 }
 
 type Built = Omit<Proposal, 'index'>
 const bad = (title: string, problem: string): Built => ({ title, detail: '', change: null, problem })
 
-function propose(a: RawAction, ctx: CommandContext, adminId: string): Built {
+function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
   switch (a.type) {
     case 'dish_price': {
       const d = matchName(a.dish, ctx.dishes, x => x.name)
@@ -174,7 +184,7 @@ function propose(a: RawAction, ctx: CommandContext, adminId: string): Built {
       const parts = [`Para ${e.full_name}`, `prioridad ${PRIORITY_LABEL[priority]}`, due ? `vence ${due}` : 'sin fecha']
       return {
         title: `Tarea: ${title.slice(0, 200)}`, detail: parts.join(' · '),
-        change: { op: 'task_create', title: title.slice(0, 200), description: (a.description ?? '').trim().slice(0, 1000), assignedTo: e.id, priority, dueDate: due, createdBy: adminId },
+        change: { op: 'task_create', title: title.slice(0, 200), description: (a.description ?? '').trim().slice(0, 1000), assignedTo: e.id, priority, dueDate: due, createdBy: userId },
       }
     }
 

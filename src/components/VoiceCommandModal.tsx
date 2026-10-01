@@ -13,13 +13,14 @@ import { AnimatePresence, motion } from 'framer-motion'
 import message from 'antd/es/message'
 import { VoiceButton } from './VoiceButton'
 import { cn } from '../lib/cn'
-import { buildProposals, toPromptContext, type CommandContext, type Proposal, type RawAction } from '../services/voiceCommands'
+import { buildProposals, toPromptContext, type CommandContext, type Proposal, type RawAction, type VoiceRole } from '../services/voiceCommands'
 import { applyChange, loadCommandContext } from '../services/voiceCommandsApi'
 
 interface Item { id: number; action: RawAction; error?: string }
 
 interface Props {
-  adminId:   string
+  userId:    string
+  role:      VoiceRole
   onApplied: () => void
   onClose:   () => void
 }
@@ -59,7 +60,7 @@ ProposalRow.displayName = 'ProposalRow'
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
 
-export function VoiceCommandModal({ adminId, onApplied, onClose }: Props) {
+export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
   const [ctx, setCtx]               = useState<CommandContext | null>(null)
   const [items, setItems]           = useState<Item[]>([])
   const [transcript, setTranscript] = useState('')
@@ -67,8 +68,8 @@ export function VoiceCommandModal({ adminId, onApplied, onClose }: Props) {
   const [nextId, setNextId]         = useState(1)
 
   const proposals = useMemo(
-    () => (ctx ? buildProposals(items.map(i => i.action), ctx, adminId) : []),
-    [ctx, items, adminId],
+    () => (ctx ? buildProposals(items.map(i => i.action), ctx, userId, role) : []),
+    [ctx, items, userId, role],
   )
   const applicable = proposals.filter(p => p.change).length
 
@@ -90,7 +91,7 @@ export function VoiceCommandModal({ adminId, onApplied, onClose }: Props) {
       if (!p.change) continue
       const item = items[p.index]
       try {
-        await applyChange(p.change)
+        await applyChange(p.change, role)
         done.add(item.id)
       } catch (e) {
         failed.set(item.id, e instanceof Error ? e.message : 'No se pudo aplicar')
@@ -107,7 +108,7 @@ export function VoiceCommandModal({ adminId, onApplied, onClose }: Props) {
     }
     // Quedan cambios con problemas: recargo los datos (ya cambiaron) y los dejo para revisar.
     try {
-      setCtx(await loadCommandContext())
+      setCtx(await loadCommandContext(role))
       setItems(remaining)
       if (done.size > 0) message.warning(`${done.size} aplicados. Revisa los que quedaron.`)
       else message.error('No se pudo aplicar ningún cambio.')
@@ -128,16 +129,17 @@ export function VoiceCommandModal({ adminId, onApplied, onClose }: Props) {
           <VoiceButton<{ transcript: string; actions: RawAction[] }>
             kind="command" label={items.length ? 'Dictar más' : 'Hablar'} onResult={onResult} disabled={applying}
             context={async () => {
-              const fresh = await loadCommandContext()
+              const fresh = await loadCommandContext(role)
               setCtx(fresh)
               return toPromptContext(fresh)
             }} />
         </div>
 
         <p className="m-0 text-xs text-[var(--w-ink-mut)]">
-          Di por ejemplo: “sube el cholao grande a 15 mil”, “se acabó la fresa”, “agrégale 3 kilos al limón”,
-          “mesa 4 ocupada”, “Juan trabaja el lunes de 8 a 5”, “ponle una tarea a María: limpiar la nevera”.
-          Revisa los cambios antes de aplicarlos.
+          Di por ejemplo: {role === 'admin'
+            ? '“sube el cholao grande a 15 mil”, “se acabó la fresa”, “agrégale 3 kilos al limón”, “mesa 4 ocupada”, “Juan trabaja el lunes de 8 a 5”, “ponle una tarea a María: limpiar la nevera”.'
+            : '“se acabó la limonada”, “se acabó la fresa”, “quedan 2 kilos de limón”, “mesa 4 ocupada”, “mesa 4 libre”.'}
+          {' '}Revisa los cambios antes de aplicarlos.
         </p>
 
         {transcript && (

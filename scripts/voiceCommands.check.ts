@@ -152,4 +152,29 @@ assert.deepEqual(buildProposals([{ type: 'x' }, { type: 'table_status', mesa: 4,
   assert.ok(!JSON.stringify(pc).includes('"id"'))
 }
 
+// ── Permisos por rol: el cajero solo hace lo operativo ──
+{
+  const cash = (a: RawAction) => buildProposals([a], base(), 'cajero1', 'cashier')[0]
+  const blocked: RawAction[] = [
+    { type: 'dish_price', dish: 'Limonada', price: 6000 },
+    { type: 'task_create', title: 'Limpiar la nevera', assignee: 'María López' },
+    { type: 'shift_set', employee: 'Juan Pérez', date: '2026-10-05', start: '08:00', end: '17:00' },
+    { type: 'shift_delete', employee: 'Juan Pérez', date: '2026-10-05' },
+    { type: 'table_capacity', mesa: 4, capacidad: 6 },
+  ]
+  for (const a of blocked) {
+    const p = cash(a)
+    assert.equal(p.change, null, a.type + ' debe estar bloqueado para el cajero')
+    assert.match(p.problem!, /solo lo puede hacer el administrador/)
+  }
+  assert.equal(cash({ type: 'dish_availability', dish: 'Limonada', available: false }).change?.op, 'dish_availability')
+  assert.equal(cash({ type: 'ingredient_stock', ingredient: 'Fresa', mode: 'set', quantity: 0 }).change?.op, 'ingredient_stock')
+  assert.equal(cash({ type: 'table_status', mesa: 4, estado: 'ocupada' }).change?.op, 'table_status')
+  // un tipo inventado sigue siendo "no reconocida", no "solo admin"
+  assert.match(cash({ type: 'borrar_todo' }).title, /no reconocida/i)
+  // el admin conserva todo, y sin rol explícito se asume admin (compatibilidad)
+  assert.equal(buildProposals([{ type: 'dish_price', dish: 'Limonada', price: 1 }], base(), 'a', 'admin')[0].change?.op, 'dish_price')
+  assert.equal(one({ type: 'table_capacity', mesa: 4, capacidad: 6 }).change?.op, 'table_capacity')
+}
+
 process.stdout.write('voiceCommands: todo OK\n')

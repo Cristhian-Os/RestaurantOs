@@ -9,6 +9,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { initializeOfflineSync } from '../services/offlineService'
 import { queryClient } from '../services/queryClient'
 import { VoiceCommandModal } from '../components/VoiceCommandModal'
+import { VoiceCommandFab } from '../components/VoiceCommandFab'
 import { pushNotificationService } from '../services/pushNotificationService'
 import Spin    from 'antd/es/spin'
 import message from 'antd/es/message'
@@ -497,14 +498,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         <div style={{display:'flex',gap:'0.5rem',alignItems:'center',flexShrink:0,marginLeft:'0.5rem'}}>
           <InstallPWA compact />
           {hasSounds && <SoundTestButton style={chromeBtn} />}
-          {/* Comando de voz — solo admin */}
-          {profile!.role === 'admin' && (
-            <button onClick={() => setVoiceCmdOpen(true)} style={chromeBtn} title="Comando de voz" aria-label="Comando de voz">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 20, height: 20 }}>
-                <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v4" />
-              </svg>
-            </button>
-          )}
           {/* Theme toggle — solo admin */}
           {profile!.role === 'admin' && (
             <button
@@ -602,9 +595,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
       <SupportChat />
-      {voiceCmdOpen && profile?.role === 'admin' && (
+      {(profile?.role === 'admin' || profile?.role === 'cashier') && (
+        <VoiceCommandFab onClick={() => setVoiceCmdOpen(true)} />
+      )}
+      {voiceCmdOpen && (profile?.role === 'admin' || profile?.role === 'cashier') && (
         <VoiceCommandModal
-          adminId={profile.id}
+          userId={profile.id}
+          role={profile.role}
           onClose={() => setVoiceCmdOpen(false)}
           onApplied={() => { void queryClient.invalidateQueries(); setRefreshKey(k => k + 1) }} />
       )}
