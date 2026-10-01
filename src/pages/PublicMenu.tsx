@@ -15,7 +15,7 @@ import type { Dish, DishCategory, DishOptionGroup, ItemSel } from '../types'
 import { openWompiCheckout } from '../config/billing'
 import {
   type MenuConfig, defaultSel, describeSel, flavorsNeeded, hasOptions, lineNotes, orderCategories,
-  parseMenuConfig, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
+  groupUnits, parseMenuConfig, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
 } from '../services/menuOptions'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
@@ -170,24 +170,48 @@ DishImage.displayName = 'DishImage'
 
 // ── Customize bottom-sheet (liquid glass) ─────────────────────────
 // El mismo constructor arma un producto nuevo o edita uno ya pedido (initial).
-const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, onClose }: {
+export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, onAddMany, onClose }: {
   dish:          Dish
   menu:          MenuConfig
   initial?:      { qty: number; sel?: ItemSel; previousNotes?: string | null }
   confirmLabel?: string
   onAdd:         (item: Omit<CartItem, 'uid'>) => void
+  /** Al armar un producto nuevo con varias unidades: una entrada por cada selección distinta. */
+  onAddMany?:    (items: Omit<CartItem, 'uid'>[]) => void
   onClose:       () => void
 }) => {
   const sizes = dish.sizes ?? []
   const hasSizes = !!dish.has_sizes && sizes.length > 0
   const optionGroups = dish.options ?? []
 
-  const [qty,   setQty]   = useState(initial?.qty ?? 1)
-  const [notes, setNotes] = useState(initial?.sel?.comment ?? '')
-  const [sel,   setSel]   = useState<ItemSel>(() => ({ ...defaultSel(dish), ...(initial?.sel ?? {}) }))
+  // Al armar un producto NUEVO cada unidad se elige por separado (dos cholaos pueden llevar
+  // sabores o toppings distintos). Al editar una línea de un pedido ya enviado se mantiene
+  // como siempre: una sola selección para toda la cantidad.
+  const perUnit = !initial
+  const [units, setUnits]     = useState<ItemSel[]>(() => [{ ...defaultSel(dish), ...(initial?.sel ?? {}) }])
+  const [active, setActive]   = useState(0)
+  const [editQty, setEditQty] = useState(initial?.qty ?? 1)
+  const act = Math.min(active, units.length - 1)
+  const sel = units[act]
+  const setSel = (fn: (s: ItemSel) => ItemSel) => setUnits(us => us.map((u, i) => (i === act ? fn(u) : u)))
+  const qty = perUnit ? units.length : editQty
+  const notes = sel.comment ?? ''
+  const setNotes = (v: string) => setSel(s => ({ ...s, comment: v }))
+
+  const addUnit = () => {
+    if (units.length >= 50) return
+    setUnits([...units, structuredClone(sel)])  // la nueva empieza igual que la que se está viendo
+    setActive(units.length)
+  }
+  const removeUnit = () => {
+    if (units.length <= 1) return
+    setUnits(units.slice(0, -1))
+    setActive(Math.min(act, units.length - 2))
+  }
 
   const unitPrice = unitPriceFor(dish, sel)
-  const optionsValid = selIsValid(dish, sel)
+  const optionsValid = units.every(u => selIsValid(dish, u))
+  const totalPrice = perUnit ? units.reduce((sum, u) => sum + unitPriceFor(dish, u), 0) : unitPrice * qty
   const chosenFlavors = Object.values(sel.helado ?? {}).flat()
   const toppings = (dish.toppings ?? []).filter(t => !menu.toppingsOff.includes(t.nombre) || sel.toppings?.includes(t.nombre))
 
@@ -210,13 +234,24 @@ const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, onClose
     return { ...s, opcion: { ...s.opcion, [k]: label }, helado: { ...s.helado, [k]: [] } }
   })
 
+  const toItem = (u: ItemSel, n: number): Omit<CartItem, 'uid'> => {
+    const c = (u.comment ?? '').trim()
+    return {
+      dish, qty: n, notes: c, size: hasSizes ? (u.size ?? '') : '', price: unitPriceFor(dish, u),
+      extras: u.extras ?? [], toppings: u.toppings ?? [], optsText: describeSel(dish, u),
+      sel: { ...u, comment: c || undefined },
+    }
+  }
+
   const confirm = () => {
     if (!optionsValid) return
-    onAdd({
-      dish, qty, notes: notes.trim(), size: hasSizes ? (sel.size ?? '') : '', price: unitPrice,
-      extras: sel.extras ?? [], toppings: sel.toppings ?? [], optsText: describeSel(dish, sel),
-      sel: { ...sel, comment: notes.trim() || undefined },
-    })
+    if (!perUnit) onAdd(toItem(sel, qty))
+    else {
+      // Unidades con la misma selección = una línea con cantidad; las distintas, líneas aparte.
+      const items = groupUnits(units).map(g => toItem(g.sel, g.qty))
+      if (onAddMany) onAddMany(items)
+      else items.forEach(onAdd)
+    }
     onClose()
   }
 
@@ -257,6 +292,22 @@ const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, onClose
           <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 1.25rem', color: 'var(--w-ink-mut)', background: 'var(--w-bg)', border: '1px solid var(--w-line)', borderRadius: '0.75rem', padding: '0.625rem 0.75rem' }}>
             Tu pedido decía: {initial.previousNotes}
           </p>
+        )}
+
+        {perUnit && units.length > 1 && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Unidad {act + 1} de {units.length}</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {units.map((u, i) => (
+                <button key={i} onClick={() => setActive(i)} aria-label={`Unidad ${i + 1}`} style={chip(i === act)}>
+                  {i + 1}{selIsValid(dish, u) ? '' : ' ⚠'}
+                </button>
+              ))}
+            </div>
+            <p className="ed-body" style={{ fontSize: '0.75rem', margin: '0.5rem 0 0', color: 'var(--w-ink-mut)' }}>
+              Cada unidad se elige por separado. Las nuevas empiezan igual que la que estabas viendo.
+            </p>
+          </div>
         )}
 
         {hasSizes && (
@@ -371,17 +422,17 @@ const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, onClose
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', background: 'var(--w-bg)', borderRadius: '1rem', padding: '0.5rem 0.875rem', border: '1px solid var(--w-line)' }}>
-            <button className="w-press" onClick={() => setQty(q => Math.max(1, q - 1))} aria-label="Menos"
+            <button className="w-press" onClick={() => (perUnit ? removeUnit() : setEditQty(q => Math.max(1, q - 1)))} aria-label="Menos"
               style={{ width: 30, height: 30, borderRadius: '0.625rem', border: '1px solid var(--w-line)', background: 'var(--w-surface)', fontWeight: 700, fontSize: '1.125rem', color: 'var(--w-ink)' }}>−</button>
             <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-ink)', minWidth: 22, textAlign: 'center' }}>{qty}</span>
-            <button className="w-press" onClick={() => setQty(q => Math.min(50, q + 1))} aria-label="Más"
+            <button className="w-press" onClick={() => (perUnit ? addUnit() : setEditQty(q => Math.min(50, q + 1)))} aria-label="Más"
               style={{ width: 30, height: 30, borderRadius: '0.625rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, fontSize: '1.125rem' }}>+</button>
           </div>
           <button className="lg-accent w-press"
             disabled={!optionsValid}
             onClick={confirm}
             style={{ flex: 1, padding: '0.95rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: optionsValid ? 1 : 0.5, cursor: optionsValid ? 'pointer' : 'not-allowed' }}>
-            {optionsValid ? `${confirmLabel ?? 'Agregar'} ${qty > 1 ? `×${qty}` : ''} · ${fmtCOP(unitPrice * qty)}` : 'Elige las opciones'}
+            {optionsValid ? `${confirmLabel ?? 'Agregar'} ${qty > 1 ? `×${qty}` : ''} · ${fmtCOP(totalPrice)}` : units.length > 1 ? 'Elige las opciones de cada unidad' : 'Elige las opciones'}
           </button>
         </div>
       </motion.div>
@@ -1217,6 +1268,10 @@ export default function PublicMenu() {
   const addToCart = useCallback((item: Omit<CartItem, 'uid'>) => {
     setCart(prev => [...prev, { uid: crypto.randomUUID(), ...item }])
   }, [])
+  // Varias selecciones distintas del mismo plato (cada unidad elegida por separado): una línea por selección.
+  const addManyToCart = useCallback((items: Omit<CartItem, 'uid'>[]) => {
+    setCart(prev => [...prev, ...items.map(i => ({ uid: crypto.randomUUID(), ...i }))])
+  }, [])
   const removeCartItem = useCallback((uid: string) => {
     setCart(prev => prev.filter(i => i.uid !== uid))
   }, [])
@@ -1768,7 +1823,7 @@ export default function PublicMenu() {
 
       {/* ── Customize modal ── */}
       <AnimatePresence>
-        {customizing && <CustomizeModal dish={customizing} menu={menuCfg} onAdd={addToCart} onClose={() => setCustomizing(null)} />}
+        {customizing && <CustomizeModal dish={customizing} menu={menuCfg} onAdd={addToCart} onAddMany={addManyToCart} onClose={() => setCustomizing(null)} />}
       </AnimatePresence>
 
       {/* ── Editar un producto de un pedido ya enviado (mismo constructor, precargado) ── */}

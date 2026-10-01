@@ -23,7 +23,7 @@ import { CategoryIcon } from '../CategoryIcon'
 import { useMenuConfig } from '../../hooks/useMenuConfig'
 import {
   type MenuConfig, defaultSel, describeSel, flavorsNeeded, hasOptions, lineNotes, orderCategories,
-  selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
+  groupUnits, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
 } from '../../services/menuOptions'
 
 // ─── Estilos neomórficos ──────────────────────────────────────
@@ -94,13 +94,15 @@ export interface BuilderResult {
 // ─── Constructor de producto (tamaño, sabores, queso/helado, toppings,
 //     adicionales, cantidad y comentario). El mismo modal arma un producto
 //     nuevo o edita uno que ya está en un pedido (initial). ──────────────
-export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmLabel, onConfirm, onClose }: {
+export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmLabel, onConfirm, onConfirmMany, onClose }: {
   dish:          Dish
   menu:          MenuConfig
   shortages:     RecetaShortage[]
   initial?:      { qty: number; sel?: ItemSel; previousNotes?: string | null }
   confirmLabel?: string
   onConfirm:     (r: BuilderResult) => void
+  /** Al armar un producto nuevo con varias unidades: una entrada por cada selección distinta. */
+  onConfirmMany?: (rs: BuilderResult[]) => void
   onClose:       () => void
 }) => {
   const optionGroups = dish.options ?? []
@@ -108,14 +110,35 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
   const hasSizes = !!dish.has_sizes && sizes.length > 0
   const tags = dish.tags ?? []
 
-  const [sel, setSel]         = useState<ItemSel>(() => ({ ...defaultSel(dish), ...(initial?.sel ?? {}) }))
-  const [qty, setQty]         = useState(initial?.qty ?? 1)
-  const [comment, setComment] = useState(initial?.sel?.comment ?? '')
+  // Al armar un producto NUEVO cada unidad se elige por separado (dos cholaos pueden llevar
+  // sabores o toppings distintos). Al editar una línea que ya está en un pedido se mantiene
+  // como siempre: una sola selección para toda la cantidad.
+  const perUnit = !initial
+  const [units, setUnits]     = useState<ItemSel[]>(() => [{ ...defaultSel(dish), ...(initial?.sel ?? {}) }])
+  const [active, setActive]   = useState(0)
+  const [editQty, setEditQty] = useState(initial?.qty ?? 1)
+  const act = Math.min(active, units.length - 1)
+  const sel = units[act]
+  const setSel = (fn: (s: ItemSel) => ItemSel) => setUnits(us => us.map((u, i) => (i === act ? fn(u) : u)))
+  const qty = perUnit ? units.length : editQty
+  const comment = sel.comment ?? ''
+
+  const addUnit = () => {
+    if (units.length >= 50) return
+    setUnits([...units, structuredClone(sel)])  // la nueva empieza igual que la que se está viendo
+    setActive(units.length)
+  }
+  const removeUnit = () => {
+    if (units.length <= 1) return
+    setUnits(units.slice(0, -1))
+    setActive(Math.min(act, units.length - 2))
+  }
 
   const chosenFlavors = Object.values(sel.helado ?? {}).flat()
   const toppings = (dish.toppings ?? []).filter(t => !menu.toppingsOff.includes(t.nombre) || sel.toppings?.includes(t.nombre))
   const unitPrice = unitPriceFor(dish, sel)
-  const optionsValid = selIsValid(dish, sel)
+  const optionsValid = units.every(u => selIsValid(dish, u))
+  const totalPrice = perUnit ? units.reduce((sum, u) => sum + unitPriceFor(dish, u), 0) : unitPrice * qty
 
   const toggleFlavor = (gi: number, flavor: string, max: number) => setSel(s => {
     const k = String(gi)
@@ -135,14 +158,23 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
     return { ...s, opcion: { ...s.opcion, [k]: label }, helado: { ...s.helado, [k]: [] } }
   })
 
+  const toResult = (u: ItemSel, n: number): BuilderResult => {
+    const c = (u.comment ?? '').trim()
+    return {
+      qty: n, unitPrice: unitPriceFor(dish, u), size: hasSizes ? (u.size ?? null) : null, toppings: u.toppings ?? [],
+      optsText: describeSel(dish, u, shortages),
+      sel: { ...u, comment: c || undefined },
+      comment: c,
+    }
+  }
+
   const confirm = () => {
     if (!optionsValid) return
-    onConfirm({
-      qty, unitPrice, size: hasSizes ? (sel.size ?? null) : null, toppings: sel.toppings ?? [],
-      optsText: describeSel(dish, sel, shortages),
-      sel: { ...sel, comment: comment.trim() || undefined },
-      comment: comment.trim(),
-    })
+    if (!perUnit) { onConfirm(toResult(sel, qty)); return }
+    // Unidades con la misma selección = una línea con cantidad; las distintas, líneas aparte.
+    const results = groupUnits(units).map(g => toResult(g.sel, g.qty))
+    if (onConfirmMany) onConfirmMany(results)
+    else results.forEach(onConfirm)
   }
 
   const chipStyle = (active: boolean): React.CSSProperties => ({
@@ -170,6 +202,20 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
         <p className="text-xs text-[#9CA3AF] mb-4">{initial ? 'Cambia lo que necesites y guarda' : 'Elige las opciones para agregar al pedido'}</p>
         {initial?.previousNotes && (
           <p className="text-xs text-[#6B7280] mb-4 rounded-xl px-3 py-2 bg-[#CDD0DC]">Pedido original: {initial.previousNotes}</p>
+        )}
+
+        {perUnit && units.length > 1 && (
+          <div className="mb-5">
+            <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Unidad {act + 1} de {units.length}</p>
+            <div className="flex flex-wrap gap-2">
+              {units.map((u, i) => (
+                <button key={i} onClick={() => setActive(i)} aria-label={`Unidad ${i + 1}`} style={chipStyle(i === act)}>
+                  {i + 1}{selIsValid(dish, u) ? '' : ' ⚠'}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-[#9CA3AF] mt-2">Cada unidad se elige por separado. Las nuevas empiezan igual que la que estabas viendo.</p>
+          </div>
         )}
 
         {hasSizes && (
@@ -280,7 +326,7 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
 
         <div className="mb-5">
           <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Comentario</p>
-          <textarea value={comment} onChange={e => setComment(e.target.value)}
+          <textarea value={comment} onChange={e => setSel(s => ({ ...s, comment: e.target.value }))}
             placeholder="Ej: sin azúcar, poco hielo..." rows={2} maxLength={200}
             className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none resize-none placeholder-[#9CA3AF]"
             style={S.neoIn} />
@@ -288,10 +334,10 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-2xl px-2 py-1.5 bg-[#CDD0DC]" style={S.neoIn}>
-            <button onClick={() => setQty(q => Math.max(1, q - 1))} aria-label="Menos"
+            <button onClick={() => (perUnit ? removeUnit() : setEditQty(q => Math.max(1, q - 1)))} aria-label="Menos"
               className="w-9 h-9 rounded-xl font-bold text-lg text-[#2D3561] bg-[#D8DAE4]" style={S.neoOutSm}>−</button>
             <span className="min-w-[1.75rem] text-center font-bold text-[#2D3561]">{qty}</span>
-            <button onClick={() => setQty(q => Math.min(50, q + 1))} aria-label="Más"
+            <button onClick={() => (perUnit ? addUnit() : setEditQty(q => Math.min(50, q + 1)))} aria-label="Más"
               className="w-9 h-9 rounded-xl font-bold text-lg text-white bg-[#FF5722]" style={S.coral}>+</button>
           </div>
           <button
@@ -301,8 +347,8 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
             style={{ ...S.coral, opacity: optionsValid ? 1 : 0.5 }}
           >
             {optionsValid
-              ? `${confirmLabel ?? 'Agregar al pedido'} · $${Math.round(unitPrice * qty).toLocaleString('es-CO')}`
-              : 'Elige las opciones'}
+              ? `${confirmLabel ?? 'Agregar al pedido'} · $${Math.round(totalPrice).toLocaleString('es-CO')}`
+              : units.length > 1 ? 'Elige las opciones de cada unidad' : 'Elige las opciones'}
           </button>
         </div>
       </motion.div>
@@ -438,6 +484,14 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       // para poder darle notas distintas.
       return [...prev, { uid: crypto.randomUUID(), dish, quantity: 1, notes: '', optsText: '', unitPrice: dish.price, size: null, toppings: [] }]
     })
+  }, [])
+
+  // Varias selecciones distintas del mismo plato (cada unidad elegida por separado): una línea por selección.
+  const addDishLines = useCallback((dish: Dish, rs: BuilderResult[]) => {
+    setCart(prev => [...prev, ...rs.map(r => ({
+      uid: crypto.randomUUID(), dish, quantity: r.qty, notes: r.comment, optsText: r.optsText,
+      unitPrice: r.unitPrice, size: r.size, toppings: r.toppings, sel: r.sel,
+    }))])
   }, [])
 
   // Botón "+" del grid: si el plato requiere elegir opciones (tamaño, sabores, adicionales,
@@ -816,6 +870,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   menu={menu}
                   shortages={shortages.filter(s => s.producto_id === customizingDish.id)}
                   onConfirm={r => { addDishToCart(customizingDish, r); setCustomizingDish(null) }}
+                  onConfirmMany={rs => { addDishLines(customizingDish, rs); setCustomizingDish(null) }}
                   onClose={() => setCustomizingDish(null)}
                 />
               )}

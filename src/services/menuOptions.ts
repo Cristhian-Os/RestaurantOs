@@ -120,5 +120,35 @@ export const lineNotes = (optsText: string, comment?: string) =>
 export const toggleIn = (list: string[] | undefined, x: string) =>
   (list ?? []).includes(x) ? (list ?? []).filter(v => v !== x) : [...(list ?? []), x]
 
+// Forma canónica de una selección para compararlas: ignora el orden en que se tocaron
+// los chips y los vacíos (un grupo sin sabores = grupo ausente).
+function canon(v: unknown): unknown {
+  if (Array.isArray(v)) { const a = v.map(canon).filter(x => x !== undefined); return a.length ? a.sort() : undefined }
+  if (v && typeof v === 'object') {
+    const o: Record<string, unknown> = {}
+    for (const k of Object.keys(v as Record<string, unknown>).sort()) {
+      const c = canon((v as Record<string, unknown>)[k])
+      if (c !== undefined) o[k] = c
+    }
+    return Object.keys(o).length ? o : undefined
+  }
+  if (typeof v === 'string') { const t = v.trim(); return t === '' ? undefined : t }
+  return v ?? undefined
+}
+
+// Cada unidad de un producto se elige por separado (dos cholaos pueden llevar sabores y
+// toppings distintos). Al enviar, las unidades con exactamente la misma selección se
+// juntan en una línea con cantidad; las distintas quedan como líneas aparte.
+export function groupUnits(units: ItemSel[]): { sel: ItemSel; qty: number }[] {
+  const groups = new Map<string, { sel: ItemSel; qty: number }>()
+  for (const sel of units) {
+    const key = JSON.stringify(canon(sel) ?? {})
+    const g = groups.get(key)
+    if (g) g.qty += 1
+    else groups.set(key, { sel, qty: 1 })
+  }
+  return [...groups.values()]
+}
+
 // Fecha de hoy en Colombia (YYYY-MM-DD), igual que hoy_local() en la base.
 export const hoyBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })

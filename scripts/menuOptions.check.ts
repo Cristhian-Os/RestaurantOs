@@ -2,7 +2,7 @@
 //   node --experimental-strip-types scripts/menuOptions.check.ts
 import assert from 'node:assert/strict'
 import type { Dish } from '../src/types'
-import { orderCategories, unitPriceFor, selIsValid, describeSel, visibleOptions, parseMenuConfig } from '../src/services/menuOptions.ts'
+import { groupUnits, orderCategories, unitPriceFor, selIsValid, describeSel, visibleOptions, parseMenuConfig } from '../src/services/menuOptions.ts'
 
 // Orden de categorías: el de la config; las no configuradas al final, en su orden.
 assert.deepEqual(
@@ -39,5 +39,26 @@ assert.equal(
 assert.deepEqual(visibleOptions(['Oreo', 'Fresa', 'Vainilla'], ['Oreo', 'Fresa'], ['Fresa']), ['Fresa', 'Vainilla'])
 
 assert.deepEqual(parseMenuConfig({ helado_flavors: ['Oreo', '', 3], toppings_off: ['Limón'] }).heladoFlavors, ['Oreo'])
+
+// Unidades por separado: iguales se juntan, distintas quedan aparte (en orden)
+{
+  const A = { size: 'Grande', helado: { '0': ['Oreo'] }, toppings: ['Limón', 'Sal'] }
+  const A2 = { size: 'Grande', helado: { '0': ['Oreo'] }, toppings: ['Sal', 'Limón'] }   // mismo, distinto orden de toque
+  const B = { size: 'Grande', helado: { '0': ['Fresa'] }, toppings: ['Limón', 'Sal'] }  // otro sabor
+  assert.deepEqual(groupUnits([A, A2]).map(g => g.qty), [2])
+  assert.deepEqual(groupUnits([A, B]).map(g => g.qty), [1, 1])
+  assert.deepEqual(groupUnits([A, B, A2]).map(g => g.qty), [2, 1])        // A y A2 se juntan; B conserva su lugar
+  assert.equal(groupUnits([A, B, A2])[1].sel, B)
+  // un grupo vacío equivale a no haberlo tocado
+  assert.deepEqual(groupUnits([{ size: 'Grande' }, { size: 'Grande', helado: { '0': [] }, toppings: [] }]).map(g => g.qty), [2])
+  // el comentario distingue unidades (espacios sobrantes no)
+  assert.deepEqual(groupUnits([{ comment: 'sin azúcar' }, { comment: ' sin azúcar ' }, { comment: 'poco hielo' }]).map(g => g.qty), [2, 1])
+  assert.deepEqual(groupUnits([{ comment: '' }, {}]).map(g => g.qty), [2])
+  // distinto tamaño o distintos extras/cambios = unidades distintas
+  assert.equal(groupUnits([{ size: 'Grande' }, { size: 'Pequeño' }]).length, 2)
+  assert.equal(groupUnits([{ extras: ['Queso'] }, {}]).length, 2)
+  assert.equal(groupUnits([{ swaps: ['i1'] }, {}]).length, 2)
+  assert.deepEqual(groupUnits([]), [])
+}
 
 console.log('menuOptions OK')
