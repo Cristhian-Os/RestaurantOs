@@ -1,9 +1,10 @@
 import { supabase } from './supabaseClient'
 import message from 'antd/es/message'
 
-// Clave VAPID pública (segura de exponer, igual que la anon key).
-// La privada vive como secret en la Edge Function `send-push`.
-const VAPID_PUBLIC_KEY = 'BGY-1TXDcSOVLs_Ll7sT5c9sTnSuuGz_3H-rFZL8zOc9QCVdzgtryAUldNeM8LAqM8mmxIDJwW2wVo23EFeRXjs'
+// La clave VAPID pública la entrega la Edge Function `send-push` (la pareja privada vive solo
+// en la base, tabla platform_secrets). No va escrita en el código: si algún día se rota, los
+// dispositivos se vuelven a suscribir solos con la nueva.
+const KEY_MARKER = 'ros_push_vapid'
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -21,6 +22,38 @@ function bufToBase64url(buf: ArrayBuffer | null): string {
   let bin = ''
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
   return window.btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/** Pide a `send-push` la clave pública vigente. null si no se pudo (sin red, sin sesión…). */
+async function fetchServerKey(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push', { body: { action: 'public_key' } })
+    const key = (data as { publicKey?: string } | null)?.publicKey
+    return !error && typeof key === 'string' && key.length > 20 ? key : null
+  } catch {
+    return null
+  }
+}
+
+function sameBytes(a: ArrayBuffer, b: Uint8Array): boolean {
+  const x = new Uint8Array(a)
+  if (x.length !== b.length) return false
+  for (let i = 0; i < x.length; i++) if (x[i] !== b[i]) return false
+  return true
+}
+
+function readMarker(): string | null {
+  try { return localStorage.getItem(KEY_MARKER) } catch { return null }
+}
+function writeMarker(key: string): void {
+  try { localStorage.setItem(KEY_MARKER, key) } catch { /* modo privado: no crítico */ }
+}
+
+/** ¿La suscripción existente fue creada con la clave que el servidor usa hoy? */
+function matchesServerKey(sub: PushSubscription, serverKey: string): boolean {
+  const current = sub.options?.applicationServerKey
+  // Algunos navegadores no exponen la clave de la suscripción: ahí nos guiamos por la marca guardada.
+  return current ? sameBytes(current, urlBase64ToUint8Array(serverKey)) : readMarker() === serverKey
 }
 
 export type PushTarget = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
@@ -48,13 +81,25 @@ export const pushNotificationService = {
       if (Notification.permission !== 'granted') return null
 
       const registration = await navigator.serviceWorker.ready
+      const serverKey = await fetchServerKey()
       let subscription = await registration.pushManager.getSubscription()
+      let replacedEndpoint: string | null = null
+
+      if (subscription && serverKey && !matchesServerKey(subscription, serverKey)) {
+        // Suscripción hecha con una clave vieja: el servidor ya no puede enviarle nada. Se cambia por una nueva.
+        replacedEndpoint = subscription.endpoint
+        await subscription.unsubscribe()
+        subscription = null
+      }
       if (!subscription) {
+        // Sin la clave del servidor no se puede crear una suscripción válida: se reintenta en la próxima carga.
+        if (!serverKey) return null
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+          applicationServerKey: urlBase64ToUint8Array(serverKey) as BufferSource,
         })
       }
+      if (serverKey) writeMarker(serverKey)
 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return null
@@ -67,6 +112,11 @@ export const pushNotificationService = {
         auth:     bufToBase64url(subscription.getKey('auth')),
       }, { onConflict: 'endpoint' })
       if (error) throw error
+
+      if (replacedEndpoint && replacedEndpoint !== subscription.endpoint) {
+        // La fila de la suscripción vieja ya no sirve (RLS: solo puede borrar las suyas).
+        await supabase.from('push_subscriptions').delete().eq('endpoint', replacedEndpoint)
+      }
 
       return subscription.endpoint
     } catch (error) {

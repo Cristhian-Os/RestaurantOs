@@ -19,6 +19,14 @@ const arr = (props: Record<string, unknown>, required: string[]) => ({
   type: 'ARRAY', items: { type: 'OBJECT', properties: props, required },
 })
 const obj = (props: Record<string, unknown>, required: string[]) => ({ type: 'OBJECT', properties: props, required })
+// Una variante por tipo de acción: Gemini solo ve los campos que ese tipo usa. Con un solo objeto
+// plano de 30 campos mezclaba los campos entre acciones y soltaba los obligatorios (p. ej. la compra sin productos).
+const variant = (type: string, props: Record<string, unknown>, required: string[] = []) => ({
+  type: 'OBJECT',
+  properties: { type: { type: 'STRING', enum: [type] }, ...props },
+  required: ['type', ...required],
+  propertyOrdering: ['type', ...Object.keys(props)],
+})
 
 const PESOS = 'Los precios están en pesos colombianos: "14 mil" = 14000, "dos mil quinientos" = 2500.'
 
@@ -97,23 +105,37 @@ Tipos de acción ("type") y los campos que usa cada uno:
 - purchase_add: compra a un proveedor donde SÍ dicen productos con cantidad y precio; suma al inventario. Campos: proveedor (nombre del proveedor, igual a uno de context.suppliers si alguno encaja), lineas (nombre del ingrediente, cantidad, unidad TAL COMO SE DIJO sin convertir, precio_unitario = precio por UNA unidad de la unidad dicha; si solo dicen el total de la línea, divídelo entre la cantidad). Si solo dicen un monto sin productos, usa expense_add, no purchase_add.
 - supplier_add: agregar un proveedor nuevo a la lista de proveedores (quién le vende al negocio y cómo contactarlo). Campos: proveedor (nombre), telefono (solo dígitos, "" si no lo dicen), email (en minúsculas con "@", "" si no lo dicen; "arroba" = @, "punto" = .), producto (qué vende, "" si no lo dicen), notas (otras formas de contacto o datos útiles: WhatsApp si es otro número, persona de contacto, dirección, horario de pedidos; "" si no hay).
 - supplier_update: cambiar o completar los datos de un proveedor que YA existe en context.suppliers ("el teléfono de Frutas Pérez es…", "agrégale el correo…"). Campos: proveedor (igual a uno de context.suppliers), y SOLO los que se dijeron entre telefono, email, producto, notas.
-Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la lista correspondiente del context cuando alguno encaje; si ninguno encaja, déjalo tal como se dijo. No inventes valores que no se dijeron: omite el campo. Si lo dicho no es ninguna de estas acciones, devuelve la lista vacía.`,
+Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la lista correspondiente del context cuando alguno encaje; si ninguno encaja, déjalo tal como se dijo. No inventes valores que no se dijeron: omite el campo. Cada acción lleva SOLO los campos de su tipo. Una misma cosa dicha es UNA sola acción: no la repitas. Si lo dicho no es ninguna de estas acciones, devuelve la lista vacía.`,
     schema: obj({
       transcript: S,
-      actions: arr({
-        type: { type: 'STRING', enum: [
-          'dish_price', 'dish_availability', 'ingredient_stock', 'task_create',
-          'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add', 'supplier_add', 'supplier_update',
-        ] },
-        dish: S, size: S, price: N, available: { type: 'BOOLEAN' },
-        ingredient: S, mode: { type: 'STRING', enum: ['set', 'add', 'subtract'] }, quantity: N,
-        title: S, description: S, assignee: S,
-        priority: { type: 'STRING', enum: ['low', 'medium', 'high', 'urgent'] }, due_date: S,
-        employee: S, date: S, start: S, end: S, notes: S,
-        lineas: arr({ nombre: S, cantidad: N, unidad: S, precio_unitario: N }, ['nombre', 'cantidad']),
-        concepto: S, proveedor: S, telefono: S, producto: S, email: S, notas: S, monto: N, categoria: { type: 'STRING', enum: ['proveedor', 'otro'] },
-        mesa: N, estado: { type: 'STRING', enum: ['libre', 'ocupada', 'reservada', 'cuenta'] }, capacidad: N,
-      }, ['type']),
+      actions: {
+        type: 'ARRAY',
+        items: {
+          anyOf: [
+            variant('dish_price', { dish: S, size: S, price: N }, ['dish', 'price']),
+            variant('dish_availability', { dish: S, available: { type: 'BOOLEAN' } }, ['dish', 'available']),
+            variant('ingredient_stock', { ingredient: S, mode: { type: 'STRING', enum: ['set', 'add', 'subtract'] }, quantity: N }, ['ingredient', 'mode', 'quantity']),
+            variant('task_create', { title: S, description: S, assignee: S, priority: { type: 'STRING', enum: ['low', 'medium', 'high', 'urgent'] }, due_date: S }, ['title']),
+            variant('shift_set', { employee: S, date: S, start: S, end: S, notes: S }, ['employee', 'date', 'start', 'end']),
+            variant('shift_delete', { employee: S, date: S }, ['employee', 'date']),
+            variant('table_status', { mesa: N, estado: { type: 'STRING', enum: ['libre', 'ocupada', 'reservada', 'cuenta'] } }, ['mesa', 'estado']),
+            variant('table_capacity', { mesa: N, capacidad: N }, ['mesa', 'capacidad']),
+            variant('recipe_set', {
+              dish: S, mode: { type: 'STRING', enum: ['add', 'set'] },
+              lineas: arr({ nombre: S, cantidad: N, unidad: S }, ['nombre', 'cantidad']),
+            }, ['dish', 'lineas']),
+            variant('expense_add', {
+              concepto: S, monto: N, categoria: { type: 'STRING', enum: ['proveedor', 'otro'] }, proveedor: S,
+            }, ['concepto', 'monto', 'categoria']),
+            variant('purchase_add', {
+              proveedor: S,
+              lineas: arr({ nombre: S, cantidad: N, unidad: S, precio_unitario: N }, ['nombre', 'cantidad', 'unidad', 'precio_unitario']),
+            }, ['proveedor', 'lineas']),
+            variant('supplier_add', { proveedor: S, telefono: S, email: S, producto: S, notas: S }, ['proveedor']),
+            variant('supplier_update', { proveedor: S, telefono: S, email: S, producto: S, notas: S }, ['proveedor']),
+          ],
+        },
+      },
     }, ['transcript', 'actions']),
   },
   task: {
@@ -124,6 +146,71 @@ Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la
       priority: { type: 'STRING', enum: ['low', 'medium', 'high', 'urgent'] }, due_date: S,
     }, ['transcript', 'title']),
   },
+}
+
+const GEMINI_URL = (key: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`
+const MAX_WAIT_MS = 25_000 // lo máximo que esperamos si Gemini pide reintentar (límite por minuto)
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+interface GeminiReply { status: number; data: { error?: { details?: { retryDelay?: string }[] }; candidates?: { content?: { parts?: { text?: string }[] } }[] } }
+
+async function callGemini(key: string, body: unknown): Promise<GeminiReply> {
+  try {
+    const resp = await fetch(GEMINI_URL(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const data = await resp.json().catch(() => ({}))
+    return { status: resp.status, data }
+  } catch {
+    return { status: 0, data: {} } // sin conexión con Gemini: se trata como error pasajero
+  }
+}
+
+/** "19s" / "19.6s" → milisegundos (0 si Gemini no dice cuánto esperar). */
+function retryDelayMs(r: GeminiReply): number {
+  const raw = r.data?.error?.details?.map(d => d.retryDelay).find(Boolean) ?? ''
+  const secs = parseFloat(raw)
+  return Number.isFinite(secs) ? Math.ceil(secs * 1000) : 0
+}
+
+/**
+ * Pide la respuesta a Gemini con el esquema. Redes de seguridad:
+ *  - 400 (Gemini no acepta el esquema o algún parámetro): reintenta sin `responseSchema`, describiendo el JSON en el prompt.
+ *  - 429 (límite por minuto): espera lo que Gemini pide (si es poco) y reintenta una vez.
+ *  - 503 / 5xx / sin conexión ("el modelo tiene mucha demanda"): hasta 2 reintentos con espera corta.
+ */
+async function askGemini(key: string, text: string, audio: { mimeType: string; data: string }, schema: unknown): Promise<GeminiReply> {
+  const build = (withSchema: boolean) => ({
+    contents: [{ role: 'user', parts: [
+      { text: withSchema ? text : `${text}\nResponde SOLO con un JSON que cumpla exactamente este esquema (tipos OpenAPI de Gemini): ${JSON.stringify(schema)}` },
+      { inlineData: audio },
+    ] }],
+    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', ...(withSchema ? { responseSchema: schema } : {}) },
+  })
+
+  let withSchema = true
+  let reply = await callGemini(key, build(withSchema))
+  if (reply.status === 400) {
+    console.error('Gemini rechazó el esquema, reintento sin esquema', JSON.stringify(reply.data).slice(0, 500))
+    withSchema = false
+    reply = await callGemini(key, build(withSchema))
+  }
+
+  let waitedForQuota = false
+  for (const pauseMs of [2000, 4000]) {
+    if (reply.status === 429) {
+      const wait = retryDelayMs(reply)
+      if (waitedForQuota || wait <= 0 || wait > MAX_WAIT_MS) break
+      waitedForQuota = true
+      await sleep(wait + 500)
+    } else if (reply.status === 0 || reply.status >= 500) {
+      await sleep(pauseMs)
+    } else {
+      break
+    }
+    reply = await callGemini(key, build(withSchema))
+  }
+  return reply
 }
 
 Deno.serve(async (req: Request) => {
@@ -155,25 +242,31 @@ Deno.serve(async (req: Request) => {
 
     // Los comandos llevan menú + inventario + equipo + mesas, así que necesitan más espacio.
     const ctx = JSON.stringify(context).slice(0, kind === 'command' ? 20000 : 8000)
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${secret.value}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [
-            { text: `${cfg.prompt}\nResponde solo con el JSON pedido. No inventes datos que no se dijeron.\ncontext: ${ctx}` },
-            { inlineData: { mimeType: mime, data: audio } },
-          ] }],
-          generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: cfg.schema },
-        }),
-      },
+    const reply = await askGemini(
+      secret.value,
+      `${cfg.prompt}\nResponde solo con el JSON pedido. No inventes datos que no se dijeron.\ncontext: ${ctx}`,
+      { mimeType: mime, data: audio },
+      cfg.schema,
     )
-    const data = await resp.json()
-    if (!resp.ok) {
-      console.error('Gemini error', JSON.stringify(data))
+    if (reply.status === 429) {
+      console.error('Gemini 429', JSON.stringify(reply.data).slice(0, 500))
+      const asked = Math.ceil(retryDelayMs(reply) / 1000)
+      const secs = asked > 0 ? asked : 30
+      return json({
+        error: secs > 120
+          ? 'Se llegó al límite de uso del servicio de voz por ahora. Intenta más tarde.'
+          : `El servicio de voz está muy ocupado. Espera ${secs} segundos e intenta de nuevo.`,
+      }, 429)
+    }
+    if (reply.status === 0 || reply.status >= 500) {
+      console.error('Gemini no disponible', reply.status, JSON.stringify(reply.data).slice(0, 500))
+      return json({ error: 'El servicio de voz está saturado en este momento. Intenta de nuevo en unos segundos.' }, 503)
+    }
+    if (reply.status < 200 || reply.status >= 300) {
+      console.error('Gemini error', reply.status, JSON.stringify(reply.data).slice(0, 800))
       return json({ error: 'No pude procesar el audio. Intenta de nuevo.' }, 502)
     }
+    const data = reply.data
     const text = (data?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('')
     try {
       return json({ result: JSON.parse(text) })
