@@ -1,3 +1,7 @@
+-- ⚠ ESTADO: NO APLICADA en producción (la aplicación quedó pendiente de decisión del dueño).
+-- Mientras no se aplique, la base sigue permitiendo que el cajero escriba en `proveedores`;
+-- la app solo se lo oculta en pantalla y por voz. Para revertir tras aplicarla:
+--   recrear la política "Admin y cajero gestionan proveedores" FOR ALL con rol admin o cashier.
 -- Proveedores: admin y cajero pueden VER la lista (el cajero la necesita para registrar
 -- compras y gastos), pero solo el admin puede crear, editar o borrar.
 -- Antes una sola política "ALL" dejaba escribir también al cajero.
