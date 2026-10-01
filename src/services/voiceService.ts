@@ -6,7 +6,7 @@
  */
 import { supabase } from './supabaseClient'
 
-export type VoiceKind = 'transcribe' | 'menu' | 'topping' | 'recipe' | 'ingredient' | 'purchase' | 'task'
+export type VoiceKind = 'transcribe' | 'menu' | 'topping' | 'recipe' | 'ingredient' | 'purchase' | 'task' | 'command'
 
 export const MAX_RECORD_SECONDS = 90
 const TARGET_RATE = 16000

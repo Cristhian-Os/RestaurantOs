@@ -78,6 +78,35 @@ Si un plato se vende por tamaños, llena "sizes" (nombre y precio de cada uno) y
       items: arr({ nombre_producto: S, cantidad: N, unidad: S, precio_unitario: N }, ['nombre_producto', 'cantidad', 'precio_unitario']),
     }, ['transcript', 'items']),
   },
+  command: {
+    roles: ['admin'],
+    prompt: `El administrador de un restaurante da órdenes de voz para CAMBIAR datos que ya existen. Devuelve una acción por cada cambio pedido, en el orden dicho. ${PESOS}
+Tipos de acción ("type") y los campos que usa cada uno:
+- dish_price: cambiar el precio de un plato. Campos: dish, price, y size SOLO si el plato se vende por tamaños (context.dishes[].sizes no vacío) y dijeron cuál.
+- dish_availability: marcar un plato disponible o agotado ("se acabó el cholao" = available false). Campos: dish, available.
+- ingredient_stock: cambiar el inventario de un ingrediente. Campos: ingredient, mode ("set" = dejar en esa cantidad, "add" = sumar, "subtract" = restar), quantity. "Se acabó la fresa" = set con quantity 0. Expresa quantity en la unidad del ingrediente (context.ingredients[].unit): si dicen gramos y la unidad es kg, convierte.
+- task_create: crear una tarea. Campos: title, description, assignee, priority (low, medium, high, urgent; medium por defecto), due_date (YYYY-MM-DD calculado con context.today, "" si no hay fecha).
+- shift_set: asignar o cambiar el turno de un empleado. Campos: employee, date (YYYY-MM-DD calculado con context.today y context.weekday; "el lunes" es el próximo lunes), start y end en formato 24 h HH:MM ("de ocho a cinco" = 08:00 y 17:00), notes opcional.
+- shift_delete: quitar el turno de un empleado un día. Campos: employee, date.
+- table_status: cambiar el estado de una mesa. Campos: mesa (número), estado (libre, ocupada, reservada o cuenta).
+- table_capacity: cambiar cuántas personas caben en una mesa. Campos: mesa (número), capacidad.
+Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la lista correspondiente del context cuando alguno encaje; si ninguno encaja, déjalo tal como se dijo. No inventes valores que no se dijeron: omite el campo. Si lo dicho no es ninguna de estas acciones, devuelve la lista vacía.`,
+    schema: obj({
+      transcript: S,
+      actions: arr({
+        type: { type: 'STRING', enum: [
+          'dish_price', 'dish_availability', 'ingredient_stock', 'task_create',
+          'shift_set', 'shift_delete', 'table_status', 'table_capacity',
+        ] },
+        dish: S, size: S, price: N, available: { type: 'BOOLEAN' },
+        ingredient: S, mode: { type: 'STRING', enum: ['set', 'add', 'subtract'] }, quantity: N,
+        title: S, description: S, assignee: S,
+        priority: { type: 'STRING', enum: ['low', 'medium', 'high', 'urgent'] }, due_date: S,
+        employee: S, date: S, start: S, end: S, notes: S,
+        mesa: N, estado: { type: 'STRING', enum: ['libre', 'ocupada', 'reservada', 'cuenta'] }, capacidad: N,
+      }, ['type']),
+    }, ['transcript', 'actions']),
+  },
   task: {
     roles: ['admin'],
     prompt: `El administrador asigna una tarea a un empleado. "assignee_name": el nombre exacto de context.employees que mejor coincida ("" si no se menciona). "priority": low, medium, high o urgent (medium por defecto). "due_date": formato YYYY-MM-DD calculado con context.today ("" si no hay fecha).`,
@@ -115,7 +144,8 @@ Deno.serve(async (req: Request) => {
     const { data: secret } = await supabase.from('platform_secrets').select('value').eq('key', 'gemini_api_key').single()
     if (!secret?.value) return json({ error: 'Config faltante' }, 500)
 
-    const ctx = JSON.stringify(context).slice(0, 8000)
+    // Los comandos llevan menú + inventario + equipo + mesas, así que necesitan más espacio.
+    const ctx = JSON.stringify(context).slice(0, kind === 'command' ? 20000 : 8000)
     const resp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${secret.value}`,
       {
