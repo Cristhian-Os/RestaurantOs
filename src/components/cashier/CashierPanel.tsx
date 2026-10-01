@@ -17,6 +17,7 @@ import { hoyBogota } from '../../services/menuOptions'
 import { VoiceButton } from '../VoiceButton'
 import { matchName } from '../../services/voiceMatch'
 import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
+import { SalesHistory } from './SalesHistory'
 import message from 'antd/es/message'
 import type { Profile } from '../../pages/Dashboard'
 
@@ -167,6 +168,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [savingBase,    setSavingBase]    = useState(false)
   const [corteMensual,  setCorteMensual]  = useState<CorteMensual | null>(null)
   const [loadingMensual,setLoadingMensual]= useState(false)
+  const [showHistory,  setShowHistory]  = useState(false)
 
   const fetchData = useCallback(async () => {
     const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
@@ -978,6 +980,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
       {/* Corte de caja: diario y mensual */}
       <div className="pt-4 border-t border-[#D1D5E0] grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Para revisar qué se vendió y para quién ANTES de hacer el corte */}
+        <button
+          onClick={() => setShowHistory(true)}
+          className="w-full sm:col-span-2 py-3.5 rounded-2xl font-bold text-sm text-[#2D3561]"
+          style={S.neoOut}
+        >
+          Historial de ventas de hoy · qué se vendió y para quién
+        </button>
         <button
           onClick={handleCorte}
           disabled={cortingLoading || daySummary.total_ordenes === 0}
@@ -995,6 +1005,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           {loadingMensual ? 'Calculando...' : 'Corte mensual · ventas del mes'}
         </button>
       </div>
+
+      <AnimatePresence>
+        {showHistory && <SalesHistory onClose={() => setShowHistory(false)} />}
+      </AnimatePresence>
 
       {/* ── Modal cobro ── */}
       <AnimatePresence>
