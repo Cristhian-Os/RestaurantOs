@@ -264,4 +264,61 @@ assert.equal(convertQty(2, 'cucharadas', 'kg').ok, false)
   assert.match(p.problem!, /Leche: No puedo pasar "gramos" a litro/)
 }
 
+// ── Gastos y compras a proveedor ──
+{ // gasto simple
+  const p = one({ type: 'expense_add', concepto: 'Gas', monto: 50000, categoria: 'otro' })
+  assert.equal(p.title, 'Gasto: Gas'); assert.equal(p.detail, '$50.000')
+  assert.deepEqual(p.change, { op: 'expense_add', concepto: 'Gas', monto: 50000, categoria: null, registradoPor: 'admin1' })
+}
+{ // pago a proveedor sin productos: categoría proveedor (igual que las compras)
+  const p = one({ type: 'expense_add', concepto: 'Pago a Coca-Cola', monto: 120000, categoria: 'proveedor' })
+  assert.equal((p.change as { categoria: string }).categoria, 'proveedor')
+  assert.match(p.detail, /pago a proveedor/)
+}
+assert.match(one({ type: 'expense_add', concepto: 'Gas' }).problem!, /monto/)
+assert.match(one({ type: 'expense_add', concepto: 'Gas', monto: 0 }).problem!, /monto/)
+assert.match(one({ type: 'expense_add', concepto: 'Gas', monto: -5 }).problem!, /monto/)
+assert.match(one({ type: 'expense_add', monto: 5000 }).problem!, /en qué fue/)
+assert.match(one({ type: 'expense_add', concepto: 'Gas', monto: 5e12 }).problem!, /demasiado grande/)
+{ // compra: suma stock y calcula total
+  const p = one({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [
+    { nombre: 'fresas', cantidad: 2, unidad: 'kg', precio_unitario: 8000 },
+    { nombre: 'Servilletas', cantidad: 5, unidad: 'paquete', precio_unitario: 2000 },
+  ] })
+  const c = p.change as { op: string; concepto: string; items: { ingrediente_id: string | null; cantidad: number; precio_unitario: number }[] }
+  assert.equal(c.op, 'purchase_add'); assert.equal(c.concepto, 'Frutas Pérez')
+  assert.equal(c.items[0].ingrediente_id, 'i1'); assert.equal(c.items[1].ingrediente_id, null)
+  assert.match(p.detail, /Total \$26\.000/)
+  assert.match(p.detail, /1 sin inventario/)
+}
+{ // gramos → kg: la cantidad baja y el precio sube, el total de la línea es el mismo
+  const p = one({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Fresa', cantidad: 2000, unidad: 'gramos', precio_unitario: 8 }] })
+  const it = (p.change as { items: { cantidad: number; precio_unitario: number; unidad: string }[] }).items[0]
+  assert.equal(it.cantidad, 2); assert.equal(it.precio_unitario, 8000); assert.equal(it.unidad, 'kg')
+  assert.match(p.detail, /Total \$16\.000/); assert.match(p.detail, /Convertido: Fresa: 2000 gramos = 2 kg/)
+}
+{ // kg → gramo (inventario en gramos)
+  const p = one({ type: 'purchase_add', concepto: 'Dulces SA', lineas: [{ nombre: 'Azúcar', cantidad: 2, unidad: 'kilos', precio_unitario: 4000 }] })
+  const it = (p.change as { items: { cantidad: number; precio_unitario: number }[] }).items[0]
+  assert.equal(it.cantidad, 2000); assert.equal(it.precio_unitario, 4)
+}
+{ // la compra sube el stock simulado: un comando siguiente parte de ahí
+  const ps = buildProposals([
+    { type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Fresa', cantidad: 3, unidad: 'kg', precio_unitario: 8000 }] },
+    { type: 'ingredient_stock', ingredient: 'Fresa', mode: 'add', quantity: 1 },
+  ], base(), 'a')
+  assert.match(ps[1].detail, /^8 → 9 kg/) // 5 + 3 de la compra → +1
+}
+assert.match(one({ type: 'purchase_add', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 1 }] }).problem!, /proveedor/)
+assert.match(one({ type: 'purchase_add', concepto: 'X Y' }).problem!, /productos/)
+assert.match(one({ type: 'purchase_add', concepto: 'X Y', lineas: [{ nombre: 'Fresa', cantidad: 1 }] }).problem!, /precio de "Fresa"/)
+assert.match(one({ type: 'purchase_add', concepto: 'X Y', lineas: [{ nombre: 'Fresa', precio_unitario: 5 }] }).problem!, /cantidad de "Fresa"/)
+assert.match(one({ type: 'purchase_add', concepto: 'X Y', lineas: [{ nombre: 'Leche', cantidad: 5, unidad: 'kg', precio_unitario: 5 }] }).problem!, /Leche: No puedo pasar/)
+{ // el cajero SÍ puede registrar gastos y compras (la base se lo permite)
+  const cash = (a: RawAction) => buildProposals([a], base(), 'cajero1', 'cashier')[0]
+  assert.equal(cash({ type: 'expense_add', concepto: 'Gas', monto: 1000 }).change?.op, 'expense_add')
+  assert.equal(cash({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 100 }] }).change?.op, 'purchase_add')
+  assert.equal((cash({ type: 'expense_add', concepto: 'Gas', monto: 1000 }).change as { registradoPor: string }).registradoPor, 'cajero1')
+}
+
 process.stdout.write('voiceCommands: todo OK\n')

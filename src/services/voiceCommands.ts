@@ -20,7 +20,8 @@ export interface RawAction {
   title?: string; description?: string; assignee?: string; priority?: string; due_date?: string
   employee?: string; date?: string; start?: string; end?: string; notes?: string
   mesa?: number; estado?: string; capacidad?: number
-  lineas?: { nombre?: string; cantidad?: number; unidad?: string }[]
+  lineas?: { nombre?: string; cantidad?: number; unidad?: string; precio_unitario?: number }[]
+  concepto?: string; monto?: number; categoria?: string
 }
 
 interface Size { nombre: string; precio: number }
@@ -32,6 +33,15 @@ export interface RecipeLine {
   unidad: string | null
   cantidad_necesaria: number
   ingrediente_id: string | null
+}
+
+/** Línea de una compra a proveedor tal como la recibe `registrar_compra_proveedor`. */
+export interface PurchaseLine {
+  ingrediente_id: string | null
+  nombre_producto: string
+  cantidad: number
+  unidad: string | null
+  precio_unitario: number
 }
 
 export interface CommandContext {
@@ -55,6 +65,8 @@ export type Change =
   | { op: 'table_status'; mesaId: string; estado: Estado }
   | { op: 'table_capacity'; mesaId: string; capacidad: number }
   | { op: 'recipe_save'; dishId: string; lines: RecipeLine[] }
+  | { op: 'expense_add'; concepto: string; monto: number; categoria: 'proveedor' | null; registradoPor: string }
+  | { op: 'purchase_add'; concepto: string; items: PurchaseLine[] }
 
 export interface Proposal {
   /** Posición de la acción cruda de la que salió (para poder quitarla). */
@@ -70,8 +82,8 @@ export type VoiceRole = 'admin' | 'cashier'
 
 /** Qué puede dictar cada rol. El cajero solo toca lo operativo; precios, tareas y turnos son del admin. */
 export const ALLOWED_ACTIONS: Record<VoiceRole, readonly string[]> = {
-  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set'],
-  cashier: ['dish_availability', 'ingredient_stock', 'table_status'],
+  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add'],
+  cashier: ['dish_availability', 'ingredient_stock', 'table_status', 'expense_add', 'purchase_add'],
 }
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent'
@@ -300,6 +312,67 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       if (notes.length > 0) parts.push('Convertido: ' + notes.join('; '))
       if (unlinked > 0) parts.push(`${unlinked} sin inventario: no descontará stock`)
       return { title, detail: parts.join(' · '), change: { op: 'recipe_save', dishId: d.id, lines } }
+    }
+
+    case 'expense_add': {
+      const concepto = (a.concepto ?? '').trim()
+      if (concepto.length < 3) return bad('Gasto nuevo', 'No entendí en qué fue el gasto (mínimo 3 letras).')
+      const title = `Gasto: ${concepto.slice(0, 120)}`
+      const monto = Number(a.monto)
+      if (!Number.isFinite(monto) || monto <= 0) return bad(title, 'No entendí el monto.')
+      if (monto > 1_000_000_000) return bad(title, 'El monto es demasiado grande: revisa que dijiste bien las cifras.')
+      const categoria = a.categoria === 'proveedor' ? 'proveedor' : null
+      return {
+        title, detail: `${money(monto)}${categoria ? ' · pago a proveedor' : ''}`,
+        change: { op: 'expense_add', concepto: concepto.slice(0, 200), monto: Math.round(monto), categoria, registradoPor: userId },
+      }
+    }
+
+    case 'purchase_add': {
+      const concepto = (a.concepto ?? '').trim()
+      if (concepto.length < 2) return bad('Compra a proveedor', 'Di a qué proveedor se le compró.')
+      const title = `Compra a ${concepto.slice(0, 120)}`
+      const spoken = a.lineas ?? []
+      if (spoken.length === 0) return bad(title, 'No entendí los productos de la compra.')
+      const items: PurchaseLine[] = []
+      const notes: string[] = []
+      for (const l of spoken) {
+        const name = (l.nombre ?? '').trim()
+        const qty = Number(l.cantidad), price = Number(l.precio_unitario)
+        if (!name) return bad(title, 'Un producto quedó sin nombre.')
+        if (!Number.isFinite(qty) || qty <= 0) return bad(title, `No entendí la cantidad de "${name}".`)
+        if (!Number.isFinite(price) || price < 0) return bad(title, `No entendí el precio de "${name}".`)
+        const ing = matchName(name, ctx.ingredients, x => x.nombre)
+        let amount = qty, unitPrice = price
+        if (ing) {
+          // El precio dictado es por la unidad dictada: al convertir la cantidad, el precio se ajusta
+          // en sentido contrario y el total de la línea no cambia.
+          const c = convertQty(1, l.unidad, ing.unidad_medida)
+          if (c.ok === false) return bad(title, `${ing.nombre}: ${c.reason}`)
+          if (c.converted) {
+            amount = Math.round(qty * c.qty * 1e6) / 1e6
+            unitPrice = Math.round((price / c.qty) * 1e6) / 1e6
+            notes.push(`${ing.nombre}: ${num6(qty)} ${(l.unidad ?? '').trim()} = ${num6(amount)} ${ing.unidad_medida}`)
+          }
+        }
+        items.push({
+          ingrediente_id: ing?.id ?? null,
+          nombre_producto: ing?.nombre ?? name,
+          cantidad: amount,
+          unidad: ing?.unidad_medida ?? ((l.unidad ?? '').trim() || null),
+          precio_unitario: unitPrice,
+        })
+        // Igual que la base: sube el stock y el costo del ingrediente (cuenta para órdenes siguientes).
+        if (ing) { ing.stock_actual = Math.round((Number(ing.stock_actual) + amount) * 1e6) / 1e6; ing.costo_unitario = unitPrice }
+      }
+      const total = items.reduce((t, i) => t + i.cantidad * i.precio_unitario, 0)
+      const show = (i: PurchaseLine) => `${i.nombre_producto} ${num6(i.cantidad)}${i.unidad ? ' ' + i.unidad : ''} × ${money(i.precio_unitario)}`
+      const unlinked = items.filter(i => !i.ingrediente_id).length
+      const parts = [items.map(show).join(' · '), `Total ${money(total)}`]
+      if (notes.length > 0) parts.push('Convertido: ' + notes.join('; '))
+      parts.push(unlinked === items.length ? 'Ningún producto está en inventario: no sumará stock' : 'Suma al inventario')
+      if (unlinked > 0 && unlinked < items.length) parts.push(`${unlinked} sin inventario: no sumará stock`)
+      return { title, detail: parts.join(' · '), change: { op: 'purchase_add', concepto: concepto.slice(0, 200), items } }
     }
 
     default:

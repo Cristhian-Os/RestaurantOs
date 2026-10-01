@@ -123,6 +123,17 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
       if ((data as number) < c.lines.length) throw new Error('La receta se guardó incompleta: revisa los ingredientes.')
       return
     }
+    case 'expense_add': {
+      // restaurant_id lo pone la base por defecto, igual que el formulario de gastos de la caja.
+      return expectRows(await supabase.from('gastos')
+        .insert({ concepto: c.concepto, monto: c.monto, categoria: c.categoria, registrado_por: c.registradoPor }).select('id'), 'Gasto')
+    }
+    case 'purchase_add': {
+      // Misma función que usa la caja: registra el gasto, sus productos y suma el stock, todo junto.
+      const { error } = await supabase.rpc('registrar_compra_proveedor', { p_concepto: c.concepto, p_items: c.items })
+      if (error) throw new Error(error.message)
+      return
+    }
     case 'table_capacity':
       return expectRows(await supabase.from('mesas').update({ capacidad: c.capacidad, updated_at: now }).eq('id', c.mesaId).select('id'), 'Mesa')
   }
