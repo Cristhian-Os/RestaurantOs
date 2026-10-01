@@ -118,8 +118,8 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
       {/* Items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)' }}>
         {order.items.map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <span style={{ minWidth: 22, height: 22, padding: '0 6px', borderRadius: '0.5rem', background: 'var(--w-terra)', color: '#fff', fontSize: '0.6875rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, fontFamily: 'var(--w-sans)' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ minWidth: 55, height: 55, padding: '0 15px', borderRadius: '1.25rem', background: 'var(--w-terra)', color: '#fff', fontSize: '1.71875rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'var(--w-sans)' }}>
               {item.quantity}
             </span>
             <div style={{ flex: 1 }}>
