@@ -9,6 +9,7 @@
  * quien está logueado. Este archivo es lógica pura, sin acceso a la base.
  */
 import { matchName } from './voiceMatch.ts'
+import { convertQty } from './voiceUnits.ts'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,7 @@ const ESTADOS: Estado[] = ['libre', 'ocupada', 'reservada', 'cuenta']
 
 export const money = (n: number) => '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 const num = (n: number) => String(Math.round(n * 1000) / 1000)
+const num6 = (n: number) => String(Math.round(n * 1e6) / 1e6)
 
 function normTime(s: string | undefined): string | null {
   const m = (s ?? '').trim().match(/^(\d{1,2}):(\d{2})$/)
@@ -248,17 +250,26 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       const spoken = a.lineas ?? []
       if (spoken.length === 0) return bad(title, 'No entendí los ingredientes de la receta.')
       const incoming: RecipeLine[] = []
+      const notes: string[] = []
       for (const l of spoken) {
         const name = (l.nombre ?? '').trim()
         const qty = Number(l.cantidad)
         if (!name) return bad(title, 'Un ingrediente quedó sin nombre.')
         if (!Number.isFinite(qty) || qty <= 0) return bad(title, `No entendí la cantidad de "${name}".`)
         const ing = matchName(name, ctx.ingredients, x => x.nombre)
+        let amount = qty
+        if (ing) {
+          // Dictó gramos y el inventario va en kg (o ml/litros): se convierte aquí, no con la IA.
+          const c = convertQty(qty, l.unidad, ing.unidad_medida)
+          if (c.ok === false) return bad(title, `${ing.nombre}: ${c.reason}`)
+          amount = c.qty
+          if (c.converted) notes.push(`${ing.nombre}: ${num6(qty)} ${(l.unidad ?? '').trim()} = ${num6(amount)} ${ing.unidad_medida}`)
+        }
         incoming.push({
           nombre: ing?.nombre ?? name,
           costo_unitario: ing ? Number(ing.costo_unitario) || 0 : 0,
           unidad: ing?.unidad_medida ?? ((l.unidad ?? '').trim() || null),
-          cantidad_necesaria: Math.round(qty * 1000) / 1000,
+          cantidad_necesaria: Math.round(amount * 1e6) / 1e6,
           ingrediente_id: ing?.id ?? null,
         })
       }
@@ -278,7 +289,7 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
         }
       }
       ctx.recipes[d.id] = lines
-      const show = (l: RecipeLine) => `${l.nombre} ${num(l.cantidad_necesaria)}${l.unidad ? ' ' + l.unidad : ''}`
+      const show = (l: RecipeLine) => `${l.nombre} ${num6(l.cantidad_necesaria)}${l.unidad ? ' ' + l.unidad : ''}`
       const unlinked = incoming.filter(l => !l.ingrediente_id).length
       const parts = [
         incoming.map(show).join(' · '),
@@ -286,6 +297,7 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
           ? (current.length > 0 ? `Reemplaza la receta actual (${current.length} ${current.length === 1 ? 'ingrediente' : 'ingredientes'})` : 'Receta nueva')
           : (current.length > 0 ? `Se suma a la receta actual (${current.length} ${current.length === 1 ? 'ingrediente' : 'ingredientes'})` : 'Receta nueva'),
       ]
+      if (notes.length > 0) parts.push('Convertido: ' + notes.join('; '))
       if (unlinked > 0) parts.push(`${unlinked} sin inventario: no descontará stock`)
       return { title, detail: parts.join(' · '), change: { op: 'recipe_save', dishId: d.id, lines } }
     }

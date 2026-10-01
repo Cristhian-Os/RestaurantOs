@@ -1,6 +1,7 @@
 // Chequeo rápido de voiceCommands (sin framework):
 //   node --experimental-strip-types scripts/voiceCommands.check.ts
 import assert from 'node:assert/strict'
+import { convertQty } from '../src/services/voiceUnits.ts'
 import { buildProposals, bogotaNow, money, toPromptContext, type CommandContext, type RawAction } from '../src/services/voiceCommands.ts'
 
 const base = (): CommandContext => ({
@@ -14,6 +15,9 @@ const base = (): CommandContext => ({
   ingredients: [
     { id: 'i1', nombre: 'Fresa', unidad_medida: 'kg', stock_actual: 5, costo_unitario: 8000 },
     { id: 'i2', nombre: 'Limón', unidad_medida: 'kg', stock_actual: 1, costo_unitario: 3000 },
+    { id: 'i3', nombre: 'Leche', unidad_medida: 'litro', stock_actual: 4, costo_unitario: 4000 },
+    { id: 'i4', nombre: 'Azúcar', unidad_medida: 'gramo', stock_actual: 9000, costo_unitario: 4 },
+    { id: 'i5', nombre: 'Oreo', unidad_medida: 'pieza', stock_actual: 30, costo_unitario: 500 },
   ],
   recipes: { d2: [{ nombre: 'Limón', costo_unitario: 3000, unidad: 'kg', cantidad_necesaria: 0.1, ingrediente_id: 'i2' }] },
   employees: [{ id: 'e1', full_name: 'Juan Pérez' }, { id: 'e2', full_name: 'María López' }],
@@ -199,7 +203,7 @@ assert.deepEqual(buildProposals([{ type: 'x' }, { type: 'table_status', mesa: 4,
   assert.match(p.detail, /Reemplaza la receta actual/)
 }
 { // plato sin receta + ingrediente que no está en inventario: avisa que no descuenta stock
-  const p = one({ type: 'recipe_set', dish: 'Cholao con helado', lineas: [{ nombre: 'Oreo', cantidad: 3, unidad: 'pieza' }] })
+  const p = one({ type: 'recipe_set', dish: 'Cholao con helado', lineas: [{ nombre: 'Sirope de chocolate', cantidad: 3, unidad: 'pieza' }] })
   assert.match(p.detail, /Receta nueva/)
   assert.match(p.detail, /1 sin inventario/)
   assert.equal((p.change as { lines: { ingrediente_id: string | null }[] }).lines[0].ingrediente_id, null)
@@ -219,6 +223,45 @@ assert.match(one({ type: 'recipe_set', dish: 'Limonada', lineas: [{ nombre: 'Fre
   const p = buildProposals([{ type: 'recipe_set', dish: 'Limonada', lineas: [{ nombre: 'Fresa', cantidad: 1 }] }], base(), 'c', 'cashier')[0]
   assert.equal(p.change, null)
   assert.match(p.problem!, /solo lo puede hacer el administrador/)
+}
+
+// ── Unidades ──
+assert.deepEqual(convertQty(200, 'gramos', 'kg'), { ok: true, qty: 0.2, converted: true })
+assert.deepEqual(convertQty(2, 'kilos', 'gramo'), { ok: true, qty: 2000, converted: true })
+assert.deepEqual(convertQty(250, 'mililitros', 'litro'), { ok: true, qty: 0.25, converted: true })
+assert.deepEqual(convertQty(1.5, 'litros', 'ml'), { ok: true, qty: 1500, converted: true })
+assert.deepEqual(convertQty(1, 'g', 'kg'), { ok: true, qty: 0.001, converted: true })
+assert.deepEqual(convertQty(0.5, 'g', 'kg'), { ok: true, qty: 0.0005, converted: true })
+assert.deepEqual(convertQty(3, 'kg', 'kg'), { ok: true, qty: 3, converted: false })
+assert.deepEqual(convertQty(3, '', 'kg'), { ok: true, qty: 3, converted: false })
+assert.deepEqual(convertQty(3, undefined, 'litro'), { ok: true, qty: 3, converted: false })
+assert.deepEqual(convertQty(2, 'piezas', 'pieza'), { ok: true, qty: 2, converted: false })
+assert.equal(convertQty(100, 'gramos', 'litro').ok, false)
+assert.equal(convertQty(100, 'gramos', 'pieza').ok, false)
+assert.equal(convertQty(2, 'piezas', 'kg').ok, false)
+assert.equal(convertQty(2, 'cucharadas', 'kg').ok, false)
+{ // en la receta: 200 g de fresa (kg) → 0.2 kg, y se avisa
+  const p = one({ type: 'recipe_set', dish: 'Cholao con helado', lineas: [{ nombre: 'Fresa', cantidad: 200, unidad: 'gramos' }] })
+  const l = (p.change as { lines: { cantidad_necesaria: number; unidad: string }[] }).lines[0]
+  assert.equal(l.cantidad_necesaria, 0.2); assert.equal(l.unidad, 'kg')
+  assert.match(p.detail, /Convertido: Fresa: 200 gramos = 0.2 kg/)
+}
+{ // litros ↔ ml y kg → gramo
+  const p = one({ type: 'recipe_set', dish: 'Cholao con helado', lineas: [
+    { nombre: 'Leche', cantidad: 250, unidad: 'ml' }, { nombre: 'Azúcar', cantidad: 0.5, unidad: 'kg' }, { nombre: 'Oreo', cantidad: 3, unidad: 'piezas' },
+  ] })
+  const ls = (p.change as { lines: { cantidad_necesaria: number; unidad: string }[] }).lines
+  assert.deepEqual(ls.map(x => [x.cantidad_necesaria, x.unidad]), [[0.25, 'litro'], [500, 'gramo'], [3, 'pieza']])
+}
+{ // sin unidad dictada se asume la del inventario
+  const p = one({ type: 'recipe_set', dish: 'Cholao con helado', lineas: [{ nombre: 'Fresa', cantidad: 0.3 }] })
+  assert.equal((p.change as { lines: { cantidad_necesaria: number }[] }).lines[0].cantidad_necesaria, 0.3)
+  assert.doesNotMatch(p.detail, /Convertido/)
+}
+{ // unidades incompatibles: no se guarda nada
+  const p = one({ type: 'recipe_set', dish: 'Cholao con helado', lineas: [{ nombre: 'Leche', cantidad: 100, unidad: 'gramos' }] })
+  assert.equal(p.change, null)
+  assert.match(p.problem!, /Leche: No puedo pasar "gramos" a litro/)
 }
 
 process.stdout.write('voiceCommands: todo OK\n')
