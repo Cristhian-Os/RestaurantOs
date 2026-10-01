@@ -898,7 +898,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   <div key={item.uid} className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-8xl font-bold leading-none text-[#FF5722]">
+                        <span className="min-w-[1.5rem] text-lg font-bold leading-none text-[#FF5722]">
                           {item.quantity}
                         </span>
                         <span className="text-sm font-medium text-[#2D3561]">{item.dish.name}</span>
