@@ -368,6 +368,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [barra, setBarra]             = useState(false) // pedido en el local sin mesa
   const [tipoPedido, setTipo]       = useState<TipoPedido>('LOCAL')
   const [customerName, setCustomerName] = useState('')
+  const nombreObligatorio = tipoPedido === 'LOCAL' // en el local (mesa o barra) el nombre identifica el pedido
   // Menú
   const [dishes, setDishes]         = useState<Dish[]>([])
   const [cart, setCart]             = useState<CartItem[]>([])
@@ -521,6 +522,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const handleSubmit = useCallback(async () => {
     if (cart.length === 0) { message.warning('Agrega al menos un plato'); return }
     if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) { message.warning('Selecciona una mesa o Barra'); return }
+    if (nombreObligatorio && !customerName.trim()) { message.warning('Escribe el nombre del comensal'); return }
 
     setSubmitting(true)
     try {
@@ -598,7 +600,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     } finally {
       setSubmitting(false)
     }
-  }, [cart, tipoPedido, selectedMesa, barra, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])
+  }, [cart, tipoPedido, selectedMesa, barra, nombreObligatorio, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])
 
   // ─── RENDER ───────────────────────────────────────────────
   return (
@@ -686,10 +688,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                       {mesas.map(mesa => (
                         <button key={mesa.id}
                           onClick={() => { setMesa(mesa); setBarra(false) }}
-                          className={`p-3 rounded-2xl text-center transition-all ${
-                            mesa.estado === 'ocupada' ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          disabled={mesa.estado === 'ocupada'}
+                          className="p-3 rounded-2xl text-center transition-all"
                           style={selectedMesa?.id === mesa.id
                             ? { background: 'var(--accent)', color: 'white', ...S.coral }
                             : mesa.estado === 'libre'
@@ -699,7 +698,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                           <div className="text-lg font-bold">{mesa.numero}</div>
                           <div className="text-[0.625rem] font-medium">
                             {mesa.estado === 'libre' ? `${mesa.capacidad}` :
-                             mesa.estado === 'ocupada' ? 'Ocupada' : ''}
+                             mesa.estado === 'ocupada' ? 'Ocupada · +pedido' : ''}
                           </div>
                         </button>
                       ))}
@@ -716,7 +715,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               {/* Nombre del comensal: además de la mesa, para identificar el pedido */}
               <div className="mt-5">
                 <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
-                  Nombre del comensal (opcional)
+                  Nombre del comensal {nombreObligatorio ? '(obligatorio)' : '(opcional)'}
                 </p>
                 <input
                   value={customerName}
@@ -734,6 +733,10 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               onClick={() => {
                 if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) {
                   message.warning('Selecciona una mesa o Barra')
+                  return
+                }
+                if (nombreObligatorio && !customerName.trim()) {
+                  message.warning('Escribe el nombre del comensal')
                   return
                 }
                 setStep('menu')
