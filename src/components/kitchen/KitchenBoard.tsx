@@ -3,6 +3,7 @@
  * Tablero de cocina (kanban) en tiempo real. Alto contraste para trabajo.
  * Lógica intacta: timer por orden, realtime, avance de estado.
  */
+import { destinoPedido } from '../../lib/destino'
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
@@ -18,6 +19,7 @@ interface Order {
   items:      OrderItem[]
   notes:      string | null
   status:     'pending' | 'cooking' | 'ready' | 'completed'
+  paid_at?:   string | null
   created_at: string
   user_id:    string | null
   order_number_today?: number | null
@@ -101,10 +103,14 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
           <p className="ed-display" style={{ fontWeight: 600, fontSize: '1.0625rem', margin: 0 }}>
-            {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+            {destinoPedido(order)}
             {order.customer_name ? ` · ${order.customer_name}` : ''}
           </p>
           <p style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>{orderRef(order)}</p>
+          <span style={{ display: 'inline-block', marginTop: 4, padding: '1px 8px', borderRadius: 999, fontSize: '0.6875rem', fontWeight: 700,
+            fontFamily: 'var(--w-sans)', background: order.paid_at ? 'var(--w-olive)' : 'var(--w-wine)', color: '#fff' }}>
+            {order.paid_at ? 'PAGADO' : 'SIN PAGAR'}
+          </span>
         </div>
         <div style={{ textAlign: 'right' }}>
           <p style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1.0625rem', margin: 0,
@@ -181,13 +187,12 @@ export const KitchenBoard = memo(() => {
   })
 
   const fetchOrders = useCallback(async () => {
-    // Ningún pedido llega a cocina sin estar pagado primero (Plan B) —
-    // el que aún no tiene paid_at está esperando cobro en Caja.
+    // Cocina ve el pedido apenas se crea, sin esperar el cobro en Caja;
+    // cada tarjeta avisa si ya está pagado o pendiente de pago (paid_at).
     const { data, error } = await supabase
       .from('orders')
       .select('*')
       .in('status', ['pending','cooking','ready'])
-      .not('paid_at', 'is', null)
       .order('created_at', { ascending: true })
     if (!error) {
       const parsed = (data || []).map(parseOrder)

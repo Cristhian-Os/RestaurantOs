@@ -9,6 +9,7 @@
  *
  * Reemplaza al OrderForm anterior.
  */
+import { BARRA_NOTE } from '../../lib/destino'
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
@@ -364,6 +365,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   // Mesa & tipo
   const [mesas, setMesas]           = useState<Mesa[]>([])
   const [selectedMesa, setMesa]     = useState<Mesa | null>(null)
+  const [barra, setBarra]             = useState(false) // pedido en el local sin mesa
   const [tipoPedido, setTipo]       = useState<TipoPedido>('LOCAL')
   const [customerName, setCustomerName] = useState('')
   // Menú
@@ -518,7 +520,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   // Enviar orden
   const handleSubmit = useCallback(async () => {
     if (cart.length === 0) { message.warning('Agrega al menos un plato'); return }
-    if (tipoPedido === 'LOCAL' && !selectedMesa) { message.warning('Selecciona una mesa'); return }
+    if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) { message.warning('Selecciona una mesa o Barra'); return }
 
     setSubmitting(true)
     try {
@@ -540,7 +542,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           p_mesa_id:        selectedMesa?.id ?? null,
           p_items:          items,
           p_tipo_pedido:    tipoPedido,
-          p_notes:          orderNotes || null,
+          p_notes:          (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || null,
           p_table_num:      selectedMesa?.numero ?? null,
           p_customer_name:  customerName.trim() || null,
         })
@@ -548,7 +550,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         // Número secuencial del día (lo asigna un trigger en la base); si aún no existe, sin número.
         const { data: num } = await supabase.from('orders').select('order_number_today').eq('id', data.order_id).maybeSingle()
         const ref = num?.order_number_today ? `#${num.order_number_today}` : ''
-        const dest = (selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : 'Mostrador') + (customerName.trim() ? ` · ${customerName.trim()}` : '')
+        const dest = (selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : barra ? BARRA_NOTE : 'Mostrador') + (customerName.trim() ? ` · ${customerName.trim()}` : '')
         if (tipoPedido === 'RAPPI') {
           // Rappi nace pagado: va directo a cocina, no pasa por cobro.
           message.success('Pedido Rappi enviado a cocina')
@@ -588,7 +590,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       // Reset
       setCart([])
       setStep('mesa')
-      setMesa(null)
+      setMesa(null); setBarra(false)
       setOrderNotes('')
       setCustomerName('')
     } catch (e) {
@@ -596,7 +598,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     } finally {
       setSubmitting(false)
     }
-  }, [cart, tipoPedido, selectedMesa, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])
+  }, [cart, tipoPedido, selectedMesa, barra, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])
 
   // ─── RENDER ───────────────────────────────────────────────
   return (
@@ -668,15 +670,22 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               {tipoPedido === 'LOCAL' && (
                 <div>
                   <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
-                    Selecciona una mesa
+                    Selecciona una mesa o Barra
                   </p>
                   {loadingMesas ? (
                     <div className="text-center py-4 text-[#9CA3AF] text-sm">Cargando mesas...</div>
                   ) : (
                     <div className="grid grid-cols-4 gap-2">
+                      <button onClick={() => { setMesa(null); setBarra(true) }}
+                        className="col-span-4 p-3 rounded-2xl text-center font-bold transition-all"
+                        style={barra && !selectedMesa
+                          ? { background: 'var(--accent)', color: 'white', ...S.coral }
+                          : { background: 'var(--bg)', color: 'var(--text-primary)', ...S.neoOutSm }}>
+                        Barra / sin mesa
+                      </button>
                       {mesas.map(mesa => (
                         <button key={mesa.id}
-                          onClick={() => setMesa(mesa)}
+                          onClick={() => { setMesa(mesa); setBarra(false) }}
                           className={`p-3 rounded-2xl text-center transition-all ${
                             mesa.estado === 'ocupada' ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
@@ -723,8 +732,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={() => {
-                if (tipoPedido === 'LOCAL' && !selectedMesa) {
-                  message.warning('Selecciona una mesa')
+                if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) {
+                  message.warning('Selecciona una mesa o Barra')
                   return
                 }
                 setStep('menu')
@@ -888,7 +897,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
               <h3 className="font-bold text-[#2D3561] mb-1">Resumen del pedido</h3>
               <p className="text-xs text-[#9CA3AF] mb-4">
-                {tipoPedido === 'LOCAL' && selectedMesa ? `Mesa ${selectedMesa.numero}` : tipoPedido}
+                {tipoPedido === 'LOCAL' && selectedMesa ? `Mesa ${selectedMesa.numero}` : tipoPedido === 'LOCAL' && barra ? BARRA_NOTE : tipoPedido}
                 {customerName.trim() && ` · ${customerName.trim()}`}
               </p>
 

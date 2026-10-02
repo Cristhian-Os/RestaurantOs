@@ -31,7 +31,7 @@ import { IngredientesManager } from '../components/inventory/IngredientesManager
 import { RecipeBuilder }     from '../components/recipes/RecipeBuilder'
 import BusinessAssistant     from './BusinessAssistant'
 import { InstallPWA }        from '../components/pwa/InstallPWA'
-import { QRMenu }            from '../components/pwa/QRMenu'
+import { QRPrintManager }    from '../components/pwa/QRPrintManager'
 import { WaiterNotifications } from '../components/orders/WaiterNotifications'
 import SupportChat            from '../components/SupportChat'
 import BrandingManager, { applyBranding } from '../components/branding/BrandingManager'
@@ -199,7 +199,7 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
         { key:'orders', label:'Nueva orden', children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
         { key:'tables', label:'Mesas',       children:<TableMap profile={profile} /> },
         { key:'tasks',  label:'Tareas',      children:<AdminTasksView profile={profile} /> },
-        { key:'qr',     label:'QR del Menú', children:<QRMenu /> },
+        { key:'qr',     label:'Imprimir QR', children:<QRPrintManager /> },
       ]} />
     </div>
   )

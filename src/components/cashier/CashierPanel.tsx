@@ -8,6 +8,7 @@
  *  • Resumen del día (sin Rappi: sus precios no son los del menú)
  *  • Corte de caja diario y mensual
  */
+import { destinoPedido } from '../../lib/destino'
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
@@ -729,7 +730,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="font-bold text-[#2D3561] text-lg">
-                      {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+                      {destinoPedido(order)}
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
@@ -810,7 +811,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="font-bold text-[#2D3561] text-lg">
-                      {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+                      {destinoPedido(order)}
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
@@ -887,7 +888,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="font-bold text-[#2D3561] text-lg">
-                      {order.table_num ? `Mesa ${order.table_num}` : order.tipo_pedido}
+                      {destinoPedido(order)}
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
@@ -1028,7 +1029,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div>
                   <p className="text-xs font-bold text-[#FF5722] uppercase tracking-wider">Cobrar orden</p>
                   <h3 className="font-bold text-[#2D3561] text-lg mt-0.5">
-                    {payingOrder.table_num ? `Mesa ${payingOrder.table_num}` : payingOrder.tipo_pedido}
+                    {destinoPedido(payingOrder)}
                     {payingOrder.customer_name && <span className="text-[#FF5722]"> · {payingOrder.customer_name}</span>}
                   </h3>
                 </div>

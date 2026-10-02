@@ -5,6 +5,7 @@
  * tarjetas editoriales sólidas para el contenido. Animaciones GPU.
  * Toda la lógica (datos, carrito, scrollspy, tracking, envío) intacta.
  */
+import { BARRA_NOTE } from '../lib/destino'
 import {
   useState, useEffect, useMemo, useCallback, useRef, memo,
 } from 'react'
@@ -1057,6 +1058,7 @@ export default function PublicMenu() {
   const [search,        setSearch]        = useState('')
   const [cart,          setCart]          = useState<CartItem[]>([])
   const [mesa,          setMesa]          = useState('')
+  const [barra,         setBarra]         = useState(false) // llegó por el QR de barra
   const [clientName,    setClientName]    = useState('')
   const [showCart,      setShowCart]      = useState(false)
   const [sent,          setSent]          = useState(false)
@@ -1097,6 +1099,7 @@ export default function PublicMenu() {
     const params = new URLSearchParams(window.location.search)
     const m = params.get('mesa')
     if (m) setMesa(m)
+    if (params.get('origen') === 'barra') setBarra(true)
   }, [])
 
   // ── nombre recordado (para no repetirlo al pedir / opinar) ──────
@@ -1310,7 +1313,7 @@ export default function PublicMenu() {
       const tableNum = mesa.trim() ? parseInt(mesa) : null
       const noteParts = [
         clientName.trim() ? `Cliente: ${clientName.trim()}` : null,
-        !mesa.trim() ? 'Pedido en mostrador / sin mesa' : null,
+        !mesa.trim() ? (barra ? BARRA_NOTE : 'Pedido en mostrador / sin mesa') : null,
       ].filter(Boolean)
       const { data: newOrderId, error } = await supabase.rpc('create_public_order', {
         p_restaurant_id:  restaurantId,
@@ -1349,7 +1352,7 @@ export default function PublicMenu() {
       )
       console.error('Error al enviar pedido:', e)
     } finally { setSending(false) }
-  }, [cart, mesa, clientName, canConfirm, restaurantId])
+  }, [cart, mesa, barra, clientName, canConfirm, restaurantId])
 
   // ── scrollspy ──────────────────────────────────────────────────
   useEffect(() => {
