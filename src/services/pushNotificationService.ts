@@ -135,6 +135,15 @@ export const pushNotificationService = {
     message[type]({ content: body, duration: 4 })
   },
 
+  // Aviso de un pedido del menú QR (cliente SIN sesión). Solo manda el id: el servidor lee el
+  // pedido y arma el texto y los destinatarios (cocina y admin de ese restaurante). Si falla, se
+  // ignora en silencio: el pedido ya está guardado y no debe verse afectado.
+  async notifyPublicOrder(orderId: string): Promise<void> {
+    try {
+      await supabase.functions.invoke('notify-order', { body: { order_id: orderId } })
+    } catch { /* sin aviso push, el pedido sigue válido */ }
+  },
+
   // Enviar push a todos los dispositivos de uno o varios roles, vía Edge Function.
   // Funciona aunque la app del destinatario esté cerrada.
   //

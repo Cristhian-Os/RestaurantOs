@@ -1332,14 +1332,9 @@ export default function PublicMenu() {
       setSent(true)
       setCart([])
       setShowCart(false)
-      // Avisar a cocina y admin (push, suena con la app cerrada) — SOLO a este restaurante
-      pushNotificationService.notify(
-        ['kitchen', 'admin'],
-        'Nuevo pedido',
-        tableNum ? `Mesa ${tableNum} hizo un pedido` : `${clientName.trim() || 'Un cliente'} hizo un pedido`,
-        '/',
-        restaurantId ?? undefined,
-      )
+      // Avisar a cocina y admin (push, suena con la app cerrada). El servidor decide texto y
+      // destinatarios a partir del pedido; si falla no afecta al pedido.
+      void pushNotificationService.notifyPublicOrder(newOrderId)
     } catch (e) {
       // Falló (red o servidor): NO perdemos el carrito y avisamos al cliente.
       // Si el servidor rechazó el pedido por una regla de negocio (sin stock,
