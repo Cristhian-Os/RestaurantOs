@@ -53,7 +53,7 @@ export function QRPrintManager() {
     if (!open || !valid) return
     let url: string | null = null, dead = false
     const t = setTimeout(async () => {
-      const doc = await buildQrPdf({ items: items(open).slice(0, 1), bizName: biz.name, logo: await loadLogo(biz.logo), wCm: dims.w, hCm: dims.h })
+      const doc = await buildQrPdf({ items: items(open).slice(0, 40), bizName: biz.name, logo: await loadLogo(biz.logo), wCm: dims.w, hCm: dims.h })
       url = String(doc.output('bloburl'))
       if (!dead) setPreview(url)
     }, 300)
@@ -114,7 +114,7 @@ export function QRPrintManager() {
             Alto <InputNumber min={3} max={30} step={0.5} value={dims.h} onChange={v => setDims(d => ({ ...d, h: v ?? d.h }))} addonAfter="cm" />
           </div>
           {!valid && <span style={{ color: 'crimson' }}>Medidas entre 3 y 30 cm.</span>}
-          <small>{open?.length ?? 0} página(s), una por QR, de {dims.w}×{dims.h} cm. Vista previa de la primera:</small>
+          <small>{open?.length ?? 0} etiqueta(s) de {dims.w}×{dims.h} cm. Si caben varias, se acomodan en hojas Carta con guía de corte. Vista previa de la primera hoja:</small>
           {preview && valid && <iframe title="Vista previa" src={`${preview}#toolbar=0&navpanes=0&view=Fit`} style={{ width: '100%', height: 360, border: '1px solid #ddd' }} />}
         </div>
       </Modal>
