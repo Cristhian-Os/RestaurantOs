@@ -35,11 +35,14 @@
     }
   }
 
+  html, body { height: 100%; }
+
   body {
     background: var(--bg);
     color: var(--ink);
     font-family: system-ui, -apple-system, Arial, sans-serif;
-    height: 100vh;
+    height: 100%;
+    max-height: 100vh;
     overflow: hidden;
     display: -webkit-box;
     display: -ms-flexbox;
@@ -48,7 +51,8 @@
     -webkit-box-direction: normal;
     -ms-flex-direction: column;
     flex-direction: column;
-    padding: 0.75rem 0.75rem 0;
+    padding: 6px 8px 0;
+    font-size: 13px;
   }
 
   /* ── Header ── */
@@ -62,13 +66,13 @@
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    padding-bottom: 0.625rem;
+    padding-bottom: 5px;
     border-bottom: 1px solid var(--border);
     -ms-flex-negative: 0;
     flex-shrink: 0;
   }
 
-  #header h1 { font-size: 1.25rem; font-weight: 700; }
+  #header h1 { font-size: 15px; font-weight: 700; }
 
   #header-right {
     display: -webkit-box;
@@ -88,27 +92,28 @@
     margin-right: 5px;
   }
 
-  #status-text, #order-count { font-size: 0.75rem; color: var(--ink-soft); }
+  #status-text, #order-count { font-size: 11px; color: var(--ink-soft); }
 
   /* ── Grid ── */
   #grid {
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
-    gap: 0.625rem;
+    gap: 6px;
     -webkit-box-flex: 1;
     -ms-flex: 1;
     flex: 1;
     overflow: hidden;
-    padding: 0.625rem 0 0;
+    padding: 5px 0 0;
+    min-height: 0;
   }
 
   .col {
     -webkit-box-flex: 1;
     -ms-flex: 1;
     flex: 1;
-    border-radius: 0.875rem;
-    padding: 0.625rem;
+    border-radius: 10px;
+    padding: 6px;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -117,6 +122,7 @@
     -ms-flex-direction: column;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0;
   }
 
   .col-pending { background: rgba(212,150,58,0.10); border: 1px solid rgba(212,150,58,0.30); }
@@ -133,13 +139,13 @@
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    margin-bottom: 0.625rem;
+    margin-bottom: 5px;
     -ms-flex-negative: 0;
     flex-shrink: 0;
   }
 
   .col-label {
-    font-size: 0.6875rem;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -151,8 +157,8 @@
 
   .col-badge {
     border-radius: 999px;
-    min-width: 20px; height: 20px;
-    padding: 0 5px;
+    min-width: 18px; height: 18px;
+    padding: 0 4px;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -162,7 +168,7 @@
     -webkit-box-pack: center;
     -ms-flex-pack: center;
     justify-content: center;
-    font-size: 0.6875rem;
+    font-size: 10px;
     font-weight: 700;
     color: var(--white);
   }
@@ -178,6 +184,7 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    min-height: 0;
   }
 
   .col-empty {
@@ -190,10 +197,10 @@
   /* ── Order Card — compacta para caber 3 en pantalla ── */
   .card {
     background: var(--surface);
-    border-radius: 0.75rem;
-    padding: 0.625rem;
+    border-radius: 8px;
+    padding: 6px 8px;
     border: 1px solid var(--border);
-    margin-bottom: 0.5rem;
+    margin-bottom: 5px;
   }
 
   .card.urgent { border-color: var(--wine); border-width: 2px; }
@@ -205,34 +212,33 @@
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    margin-bottom: 0.5rem;
+    margin-bottom: 5px;
   }
 
-  .card-title { font-size: 0.875rem; font-weight: 700; color: var(--ink); }
-  .card-ref   { font-size: 0.625rem; color: var(--ink-soft); margin-top: 1px; }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+  .card-ref   { font-size: 10px; color: var(--ink-soft); }
 
   .paid-badge {
     display: inline-block;
-    margin-top: 3px;
-    padding: 1px 6px;
+    padding: 1px 5px;
     border-radius: 999px;
-    font-size: 0.5625rem;
+    font-size: 9px;
     font-weight: 700;
     color: var(--white);
   }
   .paid-badge.paid   { background: var(--olive); }
   .paid-badge.unpaid { background: var(--wine); }
 
-  .card-timer { font-size: 0.875rem; font-weight: 700; text-align: right; color: var(--ink-soft); }
+  .card-timer { font-size: 13px; font-weight: 700; text-align: right; color: var(--ink-soft); }
   .card-timer.urgent { color: var(--wine); }
-  .urgent-label { font-size: 0.5625rem; font-weight: 800; color: var(--wine); text-align: right; }
+  .urgent-label { font-size: 9px; font-weight: 800; color: var(--wine); text-align: right; }
 
   .items-box {
     background: var(--bg);
-    border-radius: 0.5rem;
-    padding: 0.5rem;
+    border-radius: 6px;
+    padding: 5px 6px;
     border: 1px solid var(--border);
-    margin-bottom: 0.5rem;
+    margin-bottom: 5px;
   }
 
   .item-row {
@@ -242,18 +248,18 @@
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.375rem;
+    gap: 6px;
+    margin-bottom: 3px;
   }
   .item-row:last-child { margin-bottom: 0; }
 
   .item-qty {
-    min-width: 36px; height: 36px;
-    padding: 0 8px;
-    border-radius: 0.625rem;
+    min-width: 28px; height: 28px;
+    padding: 0 5px;
+    border-radius: 6px;
     background: var(--terra);
     color: var(--white);
-    font-size: 1.125rem;
+    font-size: 14px;
     font-weight: 700;
     display: -webkit-box;
     display: -ms-flexbox;
@@ -268,40 +274,40 @@
     flex-shrink: 0;
   }
 
-  .item-name  { font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
-  .item-notes { font-size: 0.625rem; color: var(--saffron); font-weight: 600; margin-top: 1px; }
+  .item-name  { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+  .item-notes { font-size: 10px; color: var(--saffron); font-weight: 600; }
 
   .card-notes {
-    font-size: 0.6875rem;
+    font-size: 10px;
     color: var(--ink-soft);
     background: var(--bg);
-    border-radius: 0.375rem;
-    padding: 0.375rem 0.5rem;
+    border-radius: 4px;
+    padding: 3px 6px;
     border: 1px solid var(--border);
-    margin-bottom: 0.5rem;
+    margin-bottom: 5px;
   }
 
   .btn-advance {
     width: 100%;
-    padding: 0.5rem;
-    border-radius: 0.625rem;
+    padding: 5px;
+    border-radius: 6px;
     font-weight: 700;
     color: var(--white);
-    font-size: 0.75rem;
+    font-size: 11px;
     border: none;
     cursor: pointer;
     font-family: inherit;
   }
   .btn-advance.start { background: var(--terra); }
-  .btn-advance.done  { background: var(--olive); margin-bottom: 0.375rem; }
+  .btn-advance.done  { background: var(--olive); margin-bottom: 4px; }
 
   .btn-cancel-order {
     width: 100%;
-    padding: 0.375rem;
-    border-radius: 0.625rem;
+    padding: 4px;
+    border-radius: 6px;
     font-weight: 700;
     color: var(--white);
-    font-size: 0.6875rem;
+    font-size: 10px;
     border: none;
     cursor: pointer;
     font-family: inherit;
@@ -310,7 +316,7 @@
 
   .ready-label {
     text-align: center;
-    font-size: 0.75rem;
+    font-size: 11px;
     font-weight: 600;
     color: var(--olive);
   }
@@ -322,7 +328,7 @@
     background: var(--surface);
     border-top: 1px solid var(--border);
     overflow: hidden;
-    height: 36px;
+    height: 30px;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -332,12 +338,12 @@
   }
 
   #ticker-label {
-    font-size: 0.625rem;
+    font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.08em;
     color: var(--saffron);
     text-transform: uppercase;
-    padding: 0 0.75rem;
+    padding: 0 8px;
     -ms-flex-negative: 0;
     flex-shrink: 0;
     border-right: 1px solid var(--border);
@@ -401,13 +407,13 @@
     background: var(--terra);
     color: var(--white);
     font-weight: 800;
-    border-radius: 0.375rem;
-    padding: 1px 7px;
-    font-size: 0.875rem;
+    border-radius: 4px;
+    padding: 0 5px;
+    font-size: 12px;
   }
 
-  .ticker-name { color: var(--ink); font-weight: 600; }
-  .ticker-sep  { color: var(--border); font-size: 1.25rem; }
+  .ticker-name { color: var(--ink); font-weight: 600; font-size: 12px; }
+  .ticker-sep  { color: var(--ink-soft); font-size: 14px; }
 
   /* Loading / Empty */
   #loading {
@@ -853,6 +859,7 @@ function showError(msg) {
 
 // ─── Keep-awake ───────────────────────────────────────────────────────────────
 function keepAwake() {
+  // 1. Wake Lock API (Chrome 84+, no disponible en WebOS 79)
   if ('wakeLock' in navigator) {
     var requestLock = function() { navigator.wakeLock.request('screen').catch(function() {}) }
     requestLock()
@@ -860,6 +867,8 @@ function keepAwake() {
       if (document.visibilityState === 'visible') requestLock()
     })
   }
+
+  // 2. Video mudo en loop (mantiene actividad de media)
   try {
     var v = document.createElement('video')
     v.setAttribute('loop',''); v.setAttribute('muted',''); v.setAttribute('playsinline','')
@@ -868,7 +877,26 @@ function keepAwake() {
     document.body.appendChild(v)
     v.play().catch(function() {})
   } catch (e) {}
-  setInterval(function() { window.scrollBy(0,1); window.scrollBy(0,-1) }, 25000)
+
+  // 3. Scroll micro — simula actividad en la página
+  setInterval(function() { window.scrollBy(0,1); window.scrollBy(0,-1) }, 20000)
+
+  // 4. Click invisible — método más agresivo para engañar a WebOS
+  // Dispara un evento de input sintético cada 15s en un elemento oculto
+  var ghost = document.createElement('input')
+  ghost.style.cssText = 'position:fixed;opacity:0;width:1px;height:1px;top:0;left:0;pointer-events:none'
+  ghost.setAttribute('readonly', '')
+  document.body.appendChild(ghost)
+  setInterval(function() {
+    try {
+      ghost.focus()
+      ghost.blur()
+      // MouseEvent sintético — cuenta como interacción de usuario en WebOS
+      var evt = document.createEvent('MouseEvents')
+      evt.initMouseEvent('mousemove', true, true, window, 0, 1, 1, 1, 1, false, false, false, false, 0, null)
+      document.dispatchEvent(evt)
+    } catch (e) {}
+  }, 15000)
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
