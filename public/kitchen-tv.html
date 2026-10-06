@@ -355,34 +355,35 @@
     -ms-flex: 1;
     flex: 1;
     overflow: hidden;
-    position: relative;
     height: 100%;
-  }
-
-  #ticker-inner {
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 2rem;
-    white-space: nowrap;
-    position: absolute;
-    top: 50%;
-    -webkit-transform: translateY(-50%);
-    transform: translateY(-50%);
-    -webkit-animation: ticker 30s linear infinite;
-    animation: ticker 30s linear infinite;
   }
 
-  @-webkit-keyframes ticker {
-    0%   { left: 100%; }
-    100% { left: -200%; }
+  #ticker-inner {
+    display: -webkit-inline-box;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    white-space: nowrap;
+    -webkit-animation: ticker-scroll 30s linear infinite;
+    animation: ticker-scroll 30s linear infinite;
+    padding-left: 100%;
   }
-  @keyframes ticker {
-    0%   { left: 100%; }
-    100% { left: -200%; }
+
+  @-webkit-keyframes ticker-scroll {
+    0%   { -webkit-transform: translateX(0); }
+    100% { -webkit-transform: translateX(-100%); }
+  }
+  @keyframes ticker-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
   }
 
   .ticker-item {
@@ -612,8 +613,6 @@ function buildTicker() {
     return
   }
 
-  wrap.style.display = '-webkit-box'
-  wrap.style.display = '-ms-flexbox'
   wrap.style.display = 'flex'
 
   // Ordenar de mayor a menor cantidad
@@ -621,17 +620,16 @@ function buildTicker() {
 
   var html = ''
   for (var n = 0; n < keys.length; n++) {
-    if (n > 0) html += '<span class="ticker-sep">·</span>'
+    if (n > 0) html += '<span class="ticker-sep"> &nbsp;·&nbsp; </span>'
     html += '<span class="ticker-item">'
       + '<span class="ticker-qty">' + counts[keys[n]] + 'x</span>'
-      + '<span class="ticker-name">' + esc(keys[n]) + '</span>'
+      + '&nbsp;<span class="ticker-name">' + esc(keys[n]) + '</span>'
       + '</span>'
   }
-  // Duplicar para loop continuo sin salto
-  inner.innerHTML = html + '<span class="ticker-sep" style="margin:0 1.5rem">⬥</span>' + html
+  inner.innerHTML = html
 
-  // Ajustar velocidad según cantidad de contenido
-  var duration = Math.max(20, keys.length * 4) + 's'
+  // Velocidad: más ítems = más tiempo para que se lea todo
+  var duration = Math.max(15, keys.length * 5) + 's'
   inner.style.WebkitAnimationDuration = duration
   inner.style.animationDuration = duration
 }
