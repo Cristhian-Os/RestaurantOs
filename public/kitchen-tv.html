@@ -771,7 +771,7 @@ function apiHeaders() {
 }
 
 function fetchOrders() {
-  var url = SUPABASE_URL + '/rest/v1/orders?select=*&status=in.(pending,cooking,ready)&order=created_at.asc'
+  var url = SUPABASE_URL + '/rest/v1/orders?select=*&status=in.%28pending%2Ccooking%2Cready%29&order=created_at.asc'
   var req = new XMLHttpRequest()
   req.open('GET', url, true)
   var h = apiHeaders()
@@ -807,7 +807,14 @@ function cancelOrder(orderId) {
   req.send(JSON.stringify({ p_order_id: orderId }))
 }
 
-// ─── Realtime ─────────────────────────────────────────────────────────────────
+// ─── Polling — fuente principal de actualizaciones ───────────────────────────
+var pollInterval = null
+function startPolling() {
+  if (pollInterval) clearInterval(pollInterval)
+  pollInterval = setInterval(fetchOrders, 8000)
+}
+
+// ─── Realtime — bonus encima del polling, no reemplaza ───────────────────────
 function connectRealtime() {
   if (ws) { try { ws.close() } catch (e) {} }
   clearInterval(wsHeartbeat)
@@ -815,15 +822,20 @@ function connectRealtime() {
   var wsUrl = SUPABASE_URL.replace('https://','wss://').replace('http://','ws://')
     + '/realtime/v1/websocket?apikey=' + SUPABASE_ANON_KEY + '&vsn=1.0.0'
 
-  try { ws = new WebSocket(wsUrl) } catch (e) { setStatus('sin realtime', false); return }
+  try { ws = new WebSocket(wsUrl) } catch (e) { setStatus('polling', true); return }
 
   ws.onopen = function() {
-    setStatus('conectado', true)
-    ws.send(JSON.stringify({ topic: 'realtime:public:orders', event: 'phx_join', payload: {}, ref: '1' }))
+    setStatus('tiempo real', true)
+    ws.send(JSON.stringify({
+      topic: 'realtime:public:orders',
+      event: 'phx_join',
+      payload: { config: { broadcast: { self: true }, postgres_changes: [{ event: '*', schema: 'public', table: 'orders' }] } },
+      ref: '1'
+    }))
     wsHeartbeat = setInterval(function() {
       if (ws && ws.readyState === 1)
         ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: '0' }))
-    }, 30000)
+    }, 25000)
   }
 
   ws.onmessage = function(evt) {
@@ -835,14 +847,13 @@ function connectRealtime() {
   }
 
   ws.onclose = function() {
-    setStatus('reconectando...', false)
+    setStatus('polling', true)
     clearInterval(wsHeartbeat)
-    retryTimeout = setTimeout(connectRealtime, 5000)
+    retryTimeout = setTimeout(connectRealtime, 10000)
   }
 
   ws.onerror = function() {
-    setStatus('sin realtime', false)
-    setTimeout(function() { if (!ws || ws.readyState !== 1) setInterval(fetchOrders, 15000) }, 3000)
+    setStatus('polling', true)
   }
 }
 
@@ -903,7 +914,8 @@ function keepAwake() {
 function init() {
   clearTimeout(retryTimeout)
   fetchOrders()
-  connectRealtime()
+  startPolling()      // polling cada 8s siempre, sin importar WebSocket
+  connectRealtime()   // WebSocket encima del polling como bonus
   keepAwake()
 }
 
