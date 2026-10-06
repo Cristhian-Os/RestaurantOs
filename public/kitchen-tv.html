@@ -39,8 +39,16 @@
     background: var(--bg);
     color: var(--ink);
     font-family: system-ui, -apple-system, Arial, sans-serif;
-    min-height: 100vh;
-    padding: 1rem;
+    height: 100vh;
+    overflow: hidden;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: column;
+    flex-direction: column;
+    padding: 0.75rem 0.75rem 0;
   }
 
   /* ── Header ── */
@@ -54,16 +62,13 @@
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    margin-bottom: 1.25rem;
-    padding-bottom: 1rem;
+    padding-bottom: 0.625rem;
     border-bottom: 1px solid var(--border);
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
   }
 
-  #header h1 {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--ink);
-  }
+  #header h1 { font-size: 1.25rem; font-weight: 700; }
 
   #header-right {
     display: -webkit-box;
@@ -72,46 +77,46 @@
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 1rem;
+    gap: 0.875rem;
   }
 
   #status-dot {
-    width: 10px;
-    height: 10px;
+    width: 8px; height: 8px;
     border-radius: 50%;
     background: var(--olive);
     display: inline-block;
-    margin-right: 6px;
+    margin-right: 5px;
   }
 
-  #status-text {
-    font-size: 0.8125rem;
-    color: var(--ink-soft);
-  }
-
-  #order-count {
-    font-size: 0.8125rem;
-    color: var(--ink-soft);
-  }
+  #status-text, #order-count { font-size: 0.75rem; color: var(--ink-soft); }
 
   /* ── Grid ── */
   #grid {
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
-    gap: 1rem;
-    -webkit-box-align: start;
-    -ms-flex-align: start;
-    align-items: flex-start;
+    gap: 0.625rem;
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    overflow: hidden;
+    padding: 0.625rem 0 0;
   }
 
   .col {
     -webkit-box-flex: 1;
     -ms-flex: 1;
     flex: 1;
-    border-radius: 1rem;
-    padding: 0.875rem;
-    min-height: 200px;
+    border-radius: 0.875rem;
+    padding: 0.625rem;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: column;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .col-pending { background: rgba(212,150,58,0.10); border: 1px solid rgba(212,150,58,0.30); }
@@ -128,11 +133,13 @@
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    margin-bottom: 0.875rem;
+    margin-bottom: 0.625rem;
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
   }
 
   .col-label {
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -144,9 +151,8 @@
 
   .col-badge {
     border-radius: 999px;
-    min-width: 24px;
-    height: 24px;
-    padding: 0 6px;
+    min-width: 20px; height: 20px;
+    padding: 0 5px;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -156,7 +162,7 @@
     -webkit-box-pack: center;
     -ms-flex-pack: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: var(--white);
   }
@@ -165,26 +171,32 @@
   .col-cooking .col-badge { background: var(--terra); }
   .col-ready   .col-badge { background: var(--olive); }
 
+  /* Scrollable cards area */
+  .col-cards {
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
   .col-empty {
     text-align: center;
-    padding: 2rem 0;
-    font-size: 0.8125rem;
+    padding: 1.5rem 0;
+    font-size: 0.75rem;
     color: var(--ink-soft);
   }
 
-  /* ── Order Card ── */
+  /* ── Order Card — compacta para caber 3 en pantalla ── */
   .card {
     background: var(--surface);
-    border-radius: 0.875rem;
-    padding: 0.875rem;
+    border-radius: 0.75rem;
+    padding: 0.625rem;
     border: 1px solid var(--border);
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
   }
 
-  .card.urgent {
-    border-color: var(--wine);
-    border-width: 2px;
-  }
+  .card.urgent { border-color: var(--wine); border-width: 2px; }
 
   .card-top {
     display: -webkit-box;
@@ -193,56 +205,34 @@
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
   }
 
-  .card-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--ink);
-  }
-
-  .card-ref {
-    font-size: 0.6875rem;
-    color: var(--ink-soft);
-    margin-top: 2px;
-  }
+  .card-title { font-size: 0.875rem; font-weight: 700; color: var(--ink); }
+  .card-ref   { font-size: 0.625rem; color: var(--ink-soft); margin-top: 1px; }
 
   .paid-badge {
     display: inline-block;
-    margin-top: 4px;
-    padding: 1px 8px;
+    margin-top: 3px;
+    padding: 1px 6px;
     border-radius: 999px;
-    font-size: 0.6875rem;
+    font-size: 0.5625rem;
     font-weight: 700;
     color: var(--white);
   }
-
   .paid-badge.paid   { background: var(--olive); }
   .paid-badge.unpaid { background: var(--wine); }
 
-  .card-timer {
-    font-size: 1rem;
-    font-weight: 700;
-    text-align: right;
-    color: var(--ink-soft);
-  }
-
+  .card-timer { font-size: 0.875rem; font-weight: 700; text-align: right; color: var(--ink-soft); }
   .card-timer.urgent { color: var(--wine); }
-  .urgent-label {
-    font-size: 0.625rem;
-    font-weight: 800;
-    color: var(--wine);
-    text-align: right;
-  }
+  .urgent-label { font-size: 0.5625rem; font-weight: 800; color: var(--wine); text-align: right; }
 
-  /* Items */
   .items-box {
     background: var(--bg);
-    border-radius: 0.75rem;
-    padding: 0.75rem;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
     border: 1px solid var(--border);
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
   }
 
   .item-row {
@@ -252,20 +242,18 @@
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.5rem;
+    gap: 0.5rem;
+    margin-bottom: 0.375rem;
   }
-
   .item-row:last-child { margin-bottom: 0; }
 
   .item-qty {
-    min-width: 50px;
-    height: 50px;
-    padding: 0 12px;
-    border-radius: 1rem;
+    min-width: 36px; height: 36px;
+    padding: 0 8px;
+    border-radius: 0.625rem;
     background: var(--terra);
     color: var(--white);
-    font-size: 1.5rem;
+    font-size: 1.125rem;
     font-weight: 700;
     display: -webkit-box;
     display: -ms-flexbox;
@@ -280,58 +268,40 @@
     flex-shrink: 0;
   }
 
-  .item-name {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--ink);
-  }
-
-  .item-notes {
-    font-size: 0.6875rem;
-    color: var(--saffron);
-    font-weight: 600;
-    margin-top: 2px;
-  }
+  .item-name  { font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
+  .item-notes { font-size: 0.625rem; color: var(--saffron); font-weight: 600; margin-top: 1px; }
 
   .card-notes {
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     color: var(--ink-soft);
     background: var(--bg);
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.5rem;
     border: 1px solid var(--border);
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
   }
 
-  /* Buttons */
   .btn-advance {
     width: 100%;
-    padding: 0.75rem;
-    border-radius: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 0.625rem;
     font-weight: 700;
     color: var(--white);
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     border: none;
     cursor: pointer;
     font-family: inherit;
   }
-
-  .btn-advance.start {
-    background: var(--terra);
-  }
-
-  .btn-advance.done {
-    background: var(--olive);
-    margin-bottom: 0.5rem;
-  }
+  .btn-advance.start { background: var(--terra); }
+  .btn-advance.done  { background: var(--olive); margin-bottom: 0.375rem; }
 
   .btn-cancel-order {
     width: 100%;
-    padding: 0.625rem;
-    border-radius: 0.75rem;
+    padding: 0.375rem;
+    border-radius: 0.625rem;
     font-weight: 700;
     color: var(--white);
-    font-size: 0.8125rem;
+    font-size: 0.6875rem;
     border: none;
     cursor: pointer;
     font-family: inherit;
@@ -340,10 +310,103 @@
 
   .ready-label {
     text-align: center;
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--olive);
   }
+
+  /* ── Ticker inferior ── */
+  #ticker-wrap {
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    overflow: hidden;
+    height: 36px;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+  }
+
+  #ticker-label {
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--saffron);
+    text-transform: uppercase;
+    padding: 0 0.75rem;
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    height: 100%;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+  }
+
+  #ticker-track {
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+  }
+
+  #ticker-inner {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    gap: 2rem;
+    white-space: nowrap;
+    position: absolute;
+    top: 50%;
+    -webkit-transform: translateY(-50%);
+    transform: translateY(-50%);
+    -webkit-animation: ticker 30s linear infinite;
+    animation: ticker 30s linear infinite;
+  }
+
+  @-webkit-keyframes ticker {
+    0%   { left: 100%; }
+    100% { left: -200%; }
+  }
+  @keyframes ticker {
+    0%   { left: 100%; }
+    100% { left: -200%; }
+  }
+
+  .ticker-item {
+    display: -webkit-inline-box;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+  }
+
+  .ticker-qty {
+    background: var(--terra);
+    color: var(--white);
+    font-weight: 800;
+    border-radius: 0.375rem;
+    padding: 1px 7px;
+    font-size: 0.875rem;
+  }
+
+  .ticker-name { color: var(--ink); font-weight: 600; }
+  .ticker-sep  { color: var(--border); font-size: 1.25rem; }
 
   /* Loading / Empty */
   #loading {
@@ -356,14 +419,15 @@
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    padding: 5rem 0;
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
   }
 
   .spinner {
-    width: 36px;
-    height: 36px;
+    width: 32px; height: 32px;
     border-radius: 50%;
-    border: 4px solid var(--terra);
+    border: 3px solid var(--terra);
     border-top-color: transparent;
     -webkit-animation: spin 0.8s linear infinite;
     animation: spin 0.8s linear infinite;
@@ -374,34 +438,51 @@
 
   #empty-state {
     background: var(--surface);
-    border-radius: 1.25rem;
-    padding: 4rem 1rem;
+    border-radius: 1rem;
+    padding: 3rem 1rem;
     text-align: center;
     border: 1px solid var(--border);
+    margin: 0.625rem 0;
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    display: none;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: column;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
-  #empty-state p { font-size: 1.25rem; font-weight: 600; }
-  #empty-state small { font-size: 0.875rem; color: var(--ink-soft); }
+  #empty-state p     { font-size: 1.125rem; font-weight: 600; }
+  #empty-state small { font-size: 0.8125rem; color: var(--ink-soft); }
 
-  /* Error */
   #error-box {
     background: rgba(139,38,53,0.15);
     border: 1px solid var(--wine);
-    border-radius: 1rem;
-    padding: 1.5rem;
+    border-radius: 0.875rem;
+    padding: 1.25rem;
     text-align: center;
     display: none;
+    margin: 0.625rem 0;
   }
 
-  #error-box p { color: var(--ink); font-size: 0.9rem; }
+  #error-box p { color: var(--ink); font-size: 0.875rem; }
+
   #retry-btn {
-    margin-top: 1rem;
-    padding: 0.625rem 1.5rem;
-    border-radius: 0.75rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 1.25rem;
+    border-radius: 0.625rem;
     background: var(--terra);
     color: var(--white);
     border: none;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 700;
     cursor: pointer;
     font-family: inherit;
@@ -425,47 +506,50 @@
 
 <div id="loading"><div class="spinner"></div></div>
 
-<div id="empty-state" style="display:none">
+<div id="empty-state">
   <p>Sin órdenes activas</p>
   <small>Las nuevas órdenes aparecerán aquí al instante</small>
 </div>
 
 <div id="grid" style="display:none">
-  <div class="col col-pending" id="col-pending">
+  <div class="col col-pending">
     <div class="col-header">
       <span class="col-label">Pendientes</span>
       <span class="col-badge" id="badge-pending">0</span>
     </div>
-    <div id="cards-pending"><div class="col-empty">Sin órdenes</div></div>
+    <div class="col-cards" id="cards-pending"><div class="col-empty">Sin órdenes</div></div>
   </div>
-  <div class="col col-cooking" id="col-cooking">
+  <div class="col col-cooking">
     <div class="col-header">
       <span class="col-label">En cocina</span>
       <span class="col-badge" id="badge-cooking">0</span>
     </div>
-    <div id="cards-cooking"><div class="col-empty">Sin órdenes</div></div>
+    <div class="col-cards" id="cards-cooking"><div class="col-empty">Sin órdenes</div></div>
   </div>
-  <div class="col col-ready" id="col-ready">
+  <div class="col col-ready">
     <div class="col-header">
       <span class="col-label">Listas</span>
       <span class="col-badge" id="badge-ready">0</span>
     </div>
-    <div id="cards-ready"><div class="col-empty">Sin órdenes</div></div>
+    <div class="col-cards" id="cards-ready"><div class="col-empty">Sin órdenes</div></div>
+  </div>
+</div>
+
+<div id="ticker-wrap" style="display:none">
+  <div id="ticker-label">Total activo</div>
+  <div id="ticker-track">
+    <div id="ticker-inner"></div>
   </div>
 </div>
 
 <script>
-// ─── CONFIG ─────────────────────────────────────────────────────────────────
-// Estas variables las inyecta el servidor al servir esta página,
-// o las puedes hardcodear aquí si el TV no puede leer env vars.
-// INSTRUCCIÓN: reemplaza estos valores con los de tu proyecto Supabase.
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
 var SUPABASE_URL = 'https://ifypeslrcdebvdqglywt.supabase.co'
 var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmeXBlc2xyY2RlYnZkcWdseXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyOTY3NjYsImV4cCI6MjA5NDg3Mjc2Nn0.MRQYCC_qIkdi32rNGpbE_Z2kKKyTO5d8bPWpatdEI_Q'
 // ─────────────────────────────────────────────────────────────────────────────
 
 var orders = []
 var timers = {}
-var restaurantId = null
 var ws = null
 var wsHeartbeat = null
 var retryTimeout = null
@@ -490,8 +574,7 @@ function parseItems(raw) {
 
 function elapsedStr(createdAt) {
   var diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000)
-  var m = Math.floor(diff / 60)
-  var s = diff % 60
+  var m = Math.floor(diff / 60), s = diff % 60
   return m + ':' + (s < 10 ? '0' + s : s)
 }
 
@@ -501,11 +584,56 @@ function isUrgent(createdAt) {
 
 function esc(str) {
   if (!str) return ''
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ─── Ticker — agrupa ítems de todas las órdenes activas ──────────────────────
+function buildTicker() {
+  // Contar todos los ítems activos (pending + cooking + ready)
+  var counts = {}
+  for (var i = 0; i < orders.length; i++) {
+    var items = parseItems(orders[i].items)
+    for (var j = 0; j < items.length; j++) {
+      var it = items[j]
+      if (it.cancelled) continue
+      var key = it.name
+      counts[key] = (counts[key] || 0) + (it.quantity || 1)
+    }
+  }
+
+  var keys = []
+  for (var k in counts) keys.push(k)
+
+  var wrap = document.getElementById('ticker-wrap')
+  var inner = document.getElementById('ticker-inner')
+
+  if (keys.length === 0) {
+    wrap.style.display = 'none'
+    return
+  }
+
+  wrap.style.display = '-webkit-box'
+  wrap.style.display = '-ms-flexbox'
+  wrap.style.display = 'flex'
+
+  // Ordenar de mayor a menor cantidad
+  keys.sort(function(a, b) { return counts[b] - counts[a] })
+
+  var html = ''
+  for (var n = 0; n < keys.length; n++) {
+    if (n > 0) html += '<span class="ticker-sep">·</span>'
+    html += '<span class="ticker-item">'
+      + '<span class="ticker-qty">' + counts[keys[n]] + 'x</span>'
+      + '<span class="ticker-name">' + esc(keys[n]) + '</span>'
+      + '</span>'
+  }
+  // Duplicar para loop continuo sin salto
+  inner.innerHTML = html + '<span class="ticker-sep" style="margin:0 1.5rem">⬥</span>' + html
+
+  // Ajustar velocidad según cantidad de contenido
+  var duration = Math.max(20, keys.length * 4) + 's'
+  inner.style.WebkitAnimationDuration = duration
+  inner.style.animationDuration = duration
 }
 
 // ─── Timers ──────────────────────────────────────────────────────────────────
@@ -516,13 +644,12 @@ function startTimers() {
     for (var i = 0; i < els.length; i++) {
       var el = els[i]
       var ca = el.getAttribute('data-created')
-      var urgent = isUrgent(ca)
       el.textContent = elapsedStr(ca)
-      if (urgent) {
+      if (isUrgent(ca)) {
         el.className = 'card-timer urgent'
         var ul = el.parentNode.querySelector('.urgent-label')
         if (ul) ul.style.display = 'block'
-        var card = el.closest('.card')
+        var card = el.closest ? el.closest('.card') : null
         if (card) card.className = 'card urgent'
       }
     }
@@ -533,26 +660,22 @@ function startTimers() {
 function cardHtml(order) {
   var items = parseItems(order.items)
   var urgent = isUrgent(order.created_at)
-  var dest = destinoPedido(order)
-  var ref = orderRef(order)
-  var elapsed = elapsedStr(order.created_at)
 
   var itemsHtml = ''
   for (var i = 0; i < items.length; i++) {
     var item = items[i]
     if (item.cancelled) continue
     itemsHtml += '<div class="item-row">'
-    itemsHtml += '<span class="item-qty">' + esc(item.quantity) + '</span>'
-    itemsHtml += '<div><div class="item-name">' + esc(item.name) + '</div>'
-    if (item.notes) itemsHtml += '<div class="item-notes">' + esc(item.notes) + '</div>'
-    itemsHtml += '</div></div>'
+      + '<span class="item-qty">' + esc(item.quantity) + '</span>'
+      + '<div><div class="item-name">' + esc(item.name) + '</div>'
+      + (item.notes ? '<div class="item-notes">' + esc(item.notes) + '</div>' : '')
+      + '</div></div>'
   }
 
   var notesHtml = ''
   if (order.notes) {
-    // Filtrar la nota "Barra" del display de notas
-    var filteredNotes = order.notes.split(' · ').filter(function(n) { return n !== 'Barra' }).join(' · ')
-    if (filteredNotes) notesHtml = '<div class="card-notes">' + esc(filteredNotes) + '</div>'
+    var fn = order.notes.split(' · ').filter(function(n) { return n !== 'Barra' }).join(' · ')
+    if (fn) notesHtml = '<div class="card-notes">' + esc(fn) + '</div>'
   }
 
   var actionHtml = ''
@@ -560,12 +683,15 @@ function cardHtml(order) {
     actionHtml = '<button class="btn-advance start" onclick="advance(\'' + order.id + '\',\'cooking\')">Iniciar preparación</button>'
   } else if (order.status === 'cooking') {
     actionHtml = '<button class="btn-advance done" onclick="advance(\'' + order.id + '\',\'ready\')">Marcar listo</button>'
-    actionHtml += '<button class="btn-cancel-order" onclick="cancelOrder(\'' + order.id + '\')">🗑️ Cancelar pedido</button>'
+      + '<button class="btn-cancel-order" onclick="cancelOrder(\'' + order.id + '\')">🗑️ Cancelar</button>'
   } else if (order.status === 'ready') {
     actionHtml = '<div class="ready-label">Esperando cobro en caja</div>'
   }
 
-  return '<div class="card' + (urgent ? ' urgent' : '') + '" id="card-' + order.id + '">'
+  var dest = destinoPedido(order)
+  var ref  = orderRef(order)
+
+  return '<div class="card' + (urgent ? ' urgent' : '') + '">'
     + '<div class="card-top">'
     + '<div>'
     + '<div class="card-title">' + esc(dest) + (order.customer_name ? ' · ' + esc(order.customer_name) : '') + '</div>'
@@ -573,7 +699,7 @@ function cardHtml(order) {
     + '<span class="paid-badge ' + (order.paid_at ? 'paid' : 'unpaid') + '">' + (order.paid_at ? 'PAGADO' : 'SIN PAGAR') + '</span>'
     + '</div>'
     + '<div>'
-    + '<div class="card-timer' + (urgent ? ' urgent' : '') + '" data-created="' + esc(order.created_at) + '">' + elapsed + '</div>'
+    + '<div class="card-timer' + (urgent ? ' urgent' : '') + '" data-created="' + esc(order.created_at) + '">' + elapsedStr(order.created_at) + '</div>'
     + '<div class="urgent-label" style="display:' + (urgent ? 'block' : 'none') + '">¡URGENTE!</div>'
     + '</div>'
     + '</div>'
@@ -587,9 +713,9 @@ function render() {
   var pending = [], cooking = [], ready = []
   for (var i = 0; i < orders.length; i++) {
     var o = orders[i]
-    if (o.status === 'pending') pending.push(o)
+    if      (o.status === 'pending') pending.push(o)
     else if (o.status === 'cooking') cooking.push(o)
-    else if (o.status === 'ready') ready.push(o)
+    else if (o.status === 'ready')   ready.push(o)
   }
 
   document.getElementById('loading').style.display = 'none'
@@ -600,12 +726,16 @@ function render() {
 
   if (total === 0) {
     document.getElementById('grid').style.display = 'none'
-    document.getElementById('empty-state').style.display = 'block'
+    document.getElementById('ticker-wrap').style.display = 'none'
+    document.getElementById('empty-state').style.display = '-webkit-box'
+    document.getElementById('empty-state').style.display = '-ms-flexbox'
+    document.getElementById('empty-state').style.display = 'flex'
   } else {
     document.getElementById('empty-state').style.display = 'none'
     document.getElementById('grid').style.display = '-webkit-box'
     document.getElementById('grid').style.display = '-ms-flexbox'
     document.getElementById('grid').style.display = 'flex'
+    buildTicker()
   }
 
   function renderCol(id, badgeId, list) {
@@ -627,7 +757,7 @@ function render() {
   startTimers()
 }
 
-// ─── API calls ───────────────────────────────────────────────────────────────
+// ─── API ─────────────────────────────────────────────────────────────────────
 function apiHeaders() {
   return {
     'apikey': SUPABASE_ANON_KEY,
@@ -640,30 +770,23 @@ function fetchOrders() {
   var url = SUPABASE_URL + '/rest/v1/orders?select=*&status=in.(pending,cooking,ready)&order=created_at.asc'
   var req = new XMLHttpRequest()
   req.open('GET', url, true)
-  var headers = apiHeaders()
-  for (var k in headers) req.setRequestHeader(k, headers[k])
+  var h = apiHeaders()
+  for (var k in h) req.setRequestHeader(k, h[k])
   req.onload = function() {
     if (req.status >= 200 && req.status < 300) {
-      try {
-        orders = JSON.parse(req.responseText) || []
-        render()
-      } catch (e) {
-        showError('Error al procesar datos: ' + e.message)
-      }
-    } else {
-      showError('Error HTTP ' + req.status)
-    }
+      try { orders = JSON.parse(req.responseText) || []; render() }
+      catch (e) { showError('Error al procesar datos') }
+    } else { showError('Error HTTP ' + req.status) }
   }
   req.onerror = function() { showError('Sin conexión al servidor') }
   req.send()
 }
 
 function advance(orderId, nextStatus) {
-  var url = SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId
   var req = new XMLHttpRequest()
-  req.open('PATCH', url, true)
-  var headers = apiHeaders()
-  for (var k in headers) req.setRequestHeader(k, headers[k])
+  req.open('PATCH', SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, true)
+  var h = apiHeaders()
+  for (var k in h) req.setRequestHeader(k, h[k])
   req.onload = function() { fetchOrders() }
   req.onerror = function() { alert('Error al actualizar pedido') }
   req.send(JSON.stringify({ status: nextStatus }))
@@ -671,72 +794,51 @@ function advance(orderId, nextStatus) {
 
 function cancelOrder(orderId) {
   if (!confirm('¿Cancelar todo el pedido?')) return
-  var url = SUPABASE_URL + '/rest/v1/rpc/cancelar_orden'
   var req = new XMLHttpRequest()
-  req.open('POST', url, true)
-  var headers = apiHeaders()
-  for (var k in headers) req.setRequestHeader(k, headers[k])
+  req.open('POST', SUPABASE_URL + '/rest/v1/rpc/cancelar_orden', true)
+  var h = apiHeaders()
+  for (var k in h) req.setRequestHeader(k, h[k])
   req.onload = function() { fetchOrders() }
   req.onerror = function() { alert('Error al cancelar') }
   req.send(JSON.stringify({ p_order_id: orderId }))
 }
 
-// ─── Realtime via WebSocket ───────────────────────────────────────────────────
+// ─── Realtime ─────────────────────────────────────────────────────────────────
 function connectRealtime() {
   if (ws) { try { ws.close() } catch (e) {} }
   clearInterval(wsHeartbeat)
 
-  var wsUrl = SUPABASE_URL.replace('https://', 'wss://').replace('http://', 'ws://')
+  var wsUrl = SUPABASE_URL.replace('https://','wss://').replace('http://','ws://')
     + '/realtime/v1/websocket?apikey=' + SUPABASE_ANON_KEY + '&vsn=1.0.0'
 
-  try {
-    ws = new WebSocket(wsUrl)
-  } catch (e) {
-    setStatus('sin realtime', false)
-    return
-  }
+  try { ws = new WebSocket(wsUrl) } catch (e) { setStatus('sin realtime', false); return }
 
   ws.onopen = function() {
     setStatus('conectado', true)
-    // Join channel
-    ws.send(JSON.stringify({
-      topic: 'realtime:public:orders',
-      event: 'phx_join',
-      payload: {},
-      ref: '1'
-    }))
-    // Heartbeat cada 30s
+    ws.send(JSON.stringify({ topic: 'realtime:public:orders', event: 'phx_join', payload: {}, ref: '1' }))
     wsHeartbeat = setInterval(function() {
-      if (ws && ws.readyState === 1) {
+      if (ws && ws.readyState === 1)
         ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: '0' }))
-      }
     }, 30000)
   }
 
   ws.onmessage = function(evt) {
     try {
       var msg = JSON.parse(evt.data)
-      if (msg.event === 'postgres_changes' || msg.event === 'INSERT' || msg.event === 'UPDATE' || msg.event === 'DELETE') {
+      if (msg.event === 'postgres_changes' || msg.event === 'INSERT' || msg.event === 'UPDATE' || msg.event === 'DELETE')
         fetchOrders()
-      }
     } catch (e) {}
   }
 
   ws.onclose = function() {
     setStatus('reconectando...', false)
     clearInterval(wsHeartbeat)
-    // Reconectar en 5s
     retryTimeout = setTimeout(connectRealtime, 5000)
   }
 
   ws.onerror = function() {
     setStatus('sin realtime', false)
-    // Polling fallback: cada 15s
-    setTimeout(function() {
-      if (!ws || ws.readyState !== 1) {
-        setInterval(fetchOrders, 15000)
-      }
-    }, 3000)
+    setTimeout(function() { if (!ws || ws.readyState !== 1) setInterval(fetchOrders, 15000) }, 3000)
   }
 }
 
@@ -753,46 +855,26 @@ function showError(msg) {
 
 // ─── Keep-awake ───────────────────────────────────────────────────────────────
 function keepAwake() {
-  // 1) Wake Lock API (Chrome 84+, algunos WebOS modernos)
   if ('wakeLock' in navigator) {
-    var requestLock = function() {
-      navigator.wakeLock.request('screen').catch(function() {})
-    }
+    var requestLock = function() { navigator.wakeLock.request('screen').catch(function() {}) }
     requestLock()
-    // Re-adquirir si la página vuelve a primer plano
     document.addEventListener('visibilitychange', function() {
       if (document.visibilityState === 'visible') requestLock()
     })
   }
-
-  // 2) Video mudo en loop — engaña a browsers viejos que no soportan Wake Lock.
-  //    Un video de 1×1px corriendo en loop cuenta como "actividad multimedia"
-  //    y evita que el TV apague la pantalla por inactividad.
   try {
     var v = document.createElement('video')
-    v.setAttribute('loop', '')
-    v.setAttribute('muted', '')
-    v.setAttribute('playsinline', '')
+    v.setAttribute('loop',''); v.setAttribute('muted',''); v.setAttribute('playsinline','')
     v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:0;left:0'
-    // Vídeo MP4 de 1×1px negro, 1 segundo, codificado en base64
     v.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAA0NtZGF0AAACrAYF//+p3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE0MiByMjM4OSA5NTZjOGQ4IC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAxNCAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiBicmFtZXM9MyBvcGVuX2dvcD0wIHdlaWdodHA9MiByZWxsb2M9MSB3ZWlnaHRiPTEga2V5aW50PTI1MCBrZXlpbnRfbWluPTI1IHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAD2WIhAA3//728P4FNjuaAAAABWWIhAA='
     document.body.appendChild(v)
     v.play().catch(function() {})
   } catch (e) {}
-
-  // 3) Scroll simulado cada 25s — último recurso para TVs muy viejos
-  setInterval(function() {
-    window.scrollBy(0, 1)
-    window.scrollBy(0, -1)
-  }, 25000)
+  setInterval(function() { window.scrollBy(0,1); window.scrollBy(0,-1) }, 25000)
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 function init() {
-  if (SUPABASE_URL === 'REPLACE_WITH_SUPABASE_URL') {
-    showError('Configura SUPABASE_URL y SUPABASE_ANON_KEY en este archivo')
-    return
-  }
   clearTimeout(retryTimeout)
   fetchOrders()
   connectRealtime()
