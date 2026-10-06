@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/((?!sw\\.js|manifest\\.json|icon.*\\.png|apple-touch-icon\\.png|logo\\.jpg).*)", "destination": "/index.html" }
+    { "source": "/((?!sw\\.js|manifest\\.json|icon.*\\.png|apple-touch-icon\\.png|logo\\.jpg|kitchen-tv\\.html).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
