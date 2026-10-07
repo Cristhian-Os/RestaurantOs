@@ -812,7 +812,7 @@ function cancelOrder(orderId) {
 var pollInterval = null
 function startPolling() {
   if (pollInterval) clearInterval(pollInterval)
-  pollInterval = setInterval(fetchOrders, 8000)
+  pollInterval = setInterval(fetchOrders, 3000)
 }
 
 // ─── Realtime — bonus encima del polling, no reemplaza ───────────────────────
