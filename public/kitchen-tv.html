@@ -928,26 +928,62 @@ function keepAwake() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-function applyTheme() {
-  // Respeta ?theme=light o ?theme=dark en la URL (override para TVs que no soportan prefers-color-scheme)
+function getUrlParams() {
   var params = {}
   var search = window.location.search.slice(1).split('&')
   for (var i = 0; i < search.length; i++) {
     var p = search[i].split('=')
-    if (p[0]) params[p[0]] = p[1] || ''
+    if (p[0]) params[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || '')
   }
-  if (params.theme === 'light' || params.theme === 'dark') {
-    document.documentElement.setAttribute('data-theme', params.theme)
+  return params
+}
+
+function applyThemeValue(t) {
+  if (t === 'light' || t === 'dark') {
+    document.documentElement.setAttribute('data-theme', t)
   }
 }
 
+function loadTheme(restaurantId, callback) {
+  if (!restaurantId) { callback(); return }
+  var url = SUPABASE_URL + '/rest/v1/restaurant_config?select=modules_enabled&restaurant_id=eq.' + restaurantId
+  var req = new XMLHttpRequest()
+  req.open('GET', url, true)
+  var h = apiHeaders()
+  for (var k in h) req.setRequestHeader(k, h[k])
+  req.onload = function() {
+    try {
+      var data = JSON.parse(req.responseText)
+      if (data && data[0] && data[0].modules_enabled && data[0].modules_enabled.theme) {
+        applyThemeValue(data[0].modules_enabled.theme)
+      }
+    } catch (e) {}
+    callback()
+  }
+  req.onerror = function() { callback() }
+  req.send()
+}
+
 function init() {
-  applyTheme()
-  clearTimeout(retryTimeout)
-  fetchOrders()
-  startPolling()      // polling cada 8s siempre, sin importar WebSocket
-  connectRealtime()   // WebSocket encima del polling como bonus
-  keepAwake()
+  var params = getUrlParams()
+  // ?theme=light/dark como override manual (para casos de prueba)
+  if (params.theme === 'light' || params.theme === 'dark') {
+    applyThemeValue(params.theme)
+    clearTimeout(retryTimeout)
+    fetchOrders()
+    startPolling()
+    connectRealtime()
+    keepAwake()
+  } else {
+    // Lee el tema desde Supabase usando el restaurant_id de la URL
+    loadTheme(params.rid, function() {
+      clearTimeout(retryTimeout)
+      fetchOrders()
+      startPolling()
+      connectRealtime()
+      keepAwake()
+    })
+  }
 }
 
 init()
