@@ -35,6 +35,32 @@
     }
   }
 
+  /* Override manual: ?theme=light o ?theme=dark en la URL */
+  html[data-theme="light"] {
+    --bg:       #f5f0ea;
+    --surface:  #ffffff;
+    --border:   #ddd5c8;
+    --ink:      #1a1410;
+    --ink-soft: #6b5a48;
+    --terra:    #c4622d;
+    --olive:    #4a6a2a;
+    --saffron:  #b8820a;
+    --wine:     #8b2635;
+    --white:    #ffffff;
+  }
+  html[data-theme="dark"] {
+    --bg:       #1a1410;
+    --surface:  #221c16;
+    --border:   #3a2f26;
+    --ink:      #f0e8dc;
+    --ink-soft: #a89880;
+    --terra:    #c4622d;
+    --olive:    #5a7a3a;
+    --saffron:  #d4963a;
+    --wine:     #8b2635;
+    --white:    #ffffff;
+  }
+
   html, body { height: 100%; }
 
   body {
@@ -884,7 +910,7 @@ function showError(msg) {
 
 // ─── Keep-awake ───────────────────────────────────────────────────────────────
 function keepAwake() {
-  // 1. Wake Lock API (Chrome 84+, no disponible en WebOS 79)
+  // 1. Wake Lock API (Chrome 84+)
   if ('wakeLock' in navigator) {
     var requestLock = function() { navigator.wakeLock.request('screen').catch(function() {}) }
     requestLock()
@@ -903,29 +929,44 @@ function keepAwake() {
     v.play().catch(function() {})
   } catch (e) {}
 
-  // 3. Scroll micro — simula actividad en la página
+  // 3. Scroll micro — simula actividad visual
   setInterval(function() { window.scrollBy(0,1); window.scrollBy(0,-1) }, 20000)
 
-  // 4. Click invisible — método más agresivo para engañar a WebOS
-  // Dispara un evento de input sintético cada 15s en un elemento oculto
+  // 4. MouseEvent sintético — engaña a WebOS haciéndole creer que hay usuario activo
   var ghost = document.createElement('input')
   ghost.style.cssText = 'position:fixed;opacity:0;width:1px;height:1px;top:0;left:0;pointer-events:none'
   ghost.setAttribute('readonly', '')
   document.body.appendChild(ghost)
   setInterval(function() {
     try {
-      ghost.focus()
-      ghost.blur()
-      // MouseEvent sintético — cuenta como interacción de usuario en WebOS
+      ghost.focus(); ghost.blur()
       var evt = document.createEvent('MouseEvents')
       evt.initMouseEvent('mousemove', true, true, window, 0, 1, 1, 1, 1, false, false, false, false, 0, null)
       document.dispatchEvent(evt)
     } catch (e) {}
   }, 15000)
+
+  // 5. Auto-reload cada 30 min como red de seguridad final
+  // El estado se recupera solo al recargar (fetchOrders corre en init)
+  setTimeout(function() { location.reload() }, 30 * 60 * 1000)
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+function applyTheme() {
+  // Respeta ?theme=light o ?theme=dark en la URL (override para TVs que no soportan prefers-color-scheme)
+  var params = {}
+  var search = window.location.search.slice(1).split('&')
+  for (var i = 0; i < search.length; i++) {
+    var p = search[i].split('=')
+    if (p[0]) params[p[0]] = p[1] || ''
+  }
+  if (params.theme === 'light' || params.theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', params.theme)
+  }
+}
+
 function init() {
+  applyTheme()
   clearTimeout(retryTimeout)
   fetchOrders()
   startPolling()      // polling cada 8s siempre, sin importar WebSocket
