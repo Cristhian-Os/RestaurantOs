@@ -117,17 +117,26 @@ export const offlineService = {
           try { items = JSON.parse(items) } catch { items = [] }
         }
 
-        // IMPORTANTE: usar el MISMO RPC que el flujo online (crear_orden_completa)
+        // IMPORTANTE: usar el MISMO RPC que el flujo online (crear_orden_completa;
+        // los domicilios, crear_orden_domicilio, que guarda teléfono y dirección)
         // para que la orden sincronizada pase por toda la lógica (detalles,
         // descuento de inventario, etc.) y use el auth.uid() del usuario YA
         // autenticado al volver la conexión (no el user_id offline).
-        const { error } = await supabase.rpc('crear_orden_completa', {
-          p_mesa_id:     null,
-          p_items:       items,
-          p_tipo_pedido: order.tipo_pedido ?? 'LOCAL',
-          p_notes:       order.notes ?? null,
-          p_table_num:   order.table_num ?? null,
-        })
+        const { error } = order.tipo_pedido === 'DOMICILIO'
+          ? await supabase.rpc('crear_orden_domicilio', {
+              p_items:            items,
+              p_customer_name:    order.customer_name ?? '',
+              p_customer_phone:   order.customer_phone ?? '',
+              p_delivery_address: order.delivery_address ?? '',
+              p_notes:            order.notes ?? null,
+            })
+          : await supabase.rpc('crear_orden_completa', {
+              p_mesa_id:     null,
+              p_items:       items,
+              p_tipo_pedido: order.tipo_pedido ?? 'LOCAL',
+              p_notes:       order.notes ?? null,
+              p_table_num:   order.table_num ?? null,
+            })
 
         if (error) {
           // Stock insuficiente / conflicto de inventario

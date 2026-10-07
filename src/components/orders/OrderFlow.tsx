@@ -22,6 +22,9 @@ import type { RecetaShortage } from '../../types/inventory'
 import type { Profile } from '../../pages/Dashboard'
 import { CategoryIcon } from '../CategoryIcon'
 import { useMenuConfig } from '../../hooks/useMenuConfig'
+import { DomicilioForm } from './DomicilioForm'
+import { DomicilioInfo } from './DomicilioInfo'
+import { validarDomicilio } from '../../lib/domicilio'
 import {
   type MenuConfig, defaultSel, describeSel, flavorsNeeded, hasOptions, lineNotes, orderCategories,
   groupUnits, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
@@ -368,6 +371,10 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [barra, setBarra]             = useState(false) // pedido en el local sin mesa
   const [tipoPedido, setTipo]       = useState<TipoPedido>('LOCAL')
   const [customerName, setCustomerName] = useState('')
+  // Domicilio: a dónde y a qué número (solo se usan cuando tipoPedido === 'DOMICILIO')
+  const [customerPhone, setCustomerPhone]       = useState('')
+  const [deliveryAddress, setDeliveryAddress]   = useState('')
+  const [showDomicilioErrors, setShowDomicilioErrors] = useState(false)
   // Menú
   const [dishes, setDishes]         = useState<Dish[]>([])
   const [cart, setCart]             = useState<CartItem[]>([])
@@ -522,6 +529,10 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     if (cart.length === 0) { message.warning('Agrega al menos un plato'); return }
     if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) { message.warning('Selecciona una mesa o Barra'); return }
     if (!customerName.trim()) { message.warning('Escribe el nombre del comensal'); return }
+    if (tipoPedido === 'DOMICILIO') {
+      const errorDomicilio = validarDomicilio({ phone: customerPhone, address: deliveryAddress })
+      if (errorDomicilio) { message.warning(errorDomicilio); return }
+    }
 
     setSubmitting(true)
     try {
@@ -538,20 +549,32 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         sel:      { ...(i.sel ?? {}), comment: i.notes.trim() || undefined },
       }))
 
+      const esDomicilio = tipoPedido === 'DOMICILIO'
+
       if (isOnline) {
-        const { data, error } = await supabase.rpc('crear_orden_completa', {
-          p_mesa_id:        selectedMesa?.id ?? null,
-          p_items:          items,
-          p_tipo_pedido:    tipoPedido,
-          p_notes:          (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || null,
-          p_table_num:      selectedMesa?.numero ?? null,
-          p_customer_name:  customerName.trim() || null,
-        })
+        // Domicilio: la base guarda teléfono y dirección junto con el pedido, en la misma transacción.
+        // El resto de los tipos sigue por crear_orden_completa exactamente como antes.
+        const { data, error } = esDomicilio
+          ? await supabase.rpc('crear_orden_domicilio', {
+              p_items:            items,
+              p_customer_name:    customerName.trim(),
+              p_customer_phone:   customerPhone,
+              p_delivery_address: deliveryAddress.trim(),
+              p_notes:            orderNotes || null,
+            })
+          : await supabase.rpc('crear_orden_completa', {
+              p_mesa_id:        selectedMesa?.id ?? null,
+              p_items:          items,
+              p_tipo_pedido:    tipoPedido,
+              p_notes:          (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || null,
+              p_table_num:      selectedMesa?.numero ?? null,
+              p_customer_name:  customerName.trim() || null,
+            })
         if (error) throw error
         // Número secuencial del día (lo asigna un trigger en la base); si aún no existe, sin número.
         const { data: num } = await supabase.from('orders').select('order_number_today').eq('id', data.order_id).maybeSingle()
         const ref = num?.order_number_today ? `#${num.order_number_today}` : ''
-        const dest = (selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : barra ? BARRA_NOTE : 'Mostrador') + (customerName.trim() ? ` · ${customerName.trim()}` : '')
+        const dest = (esDomicilio ? 'Domicilio' : selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : barra ? BARRA_NOTE : 'Mostrador') + (customerName.trim() ? ` · ${customerName.trim()}` : '')
         if (tipoPedido === 'RAPPI') {
           // Rappi nace pagado: va directo a cocina, no pasa por cobro.
           message.success('Pedido Rappi enviado a cocina')
@@ -581,6 +604,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           tipo_pedido: tipoPedido,
           table_num: selectedMesa?.numero ?? null,
           customer_name: customerName.trim() || undefined,
+          customer_phone: esDomicilio ? customerPhone : undefined,
+          delivery_address: esDomicilio ? deliveryAddress.trim() : undefined,
           notes: orderNotes || undefined,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -594,12 +619,13 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       setMesa(null); setBarra(false)
       setOrderNotes('')
       setCustomerName('')
+      setCustomerPhone(''); setDeliveryAddress(''); setShowDomicilioErrors(false)
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al enviar orden'}`)
     } finally {
       setSubmitting(false)
     }
-  }, [cart, tipoPedido, selectedMesa, barra, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])
+  }, [cart, tipoPedido, selectedMesa, barra, isOnline, cartTotal, orderNotes, customerName, customerPhone, deliveryAddress, onOrderCreated, profile.id])
 
   // ─── RENDER ───────────────────────────────────────────────
   return (
@@ -656,7 +682,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   { val: 'RAPPI',     label: 'Rappi',      show: ['admin','cashier'].includes(profile.role) },
                 ].filter(o => o.show).map(opt => (
                   <button key={opt.val}
-                    onClick={() => { setTipo(opt.val as TipoPedido); if (opt.val !== 'LOCAL') setMesa(null) }}
+                    onClick={() => { setTipo(opt.val as TipoPedido); if (opt.val !== 'LOCAL') setMesa(null); setShowDomicilioErrors(false) }}
                     className="py-3 rounded-2xl text-sm font-bold transition-all"
                     style={tipoPedido === opt.val
                       ? { background: 'var(--accent)', color: 'white', ...S.coral }
@@ -714,7 +740,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               {/* Nombre del comensal: además de la mesa, para identificar el pedido */}
               <div className="mt-5">
                 <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
-                  Nombre del comensal (obligatorio)
+                  {tipoPedido === 'DOMICILIO' ? 'Nombre del cliente (obligatorio)' : 'Nombre del comensal (obligatorio)'}
                 </p>
                 <input
                   value={customerName}
@@ -725,6 +751,20 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   style={S.neoIn}
                 />
               </div>
+
+              {/* Domicilio: teléfono y dirección de entrega */}
+              <AnimatePresence initial={false}>
+                {tipoPedido === 'DOMICILIO' && (
+                  <DomicilioForm
+                    key="domicilio-form"
+                    phone={customerPhone}
+                    address={deliveryAddress}
+                    onPhoneChange={setCustomerPhone}
+                    onAddressChange={setDeliveryAddress}
+                    showErrors={showDomicilioErrors}
+                  />
+                )}
+              </AnimatePresence>
             </div>
 
             <motion.button
@@ -735,8 +775,16 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   return
                 }
                 if (!customerName.trim()) {
-                  message.warning('Escribe el nombre del comensal')
+                  message.warning(tipoPedido === 'DOMICILIO' ? 'Escribe el nombre del cliente' : 'Escribe el nombre del comensal')
                   return
+                }
+                if (tipoPedido === 'DOMICILIO') {
+                  const errorDomicilio = validarDomicilio({ phone: customerPhone, address: deliveryAddress })
+                  if (errorDomicilio) {
+                    setShowDomicilioErrors(true)
+                    message.warning(errorDomicilio)
+                    return
+                  }
                 }
                 setStep('menu')
               }}
@@ -898,10 +946,16 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           >
             <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
               <h3 className="font-bold text-[#2D3561] mb-1">Resumen del pedido</h3>
-              <p className="text-xs text-[#9CA3AF] mb-4">
+              <p className={tipoPedido === 'DOMICILIO' ? 'text-xs text-[#9CA3AF] mb-1' : 'text-xs text-[#9CA3AF] mb-4'}>
                 {tipoPedido === 'LOCAL' && selectedMesa ? `Mesa ${selectedMesa.numero}` : tipoPedido === 'LOCAL' && barra ? BARRA_NOTE : tipoPedido}
                 {customerName.trim() && ` · ${customerName.trim()}`}
               </p>
+              {tipoPedido === 'DOMICILIO' && (
+                <DomicilioInfo
+                  order={{ tipo_pedido: 'DOMICILIO', customer_phone: customerPhone, delivery_address: deliveryAddress.trim() }}
+                  className="mb-4"
+                />
+              )}
 
               {/* Items */}
               <div className="flex flex-col gap-3 mb-4">

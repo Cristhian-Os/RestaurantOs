@@ -9,6 +9,7 @@
  *  • Corte de caja diario y mensual
  */
 import { destinoPedido } from '../../lib/destino'
+import { DomicilioInfo } from '../orders/DomicilioInfo'
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
@@ -39,6 +40,8 @@ interface Order {
   mesa_id:    string | null
   table_num:  number | null
   customer_name: string | null
+  customer_phone?:   string | null   // solo DOMICILIO
+  delivery_address?: string | null   // solo DOMICILIO
   items:      OrderItemRow[]
   total:      number
   status:     string
@@ -736,6 +739,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <p className="text-xs text-[#9CA3AF]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
+                    <DomicilioInfo order={order} className="mt-1.5" />
                     {order.notes && <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>}
                   </div>
                   <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
@@ -817,6 +821,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <p className="text-xs text-[#9CA3AF]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
+                    <DomicilioInfo order={order} className="mt-1.5" />
                     <p className="text-xs font-bold mt-0.5 text-amber-600">Preparándose en cocina</p>
                   </div>
                   <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
@@ -894,6 +899,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <p className="text-xs text-[#9CA3AF]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
+                    <DomicilioInfo order={order} className="mt-1.5" />
                     <p className={`text-xs font-bold mt-0.5 ${order.delivered_at ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {order.delivered_at ? '✓ Entregado al mesero' : 'Esperando que el mesero lo recoja'}
                     </p>
@@ -1032,6 +1038,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     {destinoPedido(payingOrder)}
                     {payingOrder.customer_name && <span className="text-[#FF5722]"> · {payingOrder.customer_name}</span>}
                   </h3>
+                  <DomicilioInfo order={payingOrder} className="mt-1.5" />
                 </div>
                 <span className="text-2xl font-bold text-[#FF5722]">${Math.round(payingOrder.total).toLocaleString('es-CO')}</span>
               </div>

@@ -10,6 +10,8 @@ export interface Order {
   tipo_pedido?:  'LOCAL' | 'LLEVAR' | 'DOMICILIO' | 'RAPPI'
   notes?:        string
   customer_name?: string | null
+  customer_phone?:   string | null   // solo DOMICILIO
+  delivery_address?: string | null   // solo DOMICILIO
   paid_at?:      string | null
 }
 
