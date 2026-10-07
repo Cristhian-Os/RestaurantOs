@@ -939,9 +939,13 @@ function getUrlParams() {
 }
 
 function applyThemeValue(t) {
-  if (t === 'light' || t === 'dark') {
-    document.documentElement.setAttribute('data-theme', t)
+  // WebOS Chromium 79 ignora setAttribute('data-theme','dark').
+  // El CSS ya tiene negro+neon como :root por defecto.
+  // Solo necesitamos intervenir cuando el tema es 'light'.
+  if (t === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light')
   }
+  // Si es 'dark' o cualquier otro valor, no hacemos nada — el default CSS ya es negro.
 }
 
 function loadTheme(restaurantId, callback) {
