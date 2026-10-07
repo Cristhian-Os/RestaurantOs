@@ -19,6 +19,12 @@
       ]
     },
     {
+      "source": "/kitchen-tv.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
       "source": "/icon-(.*)\\.png",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=604800, immutable" }
