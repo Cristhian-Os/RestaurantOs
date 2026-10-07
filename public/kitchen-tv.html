@@ -7,12 +7,13 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Tema base: negro puro con neón (default para TV de cocina) */
   :root {
     --bg:       #000000;
     --surface:  #0d0d0d;
-    --border:   #222222;
+    --border:   #1e1e1e;
     --ink:      #ffffff;
-    --ink-soft: #888888;
+    --ink-soft: #777777;
     --terra:    #ff6a00;
     --olive:    #00e676;
     --saffron:  #ffe600;
@@ -20,44 +21,33 @@
     --white:    #ffffff;
   }
 
+  /* Tema claro: solo si el sistema del TV lo pide explícitamente */
   @media (prefers-color-scheme: light) {
     :root {
-      --bg:       #f5f0ea;
+      --bg:       #f4f4f4;
       --surface:  #ffffff;
-      --border:   #ddd5c8;
-      --ink:      #1a1410;
-      --ink-soft: #6b5a48;
-      --terra:    #c4622d;
-      --olive:    #4a6a2a;
-      --saffron:  #b8820a;
-      --wine:     #8b2635;
+      --border:   #e0e0e0;
+      --ink:      #111111;
+      --ink-soft: #666666;
+      --terra:    #e05a00;
+      --olive:    #00a854;
+      --saffron:  #cc9900;
+      --wine:     #cc0022;
       --white:    #ffffff;
     }
   }
 
-  /* Override manual: ?theme=light o ?theme=dark en la URL */
+  /* Override manual por URL: ?theme=light fuerza claro aunque el TV diga oscuro */
   html[data-theme="light"] {
-    --bg:       #f5f0ea;
+    --bg:       #f4f4f4;
     --surface:  #ffffff;
-    --border:   #ddd5c8;
-    --ink:      #1a1410;
-    --ink-soft: #6b5a48;
-    --terra:    #c4622d;
-    --olive:    #4a6a2a;
-    --saffron:  #b8820a;
-    --wine:     #8b2635;
-    --white:    #ffffff;
-  }
-  html[data-theme="dark"] {
-    --bg:       #000000;
-    --surface:  #0d0d0d;
-    --border:   #222222;
-    --ink:      #ffffff;
-    --ink-soft: #888888;
-    --terra:    #ff6a00;
-    --olive:    #00e676;
-    --saffron:  #ffe600;
-    --wine:     #ff1744;
+    --border:   #e0e0e0;
+    --ink:      #111111;
+    --ink-soft: #666666;
+    --terra:    #e05a00;
+    --olive:    #00a854;
+    --saffron:  #cc9900;
+    --wine:     #cc0022;
     --white:    #ffffff;
   }
 
@@ -796,33 +786,19 @@ function apiHeaders() {
   }
 }
 
-function showDebug(msg) {
-  var el = document.getElementById('debug-overlay')
-  if (!el) {
-    el = document.createElement('div')
-    el.id = 'debug-overlay'
-    el.style.cssText = 'position:fixed;bottom:40px;left:0;right:0;background:rgba(0,0,0,0.85);color:#0f0;font-size:11px;padding:8px 12px;z-index:9999;word-break:break-all;white-space:pre-wrap;max-height:160px;overflow:auto;font-family:monospace'
-    document.body.appendChild(el)
-  }
-  var t = new Date().toTimeString().slice(0,8)
-  el.textContent = '[' + t + '] ' + msg
-}
-
 function fetchOrders() {
   var url = SUPABASE_URL + '/rest/v1/orders?select=*&status=in.%28pending%2Ccooking%2Cready%29&order=created_at.asc'
-  showDebug('GET ' + url.slice(url.indexOf('/rest')))
   var req = new XMLHttpRequest()
   req.open('GET', url, true)
   var h = apiHeaders()
   for (var k in h) req.setRequestHeader(k, h[k])
   req.onload = function() {
-    showDebug('HTTP ' + req.status + ' | len=' + req.responseText.length + ' | ' + req.responseText.slice(0, 120))
     if (req.status >= 200 && req.status < 300) {
       try { orders = JSON.parse(req.responseText) || []; render() }
       catch (e) { showError('Error al procesar datos') }
     } else { showError('Error HTTP ' + req.status) }
   }
-  req.onerror = function() { showDebug('XHR ERROR - sin conexión'); showError('Sin conexión al servidor') }
+  req.onerror = function() { showError('Sin conexión al servidor') }
   req.send()
 }
 
