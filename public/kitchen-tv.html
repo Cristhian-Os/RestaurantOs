@@ -770,19 +770,33 @@ function apiHeaders() {
   }
 }
 
+function showDebug(msg) {
+  var el = document.getElementById('debug-overlay')
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'debug-overlay'
+    el.style.cssText = 'position:fixed;bottom:40px;left:0;right:0;background:rgba(0,0,0,0.85);color:#0f0;font-size:11px;padding:8px 12px;z-index:9999;word-break:break-all;white-space:pre-wrap;max-height:160px;overflow:auto;font-family:monospace'
+    document.body.appendChild(el)
+  }
+  var t = new Date().toTimeString().slice(0,8)
+  el.textContent = '[' + t + '] ' + msg
+}
+
 function fetchOrders() {
   var url = SUPABASE_URL + '/rest/v1/orders?select=*&status=in.%28pending%2Ccooking%2Cready%29&order=created_at.asc'
+  showDebug('GET ' + url.slice(url.indexOf('/rest')))
   var req = new XMLHttpRequest()
   req.open('GET', url, true)
   var h = apiHeaders()
   for (var k in h) req.setRequestHeader(k, h[k])
   req.onload = function() {
+    showDebug('HTTP ' + req.status + ' | len=' + req.responseText.length + ' | ' + req.responseText.slice(0, 120))
     if (req.status >= 200 && req.status < 300) {
       try { orders = JSON.parse(req.responseText) || []; render() }
       catch (e) { showError('Error al procesar datos') }
     } else { showError('Error HTTP ' + req.status) }
   }
-  req.onerror = function() { showError('Sin conexión al servidor') }
+  req.onerror = function() { showDebug('XHR ERROR - sin conexión'); showError('Sin conexión al servidor') }
   req.send()
 }
 
