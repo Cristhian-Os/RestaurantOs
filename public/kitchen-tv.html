@@ -21,23 +21,8 @@
     --white:    #ffffff;
   }
 
-  /* Tema claro: solo si el sistema del TV lo pide explícitamente */
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg:       #f4f4f4;
-      --surface:  #ffffff;
-      --border:   #e0e0e0;
-      --ink:      #111111;
-      --ink-soft: #666666;
-      --terra:    #e05a00;
-      --olive:    #00a854;
-      --saffron:  #cc9900;
-      --wine:     #cc0022;
-      --white:    #ffffff;
-    }
-  }
-
-  /* Override manual por URL: ?theme=light fuerza claro aunque el TV diga oscuro */
+  /* El tema lo decide SOLO el restaurante (restaurant_config) o ?theme=. Se ignora
+     prefers-color-scheme: las TVs WebOS lo reportan como "light" y pisaban el negro. */
   html[data-theme="light"] {
     --bg:       #f4f4f4;
     --surface:  #ffffff;
