@@ -7,41 +7,62 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* Tema base: negro puro con neón (default para TV de cocina) */
+  /* Tema base: azul noche (default para TV de cocina).
+     Todo el tamaño va en rem y el rem escala con el ancho de pantalla:
+     16px a 1920px de ancho, así se ve igual en cualquier TV. */
   :root {
-    --bg:       #000000;
-    --surface:  #0d0d0d;
-    --border:   #1e1e1e;
-    --ink:      #ffffff;
-    --ink-soft: #777777;
-    --terra:    #ff6a00;
-    --olive:    #00e676;
-    --saffron:  #ffe600;
-    --wine:     #ff1744;
-    --white:    #ffffff;
+    --bg:        #0F1024;
+    --surface:   #151735;
+    --card:      #22254F;
+    --card-line: #34376A;
+    --inset:     #12132E;
+    --ink:       #F4F4FF;
+    --ink-soft:  #9A9CC8;
+    --ink-note:  #D5D7F5;
+    --pend:      #FB923C;
+    --cook:      #E879F9;
+    --ready:     #34D399;
+    --warn:      #FBBF24;
+    --late:      #F43F5E;
+    --late-bg:   #BE123C;
+    --paid-bg:   #FB923C;
+    --paid-fg:   #1A1100;
+    --unpaid-fg: #FBBF24;
+    --alert-bg:  rgba(251,191,36,0.15);
+    --alert-fg:  #FDE68A;
+    --white:     #FFFFFF;
   }
 
   /* El tema lo decide SOLO el restaurante (restaurant_config) o ?theme=. Se ignora
-     prefers-color-scheme: las TVs WebOS lo reportan como "light" y pisaban el negro. */
+     prefers-color-scheme: las TVs WebOS lo reportan como "light" y pisaban el oscuro. */
   html[data-theme="light"] {
-    --bg:       #f4f4f4;
-    --surface:  #ffffff;
-    --border:   #e0e0e0;
-    --ink:      #111111;
-    --ink-soft: #666666;
-    --terra:    #e05a00;
-    --olive:    #00a854;
-    --saffron:  #cc9900;
-    --wine:     #cc0022;
-    --white:    #ffffff;
+    --bg:        #EEF0FA;
+    --surface:   #FFFFFF;
+    --card:      #F6F7FD;
+    --card-line: #C9CDE6;
+    --inset:     #E6E9F7;
+    --ink:       #14152B;
+    --ink-soft:  #5A5D86;
+    --ink-note:  #2E3055;
+    --pend:      #C2570C;
+    --cook:      #A21CAF;
+    --ready:     #047857;
+    --warn:      #B45309;
+    --late:      #E11D48;
+    --late-bg:   #BE123C;
+    --paid-bg:   #FDBA74;
+    --paid-fg:   #431407;
+    --unpaid-fg: #92400E;
+    --alert-bg:  #FEF3C7;
+    --alert-fg:  #78350F;
   }
 
-  html, body { height: 100%; }
+  html { font-size: 0.8333vw; height: 100%; }
 
   body {
     background: var(--bg);
     color: var(--ink);
-    font-family: system-ui, -apple-system, Arial, sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
     height: 100%;
     max-height: 100vh;
     overflow: hidden;
@@ -52,8 +73,24 @@
     -webkit-box-direction: normal;
     -ms-flex-direction: column;
     flex-direction: column;
-    padding: 6px 8px 0;
-    font-size: 13px;
+    font-size: 1rem;
+  }
+
+  /* ── Aviso de sonido bloqueado ── */
+  #sound-banner {
+    display: none;
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
+    width: 100%;
+    border: none;
+    cursor: pointer;
+    background: var(--warn);
+    color: #1A1100;
+    font-family: inherit;
+    font-size: 1.75rem;
+    font-weight: 800;
+    padding: 0.625rem 1.5rem;
+    text-align: center;
   }
 
   /* ── Header ── */
@@ -67,13 +104,13 @@
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    padding-bottom: 5px;
-    border-bottom: 1px solid var(--border);
+    height: 4rem;
+    padding: 0 2rem;
     -ms-flex-negative: 0;
     flex-shrink: 0;
   }
 
-  #header h1 { font-size: 15px; font-weight: 700; }
+  #header h1 { font-size: 2.25rem; font-weight: 800; }
 
   #header-right {
     display: -webkit-box;
@@ -82,39 +119,64 @@
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 0.875rem;
+    font-size: 1.75rem;
+    font-weight: 700;
   }
+
+  #header-right > * { margin-left: 1.75rem; }
 
   #status-dot {
-    width: 8px; height: 8px;
+    width: 1rem; height: 1rem;
     border-radius: 50%;
-    background: var(--olive);
+    background: var(--ready);
     display: inline-block;
-    margin-right: 5px;
+    margin-right: 0.625rem;
   }
 
-  #status-text, #order-count { font-size: 11px; color: var(--ink-soft); }
+  #status-text { color: var(--ready); }
 
-  /* ── Grid ── */
+  #new-flash {
+    display: none;
+    background: var(--cook);
+    color: #12001A;
+    font-size: 1.75rem;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 0.125rem 1.25rem;
+  }
+
+  #test-sound {
+    font-family: inherit;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 0.125rem solid var(--card-line);
+    border-radius: 999px;
+    padding: 0.25rem 1rem;
+    cursor: pointer;
+  }
+
+  /* ── Columnas ── */
   #grid {
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
-    gap: 6px;
     -webkit-box-flex: 1;
     -ms-flex: 1;
     flex: 1;
-    overflow: hidden;
-    padding: 5px 0 0;
     min-height: 0;
+    overflow: hidden;
+    padding: 0.25rem 1.5rem 0.875rem;
   }
 
   .col {
-    -webkit-box-flex: 1;
-    -ms-flex: 1;
-    flex: 1;
-    border-radius: 10px;
-    padding: 6px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0.875rem;
+    border-radius: 1.75rem;
+    border: 0.1875rem solid;
+    background: var(--surface);
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -123,12 +185,13 @@
     -ms-flex-direction: column;
     flex-direction: column;
     overflow: hidden;
-    min-height: 0;
   }
 
-  .col-pending { background: rgba(255,230,0,0.06);  border: 1px solid rgba(255,230,0,0.25); }
-  .col-cooking { background: rgba(255,106,0,0.06);  border: 1px solid rgba(255,106,0,0.25); }
-  .col-ready   { background: rgba(0,230,118,0.06);  border: 1px solid rgba(0,230,118,0.25); }
+  .col + .col { margin-left: 1.25rem; }
+
+  .col-pending { -webkit-box-flex: 38; -ms-flex: 38 1 0px; flex: 38 1 0px; border-color: var(--pend); }
+  .col-cooking { -webkit-box-flex: 38; -ms-flex: 38 1 0px; flex: 38 1 0px; border-color: var(--cook); }
+  .col-ready   { -webkit-box-flex: 24; -ms-flex: 24 1 0px; flex: 24 1 0px; border-color: var(--ready); }
 
   .col-header {
     display: -webkit-box;
@@ -140,26 +203,27 @@
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    margin-bottom: 5px;
+    height: 3rem;
+    margin-bottom: 0.75rem;
     -ms-flex-negative: 0;
     flex-shrink: 0;
+    white-space: nowrap;
   }
 
-  .col-label {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
+  .col-title { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-align: baseline; -ms-flex-align: baseline; align-items: baseline; min-width: 0; }
+  .col-label { font-size: 2.125rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+  .col-hint  { font-size: 1.1875rem; font-weight: 600; color: var(--ink-soft); margin-left: 0.875rem; }
+  .col-right { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-align: center; -ms-flex-align: center; align-items: center; }
 
-  .col-pending .col-label { color: var(--saffron); }
-  .col-cooking .col-label { color: var(--terra); }
-  .col-ready   .col-label { color: var(--olive); }
+  .col-pending .col-label { color: var(--pend); }
+  .col-cooking .col-label { color: var(--cook); }
+  .col-ready   .col-label { color: var(--ready); }
+
+  .col-extra { display: none; font-size: 1.5rem; font-weight: 800; margin-right: 0.625rem; }
 
   .col-badge {
-    border-radius: 999px;
-    min-width: 18px; height: 18px;
-    padding: 0 4px;
+    width: 3rem; height: 3rem;
+    border-radius: 50%;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -169,99 +233,166 @@
     -webkit-box-pack: center;
     -ms-flex-pack: center;
     justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--white);
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #0F1024;
   }
 
-  .col-pending .col-badge { background: var(--saffron); }
-  .col-cooking .col-badge { background: var(--terra); }
-  .col-ready   .col-badge { background: var(--olive); }
+  .col-pending .col-badge { background: var(--pend); }
+  .col-cooking .col-badge { background: var(--cook); }
+  .col-ready   .col-badge { background: var(--ready); }
 
-  /* Scrollable cards area */
+  /* Área de tarjetas: nunca scrollea. Lo que no cabe se oculta y se cuenta en "+N más",
+     así ninguna tarjeta se ve cortada a la mitad. */
   .col-cards {
     -webkit-box-flex: 1;
     -ms-flex: 1;
     flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
     min-height: 0;
-  }
-
-  .col-empty {
-    text-align: center;
-    padding: 1.5rem 0;
-    font-size: 0.75rem;
-    color: var(--ink-soft);
-  }
-
-  /* ── Order Card — compacta para caber 3 en pantalla ── */
-  .card {
-    background: var(--surface);
-    border-radius: 8px;
-    padding: 6px 8px;
-    border: 1px solid var(--border);
-    margin-bottom: 5px;
-  }
-
-  .card.urgent { border-color: var(--wine); border-width: 2px; }
-
-  .card-top {
+    position: relative;
+    overflow: hidden;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
-    -webkit-box-pack: justify;
-    -ms-flex-pack: justify;
-    justify-content: space-between;
-    margin-bottom: 5px;
+    -ms-flex-wrap: wrap;
+    flex-wrap: wrap;
+    -ms-flex-line-pack: start;
+    align-content: flex-start;
   }
 
-  .card-title { font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.2; }
-  .card-ref   { font-size: 10px; color: var(--ink-soft); }
-
-  .paid-badge {
-    display: inline-block;
-    padding: 1px 5px;
-    border-radius: 999px;
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--white);
-  }
-  .paid-badge.paid   { background: var(--olive); }
-  .paid-badge.unpaid { background: var(--wine); }
-
-  .card-timer { font-size: 13px; font-weight: 700; text-align: right; color: var(--ink-soft); }
-  .card-timer.urgent { color: var(--wine); }
-  .urgent-label { font-size: 9px; font-weight: 800; color: var(--wine); text-align: right; }
-
-  .items-box {
-    background: var(--bg);
-    border-radius: 6px;
-    padding: 5px 6px;
-    border: 1px solid var(--border);
-    margin-bottom: 5px;
+  .col-empty {
+    width: 100%;
+    text-align: center;
+    padding: 2rem 0;
+    font-size: 1.875rem;
+    font-weight: 500;
+    color: var(--ink-soft);
   }
 
-  .item-row {
+  /* ── Tarjeta de orden ── */
+  .card {
+    width: calc(50% - 0.3125rem);
+    margin-bottom: 0.625rem;
+    padding: 0.625rem;
+    border-radius: 1rem;
+    border: 0.1875rem solid var(--card-line);
+    background: var(--card);
+    cursor: default;
+    outline: none;
+  }
+
+  .card:nth-child(odd) { margin-right: 0.625rem; }
+
+  .card.clickable { cursor: pointer; }
+  .card.clickable:hover { -webkit-filter: brightness(1.2); filter: brightness(1.2); }
+  .card.clickable:active { -webkit-transform: scale(0.97); transform: scale(0.97); }
+  .card.clickable:focus { border-color: var(--white); }
+  .card.late { border-color: var(--late); }
+
+  /* Listas: una sola columna, tarjeta compacta */
+  .col-ready .card { width: 100%; margin-right: 0; padding: 0.5rem 0.625rem; }
+  .col-ready .card:nth-child(odd) { margin-right: 0; }
+
+  .row1 {
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 3px;
+    -webkit-box-pack: justify;
+    -ms-flex-pack: justify;
+    justify-content: space-between;
   }
-  .item-row:last-child { margin-bottom: 0; }
+
+  .title { -webkit-box-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; font-size: 1.75rem; font-weight: 800; line-height: 1.1; word-wrap: break-word; padding-right: 0.5rem; }
+
+  .timer {
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
+    font-size: 2.125rem;
+    font-weight: 800;
+    line-height: 1;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.625rem;
+  }
+  .timer.t-ok    { color: var(--pend); }
+  .timer.t-warn  { color: var(--warn); }
+  .timer.t-late  { color: var(--white); background: var(--late-bg); }
+  .timer.t-ready { color: var(--ready); }
+
+  .row2 {
+    -ms-flex-wrap: wrap;
+    flex-wrap: wrap;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: justify;
+    -ms-flex-pack: justify;
+    justify-content: space-between;
+    margin-top: 0.3125rem;
+  }
+
+  .sub { white-space: nowrap; font-size: 1.125rem; font-weight: 800; letter-spacing: 0.03em; color: var(--pend); text-transform: uppercase; }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.875rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 0.0625rem 0.625rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge.paid   { background: var(--paid-bg); color: var(--paid-fg); }
+  .badge.unpaid { background: var(--inset); color: var(--unpaid-fg); border: 0.0625rem solid var(--unpaid-fg); }
+
+  .btn-cancel {
+    margin-left: 0.5rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--white);
+    background: var(--late-bg);
+    border: none;
+    border-radius: 999px;
+    padding: 0.0625rem 0.625rem;
+    cursor: pointer;
+  }
+
+  .alert {
+    margin-top: 0.3125rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--alert-fg);
+    background: var(--alert-bg);
+    border-radius: 0.5rem;
+    padding: 0.1875rem 0.5rem;
+    word-wrap: break-word;
+  }
+
+  .items {
+    margin-top: 0.3125rem;
+    padding: 0.3125rem 0.5rem;
+    border-radius: 0.625rem;
+    background: var(--inset);
+  }
+
+  .item { padding: 0.125rem 0.5rem 0.125rem 0.125rem; border-radius: 0.625rem; }
+  .item + .item { margin-top: 0.1875rem; }
+
+  .item-main { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-align: center; -ms-flex-align: center; align-items: center; }
 
   .item-qty {
-    min-width: 28px; height: 28px;
-    padding: 0 5px;
-    border-radius: 6px;
-    background: var(--terra);
-    color: var(--white);
-    font-size: 14px;
-    font-weight: 700;
+    width: 1.875rem; height: 1.875rem;
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
+    border-radius: 50%;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -271,150 +402,93 @@
     -webkit-box-pack: center;
     -ms-flex-pack: center;
     justify-content: center;
+    font-size: 1.25rem;
+    font-weight: 800;
+    margin-right: 0.625rem;
+  }
+
+  .item-name  { -webkit-box-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; font-size: 1.625rem; font-weight: 700; line-height: 1.15; word-wrap: break-word; }
+  .item-notes { margin-left: 2.5rem; font-size: 1.25rem; font-weight: 500; line-height: 1.2; color: var(--ink-note); word-wrap: break-word; }
+
+  /* Listas: los productos van en fichas que se acomodan en líneas */
+  .chips { margin-top: 0.25rem; display: -webkit-box; display: -ms-flexbox; display: flex; -ms-flex-wrap: wrap; flex-wrap: wrap; }
+  .chip {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    margin: 0 0.375rem 0.375rem 0;
+    padding: 0.125rem 0.75rem 0.125rem 0.125rem;
+    border-radius: 0.625rem;
+  }
+  .chip .item-qty { width: 1.75rem; height: 1.75rem; font-size: 1.1875rem; margin-right: 0.5rem; }
+  .chip-text { font-size: 1.375rem; font-weight: 600; line-height: 1.15; }
+
+  .ready-hint { margin-top: 0.125rem; font-size: 1rem; font-weight: 600; color: var(--ink-soft); }
+
+
+  /* Modo denso: se activa solo en una columna cuando las órdenes no caben con el tamaño normal. */
+  .col.dense .card { padding: 0.4375rem 0.5rem; margin-bottom: 0.4375rem; border-width: 0.125rem; }
+  .col.dense .title { font-size: 1.5rem; }
+  .col.dense .timer { font-size: 1.75rem; padding: 0 0.4375rem; }
+  .col.dense .row2 { margin-top: 0.125rem; }
+  .col.dense .sub { font-size: 1rem; }
+  .col.dense .badge, .col.dense .btn-cancel { font-size: 0.8125rem; padding: 0 0.5rem; }
+  .col.dense .alert { font-size: 1.125rem; margin-top: 0.1875rem; padding: 0.125rem 0.4375rem; }
+  .col.dense .items { margin-top: 0.1875rem; padding: 0.1875rem 0.375rem; }
+  .col.dense .item { padding: 0 0.375rem 0 0.125rem; }
+  .col.dense .item + .item { margin-top: 0.125rem; }
+  .col.dense .item-qty { width: 1.625rem; height: 1.625rem; font-size: 1.125rem; margin-right: 0.5rem; }
+  .col.dense .item-name { font-size: 1.4375rem; }
+  .col.dense .item-notes { margin-left: 2.125rem; font-size: 1.125rem; line-height: 1.15; }
+  .col.dense .chip { margin-bottom: 0.25rem; }
+  .col.dense .chip-text { font-size: 1.1875rem; }
+  .col.dense .chip .item-qty { width: 1.5rem; height: 1.5rem; font-size: 1rem; }
+  .col.dense .ready-hint { display: none; }
+
+  /* ── Total activo ── */
+  #totals {
     -ms-flex-negative: 0;
     flex-shrink: 0;
-  }
-
-  .item-name  { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.2; }
-  .item-notes { font-size: 10px; color: var(--saffron); font-weight: 600; }
-
-  .card-notes {
-    font-size: 10px;
-    color: var(--ink-soft);
-    background: var(--bg);
-    border-radius: 4px;
-    padding: 3px 6px;
-    border: 1px solid var(--border);
-    margin-bottom: 5px;
-  }
-
-  .btn-advance {
-    width: 100%;
-    padding: 5px;
-    border-radius: 6px;
-    font-weight: 700;
-    color: var(--white);
-    font-size: 11px;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .btn-advance.start { background: var(--terra); }
-  .btn-advance.done  { background: var(--olive); margin-bottom: 4px; }
-
-  .btn-cancel-order {
-    width: 100%;
-    padding: 4px;
-    border-radius: 6px;
-    font-weight: 700;
-    color: var(--white);
-    font-size: 10px;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    background: var(--wine);
-  }
-
-  .ready-label {
-    text-align: center;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--olive);
-  }
-
-  /* ── Ticker inferior ── */
-  #ticker-wrap {
-    -ms-flex-negative: 0;
-    flex-shrink: 0;
+    min-height: 4.75rem;
+    max-height: 9rem;
+    overflow: hidden;
+    padding: 0.625rem 2rem 0.25rem;
     background: var(--surface);
-    border-top: 1px solid var(--border);
-    overflow: hidden;
-    height: 30px;
+    border-top: 0.125rem solid var(--card-line);
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: start;
+    -ms-flex-align: start;
+    align-items: flex-start;
+  }
+
+  #totals-label { font-size: 1.625rem; font-weight: 800; letter-spacing: 0.06em; color: var(--ink-soft); white-space: nowrap; margin-right: 2rem; padding-top: 0.5rem; }
+
+  #totals-list { -webkit-box-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; display: -webkit-box; display: -ms-flexbox; display: flex; -ms-flex-wrap: wrap; flex-wrap: wrap; }
+
+  .total-chip { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-align: center; -ms-flex-align: center; align-items: center; margin: 0 2.25rem 0.375rem 0; white-space: nowrap; }
+  .total-qty {
+    min-width: 3rem; height: 3rem;
+    padding: 0 0.375rem;
+    border-radius: 1.5rem;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-  }
-
-  #ticker-label {
-    font-size: 9px;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+    font-size: 1.875rem;
     font-weight: 800;
-    letter-spacing: 0.08em;
-    color: var(--saffron);
-    text-transform: uppercase;
-    padding: 0 8px;
-    -ms-flex-negative: 0;
-    flex-shrink: 0;
-    border-right: 1px solid var(--border);
-    height: 100%;
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
+    margin-right: 0.875rem;
   }
-
-  #ticker-track {
-    -webkit-box-flex: 1;
-    -ms-flex: 1;
-    flex: 1;
-    overflow: hidden;
-    height: 100%;
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-  }
-
-  #ticker-inner {
-    display: -webkit-inline-box;
-    display: -ms-inline-flexbox;
-    display: inline-flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    white-space: nowrap;
-    -webkit-animation: ticker-scroll 30s linear infinite;
-    animation: ticker-scroll 30s linear infinite;
-    padding-left: 100%;
-  }
-
-  @-webkit-keyframes ticker-scroll {
-    0%   { -webkit-transform: translateX(0); }
-    100% { -webkit-transform: translateX(-100%); }
-  }
-  @keyframes ticker-scroll {
-    0%   { transform: translateX(0); }
-    100% { transform: translateX(-100%); }
-  }
-
-  .ticker-item {
-    display: -webkit-inline-box;
-    display: -ms-inline-flexbox;
-    display: inline-flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.8125rem;
-  }
-
-  .ticker-qty {
-    background: var(--terra);
-    color: var(--white);
-    font-weight: 800;
-    border-radius: 4px;
-    padding: 0 5px;
-    font-size: 12px;
-  }
-
-  .ticker-name { color: var(--ink); font-weight: 600; font-size: 12px; }
-  .ticker-sep  { color: var(--ink-soft); font-size: 14px; }
+  .total-name { font-size: 2.125rem; font-weight: 700; }
 
   /* Loading / Empty */
   #loading {
@@ -433,9 +507,9 @@
   }
 
   .spinner {
-    width: 32px; height: 32px;
+    width: 3rem; height: 3rem;
     border-radius: 50%;
-    border: 3px solid var(--terra);
+    border: 0.25rem solid var(--pend);
     border-top-color: transparent;
     -webkit-animation: spin 0.8s linear infinite;
     animation: spin 0.8s linear infinite;
@@ -446,11 +520,11 @@
 
   #empty-state {
     background: var(--surface);
-    border-radius: 1rem;
+    border-radius: 1.5rem;
     padding: 3rem 1rem;
     text-align: center;
-    border: 1px solid var(--border);
-    margin: 0.625rem 0;
+    border: 0.125rem solid var(--card-line);
+    margin: 0.625rem 1.5rem;
     -webkit-box-flex: 1;
     -ms-flex: 1;
     flex: 1;
@@ -465,33 +539,32 @@
     -webkit-box-direction: normal;
     -ms-flex-direction: column;
     flex-direction: column;
-    gap: 0.5rem;
   }
 
-  #empty-state p     { font-size: 1.125rem; font-weight: 600; }
-  #empty-state small { font-size: 0.8125rem; color: var(--ink-soft); }
+  #empty-state p     { font-size: 2.5rem; font-weight: 700; }
+  #empty-state small { font-size: 1.5rem; color: var(--ink-soft); margin-top: 0.5rem; }
 
   #error-box {
-    background: rgba(139,38,53,0.15);
-    border: 1px solid var(--wine);
-    border-radius: 0.875rem;
+    background: rgba(190,18,60,0.18);
+    border: 0.125rem solid var(--late);
+    border-radius: 1rem;
     padding: 1.25rem;
     text-align: center;
     display: none;
-    margin: 0.625rem 0;
+    margin: 0.625rem 1.5rem;
   }
 
-  #error-box p { color: var(--ink); font-size: 0.875rem; }
+  #error-box p { color: var(--ink); font-size: 1.5rem; }
 
   #retry-btn {
     margin-top: 0.75rem;
-    padding: 0.5rem 1.25rem;
-    border-radius: 0.625rem;
-    background: var(--terra);
-    color: var(--white);
+    padding: 0.5rem 1.5rem;
+    border-radius: 0.75rem;
+    background: var(--pend);
+    color: #1A1100;
     border: none;
-    font-size: 0.8125rem;
-    font-weight: 700;
+    font-size: 1.25rem;
+    font-weight: 800;
     cursor: pointer;
     font-family: inherit;
   }
@@ -499,11 +572,15 @@
 </head>
 <body>
 
+<button id="sound-banner" type="button">Sonido desactivado: haz clic aquí para activarlo</button>
+
 <div id="header">
-  <h1>🍳 Cocina</h1>
+  <h1>Cocina</h1>
   <div id="header-right">
+    <span id="new-flash"></span>
     <span id="order-count">Cargando...</span>
     <span><span id="status-dot"></span><span id="status-text">Conectando...</span></span>
+    <button id="test-sound" type="button">Probar sonido</button>
   </div>
 </div>
 
@@ -522,38 +599,40 @@
 <div id="grid" style="display:none">
   <div class="col col-pending">
     <div class="col-header">
-      <span class="col-label">Pendientes</span>
-      <span class="col-badge" id="badge-pending">0</span>
+      <div class="col-title"><span class="col-label">Pendientes</span><span class="col-hint">clic: iniciar</span></div>
+      <div class="col-right"><span class="col-extra" id="extra-pending"></span><span class="col-badge" id="badge-pending">0</span></div>
     </div>
-    <div class="col-cards" id="cards-pending"><div class="col-empty">Sin órdenes</div></div>
+    <div class="col-cards" id="cards-pending"></div>
   </div>
   <div class="col col-cooking">
     <div class="col-header">
-      <span class="col-label">En cocina</span>
-      <span class="col-badge" id="badge-cooking">0</span>
+      <div class="col-title"><span class="col-label">En cocina</span><span class="col-hint">clic: marcar listo</span></div>
+      <div class="col-right"><span class="col-extra" id="extra-cooking"></span><span class="col-badge" id="badge-cooking">0</span></div>
     </div>
-    <div class="col-cards" id="cards-cooking"><div class="col-empty">Sin órdenes</div></div>
+    <div class="col-cards" id="cards-cooking"></div>
   </div>
   <div class="col col-ready">
     <div class="col-header">
-      <span class="col-label">Listas</span>
-      <span class="col-badge" id="badge-ready">0</span>
+      <div class="col-title"><span class="col-label">Listas</span></div>
+      <div class="col-right"><span class="col-extra" id="extra-ready"></span><span class="col-badge" id="badge-ready">0</span></div>
     </div>
-    <div class="col-cards" id="cards-ready"><div class="col-empty">Sin órdenes</div></div>
+    <div class="col-cards" id="cards-ready"></div>
   </div>
 </div>
 
-<div id="ticker-wrap" style="display:none">
-  <div id="ticker-label">Total activo</div>
-  <div id="ticker-track">
-    <div id="ticker-inner"></div>
-  </div>
+<div id="totals" style="display:none">
+  <div id="totals-label">TOTAL ACTIVO</div>
+  <div id="totals-list"></div>
 </div>
 
 <script>
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 var SUPABASE_URL = 'https://ifypeslrcdebvdqglywt.supabase.co'
 var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmeXBlc2xyY2RlYnZkcWdseXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyOTY3NjYsImV4cCI6MjA5NDg3Mjc2Nn0.MRQYCC_qIkdi32rNGpbE_Z2kKKyTO5d8bPWpatdEI_Q'
+
+var WARN_SECS = 300     // el timer pasa a ámbar
+var LATE_SECS = 600     // el timer pasa a rojo con fondo y suena un aviso
+var POLL_MS   = 3000
 // ─────────────────────────────────────────────────────────────────────────────
 
 var orders = []
@@ -561,6 +640,19 @@ var timers = {}
 var ws = null
 var wsHeartbeat = null
 var retryTimeout = null
+var pollInterval = null
+var lastSignature = ''
+var busy = {}
+
+// Categorías: color de cada producto según la categoría del plato (configurada en Menú).
+var dishCategory = {}   // dish id -> value de categoría
+var catMeta = {}        // value -> { label, color }
+var DEFAULT_CAT_COLOR = {
+  entrada: '#22D3EE', principal: '#A78BFA', postre: '#60A5FA', bebida: '#CBD5E1', especial: '#BEF264'
+}
+var NEUTRAL_COLOR = '#CBD5E1'
+
+var TIPO_LABEL = { LOCAL: 'Mesa', LLEVAR: 'Para llevar', DOMICILIO: 'Domicilio', RAPPI: 'Rappi' }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function orderRef(o) {
@@ -570,7 +662,7 @@ function orderRef(o) {
 function destinoPedido(o) {
   if (o.table_num) return 'Mesa ' + o.table_num
   if (o.notes && o.notes.split(' · ').indexOf('Barra') !== -1) return 'Barra'
-  return o.tipo_pedido || 'Pedido'
+  return TIPO_LABEL[o.tipo_pedido] || o.tipo_pedido || 'Pedido'
 }
 
 function parseItems(raw) {
@@ -580,141 +672,353 @@ function parseItems(raw) {
   } catch (e) { return [] }
 }
 
+function elapsedSecs(createdAt) {
+  return Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000))
+}
+
 function elapsedStr(createdAt) {
-  var diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000)
+  var diff = elapsedSecs(createdAt)
   var m = Math.floor(diff / 60), s = diff % 60
   return m + ':' + (s < 10 ? '0' + s : s)
 }
 
-function isUrgent(createdAt) {
-  return (Date.now() - new Date(createdAt).getTime()) / 1000 > 900
-}
-
 function esc(str) {
-  if (!str) return ''
+  if (str === null || str === undefined) return ''
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-// ─── Ticker — agrupa ítems de todas las órdenes activas ──────────────────────
-function buildTicker() {
-  // Contar todos los ítems activos (pending + cooking + ready)
-  var counts = {}
+function closest(el, selector) {
+  var fn = el && (el.matches || el.webkitMatchesSelector || el.msMatchesSelector)
+  while (el && el.nodeType === 1) {
+    if (fn.call(el, selector)) return el
+    el = el.parentNode
+    fn = el && el.nodeType === 1 && (el.matches || el.webkitMatchesSelector || el.msMatchesSelector)
+  }
+  return null
+}
+
+// Color de la categoría de un producto + color de texto legible encima + fondo suave.
+function isHex(c) { return typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) }
+
+function itemColor(item) {
+  var value = dishCategory[item.id]
+  var c = (catMeta[value] && catMeta[value].color) || DEFAULT_CAT_COLOR[value] || NEUTRAL_COLOR
+  return isHex(c) ? c : NEUTRAL_COLOR
+}
+
+function textOn(hex) {
+  var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0F1024' : '#FFFFFF'
+}
+
+// Características del producto: opciones/comentario (item.notes ya trae el resumen);
+// si no hay, se arma con tamaño y toppings.
+function itemDetail(item) {
+  if (item.notes) return String(item.notes)
+  var parts = []
+  if (item.size) parts.push(item.size)
+  if (item.toppings && item.toppings.length) parts.push('+ ' + item.toppings.join(', + '))
+  return parts.join(' · ')
+}
+
+function orderNote(order) {
+  if (!order.notes) return ''
+  return order.notes.split(' · ').filter(function(n) { return n !== 'Barra' }).join(' · ')
+}
+
+// ─── Sonido ──────────────────────────────────────────────────────────────────
+// Los navegadores (y la TV) no dejan sonar audio hasta que alguien hace clic en la
+// página. Mientras siga bloqueado se muestra el aviso arriba; cualquier clic lo activa.
+var PATTERNS = {
+  LOCAL:     { wave: 'triangle', gain: 0.9,  notes: [[659, 0, 0.28], [523, 0.3, 0.4], [659, 0.8, 0.28], [523, 1.1, 0.45]] },
+  LLEVAR:    { wave: 'square',   gain: 0.35, notes: [[1047, 0, 0.12], [1047, 0.2, 0.12], [1047, 0.4, 0.12], [1397, 0.6, 0.4]] },
+  DOMICILIO: { wave: 'sawtooth', gain: 0.3,  notes: [[1175, 0, 0.16], [988, 0.18, 0.16], [784, 0.36, 0.16], [659, 0.54, 0.16], [523, 0.72, 0.35]] },
+  RAPPI:     { wave: 'square',   gain: 0.3,  notes: [[1568, 0, 0.07], [1245, 0.09, 0.07], [1568, 0.18, 0.07], [1245, 0.27, 0.07], [1568, 0.36, 0.07], [1245, 0.45, 0.07], [1568, 0.54, 0.25]] },
+  LATE:      { wave: 'triangle', gain: 0.8,  notes: [[880, 0, 0.15], [880, 0.25, 0.15], [660, 0.5, 0.35]] }
+}
+
+var audioCtx = null
+
+function getCtx() {
+  if (audioCtx) return audioCtx
+  var C = window.AudioContext || window.webkitAudioContext
+  if (!C) return null
+  try { audioCtx = new C() } catch (e) { return null }
+  audioCtx.onstatechange = updateBanner
+  return audioCtx
+}
+
+function isAudioLocked() { return !audioCtx || audioCtx.state !== 'running' }
+
+function updateBanner() {
+  document.getElementById('sound-banner').style.display = isAudioLocked() ? 'block' : 'none'
+}
+
+// Debe llamarse dentro de un clic/tecla de la persona.
+function unlockAudio() {
+  var c = getCtx()
+  if (!c) return
+  if (c.state !== 'running') {
+    try {
+      var p = c.resume()
+      if (p && p.then) p.then(updateBanner, updateBanner)
+    } catch (e) {}
+  }
+  try {
+    var b = c.createBufferSource()
+    b.buffer = c.createBuffer(1, 1, 22050)
+    b.connect(c.destination)
+    b.start(0)
+  } catch (e) {}
+  updateBanner()
+}
+
+function playPattern(name, repeats) {
+  var c = audioCtx
+  if (!c || c.state !== 'running') return false
+  var p = PATTERNS[name] || PATTERNS.LOCAL
+  var out = c.createDynamicsCompressor()
+  out.connect(c.destination)
+  var t0 = c.currentTime + 0.05
+  var total = 0
+  for (var i = 0; i < p.notes.length; i++) total = Math.max(total, p.notes[i][1] + p.notes[i][2])
+  total += 0.35
+  for (var rep = 0; rep < repeats; rep++) {
+    for (var n = 0; n < p.notes.length; n++) {
+      var note = p.notes[n]
+      var o = c.createOscillator()
+      var g = c.createGain()
+      o.type = p.wave
+      o.frequency.value = note[0]
+      var at = t0 + rep * total + note[1]
+      g.gain.setValueAtTime(0.0001, at)
+      g.gain.exponentialRampToValueAtTime(p.gain, at + 0.015)
+      g.gain.exponentialRampToValueAtTime(0.0001, at + note[2])
+      o.connect(g)
+      g.connect(out)
+      o.start(at)
+      o.stop(at + note[2] + 0.02)
+    }
+  }
+  return true
+}
+
+// Orden nueva: el patrón del tipo de pedido, dos veces seguidas para que se oiga con ruido.
+function playOrderSound(tipo) { return playPattern(PATTERNS[tipo] ? tipo : 'LOCAL', 2) }
+function playLateSound() { return playPattern('LATE', 1) }
+
+function testSounds() {
+  unlockAudio()
+  var tipos = ['LOCAL', 'LLEVAR', 'DOMICILIO', 'RAPPI']
+  for (var i = 0; i < tipos.length; i++) {
+    (function(t, idx) {
+      setTimeout(function() { playOrderSound(t); showFlash('Sonido: ' + TIPO_LABEL[t]) }, 300 + idx * 3300)
+    })(tipos[i], i)
+  }
+}
+
+var flashTimeout = null
+function showFlash(text) {
+  var el = document.getElementById('new-flash')
+  el.textContent = text
+  el.style.display = 'block'
+  clearTimeout(flashTimeout)
+  flashTimeout = setTimeout(function() { el.style.display = 'none' }, 6000)
+}
+
+var unlockEvents = ['pointerdown', 'mousedown', 'mouseup', 'click', 'keydown', 'touchend']
+for (var ue = 0; ue < unlockEvents.length; ue++) window.addEventListener(unlockEvents[ue], unlockAudio, false)
+
+document.getElementById('sound-banner').onclick = function() {
+  unlockAudio()
+  setTimeout(function() { playOrderSound('LOCAL') }, 150)
+}
+document.getElementById('test-sound').onclick = testSounds
+
+// Avisos: cada orden suena UNA vez. Lo que ya estaba al abrir la pantalla no suena.
+var baselineDone = false
+var heardNew = {}
+var heardLate = {}
+
+function checkAlerts(list) {
+  var fresh = []
+  for (var i = 0; i < list.length; i++) {
+    var o = list[i]
+    if (!baselineDone) {
+      heardNew[o.id] = true
+      if (o.status !== 'ready' && elapsedSecs(o.created_at) >= LATE_SECS) heardLate[o.id] = true
+    } else if (o.status === 'pending' && !heardNew[o.id]) {
+      heardNew[o.id] = true
+      fresh.push(o)
+    }
+  }
+  baselineDone = true
+  if (fresh.length > 0) {
+    showFlash(fresh.length === 1 ? 'Nueva orden ' + orderRef(fresh[0]) : fresh.length + ' órdenes nuevas')
+    playOrderSound(fresh[0].tipo_pedido)
+  }
+}
+
+// ─── Total activo — suma de productos por contar (pendientes + en cocina) ────
+function buildTotals() {
+  var counts = {}, colors = {}, keys = []
   for (var i = 0; i < orders.length; i++) {
+    if (orders[i].status !== 'pending' && orders[i].status !== 'cooking') continue
     var items = parseItems(orders[i].items)
     for (var j = 0; j < items.length; j++) {
       var it = items[j]
       if (it.cancelled) continue
-      var key = it.name
-      counts[key] = (counts[key] || 0) + (it.quantity || 1)
+      if (counts[it.name] === undefined) { counts[it.name] = 0; colors[it.name] = itemColor(it); keys.push(it.name) }
+      counts[it.name] += (it.quantity || 1)
     }
   }
-
-  var keys = []
-  for (var k in counts) keys.push(k)
-
-  var wrap = document.getElementById('ticker-wrap')
-  var inner = document.getElementById('ticker-inner')
-
-  if (keys.length === 0) {
-    wrap.style.display = 'none'
-    return
-  }
-
+  var wrap = document.getElementById('totals')
+  if (keys.length === 0) { wrap.style.display = 'none'; return }
   wrap.style.display = 'flex'
-
-  // Ordenar de mayor a menor cantidad
   keys.sort(function(a, b) { return counts[b] - counts[a] })
-
   var html = ''
   for (var n = 0; n < keys.length; n++) {
-    if (n > 0) html += '<span class="ticker-sep"> &nbsp;·&nbsp; </span>'
-    html += '<span class="ticker-item">'
-      + '<span class="ticker-qty">' + counts[keys[n]] + 'x</span>'
-      + '&nbsp;<span class="ticker-name">' + esc(keys[n]) + '</span>'
-      + '</span>'
+    var col = colors[keys[n]]
+    html += '<div class="total-chip">'
+      + '<span class="total-qty" style="background:' + col + ';color:' + textOn(col) + '">' + counts[keys[n]] + '</span>'
+      + '<span class="total-name">' + esc(keys[n]) + '</span></div>'
   }
-  inner.innerHTML = html
-
-  // Velocidad: más ítems = más tiempo para que se lea todo
-  var duration = Math.max(15, keys.length * 5) + 's'
-  inner.style.WebkitAnimationDuration = duration
-  inner.style.animationDuration = duration
+  document.getElementById('totals-list').innerHTML = html
 }
 
 // ─── Timers ──────────────────────────────────────────────────────────────────
+function timerClass(secs, isReady) {
+  if (isReady) return 't-ready'
+  if (secs >= LATE_SECS) return 't-late'
+  if (secs >= WARN_SECS) return 't-warn'
+  return 't-ok'
+}
+
+function updateTimers() {
+  var els = document.querySelectorAll('[data-created]')
+  var lateNow = false
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i]
+    var ca = el.getAttribute('data-created')
+    var isReady = el.getAttribute('data-ready') === '1'
+    var secs = elapsedSecs(ca)
+    el.textContent = elapsedStr(ca)
+    var cls = timerClass(secs, isReady)
+    el.className = 'timer ' + cls
+    var card = closest(el, '.card')
+    if (card) {
+      if (cls === 't-late') card.classList.add('late'); else card.classList.remove('late')
+      var id = card.getAttribute('data-id')
+      if (cls === 't-late' && !heardLate[id]) { heardLate[id] = true; lateNow = true }
+    }
+  }
+  if (lateNow) { playLateSound(); showFlash('Orden demorada') }
+}
+
 function startTimers() {
   clearInterval(timers._global)
-  timers._global = setInterval(function() {
-    var els = document.querySelectorAll('[data-created]')
-    for (var i = 0; i < els.length; i++) {
-      var el = els[i]
-      var ca = el.getAttribute('data-created')
-      el.textContent = elapsedStr(ca)
-      if (isUrgent(ca)) {
-        el.className = 'card-timer urgent'
-        var ul = el.parentNode.querySelector('.urgent-label')
-        if (ul) ul.style.display = 'block'
-        var card = el.closest ? el.closest('.card') : null
-        if (card) card.className = 'card urgent'
-      }
-    }
-  }, 1000)
+  timers._global = setInterval(updateTimers, 1000)
 }
 
 // ─── Render ──────────────────────────────────────────────────────────────────
-function cardHtml(order) {
+function cardHtml(order, compact) {
   var items = parseItems(order.items)
-  var urgent = isUrgent(order.created_at)
+  var isReady = order.status === 'ready'
+  var next = order.status === 'pending' ? 'cooking' : (order.status === 'cooking' ? 'ready' : '')
+  var secs = elapsedSecs(order.created_at)
+  var cls = timerClass(secs, isReady)
 
   var itemsHtml = ''
   for (var i = 0; i < items.length; i++) {
     var item = items[i]
     if (item.cancelled) continue
-    itemsHtml += '<div class="item-row">'
-      + '<span class="item-qty">' + esc(item.quantity) + '</span>'
-      + '<div><div class="item-name">' + esc(item.name) + '</div>'
-      + (item.notes ? '<div class="item-notes">' + esc(item.notes) + '</div>' : '')
-      + '</div></div>'
+    var color = itemColor(item)
+    var fg = textOn(color)
+    var tint = color + '26'
+    var detail = itemDetail(item)
+    var qty = '<span class="item-qty" style="background:' + color + ';color:' + fg + '">' + esc(item.quantity) + '</span>'
+    if (compact) {
+      itemsHtml += '<span class="chip" style="background:' + tint + '">' + qty
+        + '<span class="chip-text">' + esc(item.name) + '</span></span>'
+    } else {
+      itemsHtml += '<div class="item" style="background:' + tint + '">'
+        + '<div class="item-main">' + qty + '<span class="item-name">' + esc(item.name) + '</span></div>'
+        + (detail ? '<div class="item-notes">' + esc(detail) + '</div>' : '')
+        + '</div>'
+    }
   }
 
-  var notesHtml = ''
-  if (order.notes) {
-    var fn = order.notes.split(' · ').filter(function(n) { return n !== 'Barra' }).join(' · ')
-    if (fn) notesHtml = '<div class="card-notes">' + esc(fn) + '</div>'
-  }
+  var note = orderNote(order)
+  var title = destinoPedido(order) + (order.customer_name ? ' · ' + order.customer_name : '')
+  var sub = (TIPO_LABEL[order.tipo_pedido] || order.tipo_pedido || '') + ' ' + orderRef(order)
+  var cancelBtn = order.status === 'cooking' ? '<button class="btn-cancel" type="button" data-cancel="1">CANCELAR</button>' : ''
 
-  var actionHtml = ''
-  if (order.status === 'pending') {
-    actionHtml = '<button class="btn-advance start" onclick="advance(\'' + order.id + '\',\'cooking\')">Iniciar preparación</button>'
-  } else if (order.status === 'cooking') {
-    actionHtml = '<button class="btn-advance done" onclick="advance(\'' + order.id + '\',\'ready\')">Marcar listo</button>'
-      + '<button class="btn-cancel-order" onclick="cancelOrder(\'' + order.id + '\')">🗑️ Cancelar</button>'
-  } else if (order.status === 'ready') {
-    actionHtml = '<div class="ready-label">Esperando cobro en caja</div>'
-  }
-
-  var dest = destinoPedido(order)
-  var ref  = orderRef(order)
-
-  return '<div class="card' + (urgent ? ' urgent' : '') + '">'
-    + '<div class="card-top">'
-    + '<div>'
-    + '<div class="card-title">' + esc(dest) + (order.customer_name ? ' · ' + esc(order.customer_name) : '') + '</div>'
-    + '<div class="card-ref">' + esc(ref) + '</div>'
-    + '<span class="paid-badge ' + (order.paid_at ? 'paid' : 'unpaid') + '">' + (order.paid_at ? 'PAGADO' : 'SIN PAGAR') + '</span>'
-    + '</div>'
-    + '<div>'
-    + '<div class="card-timer' + (urgent ? ' urgent' : '') + '" data-created="' + esc(order.created_at) + '">' + elapsedStr(order.created_at) + '</div>'
-    + '<div class="urgent-label" style="display:' + (urgent ? 'block' : 'none') + '">¡URGENTE!</div>'
-    + '</div>'
-    + '</div>'
-    + '<div class="items-box">' + itemsHtml + '</div>'
-    + notesHtml
-    + actionHtml
+  return '<div class="card' + (cls === 't-late' ? ' late' : '') + (next ? ' clickable' : '') + '" data-id="' + esc(order.id) + '"'
+    + (next ? ' data-next="' + next + '" role="button" tabindex="0"' : '') + '>'
+    + '<div class="row1"><div class="title">' + esc(title) + '</div>'
+    + '<div class="timer ' + cls + '" data-created="' + esc(order.created_at) + '"' + (isReady ? ' data-ready="1"' : '') + '>' + elapsedStr(order.created_at) + '</div></div>'
+    + '<div class="row2"><span class="sub">' + esc(sub) + '</span>'
+    + '<span><span class="badge ' + (order.paid_at ? 'paid' : 'unpaid') + '">' + (order.paid_at ? 'PAGADO' : 'POR COBRAR') + '</span>' + cancelBtn + '</span></div>'
+    + (note ? '<div class="alert">' + esc(note) + '</div>' : '')
+    + '<div class="' + (compact ? 'chips' : 'items') + '">' + itemsHtml + '</div>'
+    + (isReady ? '<div class="ready-hint">Esperando cobro en caja</div>' : '')
     + '</div>'
 }
 
-function render() {
+// Muestra solo las tarjetas que caben COMPLETAS; el resto se cuenta en "+N más".
+function fitColumn(cardsId, extraId) {
+  var container = document.getElementById(cardsId)
+  var col = container.parentNode
+  var extra = document.getElementById(extraId)
+  var hidden = layoutColumn(container, false)
+  col.className = col.className.replace(' dense', '')
+  hidden = layoutColumn(container, false)
+  if (hidden > 0) {
+    // No caben todas: se compacta la columna y se vuelve a intentar.
+    col.className += ' dense'
+    hidden = layoutColumn(container, true)
+  }
+  if (hidden > 0) { extra.textContent = '+' + hidden + ' más'; extra.style.display = 'block' }
+  else { extra.style.display = 'none' }
+}
+
+// Deja visibles solo las tarjetas que caben completas; devuelve cuántas quedaron ocultas.
+function layoutColumn(container) {
+  var cards = container.querySelectorAll('.card')
+  var i, hidden = 0, cut = false
+  for (i = 0; i < cards.length; i++) cards[i].style.display = ''
+  var limit = container.clientHeight
+  for (i = 0; i < cards.length; i++) {
+    if (cut) { cards[i].style.display = 'none'; hidden++; continue }
+    if (i > 0 && cards[i].offsetTop + cards[i].offsetHeight > limit + 1) {
+      cut = true
+      cards[i].style.display = 'none'
+      hidden++
+    }
+  }
+  return hidden
+}
+
+function fitAll() {
+  fitColumn('cards-pending', 'extra-pending')
+  fitColumn('cards-cooking', 'extra-cooking')
+  fitColumn('cards-ready',   'extra-ready')
+}
+
+function ordersSignature() {
+  var s = []
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i]
+    s.push(o.id + '|' + o.status + '|' + (o.paid_at ? 1 : 0) + '|' + (o.notes || '') + '|' + (o.customer_name || '') + '|' + JSON.stringify(o.items))
+  }
+  return s.join('~') + '#' + JSON.stringify(catMeta) + JSON.stringify(dishCategory)
+}
+
+function render(force) {
+  var sig = ordersSignature()
+  var changed = force || sig !== lastSignature
+  lastSignature = sig
+
   var pending = [], cooking = [], ready = []
   for (var i = 0; i < orders.length; i++) {
     var o = orders[i]
@@ -731,36 +1035,58 @@ function render() {
 
   if (total === 0) {
     document.getElementById('grid').style.display = 'none'
-    document.getElementById('ticker-wrap').style.display = 'none'
-    document.getElementById('empty-state').style.display = '-webkit-box'
-    document.getElementById('empty-state').style.display = '-ms-flexbox'
+    document.getElementById('totals').style.display = 'none'
     document.getElementById('empty-state').style.display = 'flex'
-  } else {
-    document.getElementById('empty-state').style.display = 'none'
-    document.getElementById('grid').style.display = '-webkit-box'
-    document.getElementById('grid').style.display = '-ms-flexbox'
-    document.getElementById('grid').style.display = 'flex'
-    buildTicker()
+    return
   }
+  document.getElementById('empty-state').style.display = 'none'
+  document.getElementById('grid').style.display = 'flex'
 
-  function renderCol(id, badgeId, list) {
+  if (!changed) return
+  buildTotals()
+
+  function renderCol(id, badgeId, list, compact) {
     document.getElementById(badgeId).textContent = list.length
     var container = document.getElementById(id)
     if (list.length === 0) {
       container.innerHTML = '<div class="col-empty">Sin órdenes</div>'
     } else {
       var html = ''
-      for (var j = 0; j < list.length; j++) html += cardHtml(list[j])
+      for (var j = 0; j < list.length; j++) html += cardHtml(list[j], compact)
       container.innerHTML = html
     }
   }
 
-  renderCol('cards-pending', 'badge-pending', pending)
-  renderCol('cards-cooking', 'badge-cooking', cooking)
-  renderCol('cards-ready',   'badge-ready',   ready)
+  renderCol('cards-pending', 'badge-pending', pending, false)
+  renderCol('cards-cooking', 'badge-cooking', cooking, false)
+  renderCol('cards-ready',   'badge-ready',   ready,   true)
 
+  fitAll()
+  // Segunda pasada cuando el navegador ya asentó el layout (fuentes, escala).
+  setTimeout(fitAll, 80)
   startTimers()
 }
+
+window.addEventListener('resize', function() { fitAll() })
+
+// ─── Clics sobre las tarjetas (mouse, control remoto de la TV o teclado) ─────
+function handleCardAction(card, target) {
+  var id = card.getAttribute('data-id')
+  if (target && closest(target, '[data-cancel]')) { cancelOrder(id); return }
+  var next = card.getAttribute('data-next')
+  if (next) advance(id, next)
+}
+
+document.getElementById('grid').addEventListener('click', function(e) {
+  var card = closest(e.target, '.card')
+  if (card) handleCardAction(card, e.target)
+}, false)
+
+document.getElementById('grid').addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter' && e.key !== ' ' && e.keyCode !== 13 && e.keyCode !== 32) return
+  var card = closest(e.target, '.card')
+  if (card && card === e.target) { e.preventDefault(); handleCardAction(card, null) }
+}, false)
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 function apiHeaders() {
@@ -779,8 +1105,10 @@ function fetchOrders() {
   for (var k in h) req.setRequestHeader(k, h[k])
   req.onload = function() {
     if (req.status >= 200 && req.status < 300) {
-      try { orders = JSON.parse(req.responseText) || []; render() }
-      catch (e) { showError('Error al procesar datos') }
+      try { orders = JSON.parse(req.responseText) || [] }
+      catch (e) { showError('Error al procesar datos'); return }
+      checkAlerts(orders)
+      render(false)
     } else { showError('Error HTTP ' + req.status) }
   }
   req.onerror = function() { showError('Sin conexión al servidor') }
@@ -788,12 +1116,20 @@ function fetchOrders() {
 }
 
 function advance(orderId, nextStatus) {
+  if (busy[orderId]) return
+  busy[orderId] = true
+  setTimeout(function() { delete busy[orderId] }, 800)
+  // Se actualiza al instante en pantalla; el servidor confirma enseguida.
+  for (var i = 0; i < orders.length; i++) {
+    if (orders[i].id === orderId) { orders[i].status = nextStatus; break }
+  }
+  render(false)
   var req = new XMLHttpRequest()
   req.open('PATCH', SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, true)
   var h = apiHeaders()
   for (var k in h) req.setRequestHeader(k, h[k])
   req.onload = function() { fetchOrders() }
-  req.onerror = function() { alert('Error al actualizar pedido') }
+  req.onerror = function() { alert('Error al actualizar pedido'); fetchOrders() }
   req.send(JSON.stringify({ status: nextStatus }))
 }
 
@@ -809,15 +1145,14 @@ function cancelOrder(orderId) {
 }
 
 // ─── Polling — fuente principal de actualizaciones ───────────────────────────
-var pollInterval = null
 function startPolling() {
   if (pollInterval) clearInterval(pollInterval)
-  pollInterval = setInterval(fetchOrders, 3000)
+  pollInterval = setInterval(fetchOrders, POLL_MS)
 }
 
 // ─── Realtime — bonus encima del polling, no reemplaza ───────────────────────
 function connectRealtime() {
-  if (ws) { try { ws.close() } catch (e) {} }
+  if (ws) { try { ws.onclose = null; ws.close() } catch (e) {} }
   clearInterval(wsHeartbeat)
 
   var wsUrl = SUPABASE_URL.replace('https://','wss://').replace('http://','ws://')
@@ -850,6 +1185,7 @@ function connectRealtime() {
   ws.onclose = function() {
     setStatus('polling', true)
     clearInterval(wsHeartbeat)
+    clearTimeout(retryTimeout)
     retryTimeout = setTimeout(connectRealtime, 10000)
   }
 
@@ -860,7 +1196,8 @@ function connectRealtime() {
 
 function setStatus(text, ok) {
   document.getElementById('status-text').textContent = text
-  document.getElementById('status-dot').style.background = ok ? 'var(--olive)' : 'var(--wine)'
+  document.getElementById('status-text').style.color = ok ? 'var(--ready)' : 'var(--late)'
+  document.getElementById('status-dot').style.background = ok ? 'var(--ready)' : 'var(--late)'
 }
 
 function showError(msg) {
@@ -907,9 +1244,55 @@ function keepAwake() {
     } catch (e) {}
   }, 15000)
 
-  // 5. Auto-reload cada 30 min como red de seguridad final
-  // El estado se recupera solo al recargar (fetchOrders corre en init)
-  setTimeout(function() { location.reload() }, 30 * 60 * 1000)
+  // 5. Red de seguridad cada 30 min. Recargar la página BORRA el permiso de audio
+  //    (hace falta un clic nuevo), así que solo se recarga si el sonido ya estaba
+  //    bloqueado. Con el sonido activo se refrescan datos y tiempo real sin recargar.
+  setInterval(function() {
+    if (isAudioLocked()) { location.reload(); return }
+    connectRealtime()
+    fetchOrders()
+  }, 30 * 60 * 1000)
+}
+
+// ─── Metadatos: categorías (colores) y platos ────────────────────────────────
+function getJson(path, cb) {
+  var req = new XMLHttpRequest()
+  req.open('GET', SUPABASE_URL + path, true)
+  var h = apiHeaders()
+  for (var k in h) req.setRequestHeader(k, h[k])
+  req.onload = function() {
+    var data = null
+    try { data = JSON.parse(req.responseText) } catch (e) {}
+    cb(req.status >= 200 && req.status < 300 ? data : null)
+  }
+  req.onerror = function() { cb(null) }
+  req.send()
+}
+
+function loadMeta(restaurantId, callback) {
+  var pending = 2
+  var done = function() { pending--; if (pending === 0) callback() }
+
+  if (restaurantId) {
+    getJson('/rest/v1/restaurant_config?select=modules_enabled&restaurant_id=eq.' + restaurantId, function(data) {
+      var mods = data && data[0] && data[0].modules_enabled
+      if (mods) {
+        if (mods.theme) applyThemeValue(mods.theme)
+        if (mods.categories && mods.categories.length) {
+          for (var i = 0; i < mods.categories.length; i++) {
+            var c = mods.categories[i]
+            if (c && c.value) catMeta[c.value] = { label: c.label, color: c.color }
+          }
+        }
+      }
+      done()
+    })
+  } else { done() }
+
+  getJson('/rest/v1/dishes?select=id,category', function(data) {
+    if (data) for (var i = 0; i < data.length; i++) dishCategory[data[i].id] = data[i].category
+    done()
+  })
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -925,53 +1308,32 @@ function getUrlParams() {
 
 function applyThemeValue(t) {
   // WebOS Chromium 79 ignora setAttribute('data-theme','dark').
-  // El CSS ya tiene negro+neon como :root por defecto.
+  // El CSS ya tiene el oscuro como :root por defecto.
   // Solo necesitamos intervenir cuando el tema es 'light'.
   if (t === 'light') {
     document.documentElement.setAttribute('data-theme', 'light')
   }
-  // Si es 'dark' o cualquier otro valor, no hacemos nada — el default CSS ya es negro.
 }
 
-function loadTheme(restaurantId, callback) {
-  if (!restaurantId) { callback(); return }
-  var url = SUPABASE_URL + '/rest/v1/restaurant_config?select=modules_enabled&restaurant_id=eq.' + restaurantId
-  var req = new XMLHttpRequest()
-  req.open('GET', url, true)
-  var h = apiHeaders()
-  for (var k in h) req.setRequestHeader(k, h[k])
-  req.onload = function() {
-    try {
-      var data = JSON.parse(req.responseText)
-      if (data && data[0] && data[0].modules_enabled && data[0].modules_enabled.theme) {
-        applyThemeValue(data[0].modules_enabled.theme)
-      }
-    } catch (e) {}
-    callback()
-  }
-  req.onerror = function() { callback() }
-  req.send()
-}
+var keepAwakeStarted = false
 
 function init() {
   var params = getUrlParams()
-  // ?theme=light/dark como override manual (para casos de prueba)
-  if (params.theme === 'light' || params.theme === 'dark') {
-    applyThemeValue(params.theme)
+  var start = function() {
     clearTimeout(retryTimeout)
     fetchOrders()
     startPolling()
     connectRealtime()
-    keepAwake()
+    if (!keepAwakeStarted) { keepAwakeStarted = true; keepAwake() }
+  }
+  updateBanner()
+  // ?theme=light/dark como override manual (para casos de prueba)
+  if (params.theme === 'light' || params.theme === 'dark') {
+    applyThemeValue(params.theme)
+    loadMeta(null, start)
   } else {
-    // Lee el tema desde Supabase usando el restaurant_id de la URL
-    loadTheme(params.rid, function() {
-      clearTimeout(retryTimeout)
-      fetchOrders()
-      startPolling()
-      connectRealtime()
-      keepAwake()
-    })
+    // Lee tema y colores de categoría desde Supabase usando el restaurant_id de la URL
+    loadMeta(params.rid, start)
   }
 }
 
