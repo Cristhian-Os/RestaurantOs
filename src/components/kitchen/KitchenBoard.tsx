@@ -78,11 +78,14 @@ const levelOf = (secs: number, ready: boolean): Level =>
 
 // ─── Estilos (paleta propia, fondos opacos: la TV refleja) ─────
 const CSS = `
-.kb{--bg:#0F1024;--surface:#151735;--card:#22254F;--card-line:#34376A;--inset:#12132E;--ink:#F4F4FF;--ink-soft:#9A9CC8;--ink-note:#D5D7F5;
-  --pend:#FB923C;--cook:#E879F9;--ready:#34D399;--warn:#FBBF24;--late:#F43F5E;--late-bg:#BE123C;--paid-bg:#FB923C;--paid-fg:#1A1100;
-  --alert-bg:rgba(251,191,36,.15);--alert-fg:#FDE68A;
+.kb{--bg:#EEF0FA;--surface:#FFFFFF;--card:#F6F7FD;--card-line:#C9CDE6;--inset:#E6E9F7;--ink:#14152B;--ink-soft:#5A5D86;--ink-note:#2E3055;
+  --pend:#C2570C;--cook:#A21CAF;--ready:#047857;--warn:#B45309;--late:#E11D48;--late-bg:#BE123C;--paid-bg:#FDBA74;--paid-fg:#431407;
+  --alert-bg:#FEF3C7;--alert-fg:#78350F;--on-accent:#FFFFFF;
   background:var(--bg);color:var(--ink);font-family:var(--w-sans,system-ui),system-ui,sans-serif;font-size:14px;
   display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box}
+[data-theme="dark"] .kb{--bg:#0F1024;--surface:#151735;--card:#22254F;--card-line:#34376A;--inset:#12132E;--ink:#F4F4FF;--ink-soft:#9A9CC8;--ink-note:#D5D7F5;
+  --pend:#FB923C;--cook:#E879F9;--ready:#34D399;--warn:#FBBF24;--late:#F43F5E;--late-bg:#BE123C;--paid-bg:#FB923C;--paid-fg:#1A1100;
+  --alert-bg:rgba(251,191,36,.15);--alert-fg:#FDE68A;--on-accent:#0F1024}
 .kb *{box-sizing:border-box}
 .kb.kb-tv{height:100vh;max-height:100vh;overflow:hidden;font-size:max(.8333vw,13px)}
 .kb-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5em;min-height:4em;padding:.5em 2em;flex-shrink:0}
@@ -106,12 +109,20 @@ const CSS = `
 .kb-col-hint{font-size:1.1875em;font-weight:600;color:var(--ink-soft);margin-left:.75em}
 .kb-col-r{display:flex;align-items:center}
 .kb-more{font-size:1.5em;font-weight:800;margin-right:.4em}
-.kb-badge{width:2em;height:2em;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:800;color:#0F1024}
+.kb-badge{width:2em;height:2em;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:800;color:var(--on-accent)}
 .kb-col[data-col=pending] .kb-badge{background:var(--pend)}
 .kb-col[data-col=cooking] .kb-badge{background:var(--cook)}
 .kb-col[data-col=ready] .kb-badge{background:var(--ready)}
 .kb-cards{flex:1;min-height:0;position:relative;overflow:hidden;display:flex;flex-wrap:wrap;align-content:flex-start}
 .kb-tv-off .kb-cards{overflow:visible}
+/* Dentro de la app (con barra lateral) no hay caja de fondo: se funde con el fondo de la app. */
+.kb.kb-tv-off{background:transparent;min-height:0;padding:0}
+.kb-tv-off .kb-head{padding:.25em 0 .75em;min-height:0}
+.kb-tv-off .kb-head h1{font-size:1.875em;font-family:var(--w-display,inherit)}
+.kb-tv-off .kb-head-r{font-size:1.1em}
+.kb-tv-off .kb-grid{padding:0}
+.kb-tv-off .kb-none{background:transparent;border:0}
+.kb-tv-off .kb-tot{margin-top:1em;border:.12em solid var(--card-line);border-radius:1.25em}
 .kb-empty{width:100%;text-align:center;padding:2em 0;font-size:1.875em;font-weight:500;color:var(--ink-soft)}
 .kb-card{width:calc(50% - .3125em);margin-bottom:.625em;padding:.625em;border-radius:1em;border:.19em solid var(--card-line);background:var(--card);text-align:left;font:inherit;color:inherit;display:block;outline:none}
 .kb-card:nth-child(odd){margin-right:.625em}
@@ -569,7 +580,7 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
   const fit = tv && wide
 
   if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '5rem 0', minHeight: tv ? '100vh' : undefined, background: tv ? '#0F1024' : undefined }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '5rem 0', minHeight: tv ? '100vh' : undefined }}>
       <div style={{ width: 32, height: 32, borderRadius: '50%', border: '4px solid var(--w-terra)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
     </div>
   )
@@ -577,7 +588,7 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
   const colProps = { fit, colorOf, onAdvance: handleAdvance, onRefresh: fetchOrders }
 
   return (
-    <div className={cn('kb', tv ? 'kb-tv' : 'kb-tv-off')} style={tv ? undefined : { borderRadius: '1.25rem', minHeight: '70vh' }}>
+    <div className={cn('kb', tv ? 'kb-tv' : 'kb-tv-off')}>
       <style>{CSS}</style>
       <div className="kb-head">
         <h1>Cocina</h1>
