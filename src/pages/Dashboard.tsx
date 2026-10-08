@@ -466,7 +466,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
         )}
         <OrderSoundAlerts role={profile!.role} userId={profile!.id} />
-        <SoundUnlockBanner />
         <KitchenBoard tv onMenu={() => setKitchenMenu(true)} onLogout={onLogout} />
       </div>
     )
