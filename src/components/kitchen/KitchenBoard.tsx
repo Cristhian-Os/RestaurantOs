@@ -165,12 +165,17 @@ const CSS = `
 .kb-col.dense .kb-chip{margin-bottom:.25em}
 .kb-col.dense .kb-chip-t{font-size:1.1875em}
 .kb-col.dense .kb-hint{display:none}
-.kb-tot{flex-shrink:0;min-height:4.75em;max-height:9em;overflow:hidden;padding:.6em 2em .25em;background:var(--surface);border-top:.12em solid var(--card-line);display:flex;align-items:flex-start}
-.kb-tot-l{font-size:1.625em;font-weight:800;letter-spacing:.06em;color:var(--ink-soft);white-space:nowrap;margin-right:1.2em;padding-top:.3em}
-.kb-tot-list{flex:1;min-width:0;display:flex;flex-wrap:wrap}
-.kb-tc{display:flex;align-items:center;margin:0 2.25em .375em 0;white-space:nowrap}
+.kb-tot{flex-shrink:0;height:4.75em;overflow:hidden;background:var(--surface);border-top:.12em solid var(--card-line);display:flex;align-items:center}
+.kb-tot-l{flex-shrink:0;position:relative;z-index:1;font-size:1.625em;font-weight:800;letter-spacing:.06em;color:var(--ink-soft);white-space:nowrap;padding:0 1.2em 0 1.23em;background:var(--surface);height:100%;display:flex;align-items:center;box-shadow:.6em 0 .6em -.2em var(--surface)}
+.kb-tot-view{flex:1;min-width:0;overflow:hidden;white-space:nowrap}
+.kb-tot-track{display:inline-flex;align-items:center;will-change:transform}
+.kb-tot-track.run{animation:kb-marq var(--kb-dur,30s) linear infinite}
+.kb-tot-set{display:inline-flex;align-items:center;flex-shrink:0;padding-left:2.25em}
+.kb-tc{display:flex;align-items:center;margin-right:2.25em;white-space:nowrap}
 .kb-tq{min-width:1.6em;height:1.6em;padding:0 .2em;border-radius:1em;display:flex;align-items:center;justify-content:center;font-size:1.875em;font-weight:800;margin-right:.45em}
 .kb-tn{font-size:2.125em;font-weight:700}
+@keyframes kb-marq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.kb-tot-track.run{animation-duration:120s}}
 .kb-none{flex:1;margin:.625em 1.5em;background:var(--surface);border:.12em solid var(--card-line);border-radius:1.5em;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:3em 1em}
 .kb-none p{font-size:2.5em;font-weight:700;margin:0}
 .kb-none small{font-size:1.5em;color:var(--ink-soft);margin-top:.5em}
@@ -378,6 +383,56 @@ const Column = memo(({ colKey, label, hint, orders, fit, colorOf, onAdvance, onR
 })
 Column.displayName = 'Column'
 
+// ─── TOTAL ACTIVO: carrusel horizontal continuo (como el ticker de noticias) ───
+const TICKER_PX_PER_SEC = 110
+
+const TotalsTicker = memo(({ totals }: { totals: [string, { qty: number; color: string }][] }) => {
+  const viewRef = useRef<HTMLDivElement>(null)
+  const setRef = useRef<HTMLDivElement>(null)
+  const [run, setRun] = useState(false)
+  const [dur, setDur] = useState(30)
+  const key = totals.map(([n, t]) => `${n}:${t.qty}:${t.color}`).join('|')
+
+  // Solo se mueve si los productos no caben en una línea; si caben, quedan quietos.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const view = viewRef.current, set = setRef.current
+      if (!view || !set) return
+      const w = set.scrollWidth
+      const fits = w <= view.clientWidth
+      setRun(!fits)
+      setDur(Math.max(12, Math.round(w / TICKER_PX_PER_SEC)))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [key])
+
+  const set = (hidden: boolean) => (
+    <div className="kb-tot-set" ref={hidden ? undefined : setRef} aria-hidden={hidden || undefined}>
+      {totals.map(([name, t]) => (
+        <div key={name} className="kb-tc">
+          <span className="kb-tq" style={{ background: t.color, color: textOn(t.color) }}>{t.qty}</span>
+          <span className="kb-tn">{name}</span>
+        </div>
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="kb-tot">
+      <div className="kb-tot-l">TOTAL ACTIVO</div>
+      <div className="kb-tot-view" ref={viewRef}>
+        <div className={cn('kb-tot-track', run && 'run')} style={{ ['--kb-dur' as string]: `${dur}s` }}>
+          {set(false)}
+          {run && set(true)}
+        </div>
+      </div>
+    </div>
+  )
+})
+TotalsTicker.displayName = 'TotalsTicker'
+
 // ─── Board ────────────────────────────────────────────────────
 interface BoardProps {
   /** Pantalla completa para TV (sin márgenes de la app). */
@@ -544,19 +599,7 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
         </div>
       )}
 
-      {totals.length > 0 && (
-        <div className="kb-tot">
-          <div className="kb-tot-l">TOTAL ACTIVO</div>
-          <div className="kb-tot-list">
-            {totals.map(([name, t]) => (
-              <div key={name} className="kb-tc">
-                <span className="kb-tq" style={{ background: t.color, color: textOn(t.color) }}>{t.qty}</span>
-                <span className="kb-tn">{name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {totals.length > 0 && <TotalsTicker totals={totals} />}
     </div>
   )
 })
