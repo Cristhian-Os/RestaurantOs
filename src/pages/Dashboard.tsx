@@ -461,7 +461,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   if (profile!.role === 'kitchen' && activeNav === 'kitchen' && !kitchenMenu) {
     return (
-      <div style={{minHeight:'100vh',background:'#0F1024'}}>
+      <div style={{minHeight:'100vh',background:'var(--w-bg)'}}>
         {profile!.must_change_password && (
           <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
         )}
