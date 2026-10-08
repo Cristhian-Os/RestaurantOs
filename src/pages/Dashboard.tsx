@@ -264,6 +264,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [activeNav,  setActiveNav]  = useState<NavView>('dashboard')
   const [loading,    setLoading]    = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
+  // Cocina: pantalla completa para TV (sin barra lateral ni botones); "Menú" vuelve a mostrarlos.
+  const [kitchenMenu, setKitchenMenu] = useState(false)
+  useEffect(() => { if (activeNav === 'kitchen') setKitchenMenu(false) }, [activeNav])
   const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
   const [lowStock,   setLowStock]   = useState(0)
   const [pendingSocial, setPendingSocial] = useState(0)
@@ -454,6 +457,19 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     padding:'0.625rem', background:'var(--w-surface)', borderRadius:'0.75rem',
     border:'1px solid var(--w-line)', color:'var(--w-ink-soft)', cursor:'pointer',
     display:'flex', alignItems:'center', justifyContent:'center',
+  }
+
+  if (profile!.role === 'kitchen' && activeNav === 'kitchen' && !kitchenMenu) {
+    return (
+      <div style={{minHeight:'100vh',background:'#0F1024'}}>
+        {profile!.must_change_password && (
+          <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
+        )}
+        <OrderSoundAlerts role={profile!.role} userId={profile!.id} />
+        <SoundUnlockBanner />
+        <KitchenBoard tv onMenu={() => setKitchenMenu(true)} onLogout={onLogout} />
+      </div>
+    )
   }
 
   return (

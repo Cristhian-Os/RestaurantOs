@@ -48,7 +48,18 @@ export function OrderSoundAlerts({ role, userId }: { role: string; userId: strin
         })
         .subscribe()
     })
-    return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }
+    // Respaldo para la cocina (TV): si el tiempo real se cae, igual suena cuando aparece
+    // un pedido pendiente y pagado que todavía no se oyó.
+    const poll = isKitchen ? setInterval(() => {
+      supabase.from('orders').select('id, tipo_pedido, paid_at').eq('status', 'pending').not('paid_at', 'is', null)
+        .then(({ data }) => {
+          const fresh = (data ?? []).filter(o => !heard.has(`${o.id}:new`))
+          if (fresh.length === 0) return
+          fresh.forEach(o => heard.add(`${o.id}:new`))
+          playOrderSound(fresh[0].tipo_pedido)
+        })
+    }, 5000) : null
+    return () => { cancelled = true; if (poll) clearInterval(poll); if (ch) supabase.removeChannel(ch) }
   }, [role, userId])
 
   return null
