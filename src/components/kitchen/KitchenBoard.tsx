@@ -389,43 +389,47 @@ const TICKER_PX_PER_SEC = 110
 const TotalsTicker = memo(({ totals }: { totals: [string, { qty: number; color: string }][] }) => {
   const viewRef = useRef<HTMLDivElement>(null)
   const setRef = useRef<HTMLDivElement>(null)
-  const [run, setRun] = useState(false)
+  const [copies, setCopies] = useState(1)
   const [dur, setDur] = useState(30)
   const key = totals.map(([n, t]) => `${n}:${t.qty}:${t.color}`).join('|')
 
-  // Solo se mueve si los productos no caben en una línea; si caben, quedan quietos.
+  // Siempre se mueve: si los productos no llenan el ancho, se repiten hasta llenarlo
+  // para que el bucle no deje huecos. Cada mitad de la pista mide al menos el ancho visible.
   useLayoutEffect(() => {
     const measure = () => {
-      const view = viewRef.current, set = setRef.current
-      if (!view || !set) return
-      const w = set.scrollWidth
-      const fits = w <= view.clientWidth
-      setRun(!fits)
-      setDur(Math.max(12, Math.round(w / TICKER_PX_PER_SEC)))
+      const view = viewRef.current, one = setRef.current
+      if (!view || !one) return
+      const w = one.scrollWidth
+      if (w <= 0) return
+      const k = Math.max(1, Math.ceil(view.clientWidth / w))
+      setCopies(k)
+      setDur(Math.max(12, Math.round((w * k) / TICKER_PX_PER_SEC)))
     }
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
   }, [key])
 
-  const set = (hidden: boolean) => (
-    <div className="kb-tot-set" ref={hidden ? undefined : setRef} aria-hidden={hidden || undefined}>
-      {totals.map(([name, t]) => (
-        <div key={name} className="kb-tc">
-          <span className="kb-tq" style={{ background: t.color, color: textOn(t.color) }}>{t.qty}</span>
-          <span className="kb-tn">{name}</span>
-        </div>
-      ))}
-    </div>
-  )
+  const half = (hidden: boolean) =>
+    Array.from({ length: copies }, (_, c) => (
+      <div key={`${hidden ? 'b' : 'a'}${c}`} className="kb-tot-set"
+        ref={!hidden && c === 0 ? setRef : undefined} aria-hidden={hidden || c > 0 || undefined}>
+        {totals.map(([name, t]) => (
+          <div key={name} className="kb-tc">
+            <span className="kb-tq" style={{ background: t.color, color: textOn(t.color) }}>{t.qty}</span>
+            <span className="kb-tn">{name}</span>
+          </div>
+        ))}
+      </div>
+    ))
 
   return (
     <div className="kb-tot">
       <div className="kb-tot-l">TOTAL ACTIVO</div>
       <div className="kb-tot-view" ref={viewRef}>
-        <div className={cn('kb-tot-track', run && 'run')} style={{ ['--kb-dur' as string]: `${dur}s` }}>
-          {set(false)}
-          {run && set(true)}
+        <div className="kb-tot-track run" style={{ ['--kb-dur' as string]: `${dur}s` }}>
+          {half(false)}
+          {half(true)}
         </div>
       </div>
     </div>
