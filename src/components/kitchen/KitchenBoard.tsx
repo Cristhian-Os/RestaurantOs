@@ -10,7 +10,7 @@ import { supabase } from '../../services/supabaseClient'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import message from 'antd/es/message'
 
-interface OrderItem { id: string; name: string; price: number; quantity: number; notes?: string; cancelled?: boolean }
+interface OrderItem { id: string; name: string; price: number; quantity: number; notes?: string; cancelled?: boolean; category?: string; categoryColor?: string }
 interface Order {
   id:         string
   table_num:  number | null
@@ -28,6 +28,10 @@ interface Order {
 // Número secuencial del día; los pedidos anteriores a ese cambio usan el id corto.
 const orderRef = (o: { id: string; order_number_today?: number | null }) =>
   `#${o.order_number_today ?? o.id.slice(0, 8)}`
+
+// 16 px con la raíz del sitio en 18 px (index.css: html { font-size: 112.5% }).
+const MOBILE_MIN_FONT = '0.9rem'
+const MOBILE_QUERY = '(max-width: 767px)'
 
 const tint =(c: string, pct: number) => `color-mix(in oklch, ${c} ${pct}%, var(--w-surface))`
 
@@ -48,7 +52,10 @@ function useElapsed(createdAt: string): string {
 }
 
 // ─── Tarjeta de orden ─────────────────────────────────────────
-const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: string, next: Order['status']) => void }) => {
+const OrderCard = memo(({ order, onAdvance, mobile }: { order: Order; onAdvance: (id: string, next: Order['status']) => void; mobile: boolean }) => {
+  // En celular ningún texto baja de 16 px; en escritorio/TV queda el tamaño de siempre.
+  const f = (desktop: string) => (mobile ? MOBILE_MIN_FONT : desktop)
+  const touch = mobile ? { minWidth: 44, minHeight: 44 } : {}
   const elapsed = useElapsed(order.created_at)
   const elapsedSecs = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 1000)
   const isUrgent = elapsedSecs > 900
@@ -106,8 +113,8 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
             {destinoPedido(order)}
             {order.customer_name ? ` · ${order.customer_name}` : ''}
           </p>
-          <p style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>{orderRef(order)}</p>
-          <span style={{ display: 'inline-block', marginTop: 4, padding: '1px 8px', borderRadius: 999, fontSize: '0.6875rem', fontWeight: 700,
+          <p style={{ fontSize: f('0.6875rem'), color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>{orderRef(order)}</p>
+          <span style={{ display: 'inline-block', marginTop: 4, padding: '1px 8px', borderRadius: 999, fontSize: f('0.6875rem'), fontWeight: 700,
             fontFamily: 'var(--w-sans)', background: order.paid_at ? 'var(--w-olive)' : 'var(--w-wine)', color: '#fff' }}>
             {order.paid_at ? 'PAGADO' : 'SIN PAGAR'}
           </span>
@@ -117,42 +124,45 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
             color: isUrgent ? 'var(--w-wine)' : 'var(--w-ink-mut)' }} className={isUrgent ? 'animate-pulse' : ''}>
             {elapsed}
           </p>
-          {isUrgent && <p style={{ fontSize: '0.625rem', color: 'var(--w-wine)', fontWeight: 800, margin: 0 }}>¡URGENTE!</p>}
+          {isUrgent && <p style={{ fontSize: f('0.625rem'), color: 'var(--w-wine)', fontWeight: 800, margin: 0 }}>¡URGENTE!</p>}
         </div>
       </div>
 
       {/* Items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)' }}>
-        {order.items.map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{ minWidth: 55, height: 55, padding: '0 15px', borderRadius: '1.25rem', background: 'var(--w-terra)', color: '#fff', fontSize: '1.71875rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'var(--w-sans)' }}>
-              {item.quantity}
-            </span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontFamily: 'var(--w-sans)' }}>{item.name}</p>
-              {item.notes && <p style={{ fontSize: '0.6875rem', color: 'var(--w-saffron)', fontWeight: 600, margin: 0 }}>{item.notes}</p>}
+        {order.items.map((item, i) => {
+          const itemBg = item.categoryColor ? `color-mix(in srgb, ${item.categoryColor}dd, var(--w-terra))` : 'var(--w-terra)'
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ minWidth: 55, height: 55, padding: '0 15px', borderRadius: '1.25rem', background: itemBg, color: '#fff', fontSize: '1.71875rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'var(--w-sans)' }}>
+                {item.quantity}
+              </span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: f('0.875rem'), fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontFamily: 'var(--w-sans)' }}>{item.name}</p>
+                {item.notes && <p style={{ fontSize: f('0.6875rem'), color: 'var(--w-saffron)', fontWeight: 600, margin: 0 }}>{item.notes}</p>}
+              </div>
+              {order.status === 'cooking' && !item.cancelled && (
+                <button
+                  onClick={() => handleCancelItem(i)}
+                  disabled={cancellingItem === i}
+                  style={{ padding: '0.25rem 0.5rem', borderRadius: '0.375rem', background: 'var(--w-wine)', color: '#fff', border: 'none', fontSize: f('0.75rem'), cursor: 'pointer', opacity: cancellingItem === i ? 0.6 : 1, ...touch }}>
+                  {cancellingItem === i ? '⏳' : '❌'}
+                </button>
+              )}
             </div>
-            {order.status === 'cooking' && !item.cancelled && (
-              <button
-                onClick={() => handleCancelItem(i)}
-                disabled={cancellingItem === i}
-                style={{ padding: '0.25rem 0.5rem', borderRadius: '0.375rem', background: 'var(--w-wine)', color: '#fff', border: 'none', fontSize: '0.75rem', cursor: 'pointer', opacity: cancellingItem === i ? 0.6 : 1 }}>
-                {cancellingItem === i ? '⏳' : '❌'}
-              </button>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {order.notes && (
-        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-soft)', background: 'var(--w-bg)', borderRadius: '0.625rem', padding: '0.5rem 0.75rem', margin: 0, border: '1px solid var(--w-line)' }}>
+        <p style={{ fontSize: f('0.75rem'), color: 'var(--w-ink-soft)', background: 'var(--w-bg)', borderRadius: '0.625rem', padding: '0.5rem 0.75rem', margin: 0, border: '1px solid var(--w-line)' }}>
           {order.notes}
         </p>
       )}
 
       {next && actionLabel[order.status] && (
         <motion.button whileTap={{ scale: 0.97 }} onClick={() => onAdvance(order.id, next)}
-          style={{ width: '100%', padding: '0.75rem', borderRadius: '0.875rem', fontWeight: 700, color: '#fff', fontSize: '0.875rem', border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)',
+          style={{ width: '100%', padding: '0.75rem', borderRadius: '0.875rem', fontWeight: 700, color: '#fff', fontSize: f('0.875rem'), border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', ...touch,
             background: order.status === 'pending' ? 'var(--w-terra)' : 'var(--w-olive)',
             boxShadow: order.status === 'pending' ? 'var(--w-shadow-terra)' : 'var(--w-shadow-sm)' }}>
           {actionLabel[order.status]}
@@ -160,13 +170,13 @@ const OrderCard = memo(({ order, onAdvance }: { order: Order; onAdvance: (id: st
       )}
       {order.status === 'cooking' && (
         <motion.button whileTap={{ scale: 0.97 }} onClick={handleCancelOrder} disabled={cancellingOrder}
-          style={{ width: '100%', padding: '0.625rem', borderRadius: '0.875rem', fontWeight: 700, color: '#fff', fontSize: '0.8125rem', border: 'none', cursor: cancellingOrder ? 'not-allowed' : 'pointer', fontFamily: 'var(--w-sans)',
+          style={{ width: '100%', padding: '0.625rem', borderRadius: '0.875rem', fontWeight: 700, color: '#fff', fontSize: f('0.8125rem'), border: 'none', cursor: cancellingOrder ? 'not-allowed' : 'pointer', fontFamily: 'var(--w-sans)', ...touch,
             background: 'var(--w-wine)', opacity: cancellingOrder ? 0.6 : 1 }}>
           {cancellingOrder ? 'Cancelando...' : '🗑️ Cancelar pedido'}
         </motion.button>
       )}
       {order.status === 'ready' && (
-        <p style={{ textAlign: 'center', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--w-olive)', margin: 0, fontFamily: 'var(--w-sans)' }}>
+        <p style={{ textAlign: 'center', fontSize: f('0.8125rem'), fontWeight: 600, color: 'var(--w-olive)', margin: 0, fontFamily: 'var(--w-sans)' }}>
           Esperando cobro en caja
         </p>
       )}
@@ -180,6 +190,23 @@ export const KitchenBoard = memo(() => {
   const [orders,   setOrders]  = useState<Order[]>([])
   const [loading,  setLoading] = useState(true)
   const prevCount = useRef(0)
+  // Celular (<768 px): una sola columna a la vez, elegida con pestañas.
+  const [mobile,    setMobile]    = useState(() => window.matchMedia(MOBILE_QUERY).matches)
+  const [tab,       setTab]       = useState<Order['status']>('pending')
+  const [stickyTop, setStickyTop] = useState(0)
+
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY)
+    const sync = () => {
+      setMobile(mq.matches)
+      // Las pestañas quedan fijas justo debajo de la cabecera de la app.
+      setStickyTop(document.querySelector('header')?.getBoundingClientRect().height ?? 0)
+    }
+    sync()
+    mq.addEventListener('change', sync)
+    window.addEventListener('resize', sync)
+    return () => { mq.removeEventListener('change', sync); window.removeEventListener('resize', sync) }
+  }, [])
 
   const parseOrder = (o: any): Order => ({
     ...o,
@@ -263,7 +290,7 @@ export const KitchenBoard = memo(() => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', margin: 0 }}>Cocina</h2>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>{orders.length} órdenes activas · tiempo real</p>
+          <p style={{ fontSize: mobile ? MOBILE_MIN_FONT : '0.8125rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>{orders.length} órdenes activas · tiempo real</p>
         </div>
         <button onClick={fetchOrders} className="w-press" style={{ padding: '0.625rem', borderRadius: '0.75rem', color: 'var(--w-ink-soft)', background: 'var(--w-surface)', border: '1px solid var(--w-line)', cursor: 'pointer', display: 'flex' }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}>
@@ -278,10 +305,29 @@ export const KitchenBoard = memo(() => {
           <p style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', marginTop: '0.5rem', fontFamily: 'var(--w-sans)' }}>Las nuevas órdenes aparecerán aquí al instante</p>
         </div>
       ) : (
+        <>
+        {mobile && (
+          <div role="tablist" aria-label="Estado de los pedidos"
+            style={{ position: 'sticky', top: stickyTop, zIndex: 5, display: 'flex', gap: '0.375rem', padding: '0.375rem 0', background: 'var(--w-bg)' }}>
+            {COLS.map(col => {
+              const active = col.key === tab
+              return (
+                <button key={col.key} role="tab" aria-selected={active} onClick={() => setTab(col.key as Order['status'])}
+                  style={{ flex: 1, minHeight: 48, padding: '0.375rem 0.25rem', borderRadius: '0.875rem', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700,
+                    fontSize: MOBILE_MIN_FONT, lineHeight: 1.15, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                    background: active ? col.color : 'var(--w-surface)', color: active ? '#fff' : col.color,
+                    border: `1px solid ${active ? col.color : 'var(--w-line)'}` }}>
+                  <span>{col.label}</span>
+                  <span style={{ fontSize: MOBILE_MIN_FONT }}>{col.orders.length}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '1rem' }} className="kitchen-cols">
-          {COLS.map(col => (
+          {(mobile ? COLS.filter(c => c.key === tab) : COLS).map(col => (
             <div key={col.key} style={{ background: tint(col.color, 10), borderRadius: '1.25rem', padding: '0.875rem', border: `1px solid ${tint(col.color, 35)}`, minHeight: 200 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem', ...(mobile ? { display: 'none' } : {}) }}>
                 <h3 style={{ fontWeight: 700, fontSize: '0.8125rem', color: col.color, margin: 0, fontFamily: 'var(--w-sans)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{col.label}</h3>
                 <span style={{ color: '#fff', background: col.color, fontSize: '0.75rem', fontWeight: 700, borderRadius: '9999px', minWidth: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--w-sans)' }}>
                   {col.orders.length}
@@ -289,15 +335,16 @@ export const KitchenBoard = memo(() => {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <AnimatePresence>
-                  {col.orders.map(order => <OrderCard key={order.id} order={order} onAdvance={handleAdvance} />)}
+                  {col.orders.map(order => <OrderCard key={order.id} order={order} onAdvance={handleAdvance} mobile={mobile} />)}
                 </AnimatePresence>
                 {col.orders.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '2rem 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)', fontFamily: 'var(--w-sans)' }}>Sin órdenes</div>
+                  <div style={{ textAlign: 'center', padding: '2rem 0', fontSize: mobile ? MOBILE_MIN_FONT : '0.8125rem', color: 'var(--w-ink-mut)', fontFamily: 'var(--w-sans)' }}>Sin órdenes</div>
                 )}
               </div>
             </div>
           ))}
         </div>
+        </>
       )}
       <style>{`@media (min-width: 768px) { .kitchen-cols { grid-template-columns: repeat(3, 1fr) !important; } }`}</style>
     </div>

@@ -53,11 +53,11 @@ interface ReportedComment {
 }
 
 const DEFAULT_CATEGORIES: Category[] = [
-  { value: 'entrada',   label: 'Entrada',   emoji: '🥗' },
-  { value: 'principal', label: 'Principal', emoji: '🍽️' },
-  { value: 'postre',    label: 'Postre',    emoji: '🍰' },
-  { value: 'bebida',    label: 'Bebida',    emoji: '🥤' },
-  { value: 'especial',  label: 'Especial',  emoji: '⭐' },
+  { value: 'entrada',   label: 'Entrada',   emoji: '🥗', color: '#10B981' },
+  { value: 'principal', label: 'Principal', emoji: '🍽️', color: '#3B82F6' },
+  { value: 'postre',    label: 'Postre',    emoji: '🍰', color: '#EC4899' },
+  { value: 'bebida',    label: 'Bebida',    emoji: '🥤', color: '#06B6D4' },
+  { value: 'especial',  label: 'Especial',  emoji: '⭐', color: '#F59E0B' },
 ]
 
 const EMOJI_OPTIONS = [

@@ -67,10 +67,15 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
     return () => clearTimeout(timer)
   }, [dish, onAdd])
 
+  // Glass color: usa categoryColor si existe, sino fallback al gris por defecto
+  const glassColor = categoryColor
+    ? `color-mix(in srgb, ${categoryColor}33, #D8DAE4)`  // 20% opacidad del color
+    : '#D8DAE4'
+
   return (
     <div
-      className="bg-[#D8DAE4] rounded-3xl p-4 flex flex-col gap-3 relative"
-      style={S.neoOut}
+      className="rounded-3xl p-4 flex flex-col gap-3 relative"
+      style={{ ...S.neoOut, backgroundColor: glassColor }}
     >
       {/* ── Badge de cantidad en carrito ── */}
       <AnimatePresence>

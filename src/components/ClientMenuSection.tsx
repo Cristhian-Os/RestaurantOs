@@ -161,6 +161,8 @@ export const ClientMenuSection = memo(() => {
         .map(i => ({
           id: i.dish.id, name: i.dish.name,
           price: i.dish.price, quantity: i.quantity,
+          category: i.dish.category,
+          categoryColor: catMeta[i.dish.category]?.color,
         }))
 
       const platosCustom = cart
@@ -170,6 +172,8 @@ export const ClientMenuSection = memo(() => {
           description: i.dish.description,
           quantity: i.quantity,
           ingredients: i.dish._customIngredients || {},
+          category: 'especial',
+          categoryColor: catMeta.especial?.color,
         }))
 
       // Una sola RPC atómica: crea la orden, descuenta stock de ambos tipos
