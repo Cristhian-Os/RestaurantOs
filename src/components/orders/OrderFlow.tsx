@@ -57,6 +57,7 @@ interface CartItem {
   size:      string | null   // nombre del tamaño elegido (server lo revalida contra dishes.sizes)
   toppings:  string[]        // toppings elegidos (server recalcula su precio)
   sel?:      ItemSel         // selección del constructor, para poder reabrirlo al editar
+  comensal?: string          // "Persona 2": a quién se le cobra este plato (opcional, para dividir la cuenta)
 }
 
 // ¿Este plato requiere abrir el selector de opciones antes de agregarlo?
@@ -371,6 +372,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   // Menú
   const [dishes, setDishes]         = useState<Dish[]>([])
   const [cart, setCart]             = useState<CartItem[]>([])
+  const [personas, setPersonas]     = useState(0)   // 0 = pedido sin dividir por persona
   const [search, setSearch]         = useState('')
   const [activeCategory, setCategory] = useState<DishCategory | 'all'>('all')
   const menu                        = useMenuConfig()
@@ -517,6 +519,16 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     setCart(prev => prev.map(i => i.uid === uid ? { ...i, notes } : i))
   }, [])
 
+  // Cuenta por persona (opcional): cada plato se marca "Para: Persona N" y al cobrar se puede dividir por persona.
+  const updateComensal = useCallback((uid: string, comensal: string) => {
+    setCart(prev => prev.map(i => i.uid === uid ? { ...i, comensal: comensal || undefined } : i))
+  }, [])
+  const cambiarPersonas = useCallback((n: number) => {
+    setPersonas(n)
+    if (n === 0) setCart(prev => prev.map(i => ({ ...i, comensal: undefined })))   // apagar: se borran las marcas
+    else setCart(prev => prev.map(i => i.comensal && Number(i.comensal.replace(/\D/g, '')) > n ? { ...i, comensal: undefined } : i))
+  }, [])
+
   // Enviar orden
   const handleSubmit = useCallback(async () => {
     if (cart.length === 0) { message.warning('Agrega al menos un plato'); return }
@@ -536,6 +548,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         toppings: i.toppings,
         notes:    lineNotes(i.optsText, i.notes) || null,
         sel:      { ...(i.sel ?? {}), comment: i.notes.trim() || undefined },
+        comensal: i.comensal || undefined,
       }))
 
       if (isOnline) {
@@ -590,6 +603,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
 
       // Reset
       setCart([])
+      setPersonas(0)
       setStep('mesa')
       setMesa(null); setBarra(false)
       setOrderNotes('')
@@ -903,6 +917,28 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 {customerName.trim() && ` · ${customerName.trim()}`}
               </p>
 
+              {/* ¿Cada persona de la mesa paga lo suyo? Opcional: si no se marca, la cuenta se puede dividir igual al cobrar. */}
+              {tipoPedido === 'LOCAL' && (
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  {personas === 0 ? (
+                    <button type="button" onClick={() => cambiarPersonas(2)}
+                      className="min-h-[44px] px-4 rounded-2xl text-sm font-bold text-[#2D3561]" style={S.neoOutSm}>
+                      Cuenta por persona
+                    </button>
+                  ) : (
+                    <>
+                      <label className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider" htmlFor="personas-mesa">Personas en la mesa</label>
+                      <select id="personas-mesa" value={personas} onChange={e => cambiarPersonas(Number(e.target.value))}
+                        className="min-h-[44px] rounded-xl px-3 text-sm font-bold text-[#2D3561] bg-[#CDD0DC] outline-none" style={S.neoIn}>
+                        {Array.from({ length: 11 }, (_, k) => k + 2).map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                      <button type="button" onClick={() => cambiarPersonas(0)}
+                        className="min-h-[44px] px-3 text-xs font-bold text-[#6B7280]">Quitar</button>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Items */}
               <div className="flex flex-col gap-3 mb-4">
                 {cart.map(item => (
@@ -920,6 +956,13 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                     </div>
                     {item.optsText && (
                       <p className="text-xs font-bold text-[#FF5722]">{item.optsText}</p>
+                    )}
+                    {personas > 0 && (
+                      <select aria-label={`Para quién es ${item.dish.name}`} value={item.comensal ?? ''} onChange={e => updateComensal(item.uid, e.target.value)}
+                        className="w-full min-h-[44px] rounded-xl px-3 text-sm font-bold text-[#2D3561] bg-[#CDD0DC] outline-none" style={S.neoIn}>
+                        <option value="">Para: sin asignar</option>
+                        {Array.from({ length: personas }, (_, k) => `Persona ${k + 1}`).map(p => <option key={p} value={p}>Para: {p}</option>)}
+                      </select>
                     )}
                     {/* Nota por plato */}
                     <input
