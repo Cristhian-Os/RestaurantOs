@@ -1,4 +1,4 @@
--- Prueba del cierre de filtraciones (migraciones 20261014190000 y 20261014210000). SOLO para un proyecto de PRUEBA.
+-- Prueba del cierre de filtraciones (migraciones 20261014182937 y 20261014210000). SOLO para un proyecto de PRUEBA.
 -- Dos restaurantes con pedidos y evidencias; comprueba lo que ve un visitante sin sesion y entre restaurantes.
 -- Termina con RAISE EXCEPTION a proposito: todo se revierte.
 DO $$

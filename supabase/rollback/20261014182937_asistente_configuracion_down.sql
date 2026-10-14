@@ -1,4 +1,4 @@
--- Reversa de 20261014190000_asistente_configuracion.sql
+-- Reversa de 20261014182937_asistente_configuracion.sql
 -- Quita las funciones y la tabla de progreso. Las columnas nuevas se QUITAN tambien (se pierde business_type,
 -- ciudad, razon_social, nit, onboarding_completed_at e ingredientes.proveedor_id; los platos, mesas,
 -- ingredientes y proveedores ya cargados NO se borran).

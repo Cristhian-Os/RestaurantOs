@@ -2,7 +2,7 @@
 -- 1) columnas nuevas, 2) tabla de progreso, 3) funciones de carga en lote (el restaurante SIEMPRE sale de la
 --    sesion, nunca de lo que mande el navegador; solo admin; una transaccion por llamada).
 -- Los restaurantes que YA existen quedan marcados como configurados: el asistente solo aparece en los nuevos.
--- Reversa: supabase/rollback/20261014190000_asistente_configuracion_down.sql
+-- Reversa: supabase/rollback/20261014182937_asistente_configuracion_down.sql
 
 ALTER TABLE public.restaurant_config
   ADD COLUMN IF NOT EXISTS business_type text,

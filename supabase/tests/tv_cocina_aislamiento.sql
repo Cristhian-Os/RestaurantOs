@@ -1,4 +1,4 @@
--- Prueba de la TV de cocina por restaurante (migracion 20261014170000). SOLO para un proyecto de PRUEBA.
+-- Prueba de la TV de cocina por restaurante (migracion 20261014182846). SOLO para un proyecto de PRUEBA.
 -- Crea 2 restaurantes, 1 pedido en cada uno y comprueba como anonimo que cada clave ve solo lo suyo.
 -- Termina con RAISE EXCEPTION a proposito: todo se revierte.
 -- ESPERADO: TV A ve 1 pedido (Cliente A), TV B ve 1 (Cliente B), claves malas rechazadas,

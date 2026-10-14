@@ -1,4 +1,4 @@
--- Reversa de 20261014170000_tv_cocina_clave_por_restaurante.sql
+-- Reversa de 20261014182846_tv_cocina_clave_por_restaurante.sql
 -- Quita las funciones, el trigger y la tabla de claves. NO restaura la lectura anonima de pedidos
 -- (para eso: 20261014142351_cerrar_lectura_anonima_pedidos_y_config_down.sql).
 DROP TRIGGER IF EXISTS crear_clave_tv ON public.restaurants;

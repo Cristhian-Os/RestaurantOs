@@ -1,4 +1,4 @@
--- Prueba del asistente de configuracion (migracion 20261014190000). SOLO para un proyecto de PRUEBA.
+-- Prueba del asistente de configuracion (migracion 20261014182937). SOLO para un proyecto de PRUEBA.
 -- Crea 2 restaurantes con su admin y un mesero; comprueba cargas en lote, aislamiento, rol e idempotencia.
 -- Termina con RAISE EXCEPTION a proposito: todo se revierte.
 DO $$

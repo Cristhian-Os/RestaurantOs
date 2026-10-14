@@ -1,4 +1,4 @@
--- Prueba del endurecimiento y la recuperacion del admin (migracion 20261014200000). SOLO para un proyecto de PRUEBA.
+-- Prueba del endurecimiento y la recuperacion del admin (migracion 20261014183020). SOLO para un proyecto de PRUEBA.
 -- Comprueba: anon sin acceso a funciones de personal, menu publico intacto, solo el super admin restablece
 -- contrasenas de admin, la temporal obliga a cambiarla, queda auditoria, y la contrasena minima de 8.
 -- Termina con RAISE EXCEPTION a proposito: todo se revierte.

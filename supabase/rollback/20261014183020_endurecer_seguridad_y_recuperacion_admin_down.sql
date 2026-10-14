@@ -1,4 +1,4 @@
--- Reversa de 20261014200000_endurecer_seguridad_y_recuperacion_admin.sql
+-- Reversa de 20261014183020_endurecer_seguridad_y_recuperacion_admin.sql
 -- Devuelve a anon el permiso de ejecutar las funciones de personal (vuelve la exposicion anterior),
 -- quita la funcion de recuperacion y la tabla de auditoria, y devuelve la contrasena minima a 6.
 GRANT EXECUTE ON FUNCTION

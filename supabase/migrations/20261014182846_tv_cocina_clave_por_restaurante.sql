@@ -1,7 +1,7 @@
 -- TV de cocina por restaurante (reemplaza la lectura anonima de orders que se cerro en el Bloque 3).
 -- La pagina public/kitchen-tv.html ya no consulta tablas: llama a 3 funciones que reciben una clave
 -- secreta POR RESTAURANTE y solo devuelven / modifican pedidos de ese restaurante.
--- Reversa: supabase/rollback/20261014170000_tv_cocina_clave_por_restaurante_down.sql
+-- Reversa: supabase/rollback/20261014182846_tv_cocina_clave_por_restaurante_down.sql
 
 CREATE TABLE IF NOT EXISTS public.kitchen_tv_tokens (
   restaurant_id uuid PRIMARY KEY REFERENCES public.restaurants(id) ON DELETE CASCADE,

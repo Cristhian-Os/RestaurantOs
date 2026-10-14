@@ -6,7 +6,7 @@
 -- 3) Auditoria de plataforma y restablecimiento de la contrasena de un administrador SIN depender del correo
 --    (solo el dueño de la plataforma; la contrasena temporal obliga a cambiarla al entrar; se cierran sus sesiones).
 -- 4) Contrasena minima de 8 caracteres al crear un restaurante.
--- Reversa: supabase/rollback/20261014200000_endurecer_seguridad_y_recuperacion_admin_down.sql
+-- Reversa: supabase/rollback/20261014183020_endurecer_seguridad_y_recuperacion_admin_down.sql
 
 -- 1) Funciones solo de personal: fuera para anon (y PUBLIC), dentro para authenticated y service_role
 REVOKE ALL ON FUNCTION
