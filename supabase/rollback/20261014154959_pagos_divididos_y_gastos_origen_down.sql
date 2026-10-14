@@ -1,4 +1,4 @@
--- REVERSA de 20261014160000_pagos_divididos_y_gastos_origen.sql
+-- REVERSA de 20261014154959_pagos_divididos_y_gastos_origen.sql
 -- NO es una migracion: no se aplica sola. Ejecutar solo si algo se rompe, y SOLO con copia de seguridad reciente.
 --
 -- Que hace:

@@ -1,6 +1,6 @@
 -- Pruebas de pagos divididos y corte de caja (Bloque 1, Anexo A Parte B).
 -- SOLO para un proyecto de PRUEBA (nunca producción): crea restaurantes y usuarios ficticios.
--- Requisitos: esquema de produccion restaurado + migracion 20261014160000 aplicada.
+-- Requisitos: esquema de produccion restaurado + migracion 20261014154959 aplicada.
 -- Uso: ejecutar el bloque "DATOS DE PRUEBA" una vez y luego cada bloque DO. Cada DO termina con
 -- RAISE EXCEPTION 'TEST_OUTPUT: ...' a proposito: asi todo se revierte y el resultado sale en el mensaje.
 --

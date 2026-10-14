@@ -8,7 +8,7 @@
 -- Esta migracion es TRANSACCIONAL: incluye una verificacion dia por dia de que los totales
 -- historicos (efectivo, transferencia, propinas) no cambian al migrar. Si algo no cuadra,
 -- lanza una excepcion y NO se aplica nada.
--- REVERSA: supabase/rollback/20261014160000_pagos_divididos_y_gastos_origen_down.sql
+-- REVERSA: supabase/rollback/20261014154959_pagos_divididos_y_gastos_origen_down.sql
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- 1. order_payments

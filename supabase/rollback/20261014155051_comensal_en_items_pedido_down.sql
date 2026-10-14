@@ -1,4 +1,4 @@
--- REVERSA de 20261014170000_comensal_en_items_pedido.sql
+-- REVERSA de 20261014155051_comensal_en_items_pedido.sql
 -- NO es una migracion: no se aplica sola. Devuelve crear_orden_completa y editar_items_pedido al texto exacto
 -- que tenian en produccion el 2026-10-14 (no conservan el campo "comensal"; los pedidos ya creados
 -- mantienen su marca de persona dentro de orders.items, no se pierde nada).

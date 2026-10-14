@@ -3,7 +3,7 @@
 -- "comensal" ("Persona 2" o un nombre). Esta migracion lo conserva si viene (maximo 60 caracteres).
 -- Es CREATE OR REPLACE con la MISMA firma (no crea una copia duplicada de la funcion).
 -- Texto base: definicion real de produccion el 2026-10-14; solo cambian los bloques marcados "COMENSAL".
--- REVERSA: supabase/rollback/20261014170000_comensal_en_items_pedido_down.sql
+-- REVERSA: supabase/rollback/20261014155051_comensal_en_items_pedido_down.sql
 
 CREATE OR REPLACE FUNCTION public.crear_orden_completa(p_mesa_id uuid, p_items jsonb, p_tipo_pedido text, p_notes text DEFAULT NULL::text, p_table_num integer DEFAULT NULL::integer, p_customer_name text DEFAULT NULL::text)
  RETURNS json

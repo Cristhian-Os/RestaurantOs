@@ -53,13 +53,13 @@ La solución: un pedido ahora puede tener **varios pagos**. Cada pago dice quié
 ## 5. Plan para producción (cuando tú digas)
 
 1. **Copia de seguridad nueva** (el mismo comando de antes) y anotar en `REGISTRO_COPIAS.txt`.
-2. Aplicar `20261014160000_pagos_divididos_y_gastos_origen` (incluye la verificación día por día).
-3. Aplicar `20261014170000_comensal_en_items_pedido`.
+2. Aplicar `20261014154959_pagos_divididos_y_gastos_origen` (incluye la verificación día por día).
+3. Aplicar `20261014155051_comensal_en_items_pedido`.
 4. Comprobar con consultas que todo quedó (conteos y la mesa de prueba en Demo).
 5. Publicar la pantalla (subir los commits `edd235c`, `a6005ee`, `0b2a8fb` y el resto de esta rama).
 6. *(Opcional, aparte)* Publicar la función de voz `voice-parse` para "lo pagó Angela". Cambia una función que usa IA, así que va solo con tu aprobación.
 
-**Reversa si algo falla:** `supabase/rollback/20261014160000_…_down.sql` y `20261014170000_…_down.sql` (cada una explica qué hace y qué no borra).
+**Reversa si algo falla:** `supabase/rollback/20261014154959_…_down.sql` y `20261014155051_…_down.sql` (cada una explica qué hace y qué no borra).
 
 ## 6. Prueba manual guiada para ti
 
