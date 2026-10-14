@@ -27,12 +27,15 @@ export interface SaleOrder {
   paid_at:             string | null
   created_at:          string
   notes:               string | null
+  /** Pagos vigentes del pedido (cuentas divididas). Sin ellos se usa payment_method y el total del pedido. */
+  pagos?:              { payment_method: string; monto: number }[]
 }
 
 export interface SalesSummary {
   count:         number   // ventas que cuentan (sin Rappi)
   efectivo:      number
   transferencia: number
+  tarjeta:       number
   total:         number
   propinas:      number
   rappi:         number   // solo conteo: la plata la paga Rappi por fuera
@@ -82,15 +85,23 @@ export const itemsSummary = (items: SaleItem[]) =>
   items.map(i => `${i.quantity}× ${i.name}`).join(', ')
 
 export function summarize(orders: SaleOrder[]): SalesSummary {
-  const s: SalesSummary = { count: 0, efectivo: 0, transferencia: 0, total: 0, propinas: 0, rappi: 0 }
+  const s: SalesSummary = { count: 0, efectivo: 0, transferencia: 0, tarjeta: 0, total: 0, propinas: 0, rappi: 0 }
   for (const o of orders) {
     if (esRappi(o)) { s.rappi += 1; continue }
     s.count += 1
     s.propinas += Number(o.propina) || 0
-    if (o.payment_method === 'efectivo') s.efectivo += Number(o.total) || 0
+    if (o.pagos?.length) {
+      // Cuenta dividida: cada método suma lo que de verdad se pagó con él.
+      for (const p of o.pagos) {
+        if (p.payment_method === 'efectivo') s.efectivo += Number(p.monto) || 0
+        else if (p.payment_method === 'transferencia') s.transferencia += Number(p.monto) || 0
+        else if (p.payment_method === 'tarjeta') s.tarjeta += Number(p.monto) || 0
+      }
+    } else if (o.payment_method === 'efectivo') s.efectivo += Number(o.total) || 0
     else if (o.payment_method === 'transferencia') s.transferencia += Number(o.total) || 0
+    else if (o.payment_method === 'tarjeta') s.tarjeta += Number(o.total) || 0
   }
-  s.total = s.efectivo + s.transferencia
+  s.total = s.efectivo + s.transferencia + s.tarjeta
   return s
 }
 
@@ -109,10 +120,14 @@ export function productTotals(orders: SaleOrder[]): ProductTotal[] {
   return [...map.values()].sort((a, b) => b.cantidad - a.cantidad || a.producto.localeCompare(b.producto, 'es'))
 }
 
-export type PayFilter = 'todas' | 'efectivo' | 'transferencia' | 'rappi'
+export type PayFilter = 'todas' | 'efectivo' | 'transferencia' | 'tarjeta' | 'mixto' | 'rappi'
+
+const metodosDe = (o: SaleOrder): string[] =>
+  o.pagos?.length ? [...new Set(o.pagos.map(p => p.payment_method))] : (o.payment_method ? [o.payment_method] : [])
 
 export function filterOrders(orders: SaleOrder[], f: PayFilter): SaleOrder[] {
   if (f === 'todas') return orders
   if (f === 'rappi') return orders.filter(esRappi)
-  return orders.filter(o => !esRappi(o) && o.payment_method === f)
+  if (f === 'mixto') return orders.filter(o => !esRappi(o) && metodosDe(o).length > 1)
+  return orders.filter(o => !esRappi(o) && metodosDe(o).includes(f))
 }

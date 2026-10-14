@@ -12,7 +12,9 @@ import { destinoPedido } from '../../lib/destino'
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
-import { descargarCorteExcel, descargarCorteMensualExcel, type CorteProducto } from '../../services/corteExcel'
+import { descargarCorteExcel, descargarCorteMensualExcel, type CorteProducto, type CortePago } from '../../services/corteExcel'
+import { SplitPayModal } from './SplitPayModal'
+import { PagosDelDia, ventanaHoy } from './PagosDelDia'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import { hoyBogota } from '../../services/menuOptions'
 import { VoiceButton } from '../VoiceButton'
@@ -55,6 +57,7 @@ interface Order {
 interface DaySummary {
   total_efectivo:     number
   total_transferencia:number
+  total_tarjeta:      number
   total_ordenes:      number
   total_propinas:     number
   ordenes_rappi:      number   // solo conteo: el dinero lo paga Rappi por fuera
@@ -62,9 +65,9 @@ interface DaySummary {
 
 interface CorteMensual {
   mes: string; desde: string; hasta: string
-  total_efectivo: number; total_transferencia: number; total_general: number
+  total_efectivo: number; total_transferencia: number; total_tarjeta?: number; total_general: number
   total_ordenes: number; total_propinas: number; total_gastos: number; total_neto: number
-  dias: { fecha: string; efectivo: number; transferencia: number; total: number; ordenes: number; gastos: number }[]
+  dias: { fecha: string; efectivo: number; transferencia: number; tarjeta?: number; total: number; ordenes: number; gastos: number }[]
 }
 
 const fmt = (n: number | string | null | undefined) => '$' + Math.round(Number(n ?? 0)).toLocaleString('es-CO')
@@ -108,12 +111,26 @@ const OrderProgress = ({ status }: { status: string }) => {
   )
 }
 
+type FuenteGasto = 'caja' | 'propio' | 'transferencia' | 'tarjeta'
+
 interface Gasto {
   id:         string
   concepto:   string
   monto:      number
   created_at: string
+  fuente:     FuenteGasto
+  pagado_por_nombre: string | null
 }
+
+// Gasto adelantado con dinero propio que aún no se le devuelve a quien lo pagó.
+interface PorReembolsar { id: string; concepto: string; monto: number; pagado_por_nombre: string | null; created_at: string }
+
+const FUENTE_LABEL: Record<FuenteGasto, string> = {
+  caja: 'Efectivo de la caja', propio: 'Dinero propio de quien lo pagó', transferencia: 'Transferencia del negocio', tarjeta: 'Tarjeta del negocio',
+}
+
+interface TransferenciaDia { pago_id: string; numero: number | null; mesa: number | null; tipo: string; cliente: string | null; comensal: string | null; monto: number; referencia: string | null; verificada: boolean }
+interface MesaMixta { order_id: string; numero: number | null; mesa: number | null; tipo: string; cliente: string | null; total: number; pagos: { comensal: string | null; metodo: string; monto: number; propina: number; referencia: string | null }[] }
 
 interface IngredienteOpt { id: string; nombre: string; unidad_medida: string | null }
 
@@ -138,7 +155,19 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [readyOrders,  setReady]     = useState<Order[]>([])
   const [pendingPayment, setPendingPayment] = useState<Order[]>([])
   const [cookingOrders, setCooking]  = useState<Order[]>([])
-  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_ordenes: 0, total_propinas: 0, ordenes_rappi: 0 })
+  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_tarjeta: 0, total_ordenes: 0, total_propinas: 0, ordenes_rappi: 0 })
+  // Cobros por partes: cuánto lleva pagado cada pedido abierto, y el pedido que se está dividiendo.
+  const [pagadoPorOrden, setPagadoPorOrden] = useState<Record<string, number>>({})
+  const [splitOrder,    setSplitOrder]    = useState<{ order: Order; kind: 'inicial' | 'final' } | null>(null)
+  const [showPagos,     setShowPagos]     = useState(false)
+  const [porReembolsar, setPorReembolsar] = useState<PorReembolsar[]>([])
+  const [gastoFuente,   setGastoFuente]   = useState<FuenteGasto>('caja')
+  const [gastoPagadoPor, setGastoPagadoPor] = useState('')
+  const [aporteMonto,   setAporteMonto]   = useState('')
+  const [aportePor,     setAportePor]     = useState('')
+  const [transferencias, setTransferencias] = useState<TransferenciaDia[]>([])
+  const [mesasMixtas,   setMesasMixtas]   = useState<MesaMixta[]>([])
+  const [pagosCorte,    setPagosCorte]    = useState<CortePago[]>([])
   const [loading,     setLoading]   = useState(true)
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
   const [payingKind,   setPayingKind]  = useState<'inicial' | 'final'>('final')
@@ -177,7 +206,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       ...o,
       items: (() => { try { const p = typeof o.items === 'string' ? JSON.parse(o.items) : o.items; return Array.isArray(p) ? p : [] } catch { return [] } })()
     })
-    const [pendingRes, ordersRes, cookingRes, completedRes, gastosRes, baseRes] = await Promise.all([
+    const { desde: pagosDesde, hasta: pagosHasta } = ventanaHoy()
+    const [pendingRes, ordersRes, cookingRes, completedRes, gastosRes, baseRes, pagosHoyRes, reembolsarRes] = await Promise.all([
       // Plan B: pedidos recién creados (mesero o QR) esperando cobro ANTES de pasar a cocina.
       supabase.from('orders').select('*').eq('status', 'pending').is('paid_at', null).order('created_at', { ascending: true }),
       supabase.from('orders').select('*').eq('status', 'ready').order('created_at', { ascending: true }),
@@ -185,9 +215,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       supabase.from('orders').select('total, payment_method, propina, tipo_pedido')
         .eq('status', 'completed')
         .gte('created_at', inicioDia),
-      supabase.from('gastos').select('id, concepto, monto, created_at')
+      supabase.from('gastos').select('id, concepto, monto, created_at, fuente, pagado_por_nombre')
         .gte('created_at', inicioDia).order('created_at', { ascending: false }),
       supabase.from('bases_caja').select('monto').eq('fecha', hoyBogota()).maybeSingle(),
+      // El dinero del día sale de los PAGOS recibidos hoy, no del total de cada pedido.
+      supabase.from('order_payments').select('payment_method, monto, propina, orders!inner(status, tipo_pedido, payment_method)')
+        .is('anulado_at', null).gte('paid_at', pagosDesde).lt('paid_at', pagosHasta),
+      supabase.from('gastos').select('id, concepto, monto, pagado_por_nombre, created_at')
+        .eq('fuente', 'propio').is('reembolsado_at', null).order('created_at'),
     ])
 
     if (!pendingRes.error) setPendingPayment((pendingRes.data || []).map(parseItems))
@@ -201,16 +236,32 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     if (!completedRes.error) {
       const all = completedRes.data || []
       const orders = all.filter(o => !esRappi(o))
+      // Pagos de hoy (sin pedidos cancelados ni Rappi): efectivo, transferencia, tarjeta y propinas.
+      const pagos = ((pagosHoyRes.data ?? []) as unknown as { payment_method: string; monto: number; propina: number; orders: { status: string; tipo_pedido: string; payment_method: string | null } | null }[])
+        .filter(p => p.orders && p.orders.status !== 'cancelled' && !esRappi(p.orders))
+      const suma = (m: string) => pagos.filter(p => p.payment_method === m).reduce((s, p) => s + Number(p.monto), 0)
       setSummary({
         ordenes_rappi:       all.length - orders.length,
-        total_efectivo:      orders.filter(o => o.payment_method === 'efectivo').reduce((s,o) => s + Number(o.total), 0),
-        total_transferencia: orders.filter(o => o.payment_method === 'transferencia').reduce((s,o) => s + Number(o.total), 0),
+        total_efectivo:      suma('efectivo'),
+        total_transferencia: suma('transferencia'),
+        total_tarjeta:       suma('tarjeta'),
         total_ordenes:       orders.length,
-        total_propinas:      orders.reduce((s,o) => s + Number(o.propina || 0), 0),
+        total_propinas:      pagos.reduce((s, p) => s + Number(p.propina || 0), 0),
       })
     }
 
-    if (!gastosRes.error) setGastos(gastosRes.data || [])
+    // Cuánto lleva pagado cada pedido abierto ("Pagado 4 de 5, falta $22.000").
+    const abiertos = [...(pendingRes.data ?? []), ...(ordersRes.data ?? []), ...(cookingRes.data ?? [])].map(o => o.id as string)
+    if (abiertos.length > 0) {
+      const { data: parciales } = await supabase.from('order_payments').select('order_id, monto')
+        .is('anulado_at', null).in('order_id', abiertos)
+      const mapa: Record<string, number> = {}
+      for (const p of parciales ?? []) mapa[p.order_id as string] = (mapa[p.order_id as string] ?? 0) + Number(p.monto)
+      setPagadoPorOrden(mapa)
+    } else setPagadoPorOrden({})
+
+    if (!reembolsarRes.error) setPorReembolsar((reembolsarRes.data ?? []) as PorReembolsar[])
+    if (!gastosRes.error) setGastos((gastosRes.data ?? []) as Gasto[])
     if (!baseRes.error) setBaseHoy(baseRes.data ? Number(baseRes.data.monto) : null)
 
     setLoading(false)
@@ -222,17 +273,37 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     const monto = parseFloat(gastoMonto)
     if (!gastoConcepto.trim()) { message.error('Escribe el concepto del gasto'); return }
     if (!monto || monto <= 0) { message.error('Monto inválido'); return }
+    if (gastoFuente === 'propio' && !gastoPagadoPor.trim()) { message.error('Escribe quién puso la plata (ej: Angela)'); return }
     setSavingGasto(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('gastos').insert({
       concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
+      fuente: gastoFuente, pagado_por_nombre: gastoFuente === 'propio' ? gastoPagadoPor.trim() : null,
     })
     setSavingGasto(false)
     if (error) { message.error('Error: ' + error.message); return }
-    setGastoConcepto(''); setGastoMonto(''); setShowGastoForm(false)
-    message.success('Gasto registrado')
+    setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoPagadoPor(''); setShowGastoForm(false)
+    message.success(gastoFuente === 'propio' ? `Gasto registrado · queda por reembolsar a ${gastoPagadoPor.trim()}` : 'Gasto registrado')
     fetchData()
-  }, [gastoConcepto, gastoMonto, fetchData])
+  }, [gastoConcepto, gastoMonto, gastoFuente, gastoPagadoPor, fetchData])
+
+  // Devolver la plata a quien adelantó un gasto: con efectivo de la caja (resta del cajón hoy) o por transferencia.
+  const handleReembolsar = useCallback(async (g: PorReembolsar, medio: 'caja' | 'transferencia') => {
+    const { error } = await supabase.rpc('reembolsar_gasto', { p_gasto_id: g.id, p_medio: medio })
+    if (error) { message.error(error.message); return }
+    message.success(`Reembolsado a ${g.pagado_por_nombre ?? 'quien lo pagó'}${medio === 'caja' ? ' · sale del efectivo de la caja' : ''}`)
+    fetchData()
+  }, [fetchData])
+
+  // Aporte a la caja: si la base no alcanzó y alguien pone más efectivo, el efectivo esperado lo suma.
+  const handleAporte = useCallback(async () => {
+    const monto = parseFloat(aporteMonto)
+    if (!monto || monto <= 0) { message.error('Escribe cuánto efectivo se puso'); return }
+    const { error } = await supabase.rpc('registrar_aporte_caja', { p_monto: monto, p_aportado_por: aportePor.trim() || null })
+    if (error) { message.error(error.message); return }
+    setAporteMonto(''); setAportePor('')
+    message.success('Aporte registrado: suma al efectivo esperado de la caja')
+  }, [aporteMonto, aportePor])
 
   // Ingredientes existentes, para vincular cada producto de la compra a su stock
   useEffect(() => {
@@ -369,6 +440,29 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     }
   }, [fetchData])
 
+  // "Dividir cuenta": las personas pagan por partes. Al quedar cubierta la cuenta se hace lo mismo
+  // que tras un cobro normal: antes de cocina avisa a cocina; con el pedido listo lo completa.
+  const handleSplitFinished = useCallback(async () => {
+    if (!splitOrder) return
+    const { order, kind } = splitOrder
+    try {
+      if (kind === 'inicial') {
+        const dest = order.table_num ? `Mesa ${order.table_num}` : (order.customer_name || 'Pedido')
+        pushNotificationService.notify(['kitchen'], 'Nuevo pedido', `${dest} — ${order.items.length} producto(s)`, '/')
+        message.success('Cuenta cobrada · enviado a cocina')
+      } else {
+        const { error } = await supabase.rpc('cobrar_orden', { p_order_id: order.id, p_payment_method: 'mixto', p_amount_paid: order.total })
+        if (error) throw error
+        avisarMeseros(order)
+        message.success('Cuenta cobrada · pedido completado')
+      }
+    } catch (e) {
+      message.error(`${e instanceof Error ? e.message : 'Error al completar el pedido'}`)
+    }
+    setSplitOrder(null)
+    fetchData()
+  }, [splitOrder, fetchData])
+
   // Cobrar
   const handleCobrar = useCallback(async () => {
     if (!payingOrder) return
@@ -419,6 +513,25 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       if (error) throw error
       setCorteResult(data)
       setCorteProductos((prods as CorteProducto[]) ?? [])
+      // Ayudas para cuadrar el conteo físico: transferencias del día y mesas con pagos mixtos.
+      const [{ data: trf }, { data: mixtas }, { data: pagosDia }] = await Promise.all([
+        supabase.rpc('get_transferencias_dia'),
+        supabase.rpc('get_mesas_mixtas_dia'),
+        supabase.from('order_payments')
+          .select('comensal, payment_method, monto, propina, referencia, transferencia_verificada, paid_at, orders!inner(order_number_today, table_num, tipo_pedido, customer_name, status)')
+          .is('anulado_at', null).gte('paid_at', ventanaHoy().desde).lt('paid_at', ventanaHoy().hasta).order('paid_at'),
+      ])
+      setTransferencias((trf ?? []) as TransferenciaDia[])
+      setMesasMixtas((mixtas ?? []) as MesaMixta[])
+      setPagosCorte(((pagosDia ?? []) as unknown as { comensal: string | null; payment_method: string; monto: number; propina: number; referencia: string | null; transferencia_verificada: boolean; paid_at: string; orders: { order_number_today: number | null; table_num: number | null; tipo_pedido: string; customer_name: string | null; status: string } | null }[])
+        .filter(p => p.orders && p.orders.status !== 'cancelled' && !esRappi(p.orders))
+        .map(p => ({
+          comensal: p.comensal,
+          mesa: `${p.orders!.table_num ? `Mesa ${p.orders!.table_num}` : p.orders!.tipo_pedido === 'LLEVAR' ? 'Llevar' : 'Domicilio'}${p.orders!.customer_name ? ` · ${p.orders!.customer_name}` : ''}`,
+          metodo: p.payment_method, monto: Number(p.monto), propina: Number(p.propina), referencia: p.referencia,
+          verificada: p.transferencia_verificada,
+          hora: new Date(p.paid_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }),
+        })))
       setConteo({})
       setShowCorte(true)
       fetchData()
@@ -492,6 +605,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         totales: {
           total_efectivo:      Number(corteResult.total_efectivo),
           total_transferencia: Number(corteResult.total_transferencia),
+          total_tarjeta:       Number(corteResult.total_tarjeta ?? 0),
+          gastos_de_caja:      Number(corteResult.gastos_pagados_de_caja ?? 0),
+          gastos_adelantados:  Number(corteResult.gastos_adelantados ?? 0),
+          reembolsos_de_caja:  Number(corteResult.reembolsos_de_caja ?? 0),
+          aportes_a_caja:      Number(corteResult.aportes_a_caja ?? 0),
           total_general:       Number(corteResult.total_general),
           total_ordenes:       Number(corteResult.total_ordenes),
           total_gastos:        Number(corteResult.total_gastos ?? 0),
@@ -504,13 +622,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         productos: corteProductos,
         gastos: gastos.map(g => ({ concepto: g.concepto, monto: Number(g.monto) })),
         denominaciones: denominacionesConteo,
+        pagos: pagosCorte,
       })
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
     }
-  }, [corteResult, corteProductos, gastos, denominacionesConteo])
+  }, [corteResult, corteProductos, gastos, denominacionesConteo, pagosCorte])
 
-  const totalDia = daySummary.total_efectivo + daySummary.total_transferencia
+  const totalDia = daySummary.total_efectivo + daySummary.total_transferencia + daySummary.total_tarjeta
   const netoDia  = totalDia - totalGastosHoy
 
   if (loading) return (
@@ -559,6 +678,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         {[
           { label: 'Efectivo hoy',       val: `$${Math.round(daySummary.total_efectivo).toLocaleString('es-CO')}`,     color: 'text-emerald-600' },
           { label: 'Transferencias hoy', val: `$${Math.round(daySummary.total_transferencia).toLocaleString('es-CO')}`, color: 'text-blue-600'    },
+          ...(daySummary.total_tarjeta > 0 ? [{ label: 'Tarjeta hoy', val: `$${Math.round(daySummary.total_tarjeta).toLocaleString('es-CO')}`, color: 'text-indigo-600' }] : []),
           { label: 'Propinas hoy',       val: `$${Math.round(daySummary.total_propinas).toLocaleString('es-CO')}`,      color: 'text-purple-500'  },
           { label: 'Gastos hoy',         val: `$${Math.round(totalGastosHoy).toLocaleString('es-CO')}`,                 color: 'text-red-500'     },
           { label: 'Neto del día',       val: `$${Math.round(netoDia).toLocaleString('es-CO')}`,                        color: 'text-[#FF5722]'   },
@@ -609,6 +729,23 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
             {gastoModo === 'simple' ? (
               <div className="flex flex-wrap gap-3 items-end">
+                {/* ¿Con qué plata se pagó? Define si el gasto resta del efectivo de la caja o queda "por reembolsar". */}
+                <div className="w-full flex flex-wrap gap-3 items-end">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Se pagó con</label>
+                    <select value={gastoFuente} onChange={e => setGastoFuente(e.target.value as FuenteGasto)}
+                      className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn}>
+                      {(Object.keys(FUENTE_LABEL) as FuenteGasto[]).map(f => <option key={f} value={f}>{FUENTE_LABEL[f]}</option>)}
+                    </select>
+                  </div>
+                  {gastoFuente === 'propio' && (
+                    <div className="flex-1 min-w-[160px]">
+                      <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">¿Quién puso la plata?</label>
+                      <input value={gastoPagadoPor} onChange={e => setGastoPagadoPor(e.target.value)} maxLength={80} placeholder="Ej: Angela"
+                        className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                    </div>
+                  )}
+                </div>
                 <div className="flex-1 min-w-[160px]">
                   <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
                   <div className="flex gap-2">
@@ -699,7 +836,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <div key={g.id} className="flex items-center justify-between bg-[#D8DAE4] rounded-2xl px-4 py-3" style={S.neoOutSm}>
                 <div>
                   <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
-                  <p className="text-[0.6875rem] text-[#9CA3AF]">{new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-[0.6875rem] text-[#9CA3AF]">
+                    {new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                    {g.fuente === 'propio' && ` · lo pagó ${g.pagado_por_nombre ?? 'otra persona'} (no sale del cajón)`}
+                    {g.fuente === 'transferencia' && ' · transferencia del negocio'}
+                    {g.fuente === 'tarjeta' && ' · tarjeta del negocio'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-red-500">${Math.round(Number(g.monto)).toLocaleString('es-CO')}</span>
@@ -709,6 +851,41 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Por reembolsar: gastos que alguien adelantó con su plata. El saldo se ve siempre para que nadie pierda la cuenta. */}
+      {porReembolsar.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <p className="text-sm font-bold text-amber-800">
+            Por reembolsar: {fmt(porReembolsar.reduce((s, g) => s + Number(g.monto), 0))}
+            <span className="font-normal"> · {[...new Set(porReembolsar.map(g => g.pagado_por_nombre ?? 'Otra persona'))].join(', ')}</span>
+          </p>
+          <div className="flex flex-col gap-2 mt-2">
+            {porReembolsar.map(g => (
+              <div key={g.id} className="flex flex-wrap items-center justify-between gap-2 bg-white/70 rounded-xl px-3 py-2">
+                <span className="text-sm text-[#2D3561]"><b>{g.concepto}</b> · {fmt(g.monto)} · {g.pagado_por_nombre ?? 'otra persona'}</span>
+                <span className="flex gap-2">
+                  <button onClick={() => handleReembolsar(g, 'caja')} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-white bg-amber-600">Pagar con efectivo de la caja</button>
+                  <button onClick={() => handleReembolsar(g, 'transferencia')} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-amber-800 bg-amber-100">Por transferencia</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Aporte a la caja: efectivo que alguien pone porque la base no alcanzó (suma al efectivo esperado) */}
+      <div className="bg-[#D8DAE4] rounded-2xl p-4 flex flex-wrap items-end gap-3" style={S.neoOutSm}>
+        <div className="flex-1 min-w-[140px]">
+          <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-1">Aporte a la caja</p>
+          <input type="number" min={0} inputMode="numeric" value={aporteMonto} onChange={e => setAporteMonto(e.target.value)} placeholder="Monto"
+            aria-label="Monto del aporte" className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn} />
+        </div>
+        <div className="flex-1 min-w-[140px]">
+          <input value={aportePor} onChange={e => setAportePor(e.target.value)} maxLength={80} placeholder="¿Quién lo puso? (opcional)"
+            aria-label="Quién aportó" className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+        </div>
+        <button onClick={handleAporte} className="min-h-[44px] px-4 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={S.coral}>Registrar aporte</button>
       </div>
 
       {/* Pedidos esperando cobro ANTES de pasar a cocina (Plan B) */}
@@ -749,14 +926,27 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     </div>
                   ))}
                 </div>
+                {(pagadoPorOrden[order.id] ?? 0) > 0 && (
+                  <p className="text-xs font-bold text-amber-700 mb-2">
+                    Cobrado {fmt(pagadoPorOrden[order.id])} · falta {fmt(order.total - pagadoPorOrden[order.id])}
+                  </p>
+                )}
                 <motion.button
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => openPay(order, 'inicial')}
+                  onClick={() => (pagadoPorOrden[order.id] ?? 0) > 0 ? setSplitOrder({ order, kind: 'inicial' }) : openPay(order, 'inicial')}
                   className="w-full py-3 rounded-2xl font-bold text-white text-sm"
                   style={{ backgroundColor: '#D97706' }}
                 >
-                  Cobrar y enviar a cocina · ${Math.round(order.total).toLocaleString('es-CO')}
+                  {(pagadoPorOrden[order.id] ?? 0) > 0
+                    ? `Seguir cobrando · falta ${fmt(order.total - pagadoPorOrden[order.id])}`
+                    : `Cobrar y enviar a cocina · ${fmt(order.total)}`}
                 </motion.button>
+                {!(pagadoPorOrden[order.id] > 0) && (
+                  <button onClick={() => setSplitOrder({ order, kind: 'inicial' })}
+                    className="w-full min-h-[44px] mt-2 rounded-2xl text-xs font-bold text-[#2D3561]" style={S.neoOutSm}>
+                    Dividir cuenta
+                  </button>
+                )}
                 <div className="flex gap-2 mt-2">
                   <motion.button
                     whileTap={{ scale: 0.97 }}
@@ -921,7 +1111,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
                 {order.paid_at && (
                   <p className="text-xs font-bold text-[#6B7280] mb-2">
-                    Pagado · {esRappi(order) ? 'Rappi' : order.payment_method === 'transferencia' ? 'Transferencia' : order.payment_method === 'tarjeta' ? 'Tarjeta' : 'Efectivo'}
+                    Pagado · {esRappi(order) ? 'Rappi' : order.payment_method === 'mixto' ? 'Mixto' : order.payment_method === 'transferencia' ? 'Transferencia' : order.payment_method === 'tarjeta' ? 'Tarjeta' : 'Efectivo'}
                   </p>
                 )}
                 {order.paid_at ? (
@@ -935,14 +1125,29 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     ✓ Ya pagado · Completar pedido
                   </motion.button>
                 ) : (
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => openPay(order)}
-                    className="w-full py-3 rounded-2xl font-bold text-white bg-[#FF5722] text-sm"
-                    style={S.coral}
-                  >
-                    Cobrar ${Math.round(order.total).toLocaleString('es-CO')}
-                  </motion.button>
+                  <>
+                    {(pagadoPorOrden[order.id] ?? 0) > 0 && (
+                      <p className="text-xs font-bold text-amber-700 mb-2">
+                        Cobrado {fmt(pagadoPorOrden[order.id])} · falta {fmt(order.total - pagadoPorOrden[order.id])}
+                      </p>
+                    )}
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => (pagadoPorOrden[order.id] ?? 0) > 0 ? setSplitOrder({ order, kind: 'final' }) : openPay(order)}
+                      className="w-full py-3 rounded-2xl font-bold text-white bg-[#FF5722] text-sm"
+                      style={S.coral}
+                    >
+                      {(pagadoPorOrden[order.id] ?? 0) > 0
+                        ? `Seguir cobrando · falta ${fmt(order.total - pagadoPorOrden[order.id])}`
+                        : `Cobrar ${fmt(order.total)}`}
+                    </motion.button>
+                    {!(pagadoPorOrden[order.id] > 0) && (
+                      <button onClick={() => setSplitOrder({ order, kind: 'final' })}
+                        className="w-full min-h-[44px] mt-2 rounded-2xl text-xs font-bold text-[#2D3561]" style={S.neoOutSm}>
+                        Dividir cuenta
+                      </button>
+                    )}
+                  </>
                 )}
                 <div className="flex gap-2 mt-2">
                   <motion.button
@@ -989,6 +1194,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         >
           Historial de ventas de hoy · qué se vendió y para quién
         </button>
+        {/* Cada pago de hoy: verificar transferencias, corregir el método o anular (admin) */}
+        <button
+          onClick={() => setShowPagos(true)}
+          className="w-full sm:col-span-2 py-3.5 rounded-2xl font-bold text-sm text-[#2D3561]"
+          style={S.neoOut}
+        >
+          Pagos de hoy · verificar transferencias y corregir
+        </button>
         <button
           onClick={handleCorte}
           disabled={cortingLoading || daySummary.total_ordenes === 0}
@@ -1009,6 +1222,18 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
       <AnimatePresence>
         {showHistory && <SalesHistory onClose={() => setShowHistory(false)} />}
+        {showPagos && (
+          <PagosDelDia esAdmin={profile.role === 'admin'} onClose={() => setShowPagos(false)} onChanged={fetchData} />
+        )}
+        {splitOrder && (
+          <SplitPayModal
+            key={splitOrder.order.id}
+            order={splitOrder.order}
+            propinaSugeridaPct={propinaSugeridaPct}
+            onClose={() => { setSplitOrder(null); fetchData() }}
+            onFinished={handleSplitFinished}
+          />
+        )}
       </AnimatePresence>
 
       {/* ── Modal cobro ── */}
@@ -1045,6 +1270,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   </div>
                 ))}
               </div>
+
+              {/* Varias personas pagan distinto: cada una con su método (efectivo, transferencia o tarjeta) */}
+              <button type="button"
+                onClick={() => { setSplitOrder({ order: payingOrder, kind: payingKind }); setPayingOrder(null) }}
+                className="w-full min-h-[44px] mb-3 rounded-2xl text-sm font-bold text-[#2D3561]" style={S.neoOutSm}>
+                Dividir cuenta · varias personas
+              </button>
 
               {/* Método de pago */}
               <div className="grid grid-cols-2 gap-2 mb-4">
@@ -1192,6 +1424,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 {[
                   { label: 'Efectivo',      val: corteResult.total_efectivo },
                   { label: 'Transferencia', val: corteResult.total_transferencia },
+                  ...(Number(corteResult.total_tarjeta ?? 0) > 0 ? [{ label: 'Tarjeta', val: corteResult.total_tarjeta }] : []),
                   { label: 'Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
                   { label: 'Pedidos Rappi', val: `${daySummary.ordenes_rappi} — $0 (dinero en Rappi app)`, isCurrency: false },
                 ].map(item => (
@@ -1224,11 +1457,73 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <span className="text-sm text-[#6B7280]">Base de caja</span>
                   <span className="font-bold text-[#2D3561]">{fmt(corteResult.base_caja)}</span>
                 </div>
+                {/* Explicación del efectivo esperado: cada renglón que entra o sale del cajón */}
+                {[
+                  { label: '+ Aportes a la caja', val: corteResult.aportes_a_caja, sign: '+' },
+                  { label: '− Gastos pagados con efectivo de la caja', val: corteResult.gastos_pagados_de_caja, sign: '−' },
+                  { label: '− Reembolsos pagados de la caja', val: corteResult.reembolsos_de_caja, sign: '−' },
+                ].filter(x => Number(x.val ?? 0) > 0).map(x => (
+                  <div key={x.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-2" style={S.neoIn}>
+                    <span className="text-xs text-[#6B7280]">{x.label}</span>
+                    <span className="font-bold text-sm text-[#2D3561]">{x.sign}{fmt(x.val)}</span>
+                  </div>
+                ))}
+                {Number(corteResult.gastos_adelantados ?? 0) > 0 && (
+                  <p className="text-[0.6875rem] text-amber-700 px-1">
+                    Gastos adelantados con dinero propio: {fmt(corteResult.gastos_adelantados)} · cuentan como gasto del negocio pero no salen del cajón (quedan por reembolsar).
+                  </p>
+                )}
                 <div className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
-                  <span className="text-sm text-[#6B7280]">Efectivo esperado en caja<br /><span className="text-[0.6875rem]">base + efectivo + propinas en efectivo</span></span>
+                  <span className="text-sm text-[#6B7280]">Efectivo esperado en caja<br /><span className="text-[0.6875rem]">base + aportes + efectivo + propinas en efectivo − gastos de caja − reembolsos</span></span>
                   <span className="font-bold text-[#2D3561]">{fmt(corteResult.efectivo_esperado_cajon)}</span>
                 </div>
               </div>
+
+              {/* Transferencias del día: se marcan una por una contra la app del banco */}
+              {transferencias.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
+                    Transferencias del día ({transferencias.filter(t => t.verificada).length}/{transferencias.length} verificadas)
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    {transferencias.map(t => (
+                      <label key={t.pago_id} className="flex items-center gap-3 bg-[#CDD0DC] rounded-xl px-3 min-h-[44px] cursor-pointer" style={S.neoIn}>
+                        <input type="checkbox" checked={t.verificada} className="w-5 h-5 accent-emerald-600"
+                          onChange={async e => {
+                            const v = e.target.checked
+                            setTransferencias(prev => prev.map(x => x.pago_id === t.pago_id ? { ...x, verificada: v } : x))
+                            const { error } = await supabase.rpc('marcar_transferencia', { p_pago_id: t.pago_id, p_verificada: v })
+                            if (error) { message.error(error.message); setTransferencias(prev => prev.map(x => x.pago_id === t.pago_id ? { ...x, verificada: !v } : x)) }
+                          }} />
+                        <span className="flex-1 text-xs text-[#2D3561]">
+                          {t.mesa ? `Mesa ${t.mesa}` : t.tipo === 'LLEVAR' ? 'Llevar' : 'Domicilio'}{t.cliente ? ` · ${t.cliente}` : ''}{t.comensal ? ` · ${t.comensal}` : ''}
+                          {t.referencia ? ` · ref ${t.referencia}` : ''}
+                        </span>
+                        <span className="font-bold text-sm text-[#2D3561]">{fmt(t.monto)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Si el conteo físico no cuadra, estas son las mesas con varios pagos: ahí suele estar el error */}
+              {mesasMixtas.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">Mesas con pagos mixtos hoy</p>
+                  <div className="flex flex-col gap-1.5">
+                    {mesasMixtas.map(m => (
+                      <div key={m.order_id} className="bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
+                        <p className="text-xs font-bold text-[#2D3561]">
+                          {m.mesa ? `Mesa ${m.mesa}` : m.tipo}{m.cliente ? ` · ${m.cliente}` : ''} · {fmt(m.total)}
+                        </p>
+                        <p className="text-[0.6875rem] text-[#6B7280]">
+                          {m.pagos.map(p => `${p.comensal ?? 'Pago'}: ${fmt(p.monto)} ${p.metodo}`).join(' · ')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Conteo físico de efectivo (arqueo): cuántos billetes/monedas hay de cada denominación.
                   El efectivo esperado en el cajón incluye las propinas pagadas en efectivo, no solo
@@ -1330,6 +1625,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 {[
                   { label: 'Efectivo',      val: fmt(corteMensual.total_efectivo) },
                   { label: 'Transferencia', val: fmt(corteMensual.total_transferencia) },
+                  ...(Number(corteMensual.total_tarjeta ?? 0) > 0 ? [{ label: 'Tarjeta', val: fmt(corteMensual.total_tarjeta) }] : []),
                   { label: 'Órdenes',       val: String(corteMensual.total_ordenes) },
                 ].map(it => (
                   <div key={it.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>

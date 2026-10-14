@@ -27,16 +27,32 @@ export interface CorteDenominacion {
   subtotal: number
 }
 
+export interface CortePago {
+  comensal:    string | null
+  mesa:        string      // "Mesa 3", "Llevar · Ana"…
+  metodo:      string
+  monto:       number
+  propina:     number
+  referencia:  string | null
+  verificada?: boolean
+  hora:        string
+}
+
 export interface CorteTotales {
   total_efectivo:      number
   total_transferencia: number
+  total_tarjeta?:      number
   total_general:       number
   total_ordenes:       number
   total_gastos?:       number
   total_neto?:         number
   total_propinas?:     number
   base_caja?:          number   // efectivo con el que arrancó el cajón
-  efectivo_esperado?:  number   // base + ventas en efectivo + propinas en efectivo
+  efectivo_esperado?:  number   // base + aportes + efectivo + propinas en efectivo − gastos de caja − reembolsos
+  gastos_de_caja?:     number
+  gastos_adelantados?: number   // pagados con dinero propio de alguien (no salen del cajón)
+  reembolsos_de_caja?: number
+  aportes_a_caja?:     number
   fecha?:              string
 }
 
@@ -46,9 +62,10 @@ export async function descargarCorteExcel(opts: {
   productos:         CorteProducto[]
   gastos?:           CorteGasto[]
   denominaciones?:   CorteDenominacion[]
+  pagos?:            CortePago[]
 }) {
   const XLSX = await import('xlsx')
-  const { restauranteNombre, totales, productos, gastos = [], denominaciones = [] } = opts
+  const { restauranteNombre, totales, productos, gastos = [], denominaciones = [], pagos = [] } = opts
   const fecha = totales.fecha ?? new Date().toISOString().slice(0, 10)
 
   const n = (v: unknown) => Number(v ?? 0)
@@ -70,6 +87,7 @@ export async function descargarCorteExcel(opts: {
   rows.push(['RESUMEN DE PAGOS', '', '', '', ''])
   rows.push(['Efectivo',       '', '', '', n(totales.total_efectivo)])
   rows.push(['Transferencia',  '', '', '', n(totales.total_transferencia)])
+  if (n(totales.total_tarjeta) > 0) rows.push(['Tarjeta', '', '', '', n(totales.total_tarjeta)])
   rows.push(['Ganancias (ventas)', '', '', '', n(totales.total_general)])
   rows.push(['Órdenes',        '', n(totales.total_ordenes), '', ''])
   if (n(totales.total_propinas) > 0) {
@@ -78,6 +96,10 @@ export async function descargarCorteExcel(opts: {
   const efectivoEsperado = totales.efectivo_esperado ?? n(totales.total_efectivo)
   rows.push([])
   rows.push(['Base de caja (efectivo inicial)', '', '', '', n(totales.base_caja)])
+  if (n(totales.aportes_a_caja) > 0)     rows.push(['+ Aportes a la caja', '', '', '', n(totales.aportes_a_caja)])
+  if (n(totales.gastos_de_caja) > 0)     rows.push(['− Gastos pagados con efectivo de la caja', '', '', '', -n(totales.gastos_de_caja)])
+  if (n(totales.reembolsos_de_caja) > 0) rows.push(['− Reembolsos pagados de la caja', '', '', '', -n(totales.reembolsos_de_caja)])
+  if (n(totales.gastos_adelantados) > 0) rows.push(['(Gastos adelantados con dinero propio: no salen del cajón)', '', '', '', n(totales.gastos_adelantados)])
   rows.push(['Efectivo esperado en caja', '', '', '', efectivoEsperado])
 
   if (denominaciones.length > 0) {
@@ -125,6 +147,24 @@ export async function descargarCorteExcel(opts: {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Corte de caja')
 
+  // Hoja con cada pago individual: quién pagó, cómo y cuánto (para encontrar un descuadre).
+  if (pagos.length > 0) {
+    const pagoRows: (string | number)[][] = [['Hora', 'Mesa / pedido', 'Persona', 'Método', 'Monto', 'Propina', 'Referencia', 'Verificada']]
+    for (const p of pagos) {
+      pagoRows.push([p.hora, p.mesa, p.comensal ?? '', metodoLabel(p.metodo), n(p.monto), n(p.propina), p.referencia ?? '',
+        p.metodo === 'transferencia' ? (p.verificada ? 'Sí' : 'No') : ''])
+    }
+    const wp = XLSX.utils.aoa_to_sheet(pagoRows)
+    wp['!cols'] = [{ wch: 8 }, { wch: 24 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 10 }]
+    for (let r = 1; r < pagoRows.length; r++) {
+      for (const c of [4, 5]) {
+        const cell = wp[XLSX.utils.encode_cell({ r, c })]
+        if (cell && typeof cell.v === 'number') cell.z = money
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, wp, 'Pagos')
+  }
+
   const slug = restauranteNombre.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
   XLSX.writeFile(wb, `corte_${slug || 'restaurante'}_${fecha}.xlsx`)
 }
@@ -134,6 +174,7 @@ export interface CorteMensualDia {
   fecha:         string
   efectivo:      number
   transferencia: number
+  tarjeta?:      number
   total:         number
   ordenes:       number
   gastos:        number
@@ -145,6 +186,7 @@ export interface CorteMensualTotales {
   hasta:               string   // 'YYYY-MM-DD'
   total_efectivo:      number
   total_transferencia: number
+  total_tarjeta?:      number
   total_general:       number
   total_ordenes:       number
   total_propinas:      number
@@ -179,6 +221,7 @@ export async function descargarCorteMensualExcel(opts: {
   rows.push(['RESUMEN DEL MES', '', '', '', ''])
   pushMoneyRow('Efectivo', corte.total_efectivo)
   pushMoneyRow('Transferencia', corte.total_transferencia)
+  if (n(corte.total_tarjeta) > 0) pushMoneyRow('Tarjeta', corte.total_tarjeta ?? 0)
   pushMoneyRow('Ventas del mes', corte.total_general)
   if (n(corte.total_propinas) > 0) {
     pushMoneyRow('Propinas (NO es venta, se reparte al equipo)', corte.total_propinas)

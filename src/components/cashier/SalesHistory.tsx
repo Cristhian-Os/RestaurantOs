@@ -28,12 +28,15 @@ const orderRef = (o: { id: string; order_number_today?: number | null }) => `#${
 const METODO: Record<string, { label: string; color: string }> = {
   efectivo:      { label: 'Efectivo',      color: '#059669' },
   transferencia: { label: 'Transferencia', color: '#2563EB' },
+  tarjeta:       { label: 'Tarjeta',       color: '#4F46E5' },
+  mixto:         { label: 'Pago mixto',    color: '#7C3AED' },
   rappi:         { label: 'Rappi',         color: '#9CA3AF' },
 }
 
 const FILTERS: { key: PayFilter; label: string }[] = [
   { key: 'todas', label: 'Todas' }, { key: 'efectivo', label: 'Efectivo' },
-  { key: 'transferencia', label: 'Transferencia' }, { key: 'rappi', label: 'Rappi' },
+  { key: 'transferencia', label: 'Transferencia' }, { key: 'tarjeta', label: 'Tarjeta' },
+  { key: 'mixto', label: 'Mixtos' }, { key: 'rappi', label: 'Rappi' },
 ]
 
 // ─── Una venta ───────────────────────────────────────────────────────────────
@@ -46,7 +49,9 @@ interface SaleCardProps {
 }
 
 const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, open, onToggle }, ref) => {
-  const metodo = METODO[order.payment_method ?? ''] ?? { label: order.payment_method ?? 'Sin método', color: '#9CA3AF' }
+  // Cuenta dividida con varios métodos => "Pago mixto"; si no, el método del pedido.
+  const distintos = new Set((order.pagos ?? []).map(p => p.payment_method)).size
+  const metodo = METODO[distintos > 1 ? 'mixto' : (order.payment_method ?? '')] ?? { label: order.payment_method ?? 'Sin método', color: '#9CA3AF' }
   return (
     <div ref={ref} className="bg-[#D8DAE4] rounded-2xl" style={S.neoOutSm}>
       <button type="button" onClick={onToggle} aria-expanded={open}
@@ -77,6 +82,15 @@ const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, op
               </div>
             ))}
           </div>
+          {(order.pagos?.length ?? 0) > 1 && (
+            <div className="mt-2 border-t border-[#CDD0DC] pt-2">
+              {order.pagos!.map((p, i) => (
+                <p key={i} className="m-0 text-xs text-[#6B7280]">
+                  {(p as { comensal?: string | null }).comensal || `Pago ${i + 1}`}: {fmt(Number(p.monto))} · {METODO[p.payment_method]?.label ?? p.payment_method}
+                </p>
+              ))}
+            </div>
+          )}
           {order.notes && <p className="m-0 mt-2 text-xs italic text-[#6B7280]">Nota del pedido: {order.notes}</p>}
           {Number(order.propina) > 0 && <p className="m-0 mt-2 text-xs text-[#6B7280]">Propina: {fmt(Number(order.propina))}</p>}
           {takenBy && <p className="m-0 mt-1 text-xs text-[#6B7280]">Tomó el pedido: {takenBy}</p>}
@@ -108,6 +122,19 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         .order('paid_at', { ascending: false })
       if (error) throw error
       const list: SaleOrder[] = (data ?? []).map(o => ({ ...o, items: parseItems(o.items) }))
+
+      // Pagos de cada pedido (cuentas divididas): el dinero se suma por lo que se pagó con cada método.
+      if (list.length > 0) {
+        const { data: pagos } = await supabase.from('order_payments')
+          .select('order_id, comensal, payment_method, monto').is('anulado_at', null).in('order_id', list.map(o => o.id))
+        const porPedido = new Map<string, { comensal: string | null; payment_method: string; monto: number }[]>()
+        for (const p of pagos ?? []) {
+          const arr = porPedido.get(p.order_id as string) ?? []
+          arr.push({ comensal: p.comensal as string | null, payment_method: p.payment_method as string, monto: Number(p.monto) })
+          porPedido.set(p.order_id as string, arr)
+        }
+        for (const o of list) o.pagos = porPedido.get(o.id)
+      }
       setOrders(list)
       setOpenId(null)
 
@@ -169,7 +196,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         <p className="m-0 text-xs text-[#6B7280] text-center">
-          Total {fmt(summary.total)}{summary.propinas > 0 && ` · propinas ${fmt(summary.propinas)}`}
+          Total {fmt(summary.total)}{summary.tarjeta > 0 && ` · tarjeta ${fmt(summary.tarjeta)}`}{summary.propinas > 0 && ` · propinas ${fmt(summary.propinas)}`}
           {summary.rappi > 0 && ` · ${summary.rappi} de Rappi (no suman)`}
           {isToday && ' · es lo que va a incluir el corte de hoy'}
         </p>

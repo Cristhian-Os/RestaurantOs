@@ -46,8 +46,8 @@ const orders: SaleOrder[] = [
 ]
 
 // Mismo criterio del corte: Rappi no suma
-assert.deepEqual(summarize(orders), { count: 3, efectivo: 33000, transferencia: 19000, total: 52000, propinas: 2500, rappi: 1 })
-assert.deepEqual(summarize([]), { count: 0, efectivo: 0, transferencia: 0, total: 0, propinas: 0, rappi: 0 })
+assert.deepEqual(summarize(orders), { count: 3, efectivo: 33000, transferencia: 19000, tarjeta: 0, total: 52000, propinas: 2500, rappi: 1 })
+assert.deepEqual(summarize([]), { count: 0, efectivo: 0, transferencia: 0, tarjeta: 0, total: 0, propinas: 0, rappi: 0 })
 assert.equal(esRappi({ tipo_pedido: 'LOCAL', payment_method: 'rappi' }), true)
 
 // Por producto: sin Rappi, ordenado por cantidad
@@ -62,5 +62,26 @@ assert.deepEqual(filterOrders(orders, 'todas').map(o => o.id), ['1', '2', '3', '
 assert.deepEqual(filterOrders(orders, 'efectivo').map(o => o.id), ['1', '4'])
 assert.deepEqual(filterOrders(orders, 'transferencia').map(o => o.id), ['2'])
 assert.deepEqual(filterOrders(orders, 'rappi').map(o => o.id), ['3'])
+
+// Cuenta dividida (mesa de 5: 3 en efectivo, 2 por transferencia): cada método suma lo que se pagó con él,
+// no el total del pedido. Es el descuadre que reportó Cholaos Dany.
+const mesa5 = mk({
+  id: '5', total: 87000, propina: 1800, payment_method: 'mixto',
+  pagos: [
+    { payment_method: 'efectivo', monto: 18000 }, { payment_method: 'transferencia', monto: 15000 },
+    { payment_method: 'efectivo', monto: 22000 }, { payment_method: 'transferencia', monto: 12000 },
+    { payment_method: 'efectivo', monto: 20000 },
+  ],
+})
+assert.deepEqual(summarize([mesa5]), { count: 1, efectivo: 60000, transferencia: 27000, tarjeta: 0, total: 87000, propinas: 1800, rappi: 0 })
+// Mezclado con pedidos de un solo pago, y un pedido con tarjeta
+const conTarjeta = mk({ id: '6', total: 10000, payment_method: 'tarjeta' })
+assert.deepEqual(summarize([...orders, mesa5, conTarjeta]), { count: 5, efectivo: 93000, transferencia: 46000, tarjeta: 10000, total: 149000, propinas: 4300, rappi: 1 })
+// Filtros con cuentas divididas
+const todos = [...orders, mesa5, conTarjeta]
+assert.deepEqual(filterOrders(todos, 'mixto').map(o => o.id), ['5'])
+assert.deepEqual(filterOrders(todos, 'efectivo').map(o => o.id), ['1', '4', '5'])
+assert.deepEqual(filterOrders(todos, 'transferencia').map(o => o.id), ['2', '5'])
+assert.deepEqual(filterOrders(todos, 'tarjeta').map(o => o.id), ['6'])
 
 process.stdout.write('salesHistory: todo OK\n')
