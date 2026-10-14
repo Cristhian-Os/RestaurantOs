@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/((?!sw\\.js|manifest\\.json|icon.*\\.png|apple-touch-icon\\.png|logo\\.jpg).*)", "destination": "/index.html" }
+    { "source": "/((?!sw\\.js|manifest\\.json|icon.*\\.png|apple-touch-icon\\.png|logo\\.jpg|kitchen-tv\\.html).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
@@ -16,6 +16,12 @@
       "headers": [
         { "key": "Content-Type",  "value": "application/manifest+json" },
         { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/kitchen-tv.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     },
     {
