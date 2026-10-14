@@ -11,14 +11,14 @@
      Todo el tamaño va en rem y el rem escala con el ancho de pantalla:
      16px a 1920px de ancho, así se ve igual en cualquier TV. */
   :root {
-    --bg:        #0F1024;
-    --surface:   #151735;
-    --card:      #22254F;
-    --card-line: #34376A;
-    --inset:     #12132E;
-    --ink:       #F4F4FF;
-    --ink-soft:  #9A9CC8;
-    --ink-note:  #D5D7F5;
+    --bg:        #000000;
+    --surface:   #0C0C0E;
+    --card:      #17171B;
+    --card-line: #2B2B31;
+    --inset:     #050506;
+    --ink:       #F5F5F7;
+    --ink-soft:  #A0A0AA;
+    --ink-note:  #D6D6DC;
     --pend:      #FB923C;
     --cook:      #E879F9;
     --ready:     #34D399;
@@ -36,14 +36,14 @@
   /* El tema lo decide SOLO el restaurante (restaurant_config) o ?theme=. Se ignora
      prefers-color-scheme: las TVs WebOS lo reportan como "light" y pisaban el oscuro. */
   html[data-theme="light"] {
-    --bg:        #EEF0FA;
+    --bg:        #F2F2F4;
     --surface:   #FFFFFF;
-    --card:      #F6F7FD;
-    --card-line: #C9CDE6;
-    --inset:     #E6E9F7;
-    --ink:       #14152B;
-    --ink-soft:  #5A5D86;
-    --ink-note:  #2E3055;
+    --card:      #FAFAFB;
+    --card-line: #D8D8DE;
+    --inset:     #EDEDF0;
+    --ink:       #141416;
+    --ink-soft:  #5C5C66;
+    --ink-note:  #2E2E36;
     --pend:      #C2570C;
     --cook:      #A21CAF;
     --ready:     #047857;
@@ -235,7 +235,7 @@
     justify-content: center;
     font-size: 1.75rem;
     font-weight: 800;
-    color: #0F1024;
+    color: #0A0A0A;
   }
 
   .col-pending .col-badge { background: var(--pend); }
@@ -449,46 +449,35 @@
   .col.dense .ready-hint { display: none; }
 
   /* ── Total activo ── */
+  /* TOTAL ACTIVO: franja inferior que corre como el ticker de un noticiero */
   #totals {
     -ms-flex-negative: 0;
     flex-shrink: 0;
-    min-height: 4.75rem;
-    max-height: 9rem;
+    height: 3.25rem;
     overflow: hidden;
-    padding: 0.625rem 2rem 0.25rem;
+    padding: 0 0 0 1.5rem;
     background: var(--surface);
     border-top: 0.125rem solid var(--card-line);
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: start;
-    -ms-flex-align: start;
-    align-items: flex-start;
-  }
-
-  #totals-label { font-size: 1.625rem; font-weight: 800; letter-spacing: 0.06em; color: var(--ink-soft); white-space: nowrap; margin-right: 2rem; padding-top: 0.5rem; }
-
-  #totals-list { -webkit-box-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; display: -webkit-box; display: -ms-flexbox; display: flex; -ms-flex-wrap: wrap; flex-wrap: wrap; }
-
-  .total-chip { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-align: center; -ms-flex-align: center; align-items: center; margin: 0 2.25rem 0.375rem 0; white-space: nowrap; }
-  .total-qty {
-    min-width: 3rem; height: 3rem;
-    padding: 0 0.375rem;
-    border-radius: 1.5rem;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    -webkit-box-pack: center;
-    -ms-flex-pack: center;
-    justify-content: center;
-    font-size: 1.875rem;
-    font-weight: 800;
-    margin-right: 0.875rem;
   }
-  .total-name { font-size: 2.125rem; font-weight: 700; }
+  #totals-label { font-size: 1.125rem; font-weight: 800; letter-spacing: 0.06em; color: var(--ink-soft); white-space: nowrap; margin-right: 1.25rem; -ms-flex-negative: 0; flex-shrink: 0; }
+  #totals-list { -webkit-box-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+  #totals-track { display: inline-block; white-space: nowrap; will-change: transform; -webkit-animation: tvtick 30s linear infinite; animation: tvtick 30s linear infinite; }
+  @-webkit-keyframes tvtick { from { -webkit-transform: translate3d(0,0,0); } to { -webkit-transform: translate3d(-50%,0,0); } }
+  @keyframes tvtick { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
+  .total-chip { display: inline-block; vertical-align: middle; margin: 0 1.75rem 0 0; white-space: nowrap; }
+  .total-qty {
+    display: inline-block; vertical-align: middle;
+    min-width: 2rem; height: 2rem; line-height: 2rem; text-align: center;
+    padding: 0 0.375rem; border-radius: 1rem;
+    font-size: 1.25rem; font-weight: 800; margin-right: 0.625rem;
+  }
+  .total-name { display: inline-block; vertical-align: middle; font-size: 1.375rem; font-weight: 700; }
 
   /* Loading / Empty */
   #loading {
@@ -567,6 +556,38 @@
     font-weight: 800;
     cursor: pointer;
     font-family: inherit;
+  }
+
+  /* ── Celular (< 900 px): tres tarjetas grandes; al tocar una se despliegan sus pedidos ──
+     El rem de la TV depende del ancho de pantalla (da ~3 px en un celular), por eso aquí se fija. */
+  @media (max-width: 899px) {
+    html { font-size: 15px; height: auto; }
+    body { height: auto; max-height: none; min-height: 100%; overflow-y: auto; overflow-x: hidden; }
+    #header { height: auto; min-height: 52px; padding: 8px 12px; -ms-flex-wrap: wrap; flex-wrap: wrap; }
+    #header h1 { font-size: 22px; }
+    #header-right { -ms-flex-wrap: wrap; flex-wrap: wrap; font-size: 14px; }
+    #header-right > * { margin-left: 12px; font-size: 14px; }
+    #test-sound { min-height: 44px; }
+    #grid { -webkit-box-orient: vertical; -ms-flex-direction: column; flex-direction: column; overflow: visible; padding: 8px 12px 16px; }
+    #grid .col { -webkit-box-flex: 0; -ms-flex: none; flex: none; margin: 0 0 12px 0; padding: 0; border-width: 2px; border-radius: 18px; overflow: hidden; }
+    #grid .col-header { height: auto; min-height: 64px; margin: 0; padding: 12px 16px; cursor: pointer; }
+    #grid .col-label { font-size: 22px; }
+    #grid .col-hint { display: none; }
+    #grid .col-badge { font-size: 22px; min-width: 44px; height: 44px; line-height: 44px; }
+    #grid .col-extra { display: none !important; }
+    #grid .col-right:after { content: "\25BE"; font-size: 24px; margin-left: 14px; color: var(--ink-soft); }
+    #grid .col.open .col-right:after { content: "\25B4"; }
+    #grid .col-cards { display: none; overflow: visible; padding: 0 12px 12px; }
+    #grid .col.open .col-cards { display: block; }
+    #grid .card, #grid .col-ready .card { width: 100%; margin-right: 0; }
+    #grid .card.clickable { min-height: 44px; }
+    #grid .btn-cancel { min-height: 44px; }
+    body { padding-bottom: 46px; }
+    #totals { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; height: 42px; padding: 0 0 0 12px; }
+    #totals-label { font-size: 11px; margin-right: 10px; }
+    .total-chip { margin-right: 18px; }
+    .total-qty { min-width: 24px; height: 24px; line-height: 24px; font-size: 14px; margin-right: 6px; }
+    .total-name { font-size: 15px; }
   }
 </style>
 </head>
@@ -708,7 +729,7 @@ function itemColor(item) {
 
 function textOn(hex) {
   var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16)
-  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0F1024' : '#FFFFFF'
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0A0A0A' : '#FFFFFF'
 }
 
 // Características del producto: opciones/comentario (item.notes ya trae el resumen);
@@ -883,7 +904,18 @@ function buildTotals() {
       + '<span class="total-qty" style="background:' + col + ';color:' + textOn(col) + '">' + counts[keys[n]] + '</span>'
       + '<span class="total-name">' + esc(keys[n]) + '</span></div>'
   }
-  document.getElementById('totals-list').innerHTML = html
+  var list = document.getElementById('totals-list')
+  list.innerHTML = '<div id="totals-track">' + html + html + '</div>'
+  // Se repite el conjunto hasta llenar el ancho, y la pista lleva dos mitades iguales (lazo sin saltos)
+  var track = document.getElementById('totals-track')
+  var half = track.offsetWidth / 2
+  var reps = half > 0 ? Math.max(1, Math.ceil(list.offsetWidth / half)) : 1
+  var one = '', r
+  for (r = 0; r < reps; r++) one += html
+  track.innerHTML = one + one
+  var secs = Math.max(12, Math.round((track.offsetWidth / 2) / (window.innerWidth < 900 ? 70 : 110)))
+  track.style.webkitAnimationDuration = secs + 's'
+  track.style.animationDuration = secs + 's'
 }
 
 // ─── Timers ──────────────────────────────────────────────────────────────────
@@ -970,6 +1002,14 @@ function fitColumn(cardsId, extraId) {
   var container = document.getElementById(cardsId)
   var col = container.parentNode
   var extra = document.getElementById(extraId)
+  if (window.innerWidth < 900) {
+    // Celular: se desplaza con el dedo, no se ocultan tarjetas
+    var all = container.querySelectorAll('.card')
+    for (var c = 0; c < all.length; c++) all[c].style.display = ''
+    col.className = col.className.replace(' dense', '')
+    extra.style.display = 'none'
+    return
+  }
   var hidden = layoutColumn(container, false)
   col.className = col.className.replace(' dense', '')
   hidden = layoutColumn(container, false)
@@ -1082,6 +1122,15 @@ document.getElementById('grid').addEventListener('click', function(e) {
   if (card) handleCardAction(card, e.target)
 }, false)
 
+// Celular: tocar la cabecera abre / cierra esa tarjeta (Pendientes, En cocina, Listas)
+document.getElementById('grid').addEventListener('click', function(e) {
+  if (window.innerWidth >= 900) return
+  var head = closest(e.target, '.col-header')
+  if (!head) return
+  var col = head.parentNode
+  col.className = / open\b/.test(col.className) ? col.className.replace(' open', '') : col.className + ' open'
+}, false)
+
 document.getElementById('grid').addEventListener('keydown', function(e) {
   if (e.key !== 'Enter' && e.key !== ' ' && e.keyCode !== 13 && e.keyCode !== 32) return
   var card = closest(e.target, '.card')
@@ -1089,30 +1138,55 @@ document.getElementById('grid').addEventListener('keydown', function(e) {
 }, false)
 
 // ─── API ─────────────────────────────────────────────────────────────────────
-function apiHeaders() {
-  return {
-    'apikey': SUPABASE_ANON_KEY,
-    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-    'Content-Type': 'application/json'
+// ─── API: funciones seguras. La clave de la TV (?k=...) identifica al restaurante ───
+var TV_TOKEN = ''
+var themeForced = false
+
+function rpc(name, body, ok, fail) {
+  var req = new XMLHttpRequest()
+  req.open('POST', SUPABASE_URL + '/rest/v1/rpc/' + name, true)
+  req.setRequestHeader('apikey', SUPABASE_ANON_KEY)
+  req.setRequestHeader('Authorization', 'Bearer ' + SUPABASE_ANON_KEY)
+  req.setRequestHeader('Content-Type', 'application/json')
+  req.onload = function() {
+    var data = null
+    try { data = JSON.parse(req.responseText) } catch (e) {}
+    if (req.status >= 200 && req.status < 300) ok(data)
+    else fail(req.status, data)
+  }
+  req.onerror = function() { fail(0, null) }
+  req.send(JSON.stringify(body))
+}
+
+function applyMeta(data) {
+  var d = data.dishes || []
+  for (var i = 0; i < d.length; i++) dishCategory[d[i].id] = d[i].category
+  var mods = data.modules_enabled
+  if (!mods) return
+  if (mods.theme && !themeForced) applyThemeValue(mods.theme)
+  if (mods.categories && mods.categories.length) {
+    for (var j = 0; j < mods.categories.length; j++) {
+      var c = mods.categories[j]
+      if (c && c.value) catMeta[c.value] = { label: c.label, color: c.color }
+    }
   }
 }
 
 function fetchOrders() {
-  var url = SUPABASE_URL + '/rest/v1/orders?select=*&status=in.%28pending%2Ccooking%2Cready%29&order=created_at.asc'
-  var req = new XMLHttpRequest()
-  req.open('GET', url, true)
-  var h = apiHeaders()
-  for (var k in h) req.setRequestHeader(k, h[k])
-  req.onload = function() {
-    if (req.status >= 200 && req.status < 300) {
-      try { orders = JSON.parse(req.responseText) || [] }
-      catch (e) { showError('Error al procesar datos'); return }
-      checkAlerts(orders)
-      render(false)
-    } else { showError('Error HTTP ' + req.status) }
-  }
-  req.onerror = function() { showError('Sin conexión al servidor') }
-  req.send()
+  rpc('tv_cocina_datos', { p_token: TV_TOKEN }, function(data) {
+    if (!data) { showError('Error al procesar datos'); return }
+    document.getElementById('error-box').style.display = 'none'
+    applyMeta(data)
+    orders = data.orders || []
+    setStatus('en vivo', true)
+    checkAlerts(orders)
+    render(false)
+  }, function(status, data) {
+    setStatus('sin conexión', false)
+    if (status === 0) showError('Sin conexión al servidor')
+    else if (data && data.message && data.message.indexOf('Clave de TV') === 0) showError('Clave de TV no válida. Pide la dirección nueva al administrador.')
+    else showError('Error HTTP ' + status)
+  })
 }
 
 function advance(orderId, nextStatus) {
@@ -1124,74 +1198,22 @@ function advance(orderId, nextStatus) {
     if (orders[i].id === orderId) { orders[i].status = nextStatus; break }
   }
   render(false)
-  var req = new XMLHttpRequest()
-  req.open('PATCH', SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, true)
-  var h = apiHeaders()
-  for (var k in h) req.setRequestHeader(k, h[k])
-  req.onload = function() { fetchOrders() }
-  req.onerror = function() { alert('Error al actualizar pedido'); fetchOrders() }
-  req.send(JSON.stringify({ status: nextStatus }))
+  rpc('tv_cocina_avanzar', { p_token: TV_TOKEN, p_order_id: orderId, p_status: nextStatus },
+    function() { fetchOrders() },
+    function() { alert('Error al actualizar pedido'); fetchOrders() })
 }
 
 function cancelOrder(orderId) {
   if (!confirm('¿Cancelar todo el pedido?')) return
-  var req = new XMLHttpRequest()
-  req.open('POST', SUPABASE_URL + '/rest/v1/rpc/cancelar_orden', true)
-  var h = apiHeaders()
-  for (var k in h) req.setRequestHeader(k, h[k])
-  req.onload = function() { fetchOrders() }
-  req.onerror = function() { alert('Error al cancelar') }
-  req.send(JSON.stringify({ p_order_id: orderId }))
+  rpc('tv_cocina_cancelar', { p_token: TV_TOKEN, p_order_id: orderId },
+    function() { fetchOrders() },
+    function() { alert('Error al cancelar') })
 }
 
 // ─── Polling — fuente principal de actualizaciones ───────────────────────────
 function startPolling() {
   if (pollInterval) clearInterval(pollInterval)
   pollInterval = setInterval(fetchOrders, POLL_MS)
-}
-
-// ─── Realtime — bonus encima del polling, no reemplaza ───────────────────────
-function connectRealtime() {
-  if (ws) { try { ws.onclose = null; ws.close() } catch (e) {} }
-  clearInterval(wsHeartbeat)
-
-  var wsUrl = SUPABASE_URL.replace('https://','wss://').replace('http://','ws://')
-    + '/realtime/v1/websocket?apikey=' + SUPABASE_ANON_KEY + '&vsn=1.0.0'
-
-  try { ws = new WebSocket(wsUrl) } catch (e) { setStatus('polling', true); return }
-
-  ws.onopen = function() {
-    setStatus('tiempo real', true)
-    ws.send(JSON.stringify({
-      topic: 'realtime:public:orders',
-      event: 'phx_join',
-      payload: { config: { broadcast: { self: true }, postgres_changes: [{ event: '*', schema: 'public', table: 'orders' }] } },
-      ref: '1'
-    }))
-    wsHeartbeat = setInterval(function() {
-      if (ws && ws.readyState === 1)
-        ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: '0' }))
-    }, 25000)
-  }
-
-  ws.onmessage = function(evt) {
-    try {
-      var msg = JSON.parse(evt.data)
-      if (msg.event === 'postgres_changes' || msg.event === 'INSERT' || msg.event === 'UPDATE' || msg.event === 'DELETE')
-        fetchOrders()
-    } catch (e) {}
-  }
-
-  ws.onclose = function() {
-    setStatus('polling', true)
-    clearInterval(wsHeartbeat)
-    clearTimeout(retryTimeout)
-    retryTimeout = setTimeout(connectRealtime, 10000)
-  }
-
-  ws.onerror = function() {
-    setStatus('polling', true)
-  }
 }
 
 function setStatus(text, ok) {
@@ -1246,53 +1268,11 @@ function keepAwake() {
 
   // 5. Red de seguridad cada 30 min. Recargar la página BORRA el permiso de audio
   //    (hace falta un clic nuevo), así que solo se recarga si el sonido ya estaba
-  //    bloqueado. Con el sonido activo se refrescan datos y tiempo real sin recargar.
+  //    bloqueado. Con el sonido activo se refrescan los datos sin recargar.
   setInterval(function() {
     if (isAudioLocked()) { location.reload(); return }
-    connectRealtime()
     fetchOrders()
   }, 30 * 60 * 1000)
-}
-
-// ─── Metadatos: categorías (colores) y platos ────────────────────────────────
-function getJson(path, cb) {
-  var req = new XMLHttpRequest()
-  req.open('GET', SUPABASE_URL + path, true)
-  var h = apiHeaders()
-  for (var k in h) req.setRequestHeader(k, h[k])
-  req.onload = function() {
-    var data = null
-    try { data = JSON.parse(req.responseText) } catch (e) {}
-    cb(req.status >= 200 && req.status < 300 ? data : null)
-  }
-  req.onerror = function() { cb(null) }
-  req.send()
-}
-
-function loadMeta(restaurantId, callback) {
-  var pending = 2
-  var done = function() { pending--; if (pending === 0) callback() }
-
-  if (restaurantId) {
-    getJson('/rest/v1/restaurant_config?select=modules_enabled&restaurant_id=eq.' + restaurantId, function(data) {
-      var mods = data && data[0] && data[0].modules_enabled
-      if (mods) {
-        if (mods.theme) applyThemeValue(mods.theme)
-        if (mods.categories && mods.categories.length) {
-          for (var i = 0; i < mods.categories.length; i++) {
-            var c = mods.categories[i]
-            if (c && c.value) catMeta[c.value] = { label: c.label, color: c.color }
-          }
-        }
-      }
-      done()
-    })
-  } else { done() }
-
-  getJson('/rest/v1/dishes?select=id,category', function(data) {
-    if (data) for (var i = 0; i < data.length; i++) dishCategory[data[i].id] = data[i].category
-    done()
-  })
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -1319,22 +1299,17 @@ var keepAwakeStarted = false
 
 function init() {
   var params = getUrlParams()
-  var start = function() {
-    clearTimeout(retryTimeout)
-    fetchOrders()
-    startPolling()
-    connectRealtime()
-    if (!keepAwakeStarted) { keepAwakeStarted = true; keepAwake() }
-  }
+  TV_TOKEN = params.k || ''
   updateBanner()
   // ?theme=light/dark como override manual (para casos de prueba)
   if (params.theme === 'light' || params.theme === 'dark') {
+    themeForced = true
     applyThemeValue(params.theme)
-    loadMeta(null, start)
-  } else {
-    // Lee tema y colores de categoría desde Supabase usando el restaurant_id de la URL
-    loadMeta(params.rid, start)
   }
+  if (!TV_TOKEN) { showError('Falta la clave de la TV en la dirección (?k=...)'); return }
+  fetchOrders()
+  startPolling()
+  if (!keepAwakeStarted) { keepAwakeStarted = true; keepAwake() }
 }
 
 init()

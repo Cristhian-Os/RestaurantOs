@@ -78,12 +78,12 @@ const levelOf = (secs: number, ready: boolean): Level =>
 
 // ─── Estilos (paleta propia, fondos opacos: la TV refleja) ─────
 const CSS = `
-.kb{--bg:#EEF0FA;--surface:#FFFFFF;--card:#F6F7FD;--card-line:#C9CDE6;--inset:#E6E9F7;--ink:#14152B;--ink-soft:#5A5D86;--ink-note:#2E3055;
+.kb{--bg:#F2F2F4;--surface:#FFFFFF;--card:#FAFAFB;--card-line:#D8D8DE;--inset:#EDEDF0;--ink:#141416;--ink-soft:#5C5C66;--ink-note:#2E2E36;
   --pend:#C2570C;--cook:#A21CAF;--ready:#047857;--warn:#B45309;--late:#E11D48;--late-bg:#BE123C;--paid-bg:#FDBA74;--paid-fg:#431407;
   --alert-bg:#FEF3C7;--alert-fg:#78350F;--on-accent:#FFFFFF;
   background:var(--bg);color:var(--ink);font-family:var(--w-sans,system-ui),system-ui,sans-serif;font-size:14px;
   display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box}
-[data-theme="dark"] .kb{--bg:#0F1024;--surface:#151735;--card:#22254F;--card-line:#34376A;--inset:#12132E;--ink:#F4F4FF;--ink-soft:#9A9CC8;--ink-note:#D5D7F5;
+[data-theme="dark"] .kb{--bg:#000000;--surface:#0C0C0E;--card:#17171B;--card-line:#2B2B31;--inset:#050506;--ink:#F5F5F7;--ink-soft:#A0A0AA;--ink-note:#D6D6DC;
   --pend:#FB923C;--cook:#E879F9;--ready:#34D399;--warn:#FBBF24;--late:#F43F5E;--late-bg:#BE123C;--paid-bg:#FB923C;--paid-fg:#1A1100;
   --alert-bg:rgba(251,191,36,.15);--alert-fg:#FDE68A;--on-accent:#0F1024}
 .kb *{box-sizing:border-box}
@@ -191,10 +191,26 @@ const CSS = `
 .kb-none p{font-size:2.5em;font-weight:700;margin:0}
 .kb-none small{font-size:1.5em;color:var(--ink-soft);margin-top:.5em}
 @media (max-width:${TV_MIN_WIDTH - 1}px){
-  .kb-grid{flex-direction:column;overflow:visible}
-  .kb-head h1{font-size:1.75em}.kb-head-r{font-size:1.1em}
-  .kb-card,.kb-card:nth-child(odd){width:100%;margin-right:0}
+  .kb.kb-tv{height:auto;max-height:none;min-height:100vh;overflow:visible;font-size:15px}
+  .kb-grid{flex-direction:column;overflow:visible;padding:.5em .75em 1em;gap:.75em}
+  .kb-head{padding:.5em .75em}
+  .kb-head h1{font-size:1.5em}.kb-head-r{font-size:1em;gap:.75em}
+  .kb-btn{font-size:.9em;min-height:44px;padding:.25em 1em}
+  .kb-col,.kb-col[data-col]{flex:none;padding:0;border-width:2px;border-radius:18px}
+  .kb-col-h{height:auto;min-height:64px;margin:0;padding:12px 16px;cursor:pointer}
   .kb-col-l{font-size:1.5em}
+  .kb-col-hint,.kb-more{display:none}
+  .kb-badge{font-size:1.4em}
+  .kb-col-r:after{content:"\\25BE";font-size:1.6em;margin-left:.5em;color:var(--ink-soft)}
+  .kb-col.open .kb-col-r:after{content:"\\25B4"}
+  .kb-cards{display:none;overflow:visible;padding:0 12px 12px}
+  .kb-col.open .kb-cards{display:block}
+  .kb-card,.kb-card:nth-child(odd),.kb-col[data-col=ready] .kb-card{width:100%;margin-right:0}
+  .kb-cancel,.kb-ix{min-height:44px}
+  .kb-tot{height:42px}
+  .kb-tot-l{font-size:11px;padding:0 .8em}
+  .kb-tq{font-size:14px;min-width:24px;height:24px}
+  .kb-tn{font-size:15px}
 }
 `
 
@@ -334,6 +350,7 @@ const Column = memo(({ colKey, label, hint, orders, fit, colorOf, onAdvance, onR
   const colRef = useRef<HTMLDivElement>(null)
   const cardsRef = useRef<HTMLDivElement>(null)
   const [hidden, setHidden] = useState(0)
+  const [open, setOpen] = useState(false)
 
   // Mide después de cada render: oculta lo que se sale y compacta si hace falta.
   useLayoutEffect(() => {
@@ -372,8 +389,9 @@ const Column = memo(({ colKey, label, hint, orders, fit, colorOf, onAdvance, onR
   }, [])
 
   return (
-    <div ref={colRef} className="kb-col" data-col={colKey}>
-      <div className="kb-col-h">
+    <div ref={colRef} className={cn('kb-col', open && 'open')} data-col={colKey}>
+      {/* En celular la cabecera es una tarjeta: al tocarla se abren / cierran sus pedidos */}
+      <div className="kb-col-h" onClick={() => setOpen(v => !v)}>
         <div className="kb-col-t">
           <span className="kb-col-l">{label}</span>
           {hint && <span className="kb-col-hint">{hint}</span>}
