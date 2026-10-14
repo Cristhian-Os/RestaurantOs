@@ -1,4 +1,4 @@
--- Reversa de 20261014210000_cerrar_filtraciones_entre_restaurantes.sql
+-- Reversa de 20261014183330_cerrar_filtraciones_entre_restaurantes.sql
 -- ATENCION: vuelve a abrir las lecturas que permitian ver los pedidos y los restaurantes de todos los clientes.
 -- Usar solo si el menu publico deja de funcionar y no hay otra salida.
 GRANT SELECT ON public.pedido_estado_publico, public.restaurants_public TO anon, authenticated;

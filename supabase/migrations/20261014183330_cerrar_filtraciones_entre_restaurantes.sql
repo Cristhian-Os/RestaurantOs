@@ -4,7 +4,7 @@
 --  * El bucket task-evidence dejaba a cualquier usuario con sesion (de cualquier restaurante) leer y a cualquier admin
 --    borrar las evidencias de tareas de otros restaurantes.
 -- Ahora el visitante solo obtiene UN registro y solo si conoce su id / slug. El menu publico sigue igual.
--- Reversa: supabase/rollback/20261014210000_cerrar_filtraciones_entre_restaurantes_down.sql
+-- Reversa: supabase/rollback/20261014183330_cerrar_filtraciones_entre_restaurantes_down.sql
 
 -- A) Estado de UN pedido (el comensal conoce el id de su pedido)
 CREATE OR REPLACE FUNCTION public.estado_pedido_publico(p_order_id uuid)
