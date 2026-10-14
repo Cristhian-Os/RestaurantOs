@@ -249,13 +249,15 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
     (async () => {
       const { data: id } = await supabase.rpc('current_restaurant_id')
       setRid((id as string) ?? null)
-      const [{ data: ob }, { data: cfg }] = await Promise.all([
+      const [{ data: ob }, { data: cfg }, { data: fis }] = await Promise.all([
         supabase.from('restaurant_onboarding').select('current_step, steps_done').maybeSingle(),
-        supabase.from('restaurant_config').select('business_type, ciudad, razon_social, nit, modules_enabled').maybeSingle(),
+        supabase.from('restaurant_config').select('business_type, ciudad, modules_enabled').maybeSingle(),
+        supabase.from('restaurant_fiscal').select('razon_social, nit').maybeSingle(),
       ])
       if (ob) { setPaso(Math.min(Math.max(ob.current_step ?? 1, 1), PASOS.length)); setHecho((ob.steps_done as Record<string, boolean>) ?? {}) }
+      if (fis) { setRazon(fis.razon_social ?? ''); setNit(fis.nit ?? '') }
       if (cfg) {
-        setTipo(cfg.business_type ?? ''); setCiudad(cfg.ciudad ?? ''); setRazon(cfg.razon_social ?? ''); setNit(cfg.nit ?? '')
+        setTipo(cfg.business_type ?? ''); setCiudad(cfg.ciudad ?? '')
         const cats = (cfg.modules_enabled as { categories?: { label?: string }[] } | null)?.categories
         if (cats?.length) setCategorias(cats.map(c => c.label ?? '').filter(Boolean))
       }
@@ -291,9 +293,12 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
     if (!tipo) { message.warning('Elige el tipo de negocio'); return }
     setGuardando(true)
     const { error } = await supabase.from('restaurant_config')
-      .update({ business_type: tipo, ciudad: ciudad.trim() || null, razon_social: razon.trim() || null, nit: nit.trim() || null }).eq('restaurant_id', rid)
+      .update({ business_type: tipo, ciudad: ciudad.trim() || null }).eq('restaurant_id', rid)
+    // Razón social y NIT van en una tabla privada: restaurant_config la lee cualquier visitante.
+    const { error: errFiscal } = await supabase.from('restaurant_fiscal')
+      .upsert({ restaurant_id: rid, razon_social: razon.trim() || null, nit: nit.trim() || null, updated_at: new Date().toISOString() })
     setGuardando(false)
-    if (error) { message.error('No se pudo guardar: ' + error.message); return }
+    if (error || errFiscal) { message.error('No se pudo guardar: ' + (error ?? errFiscal)!.message); return }
     siguiente(true)
   }
 

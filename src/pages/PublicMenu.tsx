@@ -1125,22 +1125,13 @@ export default function PublicMenu() {
 
     const resolve = async () => {
       if (slug) {
-        const { data } = await supabase.from('restaurants_public')
-          .select('id, name').eq('slug', slug).maybeSingle()
+        const { data } = await supabase.rpc('restaurante_publico', { p_slug: slug }).maybeSingle<{ id: string; name: string }>()
         if (data) { setRestaurantId(data.id); if (data.name) setBizName(data.name); return }
       }
-      // Sin slug (o slug inexistente): usar el único restaurante activo si lo hay
-      const { data: all } = await supabase.from('restaurants_public').select('id, name').limit(2)
-      if (all && all.length === 1) {
-        setRestaurantId(all[0].id)
-        if (all[0].name) setBizName(all[0].name)
-        return
-      }
-      // Varios restaurantes y sin slug válido: compatibilidad con los QR físicos
-      // ya impresos de Cholaos (creados antes del multi-tenant, sin slug en la URL).
+      // Sin slug válido: compatibilidad con los QR físicos ya impresos de Cholaos
+      // (creados antes del multi-tenant, sin slug en la URL). Ya no se listan restaurantes.
       const LEGACY_DEFAULT_ID = 'cdd99ebf-c8b7-43b1-b437-1d136e283212'
-      const { data: legacy } = await supabase.from('restaurants_public')
-        .select('id, name').eq('id', LEGACY_DEFAULT_ID).maybeSingle()
+      const { data: legacy } = await supabase.rpc('restaurante_publico', { p_id: LEGACY_DEFAULT_ID }).maybeSingle<{ id: string; name: string }>()
       if (legacy) {
         setRestaurantId(legacy.id)
         if (legacy.name) setBizName(legacy.name)
@@ -1226,7 +1217,7 @@ export default function PublicMenu() {
   // columna aún no existe en la vista, falla sin afectar el seguimiento de estado.
   useEffect(() => {
     if (!orderId) { setOrderNumber(null); return }
-    supabase.from('pedido_estado_publico').select('order_number_today').eq('id', orderId).maybeSingle()
+    supabase.rpc('estado_pedido_publico', { p_order_id: orderId }).maybeSingle<{ order_number_today: number | null }>()
       .then(({ data }) => setOrderNumber(data?.order_number_today ?? null))
   }, [orderId])
 
@@ -1234,7 +1225,7 @@ export default function PublicMenu() {
     if (!orderId || orderStatus === 'completed' || orderStatus === 'cancelled') return
     let cancelled = false
     const interval = setInterval(() => {
-      supabase.from('pedido_estado_publico').select('status, pagado').eq('id', orderId).maybeSingle()
+      supabase.rpc('estado_pedido_publico', { p_order_id: orderId }).maybeSingle<{ status: string; pagado: boolean }>()
         .then(({ data }) => {
           if (cancelled || !data) return
           if (data.status) setOrderStatus(data.status)

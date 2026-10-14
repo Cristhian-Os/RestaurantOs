@@ -7,9 +7,20 @@
 ALTER TABLE public.restaurant_config
   ADD COLUMN IF NOT EXISTS business_type text,
   ADD COLUMN IF NOT EXISTS ciudad text,
-  ADD COLUMN IF NOT EXISTS razon_social text,
-  ADD COLUMN IF NOT EXISTS nit text,
   ADD COLUMN IF NOT EXISTS onboarding_completed_at timestamptz;
+
+-- Razon social y NIT NO van en restaurant_config: esa tabla la lee cualquier visitante (menu publico).
+CREATE TABLE IF NOT EXISTS public.restaurant_fiscal (
+  restaurant_id uuid PRIMARY KEY REFERENCES public.restaurants(id) ON DELETE CASCADE DEFAULT public.current_restaurant_id(),
+  razon_social  text,
+  nit           text,
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.restaurant_fiscal ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admin gestiona los datos fiscales de su restaurante" ON public.restaurant_fiscal
+  FOR ALL TO authenticated
+  USING ((( SELECT public.is_admin()) AND restaurant_id = ( SELECT public.current_restaurant_id())) OR ( SELECT public.is_super_admin()))
+  WITH CHECK ((( SELECT public.is_admin()) AND restaurant_id = ( SELECT public.current_restaurant_id())) OR ( SELECT public.is_super_admin()));
 
 UPDATE public.restaurant_config SET onboarding_completed_at = now() WHERE onboarding_completed_at IS NULL;
 

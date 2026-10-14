@@ -29,7 +29,7 @@ export function QRPrintManager() {
     const rid = prof?.restaurant_id
     if (!rid) { setLoading(false); return }
     const [{ data: rest }, { data: cfg }, { data: mesas }] = await Promise.all([
-      supabase.from('restaurants_public').select('slug, name').eq('id', rid).maybeSingle(),
+      supabase.rpc('restaurante_publico', { p_id: rid }).maybeSingle<{ slug: string; name: string }>(),
       supabase.from('restaurant_config').select('display_name, logo_url, qr_general_generado_at').eq('restaurant_id', rid).maybeSingle(),
       supabase.from('mesas').select('id, numero, qr_generado_at').eq('activa', true).order('numero'),
     ])
