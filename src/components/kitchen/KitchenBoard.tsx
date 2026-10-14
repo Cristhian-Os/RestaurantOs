@@ -78,7 +78,7 @@ const levelOf = (secs: number, ready: boolean): Level =>
 
 // ─── Estilos (paleta propia, fondos opacos: la TV refleja) ─────
 const CSS = `
-.kb{--bg:#F2F2F4;--surface:#FFFFFF;--card:#FAFAFB;--card-line:#D8D8DE;--inset:#EDEDF0;--ink:#141416;--ink-soft:#5C5C66;--ink-note:#2E2E36;
+.kb{--bg:#F4EEE4;--surface:#FBF6EE;--card:#FDFAF4;--card-line:#E3D9C8;--inset:#EFE6D6;--ink:#2B2018;--ink-soft:#5C5147;--ink-note:#3A2F25;
   --pend:#C2570C;--cook:#A21CAF;--ready:#047857;--warn:#B45309;--late:#E11D48;--late-bg:#BE123C;--paid-bg:#FDBA74;--paid-fg:#431407;
   --alert-bg:#FEF3C7;--alert-fg:#78350F;--on-accent:#FFFFFF;
   background:var(--bg);color:var(--ink);font-family:var(--w-sans,system-ui),system-ui,sans-serif;font-size:14px;

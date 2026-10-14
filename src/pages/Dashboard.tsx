@@ -40,6 +40,7 @@ import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 import { PlatformOverview } from '../components/platform/PlatformOverview'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
 import { Proveedores }      from '../components/cashier/Proveedores'
+import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
@@ -267,6 +268,24 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   // Cocina: pantalla completa para TV (sin barra lateral ni botones); "Menú" vuelve a mostrarlos.
   const [kitchenMenu, setKitchenMenu] = useState(false)
   useEffect(() => { if (activeNav === 'kitchen') setKitchenMenu(false) }, [activeNav])
+  // En celular cocina conserva la barra superior (logo, campana, tema, menú, salir): la pantalla completa es solo para TV.
+  // Asistente de configuración: solo el admin de un restaurante nuevo (onboarding_completed_at nulo).
+  const [wizardPending, setWizardPending] = useState(false)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [isPhone, setIsPhone] = useState(() => window.innerWidth < 900)
+  useEffect(() => {
+    const on = () => setIsPhone(window.innerWidth < 900)
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  useEffect(() => {
+    if (profile?.role !== 'admin') return
+    supabase.from('restaurant_config').select('onboarding_completed_at').maybeSingle().then(({ data }) => {
+      if (!data || data.onboarding_completed_at) return
+      setWizardPending(true)
+      try { if (!sessionStorage.getItem('wizard_cerrado')) setWizardOpen(true) } catch { setWizardOpen(true) }
+    })
+  }, [profile?.role])
   const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
   const [lowStock,   setLowStock]   = useState(0)
   const [pendingSocial, setPendingSocial] = useState(0)
@@ -459,7 +478,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     display:'flex', alignItems:'center', justifyContent:'center',
   }
 
-  if (profile!.role === 'kitchen' && activeNav === 'kitchen' && !kitchenMenu) {
+  if (profile!.role === 'kitchen' && activeNav === 'kitchen' && !kitchenMenu && !isPhone) {
     return (
       <div style={{minHeight:'100vh',background:'var(--w-bg)'}}>
         {profile!.must_change_password && (
@@ -476,6 +495,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {profile!.must_change_password && (
         <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
+      )}
+
+      {wizardOpen && (
+        <SetupWizard
+          onClose={ir => {
+            try { sessionStorage.setItem('wizard_cerrado', '1') } catch { /* sin almacenamiento: se reabre en la próxima visita */ }
+            setWizardOpen(false)
+            if (ir) setActiveNav(ir)
+          }}
+          onFinished={() => { setWizardOpen(false); setWizardPending(false) }}
+        />
       )}
 
       {/* Notificaciones pedido listo — mesero (solo lo suyo) y admin (todo) */}
@@ -602,6 +632,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         <main style={{flex:1,padding:'1.25rem',overflowX:'hidden',minWidth:0}}>
           {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
+          {wizardPending && !wizardOpen && (
+            <button onClick={() => setWizardOpen(true)} style={{
+              width:'100%', marginBottom:'1rem', padding:'0.875rem 1rem', borderRadius:'1rem', cursor:'pointer', textAlign:'left',
+              border:'1px solid var(--w-terra)', background:'var(--w-surface)', color:'var(--w-ink)', fontFamily:'var(--w-sans)', fontWeight:700, minHeight:'2.75rem',
+            }}>
+              Completa la configuración de tu restaurante → continuar
+            </button>
+          )}
           {/* La key re-monta la sección activa tras un comando de voz para que muestre los datos nuevos */}
           <div key={refreshKey}>{renderContent()}</div>
           <div style={{height:'2rem'}} />
