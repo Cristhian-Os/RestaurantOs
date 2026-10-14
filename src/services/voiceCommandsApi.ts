@@ -129,8 +129,12 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
     }
     case 'expense_add': {
       // restaurant_id lo pone la base por defecto, igual que el formulario de gastos de la caja.
+      // Con "lo pagó Fulano" el gasto es dinero propio: no resta del cajón y queda por reembolsar.
       return expectRows(await supabase.from('gastos')
-        .insert({ concepto: c.concepto, monto: c.monto, categoria: c.categoria, registrado_por: c.registradoPor }).select('id'), 'Gasto')
+        .insert({
+          concepto: c.concepto, monto: c.monto, categoria: c.categoria, registrado_por: c.registradoPor,
+          fuente: c.pagadoPor ? 'propio' : 'caja', pagado_por_nombre: c.pagadoPor,
+        }).select('id'), 'Gasto')
     }
     case 'purchase_add': {
       // Misma función que usa la caja: registra el gasto, sus productos y suma el stock, todo junto.

@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { descargarCorteExcel, descargarCorteMensualExcel, type CorteProducto, type CortePago } from '../../services/corteExcel'
 import { SplitPayModal } from './SplitPayModal'
+import { COLA_CAMBIO, enviarPagosPendientes, iniciarEnvioDePagos, listarPagosPendientes, type PagoPendiente } from '../../services/paymentQueue'
 import { PagosDelDia, ventanaHoy } from './PagosDelDia'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import { hoyBogota } from '../../services/menuOptions'
@@ -168,6 +169,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [transferencias, setTransferencias] = useState<TransferenciaDia[]>([])
   const [mesasMixtas,   setMesasMixtas]   = useState<MesaMixta[]>([])
   const [pagosCorte,    setPagosCorte]    = useState<CortePago[]>([])
+  // Pagos guardados en este equipo por falta de internet (se envían solos al volver la conexión)
+  const [colaPagos,     setColaPagos]     = useState<PagoPendiente[]>([])
+  const [enviandoCola,  setEnviandoCola]  = useState(false)
   const [loading,     setLoading]   = useState(true)
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
   const [payingKind,   setPayingKind]  = useState<'inicial' | 'final'>('final')
@@ -286,6 +290,31 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     message.success(gastoFuente === 'propio' ? `Gasto registrado · queda por reembolsar a ${gastoPagadoPor.trim()}` : 'Gasto registrado')
     fetchData()
   }, [gastoConcepto, gastoMonto, gastoFuente, gastoPagadoPor, fetchData])
+
+  // Cola de pagos sin internet: leerla, enviarla al volver la red y refrescar caja cuando se envíe algo.
+  const recargarCola = useCallback(async () => {
+    try { setColaPagos(await listarPagosPendientes()) } catch { setColaPagos([]) }
+  }, [])
+  const enviarCola = useCallback(async () => {
+    setEnviandoCola(true)
+    const r = await enviarPagosPendientes()
+    setEnviandoCola(false)
+    if (r.enviados > 0) message.success(`${r.enviados} pago(s) enviados`)
+    if (r.conflictos > 0) message.error(`${r.conflictos} pago(s) rechazados por el servidor: revísalos`)
+    if (r.faltan > 0 && r.enviados === 0 && r.conflictos === 0) message.warning('Todavía no hay conexión')
+    fetchData()
+  }, [fetchData])
+  useEffect(() => {
+    void recargarCola()
+    window.addEventListener(COLA_CAMBIO, recargarCola)
+    iniciarEnvioDePagos(r => {
+      if (r.enviados > 0) message.success(`${r.enviados} pago(s) guardados sin internet ya se enviaron`)
+      if (r.conflictos > 0) message.error(`${r.conflictos} pago(s) rechazados por el servidor: revísalos`)
+      fetchData()
+    })
+    if (navigator.onLine) void enviarPagosPendientes().then(() => { void recargarCola(); fetchData() })   // restos de una sesión anterior
+    return () => window.removeEventListener(COLA_CAMBIO, recargarCola)
+  }, [recargarCola, fetchData])
 
   // Devolver la plata a quien adelantó un gasto: con efectivo de la caja (resta del cajón hoy) o por transferencia.
   const handleReembolsar = useCallback(async (g: PorReembolsar, medio: 'caja' | 'transferencia') => {
@@ -640,6 +669,27 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   return (
     <div className="space-y-6">
+      {/* Pagos cobrados sin internet: siguen guardados aquí hasta que se envíen */}
+      {colaPagos.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4" role="status">
+          <p className="text-sm font-bold text-amber-800">
+            {colaPagos.filter(p => p.estado === 'pendiente').length > 0 &&
+              `${colaPagos.filter(p => p.estado === 'pendiente').length} pago(s) guardados sin internet: se envían solos al volver la conexión.`}
+            {colaPagos.some(p => p.estado === 'conflicto') &&
+              ` ${colaPagos.filter(p => p.estado === 'conflicto').length} rechazado(s) por el servidor: revísalos con el administrador.`}
+          </p>
+          <ul className="mt-1 text-xs text-amber-900 list-disc pl-4">
+            {colaPagos.map(p => <li key={p.idem}>{p.resumen}{p.estado === 'conflicto' ? ` — ${p.motivo}` : ''}</li>)}
+          </ul>
+          {colaPagos.some(p => p.estado === 'pendiente') && (
+            <button onClick={enviarCola} disabled={enviandoCola}
+              className="mt-2 min-h-[44px] px-4 rounded-xl text-sm font-bold text-white bg-amber-600">
+              {enviandoCola ? 'Enviando…' : 'Enviar ahora'}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Base de caja: efectivo con el que arranca el cajón (punto de partida del corte) */}
       <div className="bg-[#D8DAE4] rounded-2xl p-4 flex flex-wrap items-center gap-3 justify-between" style={S.neoOutSm}>
         <div>

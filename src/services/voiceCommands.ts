@@ -22,6 +22,7 @@ export interface RawAction {
   mesa?: number; estado?: string; capacidad?: number
   lineas?: { nombre?: string; cantidad?: number; unidad?: string; precio_unitario?: number }[]
   concepto?: string; monto?: number; categoria?: string
+  pagado_por?: string   // gasto adelantado con dinero propio de esta persona ("lo pagó Angela")
   proveedor?: string; telefono?: string; producto?: string; email?: string; notas?: string
 }
 
@@ -75,7 +76,7 @@ export type Change =
   | { op: 'table_status'; mesaId: string; estado: Estado }
   | { op: 'table_capacity'; mesaId: string; capacidad: number }
   | { op: 'recipe_save'; dishId: string; lines: RecipeLine[] }
-  | { op: 'expense_add'; concepto: string; monto: number; categoria: 'proveedor' | null; registradoPor: string }
+  | { op: 'expense_add'; concepto: string; monto: number; categoria: 'proveedor' | null; registradoPor: string; pagadoPor: string | null }
   | { op: 'purchase_add'; concepto: string; items: PurchaseLine[] }
   | { op: 'supplier_add'; nombre: string; telefono: string | null; email: string | null; producto: string | null; notas: string | null }
   | { op: 'supplier_update'; supplierId: string; patch: SupplierPatch }
@@ -407,13 +408,16 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       if (!Number.isFinite(monto) || monto <= 0) return bad(title, 'No entendí el monto.')
       if (monto > 1_000_000_000) return bad(title, 'El monto es demasiado grande: revisa que dijiste bien las cifras.')
       const categoria = sup || a.categoria === 'proveedor' ? 'proveedor' : null
+      // "lo pagó Angela": dinero propio de esa persona. No sale del cajón y queda "por reembolsar".
+      const pagadoPor = (a.pagado_por ?? '').trim().slice(0, 80) || null
       const parts = [money(monto)]
       if (categoria) parts.push('pago a proveedor')
       if (sup?.linked) parts.push(`Proveedor: ${sup.name}`)
       if (sup && !sup.linked) parts.push('⚠ ' + notListed(sup.name))
+      if (pagadoPor) parts.push(`lo pagó ${pagadoPor} con su plata: no sale de la caja, queda por reembolsar`)
       return {
         title, detail: parts.join(' · '),
-        change: { op: 'expense_add', concepto: concepto.slice(0, 200), monto: Math.round(monto), categoria, registradoPor: userId },
+        change: { op: 'expense_add', concepto: concepto.slice(0, 200), monto: Math.round(monto), categoria, registradoPor: userId, pagadoPor },
       }
     }
 

@@ -11,6 +11,7 @@ import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { cn } from '../../lib/cn'
 import { destinoPedido } from '../../lib/destino'
+import { COLA_CAMBIO, esErrorDeRed, guardarPagoPendiente, listarPagosPendientes, type PagoPendiente } from '../../services/paymentQueue'
 
 type Metodo = 'efectivo' | 'transferencia' | 'tarjeta'
 type Modo = 'libres' | 'iguales' | 'persona'
@@ -103,8 +104,20 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
   const [modo, setModo]         = useState<Modo>('libres')
   const [nIguales, setNIguales] = useState('2')
   const [filas, setFilas]       = useState<Fila[]>([])
+  // Pagos guardados en el teléfono por falta de internet (se envían solos al volver la conexión)
+  const [locales, setLocales]   = useState<PagoPendiente[]>([])
 
-  const pagado = pagos.reduce((s, p) => s + Number(p.monto), 0)
+  const cargarLocales = useCallback(async () => {
+    try { setLocales((await listarPagosPendientes()).filter(p => p.order_id === order.id)) } catch { setLocales([]) }
+  }, [order.id])
+  useEffect(() => {
+    void cargarLocales()
+    window.addEventListener(COLA_CAMBIO, cargarLocales)
+    return () => window.removeEventListener(COLA_CAMBIO, cargarLocales)
+  }, [cargarLocales])
+
+  const enCola   = locales.filter(p => p.estado === 'pendiente').reduce((s, p) => s + p.monto, 0)
+  const pagado = pagos.reduce((s, p) => s + Number(p.monto), 0) + enCola
   const falta  = Math.max(order.total - pagado, 0)
   const asignado = filas.reduce((s, f) => s + num(f.monto), 0)
   const tienePersonas = order.items.some(i => (i.comensal ?? '').trim() !== '')
@@ -113,7 +126,10 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
     const { data, error } = await supabase.from('order_payments')
       .select('id, comensal, payment_method, monto, propina, referencia')
       .eq('order_id', order.id).is('anulado_at', null).order('paid_at')
-    if (error) { message.error('No se pudieron leer los pagos: ' + error.message); return [] as Pago[] }
+    if (error) {
+      if (!esErrorDeRed(error.message)) message.error('No se pudieron leer los pagos: ' + error.message)
+      return [] as Pago[]
+    }
     const lista = (data ?? []) as Pago[]
     setPagos(lista)
     return lista
@@ -133,9 +149,13 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
   }, [order])
 
   useEffect(() => {
-    cargarPagos().then(lista => {
+    cargarPagos().then(async lista => {
       const yaPagado = lista.reduce((s, p) => s + Number(p.monto), 0)
-      armar('libres', Math.max(order.total - yaPagado, 0), lista, 2)
+      let sinEnviar = 0
+      try {
+        sinEnviar = (await listarPagosPendientes()).filter(p => p.order_id === order.id && p.estado === 'pendiente').reduce((s, p) => s + p.monto, 0)
+      } catch { /* sin cola local: se ignora */ }
+      armar('libres', Math.max(order.total - yaPagado - sinEnviar, 0), lista, 2)
       setCargando(false)
     })
   }, [cargarPagos, armar, order.total])
@@ -154,11 +174,23 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
     if (recibido !== null && recibido < monto + propina) { editar(f.key, { error: 'El efectivo recibido no alcanza' }); return }
 
     setFilas(prev => prev.map(x => x.key === f.key ? { ...x, estado: 'cobrando', error: null } : x))
-    const { data, error } = await supabase.rpc('registrar_pago', {
+    const args = {
       p_order_id: order.id, p_comensal: f.nombre.trim() || null, p_metodo: f.metodo, p_monto: monto,
       p_propina: propina, p_recibido: recibido, p_referencia: f.referencia.trim() || null, p_idempotency_key: f.idem,
-    })
+    }
+    // Sin internet: el pago se guarda aquí y se envía solo al volver la conexión (la clave evita duplicarlo).
+    const guardarLocal = async () => {
+      await guardarPagoPendiente({
+        idem: f.idem, order_id: order.id, monto, args, creado: new Date().toISOString(), estado: 'pendiente',
+        resumen: `${f.nombre.trim() || 'Pago'} · ${METODOS.find(m => m.id === f.metodo)?.label} · ${fmt(monto)}`,
+      })
+      message.warning('Sin internet: pago guardado en este equipo, se envía solo al volver la conexión')
+      setFilas(prev => prev.filter(x => x.key !== f.key))
+    }
+    if (!navigator.onLine) { await guardarLocal(); return }
+    const { data, error } = await supabase.rpc('registrar_pago', args)
     if (error) {
+      if (esErrorDeRed(error.message)) { await guardarLocal(); return }
       setFilas(prev => prev.map(x => x.key === f.key ? { ...x, estado: 'pendiente', error: error.message } : x))
       return
     }
@@ -215,13 +247,34 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
           </div>
         )}
 
+        {locales.length > 0 && (
+          <div className="flex flex-col gap-1.5 mb-4" aria-live="polite">
+            {locales.map(p => (
+              <span key={p.idem} className={cn('text-xs font-semibold rounded-xl px-2.5 py-1.5 border',
+                p.estado === 'conflicto' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-800 border-amber-200')}>
+                {p.estado === 'conflicto' ? `⚠ ${p.resumen}: el servidor lo rechazó (${p.motivo}). Revísalo con el administrador.` : `⏳ ${p.resumen} · guardado sin internet, falta enviarlo`}
+              </span>
+            ))}
+          </div>
+        )}
+
         {falta <= 0 ? (
           <div className="text-center py-4">
-            <p className="text-lg font-bold text-emerald-600 mb-3">Cuenta cobrada por completo</p>
-            <button onClick={onFinished}
-              className="w-full min-h-[48px] rounded-2xl font-bold text-white bg-[#FF5722]" style={S.coral}>
-              Listo
-            </button>
+            {enCola > 0 ? (
+              <>
+                <p className="text-lg font-bold text-amber-700 mb-1">Cuenta cubierta (con pagos sin enviar)</p>
+                <p className="text-xs text-[#6B7280] mb-3">El pedido se cierra solo cuando vuelva el internet y se envíen los pagos guardados.</p>
+                <button onClick={onClose} className="w-full min-h-[48px] rounded-2xl font-bold text-white bg-[#FF5722]" style={S.coral}>Cerrar</button>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-bold text-emerald-600 mb-3">Cuenta cobrada por completo</p>
+                <button onClick={onFinished}
+                  className="w-full min-h-[48px] rounded-2xl font-bold text-white bg-[#FF5722]" style={S.coral}>
+                  Listo
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>

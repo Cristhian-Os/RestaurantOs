@@ -273,7 +273,13 @@ assert.equal(convertQty(2, 'cucharadas', 'kg').ok, false)
 { // gasto simple
   const p = one({ type: 'expense_add', concepto: 'Gas', monto: 50000, categoria: 'otro' })
   assert.equal(p.title, 'Gasto: Gas'); assert.equal(p.detail, '$50.000')
-  assert.deepEqual(p.change, { op: 'expense_add', concepto: 'Gas', monto: 50000, categoria: null, registradoPor: 'admin1' })
+  assert.deepEqual(p.change, { op: 'expense_add', concepto: 'Gas', monto: 50000, categoria: null, registradoPor: 'admin1', pagadoPor: null })
+}
+{ // "gasto de 50 mil en gas, lo pagó Angela": dinero propio, no sale de la caja
+  const p = one({ type: 'expense_add', concepto: 'Gas', monto: 50000, categoria: 'otro', pagado_por: '  Angela ' })
+  assert.deepEqual(p.change, { op: 'expense_add', concepto: 'Gas', monto: 50000, categoria: null, registradoPor: 'admin1', pagadoPor: 'Angela' })
+  assert.match(p.detail, /lo pagó Angela con su plata/)
+  assert.equal((one({ type: 'expense_add', concepto: 'Gas', monto: 50000, categoria: 'otro', pagado_por: '   ' }).change as { pagadoPor: string | null }).pagadoPor, null)
 }
 { // pago a proveedor sin productos: categoría proveedor (igual que las compras)
   const p = one({ type: 'expense_add', concepto: 'Pago a Coca-Cola', monto: 120000, categoria: 'proveedor' })
