@@ -352,10 +352,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   }, [aporteMonto, aportePor])
 
   // Ingredientes existentes, para vincular cada producto de la compra a su stock
-  useEffect(() => {
+  const loadIngredientes = useCallback(() => {
     supabase.from('ingredientes').select('id, nombre, unidad_medida').order('nombre')
       .then(({ data }) => setIngredientesOpts(data ?? []))
   }, [])
+  useEffect(() => { loadIngredientes() }, [loadIngredientes])
 
   // % de propina sugerida configurado en Marca, para prellenar el campo de propina
   useEffect(() => {
@@ -390,7 +391,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     const items = provItems.filter(it => it.nombre_producto.trim() && parseFloat(it.cantidad) > 0 && parseFloat(it.precio_unitario) >= 0)
     if (items.length === 0) { message.error('Agrega al menos un producto con cantidad y precio'); return }
     setSavingGasto(true)
-    const { error } = await supabase.rpc('registrar_compra_proveedor', {
+    const { data, error } = await supabase.rpc('registrar_compra_proveedor', {
       p_concepto: gastoConcepto.trim(),
       p_items: items.map(it => ({
         ingrediente_id:  it.ingrediente_id || null,
@@ -402,10 +403,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     })
     setSavingGasto(false)
     if (error) { message.error('Error: ' + error.message); return }
+    // La base crea el proveedor y los ingredientes que no existían; se avisa qué quedó nuevo.
+    const res = (data ?? {}) as { proveedor_creado?: boolean; ingredientes_creados?: { nombre: string }[] }
+    const creados = res.ingredientes_creados ?? []
+    const nuevos: string[] = []
+    if (res.proveedor_creado) nuevos.push(`proveedor "${gastoConcepto.trim()}"`)
+    if (creados.length > 0) nuevos.push(`${creados.length === 1 ? 'ingrediente' : 'ingredientes'} ${creados.map(c => `"${c.nombre}"`).join(', ')}`)
     setGastoConcepto(''); setProvItems([{ ...PROV_ITEM_EMPTY }]); setShowGastoForm(false)
-    message.success('Compra registrada · stock actualizado')
+    message.success(nuevos.length > 0 ? `Compra registrada · stock actualizado · se creó ${nuevos.join(' y ')}` : 'Compra registrada · stock actualizado')
+    loadIngredientes()
     fetchData()
-  }, [gastoConcepto, provItems, fetchData])
+  }, [gastoConcepto, provItems, fetchData, loadIngredientes])
 
   const handleEliminarGasto = useCallback(async (id: string) => {
     const { error } = await supabase.from('gastos').delete().eq('id', id)
@@ -894,7 +902,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       <input type="number" min={0} step="0.01" value={it.cantidad} onChange={e => updateProvItem(idx, { cantidad: e.target.value })}
                         placeholder="Cantidad" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
                       <input value={it.unidad} onChange={e => updateProvItem(idx, { unidad: e.target.value })}
-                        placeholder="kg / lb / und" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                        placeholder="kg / litro / und" title="Obligatoria si el producto es nuevo: kg, gramo, litro, ml, pieza (und) o paquete" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
                       <input type="number" min={0} step="0.01" value={it.precio_unitario} onChange={e => updateProvItem(idx, { precio_unitario: e.target.value })}
                         placeholder="Precio unit." className="w-24 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
                       <span className="text-xs font-bold text-[#2D3561] w-20 text-right">

@@ -300,7 +300,23 @@ assert.match(one({ type: 'expense_add', concepto: 'Gas', monto: 5e12 }).problem!
   assert.equal(c.op, 'purchase_add'); assert.equal(c.concepto, 'Frutas Pérez')
   assert.equal(c.items[0].ingrediente_id, 'i1'); assert.equal(c.items[1].ingrediente_id, null)
   assert.match(p.detail, /Total \$26\.000/)
-  assert.match(p.detail, /1 sin inventario/)
+  assert.match(p.detail, /Se crea en inventario: Servilletas/)
+  assert.equal(c.items[1].unidad, 'paquete')
+}
+{ // producto nuevo: la unidad es obligatoria y se manda en el valor que acepta la base
+  const nuevo = (unidad?: string) => one({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Papaya', cantidad: 2, unidad, precio_unitario: 3000 }] })
+  assert.match(nuevo().problem!, /"Papaya" es nuevo en tu inventario: di en qué unidad/)
+  assert.match(nuevo('libras').problem!, /es nuevo en tu inventario/)
+  const unit = (u: string) => (nuevo(u).change as { items: { unidad: string; ingrediente_id: string | null }[] }).items[0]
+  assert.equal(unit('kilos').unidad, 'kg'); assert.equal(unit('gramos').unidad, 'gramo'); assert.equal(unit('litros').unidad, 'litro')
+  assert.equal(unit('mililitros').unidad, 'ml'); assert.equal(unit('unidades').unidad, 'pieza'); assert.equal(unit('paquetes').unidad, 'paquete')
+  assert.equal(unit('kilos').ingrediente_id, null)
+  assert.match(nuevo('kilos').detail, /Suma al inventario · Se crea en inventario: Papaya/)
+  assert.doesNotMatch(nuevo('kilos').detail, /no sumará/)
+}
+{ // un producto que ya existe NO exige unidad (usa la del inventario) y no se anuncia como nuevo
+  const p = one({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 8000 }] })
+  assert.equal(p.problem, undefined); assert.doesNotMatch(p.detail, /Se crea en inventario/)
 }
 { // gramos → kg: la cantidad baja y el precio sube, el total de la línea es el mismo
   const p = one({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Fresa', cantidad: 2000, unidad: 'gramos', precio_unitario: 8 }] })
@@ -342,10 +358,11 @@ assert.match(one({ type: 'purchase_add', concepto: 'X Y', lineas: [{ nombre: 'Le
   const p = one({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 100 }] })
   assert.match(p.detail, /Proveedor: Frutas Pérez/)
 }
-{ // proveedor que no está: se registra igual, pero avisa
+{ // proveedor que no está: la compra lo crea y la vista previa lo anuncia
   const p = one({ type: 'purchase_add', proveedor: 'Lácteos del Sur', lineas: [{ nombre: 'Fresa', cantidad: 1, precio_unitario: 100 }] })
   assert.equal((p.change as { concepto: string }).concepto, 'Lácteos del Sur')
-  assert.match(p.detail, /no está en tu lista de Proveedores/)
+  assert.match(p.detail, /Proveedor nuevo: Lácteos del Sur \(se agrega a tu lista\)/)
+  assert.doesNotMatch(p.detail, /no está en tu lista/)
 }
 { // pago a proveedor: concepto = nombre oficial (convención de la caja), sin "Pago a"
   const p = one({ type: 'expense_add', concepto: 'Pago a Coca-Cola', proveedor: 'coca cola', monto: 120000, categoria: 'proveedor' })
