@@ -13,7 +13,7 @@
 export const PROMO_SLOTS = 3
 
 /** WhatsApp de contacto para activar un restaurante (con indicativo, ej. +57 300 000 0000). Vacío = solo texto. */
-export const CONTACTO_WHATSAPP = ''
+export const CONTACTO_WHATSAPP = '+57 304 538 8425'
 
 export interface Testimonial {
   quote:   string

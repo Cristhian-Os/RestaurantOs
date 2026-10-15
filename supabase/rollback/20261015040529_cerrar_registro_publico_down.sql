@@ -1,4 +1,4 @@
--- Reversa de 20261014190500_cerrar_registro_publico.sql
+-- Reversa de 20261015040529_cerrar_registro_publico.sql
 -- ATENCION: vuelve a abrir el registro publico y la promocion gratuita (primeros 5 = Premium gratis de por vida).
 DROP FUNCTION IF EXISTS public.plataforma_activar_plan(uuid, text);
 

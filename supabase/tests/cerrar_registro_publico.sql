@@ -1,4 +1,4 @@
--- Prueba del cierre del registro publico (migracion 20261014190500). SOLO para un proyecto de PRUEBA.
+-- Prueba del cierre del registro publico (migracion 20261015040529). SOLO para un proyecto de PRUEBA.
 -- Comprueba: anon y admins no pueden crear restaurantes; el super admin si, con plan activo, contrasena temporal
 -- obligatoria, clave de TV y auditoria; activar plan solo para el super admin y con planes validos.
 -- Termina con RAISE EXCEPTION a proposito: todo se revierte.

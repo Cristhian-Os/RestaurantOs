@@ -4,7 +4,7 @@
 --   y el administrador entra con una contrasena temporal que debe cambiar.
 -- * plataforma_activar_plan: el dueño asigna el plan (emprende / pro / premium) cuando un restaurante paga.
 -- Misma firma de crear_restaurante: no se duplica la funcion.
--- Reversa: supabase/rollback/20261014190500_cerrar_registro_publico_down.sql
+-- Reversa: supabase/rollback/20261015040529_cerrar_registro_publico_down.sql
 
 CREATE OR REPLACE FUNCTION public.crear_restaurante(p_restaurant_name text, p_owner_email text, p_owner_password text, p_owner_full_name text DEFAULT NULL::text)
  RETURNS jsonb
