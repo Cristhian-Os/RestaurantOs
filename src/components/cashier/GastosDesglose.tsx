@@ -6,7 +6,7 @@
  */
 import { forwardRef, useMemo, useState, type HTMLAttributes } from 'react'
 import { cn } from '../../lib/cn'
-import { categoriaKey, resumirPorCategoria, totalGastos, type GastoLite } from '../../services/gastosResumen'
+import { categoriaKey, resumirPorCategoria, totalGastos, type Etiquetas, type GastoLite } from '../../services/gastosResumen'
 
 export interface GastoDetalle extends GastoLite {
   id?:         string
@@ -17,6 +17,8 @@ export interface GastosDesgloseProps extends HTMLAttributes<HTMLDivElement> {
   gastos:   GastoDetalle[]
   /** 'dia' muestra la hora de cada gasto; 'mes' muestra día y hora. */
   periodo?: 'dia' | 'mes'
+  /** Nombres personalizados de las categorías del restaurante (clave → nombre). */
+  etiquetas?: Etiquetas
 }
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
@@ -30,9 +32,9 @@ const cuando = (iso: string | undefined, periodo: 'dia' | 'mes') => {
 }
 
 export const GastosDesglose = forwardRef<HTMLDivElement, GastosDesgloseProps>(
-  ({ gastos, periodo = 'dia', className, ...rest }, ref) => {
+  ({ gastos, periodo = 'dia', etiquetas, className, ...rest }, ref) => {
     const [abierta, setAbierta] = useState<string | null>(null)
-    const resumen = useMemo(() => resumirPorCategoria(gastos), [gastos])
+    const resumen = useMemo(() => resumirPorCategoria(gastos, etiquetas), [gastos, etiquetas])
     const total = useMemo(() => totalGastos(gastos), [gastos])
 
     if (resumen.length === 0) return null

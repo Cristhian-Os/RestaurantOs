@@ -14,7 +14,10 @@ export interface GastoLite {
 
 export interface CategoriaGasto { key: string; label: string }
 
-/** Categorías que el cajero puede elegir al registrar un gasto simple. */
+/** Nombres personalizados del restaurante: clave → nombre (de la tabla categorias_gasto). Tienen prioridad. */
+export type Etiquetas = Record<string, string>
+
+/** Categorías sugeridas: las que se ofrecen mientras el restaurante no haya creado las suyas. */
 export const CATEGORIAS_GASTO: CategoriaGasto[] = [
   { key: 'insumos',       label: 'Insumos y mercado' },
   { key: 'nomina',        label: 'Nómina y pagos al equipo' },
@@ -40,9 +43,12 @@ export const categoriaKey = (c: string | null | undefined): string => {
   return k === '' ? SIN_CATEGORIA : k
 }
 
-/** Texto para mostrar. Una categoría desconocida se muestra tal cual (primera letra en mayúscula). */
-export function categoriaLabel(c: string | null | undefined): string {
+/** Texto para mostrar: primero el nombre que puso el restaurante, luego el de las sugeridas.
+ *  Una categoría desconocida se muestra tal cual (primera letra en mayúscula). */
+export function categoriaLabel(c: string | null | undefined, etiquetas?: Etiquetas): string {
   const k = categoriaKey(c)
+  const propia = etiquetas?.[k]?.trim()
+  if (propia) return propia
   if (LABELS[k]) return LABELS[k]
   const raw = (c ?? '').trim()
   return raw.charAt(0).toUpperCase() + raw.slice(1)
@@ -58,7 +64,7 @@ export interface ResumenCategoria {
 }
 
 /** Total gastado por categoría, de más a menos. "Sin categoría" siempre al final si empata. */
-export function resumirPorCategoria(gastos: GastoLite[]): ResumenCategoria[] {
+export function resumirPorCategoria(gastos: GastoLite[], etiquetas?: Etiquetas): ResumenCategoria[] {
   const map = new Map<string, { total: number; cantidad: number }>()
   let granTotal = 0
   for (const g of gastos) {
@@ -74,7 +80,7 @@ export function resumirPorCategoria(gastos: GastoLite[]): ResumenCategoria[] {
   return [...map.entries()]
     .map(([key, v]) => ({
       key,
-      label: categoriaLabel(key === SIN_CATEGORIA ? null : key),
+      label: categoriaLabel(key === SIN_CATEGORIA ? null : key, etiquetas),
       total: v.total,
       cantidad: v.cantidad,
       porcentaje: granTotal > 0 ? (v.total / granTotal) * 100 : 0,
@@ -89,3 +95,31 @@ export const totalGastos = (gastos: GastoLite[]): number =>
 export function rangoGastosBogota(desde: string, hasta: string): { from: string; to: string } {
   return { from: dayBoundsBogota(desde).from, to: dayBoundsBogota(hasta).to }
 }
+
+const CLAVES_RESERVADAS = new Set(['proveedor', SIN_CATEGORIA])
+
+/** Clave estable para una categoría nueva: minúsculas, sin tildes, solo letras/números/guion bajo (máx. 40). */
+export function claveDesdeNombre(nombre: string): string {
+  const base = nombre
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 36)
+    .replace(/_+$/g, '')
+  return base || 'categoria'
+}
+
+/** Como claveDesdeNombre, pero que no choque con las claves ya usadas (incluidas las desactivadas) ni con las del sistema. */
+export function claveUnica(nombre: string, existentes: Iterable<string>): string {
+  const usadas = new Set(existentes)
+  const base = claveDesdeNombre(nombre)
+  if (!usadas.has(base) && !CLAVES_RESERVADAS.has(base)) return base
+  for (let i = 2; ; i++) {
+    const k = `${base}_${i}`
+    if (!usadas.has(k) && !CLAVES_RESERVADAS.has(k)) return k
+  }
+}
+
+/** Mismo nombre sin importar mayúsculas ni espacios de los bordes (la base de datos lo exige único). */
+export const nombreIgual = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase()

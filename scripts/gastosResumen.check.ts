@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict'
 import {
   categoriaKey, categoriaLabel, resumirPorCategoria, totalGastos, rangoGastosBogota, SIN_CATEGORIA,
+  claveDesdeNombre, claveUnica, nombreIgual,
 } from '../src/services/gastosResumen.ts'
 
 // Llaves y etiquetas
@@ -44,5 +45,28 @@ assert.deepEqual(rangoGastosBogota('2026-10-01', '2026-10-15'), {
 assert.deepEqual(rangoGastosBogota('2026-10-01', '2026-10-31'), {
   from: '2026-10-01T05:00:00.000Z', to: '2026-11-01T05:00:00.000Z',
 })
+
+// Nombres personalizados del restaurante: tienen prioridad sobre los sugeridos
+assert.equal(categoriaLabel('insumos', { insumos: ' Mercado ' }), 'Mercado')
+assert.equal(categoriaLabel('insumos', {}), 'Insumos y mercado')
+assert.equal(categoriaLabel('insumos', { insumos: '  ' }), 'Insumos y mercado') // nombre vacío: cae al sugerido
+assert.equal(categoriaLabel('publicidad', { publicidad: 'Publicidad y redes' }), 'Publicidad y redes')
+assert.equal(categoriaLabel(null, { [SIN_CATEGORIA]: 'x' }), 'x')
+const rr = resumirPorCategoria([{ concepto: 'a', monto: 10, categoria: 'insumos' }], { insumos: 'Mercado' })
+assert.equal(rr[0].label, 'Mercado')
+
+// Claves de categorías nuevas
+assert.equal(claveDesdeNombre('Publicidad y Redes'), 'publicidad_y_redes')
+assert.equal(claveDesdeNombre('  Papelería & Útiles  '), 'papeleria_utiles')
+assert.equal(claveDesdeNombre('!!!'), 'categoria')
+assert.equal(claveDesdeNombre('a'.repeat(80)).length, 36)
+assert.match(claveDesdeNombre('Ñandú ñ'), /^[a-z0-9_]{1,40}$/)
+assert.equal(claveUnica('Gas', []), 'gas')
+assert.equal(claveUnica('Gas', ['gas']), 'gas_2')
+assert.equal(claveUnica('Gas', ['gas', 'gas_2']), 'gas_3')
+assert.equal(claveUnica('Proveedor', []), 'proveedor_2')               // reservada del sistema
+assert.equal(claveUnica('Sin categoría', []), 'sin_categoria_2')       // reservada del sistema
+assert.equal(nombreIgual(' Gas ', 'gas'), true)
+assert.equal(nombreIgual('Gas', 'Gasolina'), false)
 
 console.log('gastosResumen: OK')

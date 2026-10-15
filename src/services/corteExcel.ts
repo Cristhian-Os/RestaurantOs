@@ -2,7 +2,7 @@
  * corteExcel.ts — Genera y descarga el corte de caja en Excel (.xlsx)
  * Muestra los productos vendidos, cantidades, el resumen de pagos y en qué se gastó.
  */
-import { categoriaLabel, resumirPorCategoria } from './gastosResumen.ts'
+import { categoriaLabel, resumirPorCategoria, type Etiquetas } from './gastosResumen.ts'
 
 export interface CorteProducto {
   producto:    string
@@ -67,9 +67,11 @@ export async function descargarCorteExcel(opts: {
   gastos?:           CorteGasto[]
   denominaciones?:   CorteDenominacion[]
   pagos?:            CortePago[]
+  /** Nombres personalizados de las categorías de gastos (clave → nombre). */
+  etiquetas?:        Etiquetas
 }) {
   const XLSX = await import('xlsx')
-  const { restauranteNombre, totales, productos, gastos = [], denominaciones = [], pagos = [] } = opts
+  const { restauranteNombre, totales, productos, gastos = [], denominaciones = [], pagos = [], etiquetas } = opts
   const fecha = totales.fecha ?? new Date().toISOString().slice(0, 10)
 
   const n = (v: unknown) => Number(v ?? 0)
@@ -125,8 +127,8 @@ export async function descargarCorteExcel(opts: {
   if (gastos.length > 0) {
     rows.push([])
     rows.push(['GASTOS DEL DÍA', 'Categoría', '', '', 'Monto'])
-    for (const g of gastos) rows.push([g.concepto, categoriaLabel(g.categoria), '', '', -n(g.monto)])
-    const porCategoria = resumirPorCategoria(gastos)
+    for (const g of gastos) rows.push([g.concepto, categoriaLabel(g.categoria, etiquetas), '', '', -n(g.monto)])
+    const porCategoria = resumirPorCategoria(gastos, etiquetas)
     if (porCategoria.length > 0) {
       rows.push([])
       rows.push(['GASTOS POR CATEGORÍA', 'Gastos', '', '', 'Total'])
@@ -210,9 +212,11 @@ export async function descargarCorteMensualExcel(opts: {
   corte:             CorteMensualTotales
   /** Gastos del mes (con categoría) para el desglose "en qué se gastó". Opcional. */
   gastos?:           CorteGasto[]
+  /** Nombres personalizados de las categorías de gastos (clave → nombre). */
+  etiquetas?:        Etiquetas
 }) {
   const XLSX = await import('xlsx')
-  const { restauranteNombre, corte, gastos = [] } = opts
+  const { restauranteNombre, corte, gastos = [], etiquetas } = opts
   const n = (v: unknown) => Number(v ?? 0)
 
   const mesLabel = new Date(corte.desde + 'T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
@@ -258,7 +262,7 @@ export async function descargarCorteMensualExcel(opts: {
   }
 
   // ¿En qué se gastó? Primero el resumen por categoría y luego cada gasto con su fecha.
-  const porCategoria = resumirPorCategoria(gastos)
+  const porCategoria = resumirPorCategoria(gastos, etiquetas)
   if (porCategoria.length > 0) {
     rows.push([])
     rows.push(['GASTOS POR CATEGORÍA', 'Gastos', '', '% del total', 'Total'])
@@ -274,7 +278,7 @@ export async function descargarCorteMensualExcel(opts: {
       const fecha = g.created_at
         ? new Date(g.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'America/Bogota' })
         : ''
-      rows.push([g.concepto, categoriaLabel(g.categoria), fecha, '', -n(g.monto)])
+      rows.push([g.concepto, categoriaLabel(g.categoria, etiquetas), fecha, '', -n(g.monto)])
       moneyCells.push([r, 4])
     }
   }

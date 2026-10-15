@@ -12,6 +12,7 @@ import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
 import { GastosDesglose, type GastoDetalle } from './GastosDesglose'
 import { totalGastos } from '../../services/gastosResumen'
+import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
 import {
   dayBoundsBogota, filterOrders, forWhom, itemsSummary, parseItems, productTotals, summarize,
   type PayFilter, type SaleOrder,
@@ -114,6 +115,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [filter, setFilter]     = useState<PayFilter>('todas')
   const [openId, setOpenId]     = useState<string | null>(null)
   const [gastos, setGastos]     = useState<GastoDetalle[]>([])
+  const { etiquetas }           = useCategoriasGasto()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -223,7 +225,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
             <p className="m-0 font-bold text-[#2D3561] text-sm">{fmt(summary.total - gastosDia)}</p>
           </div>
         </div>
-        <GastosDesglose gastos={gastos} periodo="dia" />
+        <GastosDesglose gastos={gastos} periodo="dia" etiquetas={etiquetas} />
 
         <div className="flex gap-1 p-1 rounded-2xl bg-[#D8DAE4]" style={S.neoIn}>
           <button type="button" className={tab(view === 'ventas')} onClick={() => setView('ventas')}>Por venta</button>
