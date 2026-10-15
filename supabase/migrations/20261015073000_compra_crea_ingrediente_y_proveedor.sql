@@ -1,3 +1,4 @@
+-- Estado: APLICADA en producción el 2026-10-15 (verificada: hash del cuerpo de las 3 funciones idéntico a este archivo; columna gastos.proveedor_id creada; anon sin EXECUTE; 126 gastos, 83 ingredientes y 4 proveedores intactos; sin avisos nuevos del asesor de seguridad). Probada antes en el proyecto de pruebas: supabase/tests/compra_crea_ingrediente_y_proveedor.sql.
 -- Compra a proveedor: crea el proveedor y los ingredientes que todavia no existen.
 -- REVERSA: supabase/rollback/20261015073000_compra_crea_ingrediente_y_proveedor_down.sql
 --
