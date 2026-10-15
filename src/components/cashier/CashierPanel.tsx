@@ -22,6 +22,8 @@ import { VoiceButton } from '../VoiceButton'
 import { matchName } from '../../services/voiceMatch'
 import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
 import { SalesHistory } from './SalesHistory'
+import { GastosDesglose } from './GastosDesglose'
+import { CATEGORIAS_GASTO, CATEGORIA_DEFECTO, categoriaLabel, rangoGastosBogota } from '../../services/gastosResumen'
 import message from 'antd/es/message'
 import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Profile } from '../../pages/Dashboard'
@@ -122,6 +124,7 @@ interface Gasto {
   created_at: string
   fuente:     FuenteGasto
   pagado_por_nombre: string | null
+  categoria:  string | null
 }
 
 // Gasto adelantado con dinero propio que aún no se le devuelve a quien lo pagó.
@@ -164,6 +167,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [showPagos,     setShowPagos]     = useState(false)
   const [porReembolsar, setPorReembolsar] = useState<PorReembolsar[]>([])
   const [gastoFuente,   setGastoFuente]   = useState<FuenteGasto>('caja')
+  const [gastoCategoria, setGastoCategoria] = useState<string>(CATEGORIA_DEFECTO)
   const [gastoPagadoPor, setGastoPagadoPor] = useState('')
   const [aporteMonto,   setAporteMonto]   = useState('')
   const [aportePor,     setAportePor]     = useState('')
@@ -202,6 +206,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [editandoBase,  setEditandoBase]  = useState(false)
   const [savingBase,    setSavingBase]    = useState(false)
   const [corteMensual,  setCorteMensual]  = useState<CorteMensual | null>(null)
+  // Gastos del mes con su categoría: para mostrar y exportar "en qué se gastó". Si falla la carga, el corte sigue mostrando el total.
+  const [gastosMes,     setGastosMes]     = useState<{ id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]>([])
   const [loadingMensual,setLoadingMensual]= useState(false)
   const [showHistory,  setShowHistory]  = useState(false)
 
@@ -220,7 +226,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       supabase.from('orders').select('total, payment_method, propina, tipo_pedido')
         .eq('status', 'completed')
         .gte('created_at', inicioDia),
-      supabase.from('gastos').select('id, concepto, monto, created_at, fuente, pagado_por_nombre')
+      supabase.from('gastos').select('id, concepto, monto, created_at, fuente, pagado_por_nombre, categoria')
         .gte('created_at', inicioDia).order('created_at', { ascending: false }),
       supabase.from('bases_caja').select('monto').eq('fecha', hoyBogota()).maybeSingle(),
       // El dinero del día sale de los PAGOS recibidos hoy, no del total de cada pedido.
@@ -284,13 +290,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     const { error } = await supabase.from('gastos').insert({
       concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
       fuente: gastoFuente, pagado_por_nombre: gastoFuente === 'propio' ? gastoPagadoPor.trim() : null,
+      categoria: gastoCategoria,
     })
     setSavingGasto(false)
     if (error) { message.error('Error: ' + error.message); return }
-    setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoPagadoPor(''); setShowGastoForm(false)
+    setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoCategoria(CATEGORIA_DEFECTO); setGastoPagadoPor(''); setShowGastoForm(false)
     message.success(gastoFuente === 'propio' ? `Gasto registrado · queda por reembolsar a ${gastoPagadoPor.trim()}` : 'Gasto registrado')
     fetchData()
-  }, [gastoConcepto, gastoMonto, gastoFuente, gastoPagadoPor, fetchData])
+  }, [gastoConcepto, gastoMonto, gastoFuente, gastoCategoria, gastoPagadoPor, fetchData])
 
   // Cola de pagos sin internet: leerla, enviarla al volver la red y refrescar caja cuando se envíe algo.
   const recargarCola = useCallback(async () => {
@@ -590,7 +597,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     const { data, error } = await supabase.rpc('get_corte_mensual')
     setLoadingMensual(false)
     if (error) { message.error('Error: ' + error.message); return }
-    setCorteMensual(data as CorteMensual)
+    const corte = data as CorteMensual
+    try {
+      const { from, to } = rangoGastosBogota(corte.desde, corte.hasta)
+      const { data: gm, error: gmErr } = await supabase.from('gastos').select('id, concepto, monto, categoria, created_at')
+        .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false }).limit(2000)
+      setGastosMes(gmErr ? [] : ((gm ?? []) as { id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]))
+    } catch { setGastosMes([]) }
+    setCorteMensual(corte)
   }, [])
 
   // Descargar el corte mensual en Excel (resumen del mes + desglose por día)
@@ -602,11 +616,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       await descargarCorteMensualExcel({
         restauranteNombre: cfg?.display_name ?? 'Restaurante',
         corte: corteMensual,
+        gastos: gastosMes,
       })
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
     }
-  }, [corteMensual])
+  }, [corteMensual, gastosMes])
 
   // Conteo físico de efectivo (arqueo): cantidad de billetes/monedas por denominación
   const denominacionesConteo = DENOMINACIONES
@@ -650,7 +665,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           fecha:               corteResult.fecha,
         },
         productos: corteProductos,
-        gastos: gastos.map(g => ({ concepto: g.concepto, monto: Number(g.monto) })),
+        gastos: gastos.map(g => ({ concepto: g.concepto, monto: Number(g.monto), categoria: g.categoria })),
         denominaciones: denominacionesConteo,
         pagos: pagosCorte,
       })
@@ -780,6 +795,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
             {gastoModo === 'simple' ? (
               <div className="flex flex-wrap gap-3 items-end">
+                {/* ¿En qué se gastó? Permite sumar gastos por categoría en el corte diario y mensual. */}
+                <div className="w-full">
+                  <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">¿En qué se gastó?</label>
+                  <select value={gastoCategoria} onChange={e => setGastoCategoria(e.target.value)}
+                    className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn}>
+                    {CATEGORIAS_GASTO.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  </select>
+                </div>
                 {/* ¿Con qué plata se pagó? Define si el gasto resta del efectivo de la caja o queda "por reembolsar". */}
                 <div className="w-full flex flex-wrap gap-3 items-end">
                   <div className="flex-1 min-w-[200px]">
@@ -889,6 +912,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
                   <p className="text-[0.6875rem] text-[#9CA3AF]">
                     {new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                    {` · ${categoriaLabel(g.categoria)}`}
                     {g.fuente === 'propio' && ` · lo pagó ${g.pagado_por_nombre ?? 'otra persona'} (no sale del cajón)`}
                     {g.fuente === 'transferencia' && ' · transferencia del negocio'}
                     {g.fuente === 'tarjeta' && ' · tarjeta del negocio'}
@@ -1500,6 +1524,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <span className="text-sm font-bold text-red-600">Gastos del día</span>
                   <span className="font-bold text-red-600">−{fmt(corteResult.total_gastos)}</span>
                 </div>
+                <GastosDesglose gastos={gastos} periodo="dia" />
                 <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
                   <span className="text-sm font-bold text-white">Beneficio neto</span>
                   <span className="text-xl font-bold text-white">{fmt(corteResult.total_neto ?? corteResult.total_general)}</span>
@@ -1698,6 +1723,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <span className="text-sm font-bold text-red-600">Gastos del mes</span>
                   <span className="font-bold text-red-600">−{fmt(corteMensual.total_gastos)}</span>
                 </div>
+                <GastosDesglose gastos={gastosMes} periodo="mes" />
                 <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
                   <span className="text-sm font-bold text-white">Beneficio neto del mes</span>
                   <span className="text-xl font-bold text-white">{fmt(corteMensual.total_neto)}</span>
@@ -1712,6 +1738,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       <div key={d.fecha} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center text-sm bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
                         <span className="text-[#2D3561] font-semibold capitalize">
                           {new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
+                          {Number(d.gastos) > 0 && (
+                            <span className="block text-[0.6875rem] font-normal normal-case text-red-500">Gastos −{fmt(Number(d.gastos))}</span>
+                          )}
                         </span>
                         <span className="text-[#9CA3AF] text-xs">{d.ordenes} órd.</span>
                         <span className="font-bold text-[#2D3561] text-right">{fmt(d.total)}</span>
