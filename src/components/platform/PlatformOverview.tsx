@@ -59,6 +59,49 @@ export const PlatformOverview = memo(() => {
   const [logs,        setLogs]        = useState<ChatLog[] | null>(null)
   const [error,       setError]       = useState<string | null>(null)
 
+  // ── Altas, planes y recuperación de administradores (solo el dueño de la plataforma) ──
+  const [nuevo,    setNuevo]    = useState({ nombre: '', admin: '', email: '' })
+  const [busy,     setBusy]     = useState(false)
+  const [planSel,  setPlanSel]  = useState<Record<string, string>>({})
+  const [cred,     setCred]     = useState<{ titulo: string; email: string; pass: string } | null>(null)
+  const [aviso,    setAviso]    = useState<string | null>(null)
+
+  const recargar = () => supabase.rpc('get_platform_overview').then(({ data }) => setRestaurants((data as RestaurantRow[]) ?? []))
+  const clave = () => {
+    const abc = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+    const b = new Uint32Array(12); crypto.getRandomValues(b)
+    return Array.from(b, x => abc[x % abc.length]).join('')
+  }
+  const crearRestaurante = async () => {
+    if (nuevo.nombre.trim().length < 2 || !nuevo.email.includes('@')) { setAviso('Escribe el nombre del restaurante y el correo del administrador'); return }
+    setBusy(true); setAviso(null)
+    const pass = clave()
+    const { error: e } = await supabase.rpc('crear_restaurante', {
+      p_restaurant_name: nuevo.nombre.trim(), p_owner_email: nuevo.email.trim().toLowerCase(),
+      p_owner_password: pass, p_owner_full_name: nuevo.admin.trim() || null,
+    })
+    setBusy(false)
+    if (e) { setAviso(e.message); return }
+    setCred({ titulo: `Restaurante "${nuevo.nombre.trim()}" creado`, email: nuevo.email.trim().toLowerCase(), pass })
+    setNuevo({ nombre: '', admin: '', email: '' }); recargar()
+  }
+  const activarPlan = async (rid: string, nombre: string) => {
+    const plan = planSel[rid] ?? 'emprende'
+    if (!window.confirm(`¿Marcar "${nombre}" como PAGADO con el plan ${plan}?`)) return
+    const { error: e } = await supabase.rpc('plataforma_activar_plan', { p_restaurant_id: rid, p_plan: plan })
+    if (e) { setAviso(e.message); return }
+    setAviso(`${nombre}: plan ${plan} activo`); recargar()
+  }
+  const restablecer = async (email: string) => {
+    if (!window.confirm(`¿Restablecer la contraseña de ${email}? Se cerrarán sus sesiones y deberá cambiarla al entrar.`)) return
+    const pass = clave()
+    const { error: e } = await supabase.rpc('plataforma_restablecer_admin', { p_email: email, p_password_temporal: pass })
+    if (e) { setAviso(e.message); return }
+    setCred({ titulo: 'Contraseña restablecida', email, pass })
+  }
+  const campo: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.875rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontSize: '1rem', minHeight: '2.75rem' }
+  const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: '0.75rem', padding: '0.6rem 1rem', minHeight: '2.75rem' }
+
   useEffect(() => {
     supabase.rpc('get_platform_overview').then(({ data, error }) => {
       if (error) { setError(error.message); return }
@@ -80,6 +123,29 @@ export const PlatformOverview = memo(() => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      {cred && (
+        <div style={{ borderRadius: '1rem', padding: '1.25rem', backgroundColor: bg, border: '2px solid var(--w-terra, #C2570C)', ...S.out }}>
+          <div style={{ fontWeight: 700, color: txt, marginBottom: '0.5rem' }}>{cred.titulo}</div>
+          <div style={{ fontSize: '0.875rem', color: txtSec }}>Correo: <strong style={{ color: txt }}>{cred.email}</strong></div>
+          <div style={{ fontSize: '0.875rem', color: txtSec, margin: '0.25rem 0 0.75rem' }}>Contraseña temporal: <strong style={{ color: txt, fontFamily: 'monospace', fontSize: '1.05rem' }}>{cred.pass}</strong></div>
+          <p style={{ fontSize: '0.8125rem', color: txtSec, margin: '0 0 0.75rem' }}>Se muestra solo esta vez. Entrégala por un canal privado: al entrar, el administrador deberá cambiarla.</p>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button style={{ ...boton, background: 'var(--w-terra, #C2570C)', color: '#fff' }} onClick={() => navigator.clipboard?.writeText(`Correo: ${cred.email}\nContraseña temporal: ${cred.pass}`)}>Copiar</button>
+            <button style={{ ...boton, background: bgSurf, color: txt }} onClick={() => setCred(null)}>Ya la guardé</button>
+          </div>
+        </div>
+      )}
+      {aviso && <div style={{ borderRadius: '1rem', padding: '0.875rem 1.25rem', backgroundColor: bg, color: txt, ...S.in }}>{aviso}</div>}
+      <div style={{ borderRadius: '1rem', padding: '1.25rem', backgroundColor: bg, ...S.out }}>
+        <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.25rem', color: txt, margin: '0 0 0.25rem' }}>Nuevo restaurante</h2>
+        <p style={{ fontSize: '0.8125rem', color: txtSec, margin: '0 0 0.875rem' }}>El registro público está cerrado. Crea el restaurante cuando el cliente pague; el administrador recibe una contraseña temporal.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))', gap: '0.5rem' }}>
+          <input style={campo} placeholder="Nombre del restaurante" aria-label="Nombre del restaurante" value={nuevo.nombre} onChange={e => setNuevo(n => ({ ...n, nombre: e.target.value }))} />
+          <input style={campo} placeholder="Nombre del administrador" aria-label="Nombre del administrador" value={nuevo.admin} onChange={e => setNuevo(n => ({ ...n, admin: e.target.value }))} />
+          <input style={campo} placeholder="Correo del administrador" aria-label="Correo del administrador" type="email" inputMode="email" autoCapitalize="none" value={nuevo.email} onChange={e => setNuevo(n => ({ ...n, email: e.target.value }))} />
+        </div>
+        <button disabled={busy} onClick={crearRestaurante} style={{ ...boton, marginTop: '0.75rem', background: 'var(--w-terra, #C2570C)', color: '#fff', opacity: busy ? 0.7 : 1 }}>{busy ? 'Creando…' : 'Crear restaurante'}</button>
+      </div>
       <div>
         <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: '0 0 1rem' }}>
           Restaurantes {restaurants && `(${restaurants.length})`}
@@ -104,6 +170,13 @@ export const PlatformOverview = memo(() => {
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 700, color: txt, textTransform: 'capitalize' }}>{r.plan ?? '—'}</div>
                     <div style={{ fontSize: '0.75rem', color: txtSec }}>{r.subscription_status ?? 'sin suscripción'}</div>
+                    <div style={{ display: 'flex', gap: '0.375rem', marginTop: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      <select aria-label={`Plan de ${r.name}`} value={planSel[r.id] ?? (r.plan && r.plan !== 'trial' ? r.plan : 'emprende')} onChange={e => setPlanSel(p => ({ ...p, [r.id]: e.target.value }))}
+                        style={{ ...campo, width: 'auto', minHeight: '2.5rem', padding: '0.4rem 0.6rem' }}>
+                        <option value="emprende">Emprende</option><option value="pro">Pro</option><option value="premium">Premium</option>
+                      </select>
+                      <button onClick={() => activarPlan(r.id, r.name)} style={{ ...boton, minHeight: '2.5rem', padding: '0.4rem 0.8rem', background: bgSurf, color: txt }}>Marcar pagado</button>
+                    </div>
                   </div>
                 </div>
                 {r.contacts && r.contacts.length > 0 && (
@@ -111,6 +184,7 @@ export const PlatformOverview = memo(() => {
                     {r.contacts.map((c, i) => (
                       <div key={i} style={{ fontSize: '0.8125rem', color: txtSec }}>
                         {c.full_name ?? 'Sin nombre'} · {c.email ?? 'sin correo'}{c.phone ? ` · ${c.phone}` : ''}
+                        {c.email && <button onClick={() => restablecer(c.email as string)} style={{ ...boton, marginLeft: '0.5rem', minHeight: '2.25rem', padding: '0.25rem 0.6rem', fontSize: '0.75rem', background: bgSurf, color: txt }}>Restablecer contraseña</button>}
                       </div>
                     ))}
                   </div>

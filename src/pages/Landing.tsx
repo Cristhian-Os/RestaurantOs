@@ -8,8 +8,8 @@
 import { useRef, useState } from 'react'
 import { motion, useScroll, useTransform, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from '../components/ScrollReveal'
-import { PLANS, TRIAL_DAYS, type Plan } from '../config/plans'
-import { TESTIMONIALS, FAQS, PROMO_SLOTS } from '../config/content'
+import { PLANS, type Plan } from '../config/plans'
+import { TESTIMONIALS, FAQS } from '../config/content'
 import { supabase } from '../services/supabaseClient'
 import SupportChat from '../components/SupportChat'
 
@@ -70,7 +70,7 @@ function Hero() {
             fontWeight: 600, color: 'var(--w-terra)', marginBottom: '1.5rem',
             fontFamily: 'var(--w-sans)',
           }}>
-            ✦ Prueba gratis por {TRIAL_DAYS} días — sin tarjeta
+            ✦ Instalación acompañada — activamos tu restaurante
           </span>
         </motion.div>
 
@@ -95,7 +95,7 @@ function Hero() {
           style={{ display: 'flex', gap: '0.875rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => go('/registro')} className="lg-accent w-press"
             style={{ padding: '1rem 1.75rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}>
-            Comienza gratis
+            Solicitar acceso
           </button>
           <button onClick={enterDemo} className="lg w-press"
             style={{ padding: '1rem 1.75rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', color: 'var(--w-ink)', background: 'transparent' }}>
@@ -232,7 +232,7 @@ function PlanCard({ plan }: { plan: Plan }) {
       <button onClick={() => go(`/registro?plan=${plan.id}`)}
         className={plan.featured ? 'lg-accent w-press' : 'lg w-press'}
         style={{ width: '100%', padding: '0.95rem', border: plan.featured ? 'none' : '1px solid var(--w-line)', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', color: plan.featured ? undefined : 'var(--w-ink)', background: plan.featured ? undefined : 'transparent' }}>
-        Probar {TRIAL_DAYS} días gratis
+        Solicitar este plan
       </button>
     </div>
   )
@@ -247,7 +247,7 @@ function Plans() {
           Elige el plan de tu restaurante
         </h2>
         <p className="ed-body" style={{ textAlign: 'center', fontSize: '1rem', color: 'var(--w-ink-mut)', margin: '0 auto 3.5rem', maxWidth: 520 }}>
-          Todos empiezan con {TRIAL_DAYS} días gratis. Cambia o cancela cuando quieras.
+          Elige tu plan y activamos tu restaurante. Cambia o cancela cuando quieras.
         </p>
       </ScrollReveal>
       <div className="landing-plans">
@@ -344,14 +344,14 @@ function TrialCTA() {
           background: 'linear-gradient(135deg, color-mix(in oklch, var(--w-terra) 12%, var(--w-surface)), color-mix(in oklch, var(--w-saffron) 12%, var(--w-surface)))',
         }}>
           <h2 className="ed-display" style={{ fontSize: 'clamp(2rem, 5vw, 3.25rem)', fontWeight: 600, margin: '0 0 1rem', lineHeight: 1.05 }}>
-            Pruébalo {TRIAL_DAYS} días, gratis
+            Activa tu restaurante
           </h2>
           <p className="ed-body" style={{ fontSize: '1.05rem', color: 'var(--w-ink-mut)', margin: '0 auto 2rem', maxWidth: 480 }}>
-            Sin tarjeta de crédito. Crea tu restaurante hoy y descubre lo fácil que es.
+            Lo instalamos contigo y lo dejamos listo para tomar pedidos.
           </p>
           <button onClick={() => go('/registro')} className="lg-accent w-press"
             style={{ padding: '1.05rem 2.25rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1.05rem', cursor: 'pointer' }}>
-            Crear mi restaurante
+            Solicitar acceso
           </button>
         </div>
       </ScrollReveal>
@@ -388,20 +388,10 @@ export default function Landing() {
           </button>
           <button onClick={() => go('/registro')} className="lg-accent w-press"
             style={{ padding: '0.6rem 1.1rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
-            Probar gratis
+            Solicitar acceso
           </button>
         </div>
       </header>
-
-      {/* Banner de promoción de lanzamiento */}
-      <button onClick={() => go('/registro')} className="w-press" style={{
-        display: 'block', width: '100%', border: 'none', cursor: 'pointer',
-        padding: '0.7rem 1.5rem', textAlign: 'center', fontFamily: 'var(--w-sans)',
-        fontWeight: 700, fontSize: '0.875rem', color: '#fff',
-        background: 'linear-gradient(90deg, var(--w-terra), var(--w-olive))',
-      }}>
-        🎉 Lanzamiento: los primeros {PROMO_SLOTS} restaurantes obtienen <strong>Premium GRATIS de por vida</strong> · ¡Regístrate ya!
-      </button>
 
       <Hero />
       <HowItWorks />

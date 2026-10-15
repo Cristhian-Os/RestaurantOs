@@ -12,6 +12,9 @@
  *  siempre fue el dueño marcando is_promo=true a mano). */
 export const PROMO_SLOTS = 3
 
+/** WhatsApp de contacto para activar un restaurante (con indicativo, ej. +57 300 000 0000). Vacío = solo texto. */
+export const CONTACTO_WHATSAPP = ''
+
 export interface Testimonial {
   quote:   string
   name:    string

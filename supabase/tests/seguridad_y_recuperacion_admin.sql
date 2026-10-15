@@ -15,7 +15,7 @@ BEGIN
     r := r||'anon ejecuta '||f||': '||has_function_privilege('anon', 'public.'||f, 'EXECUTE')||' (esperado false)'||E'\n';
   END LOOP;
   FOREACH f IN ARRAY ARRAY['create_public_order(uuid,integer,text,text,jsonb)','cancelar_orden(uuid)','editar_items_pedido(uuid,jsonb)','obtener_comentarios_plato(uuid,text)',
-    'crear_restaurante(text,text,text,text)','is_admin()','get_user_role()','current_restaurant_id()','tv_cocina_datos(text)'] LOOP
+    'is_admin()','get_user_role()','current_restaurant_id()','tv_cocina_datos(text)'] LOOP
     BEGIN
       r := r||'anon ejecuta '||f||': '||has_function_privilege('anon', 'public.'||f, 'EXECUTE')||' (esperado true)'||E'\n';
     EXCEPTION WHEN undefined_function THEN r := r||'(la funcion '||f||' no existe en este proyecto)'||E'\n'; END;
