@@ -1,4 +1,4 @@
--- Estado: NO APLICADA en producción (pendiente de visto bueno). Aplicar en una sola transacción.
+-- Estado: APLICADA en producción el 2026-10-15 (verificada: 5 restaurantes con 7 categorías sugeridas cada uno + 0 en gastos existentes; RLS activo con 3 políticas; anon sin acceso; sin avisos nuevos del asesor de seguridad).
 -- Reversa: supabase/rollback/20261015180000_categorias_gasto_editables_down.sql
 --
 -- Categorías de gastos editables por restaurante ("¿en qué se gastó?").
