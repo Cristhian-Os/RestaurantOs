@@ -14,6 +14,7 @@ import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
 import { VoiceButton } from '../VoiceButton'
 import { VoiceMenuModal } from './VoiceMenuModal'
+import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Dish, DishCategory, DishOptionGroup } from '../../types'
 
 const S = {
@@ -1281,7 +1282,7 @@ export const MenuManager = memo(() => {
                 <div className="sm:col-span-2">
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Nombre *</label>
-                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setForm(p => ({ ...p, name: r.transcript.trim().replace(/.$/, '') }))} />
+                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setForm(p => ({ ...p, name: limpiarTranscripcion(r.transcript) }))} />
                   </div>
                   <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                     placeholder="Ej: Sundae Tropical"

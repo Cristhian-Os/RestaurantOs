@@ -23,6 +23,7 @@ import { matchName } from '../../services/voiceMatch'
 import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
 import { SalesHistory } from './SalesHistory'
 import message from 'antd/es/message'
+import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Profile } from '../../pages/Dashboard'
 
 const S = {
@@ -802,7 +803,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
                       placeholder="Ej: Domicilio de insumos"
                       className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
-                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setGastoConcepto(r.transcript.trim().replace(/.$/, ''))} />
+                    <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setGastoConcepto(limpiarTranscripcion(r.transcript))} />
                   </div>
                 </div>
                 <div className="w-32">

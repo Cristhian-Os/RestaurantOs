@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { VoiceButton } from '../VoiceButton'
+import { limpiarTranscripcion } from '../../services/voiceText'
 
 interface Proveedor { id: string; nombre: string; telefono: string | null; email: string | null; producto: string | null; notas: string | null }
 type Form = { nombre: string; telefono: string; email: string; producto: string; notas: string }
@@ -29,7 +30,7 @@ function Fields({ value, onChange }: { value: Form; onChange: (f: Form) => void 
       <div style={{ display: 'flex', gap: '0.375rem' }}>
         <input style={input} value={value.nombre} maxLength={120} placeholder="Nombre *" aria-label="Nombre"
           onChange={e => onChange({ ...value, nombre: e.target.value })} />
-        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, nombre: r.transcript.trim().replace(/.$/, '') })} />
+        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, nombre: limpiarTranscripcion(r.transcript) })} />
       </div>
       <input style={input} value={value.telefono} maxLength={40} placeholder="Teléfono" aria-label="Teléfono"
         type="tel" inputMode="tel" onChange={e => onChange({ ...value, telefono: e.target.value })} />
@@ -38,12 +39,12 @@ function Fields({ value, onChange }: { value: Form; onChange: (f: Form) => void 
       <div style={{ display: 'flex', gap: '0.375rem' }}>
         <input style={input} value={value.producto} maxLength={200} placeholder="Producto que provee" aria-label="Producto que provee"
           onChange={e => onChange({ ...value, producto: e.target.value })} />
-        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, producto: r.transcript.trim().replace(/.$/, '') })} />
+        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, producto: limpiarTranscripcion(r.transcript) })} />
       </div>
       <div style={{ display: 'flex', gap: '0.375rem', gridColumn: '1 / -1' }}>
         <input style={input} value={value.notas} maxLength={500} placeholder="Notas (WhatsApp, persona de contacto, dirección, horario…)" aria-label="Notas"
           onChange={e => onChange({ ...value, notas: e.target.value })} />
-        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, notas: r.transcript.trim().replace(/.$/, '') })} />
+        <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => onChange({ ...value, notas: limpiarTranscripcion(r.transcript) })} />
       </div>
     </div>
   )

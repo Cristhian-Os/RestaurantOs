@@ -4,12 +4,15 @@
  * se muestra lo entendido en filas editables y, al confirmar, se insertan en `dishes`
  * con el mismo formato del alta manual. Nada se guarda sin pasar por la revisión.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { VoiceButton } from '../VoiceButton'
+import { TranscriptEditor } from '../TranscriptEditor'
 import { matchName } from '../../services/voiceMatch'
+import { parseVoiceText } from '../../services/voiceService'
+import { reemplazarGrupo } from '../../services/voiceText'
 
 interface Category { value: string; label: string }
 
@@ -20,6 +23,8 @@ interface VoiceDish {
 }
 
 interface Row {
+  group: number      // dictado del que salió; al corregir su texto solo se reemplazan sus platos
+  dirty?: boolean    // la persona ya editó esta fila a mano
   name: string; price: string; category: string; description: string
   sizes: string      // "Grande: 14000, Mediano: 10000"
   toppings: string   // "Limón: 0, Chocolate: 2000"
@@ -39,25 +44,55 @@ export function VoiceMenuModal({ categories, onSaved, onClose }: {
   onClose:    () => void
 }) {
   const [rows, setRows]             = useState<Row[]>([])
-  const [transcript, setTranscript] = useState('')
+  // `n` = cuántos platos propuso la última interpretación (para avisar si ya quitaron o editaron alguno).
+  const [dictados, setDictados]     = useState<{ id: number; text: string; n: number }[]>([])
+  const [busyGroup, setBusyGroup]   = useState<number | null>(null)
   const [saving, setSaving]         = useState(false)
+  const seq = useRef(1)
 
-  const onResult = (r: { transcript: string; dishes: VoiceDish[] }) => {
-    setTranscript(r.transcript ?? '')
+  const toRows = (dishes: VoiceDish[], group: number): Row[] => {
     const fallback = categories[0]?.value ?? ''
-    const mapped: Row[] = (r.dishes ?? []).map(d => {
+    return dishes.map(d => {
       const exact = categories.find(c => c.value === d.category)
       const cat = exact ?? matchName(d.category, categories, c => c.label) ?? null
       return {
-        name: d.name ?? '', price: String(d.price ?? ''), category: cat?.value ?? fallback,
+        group, name: d.name ?? '', price: String(d.price ?? ''), category: cat?.value ?? fallback,
         description: d.description ?? '', sizes: fmtPairs(d.sizes), toppings: fmtPairs(d.toppings),
       }
     })
-    if (mapped.length === 0) { message.warning('No entendí ningún plato. Intenta de nuevo.'); return }
+  }
+
+  const onResult = (r: { transcript: string; dishes: VoiceDish[] }) => {
+    const group = seq.current++
+    const mapped = toRows(r.dishes ?? [], group)
+    // El dictado se queda aunque no haya salido ningún plato: así se corrige el texto y se interpreta de nuevo.
+    setDictados(prev => [...prev, { id: group, text: r.transcript ?? '', n: mapped.length }])
+    if (mapped.length === 0) { message.warning('No entendí ningún plato. Corrige el texto e interprétalo de nuevo.'); return }
     setRows(prev => [...prev, ...mapped])
   }
 
-  const update = (i: number, patch: Partial<Row>) => setRows(p => p.map((r, j) => j === i ? { ...r, ...patch } : r))
+  const escribir = () => { const id = seq.current++; setDictados(prev => [...prev, { id, text: '', n: 0 }]) }
+
+  /** Manda el texto corregido de un dictado y cambia SOLO los platos de ese dictado. */
+  const interpretar = async (d: { id: number; text: string; n: number }) => {
+    if (busyGroup !== null || saving) return
+    const mine = rows.filter(r => r.group === d.id)
+    if ((mine.length < d.n || mine.some(r => r.dirty)) && !window.confirm('Quitaste o editaste platos de este dictado. Al interpretar de nuevo se reemplazan por lo que salga del texto. ¿Continuar?')) return
+    setBusyGroup(d.id)
+    try {
+      const r = await parseVoiceText<{ transcript: string; dishes: VoiceDish[] }>('menu', d.text, { categories: categories.map(c => ({ value: c.value, label: c.label })) })
+      const mapped = toRows(r.dishes ?? [], d.id)
+      setRows(prev => reemplazarGrupo(prev, d.id, mapped))
+      setDictados(prev => prev.map(x => x.id === d.id ? { ...x, n: mapped.length } : x))
+      if (mapped.length === 0) message.warning('No entendí ningún plato con ese texto.')
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'No se pudo interpretar el texto')
+    } finally {
+      setBusyGroup(null)
+    }
+  }
+
+  const update = (i: number, patch: Partial<Row>) => setRows(p => p.map((r, j) => j === i ? { ...r, ...patch, dirty: true } : r))
 
   const save = async () => {
     const payloads = []
@@ -91,18 +126,23 @@ export function VoiceMenuModal({ categories, onSaved, onClose }: {
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 760, maxHeight: '90vh', overflowY: 'auto', background: '#D8DAE4', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
           <h3 style={{ margin: 0, fontWeight: 700, color: '#2D3561' }}>Subir menú por voz</h3>
-          <VoiceButton<{ transcript: string; dishes: VoiceDish[] }> kind="menu" label={rows.length ? 'Dictar más' : 'Empezar a dictar'}
+          <button type="button" onClick={escribir} disabled={saving || busyGroup !== null}
+            style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'underline', color: 'var(--w-terra, #FF5722)', opacity: saving || busyGroup !== null ? 0.5 : 1 }}>
+            Escribir en vez de hablar
+          </button>
+          <VoiceButton<{ transcript: string; dishes: VoiceDish[] }> kind="menu" label={dictados.length ? 'Dictar más' : 'Empezar a dictar'}
+            disabled={saving || busyGroup !== null}
             onResult={onResult} context={() => ({ categories: categories.map(c => ({ value: c.value, label: c.label })) })} />
         </div>
         <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280' }}>
           Di por ejemplo: “Cholao grande 14 mil, mediano 10 mil, con toppings limón y sal; limonada 5 mil, categoría bebidas”. Revisa y corrige antes de guardar.
         </p>
 
-        {transcript && (
-          <p style={{ margin: 0, fontSize: '0.8125rem', fontStyle: 'italic', color: '#2D3561', background: '#CDD0DC', borderRadius: '0.75rem', padding: '0.5rem 0.75rem' }}>
-            Escuché: “{transcript}”
-          </p>
-        )}
+        {dictados.map(d => (
+          <TranscriptEditor key={d.id} value={d.text} busy={busyGroup === d.id} disabled={saving || (busyGroup !== null && busyGroup !== d.id)}
+            onChange={t => setDictados(prev => prev.map(x => x.id === d.id ? { ...x, text: t } : x))}
+            onInterpret={() => void interpretar(d)} placeholder="Escribe los platos, por ejemplo: cholao grande 14 mil, limonada 5 mil" />
+        ))}
 
         {rows.map((r, i) => (
           <div key={i} style={{ background: '#E8EAF0', borderRadius: '0.875rem', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', position: 'relative' }}>

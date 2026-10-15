@@ -7,16 +7,22 @@
  * Colores con las variables --w-* del tema: el modo claro/oscuro de la app se
  * aplica solo (la app no usa la clase `dark:` de Tailwind).
  */
-import { forwardRef, useMemo, useState } from 'react'
+import { forwardRef, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import message from 'antd/es/message'
 import { VoiceButton } from './VoiceButton'
+import { TranscriptEditor } from './TranscriptEditor'
 import { cn } from '../lib/cn'
 import { buildProposals, toPromptContext, type CommandContext, type Proposal, type RawAction, type VoiceRole } from '../services/voiceCommands'
 import { applyChange, loadCommandContext } from '../services/voiceCommandsApi'
+import { parseVoiceText } from '../services/voiceService'
+import { reemplazarGrupo } from '../services/voiceText'
 
-interface Item { id: number; action: RawAction; error?: string }
+// `group` = el dictado del que salió el cambio; al corregir su texto solo se reemplazan los de ese grupo.
+interface Item { id: number; group: number; action: RawAction; error?: string }
+// `n` = cuántos cambios propuso la última interpretación (para avisar si la persona ya quitó alguno).
+interface Dictado { id: number; text: string; n: number }
 
 interface Props {
   userId:    string
@@ -63,9 +69,10 @@ ProposalRow.displayName = 'ProposalRow'
 export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
   const [ctx, setCtx]               = useState<CommandContext | null>(null)
   const [items, setItems]           = useState<Item[]>([])
-  const [transcript, setTranscript] = useState('')
+  const [dictados, setDictados]     = useState<Dictado[]>([])
+  const [busyGroup, setBusyGroup]   = useState<number | null>(null)
   const [applying, setApplying]     = useState(false)
-  const [nextId, setNextId]         = useState(1)
+  const seq = useRef(1)
 
   const proposals = useMemo(
     () => (ctx ? buildProposals(items.map(i => i.action), ctx, userId, role) : []),
@@ -73,12 +80,40 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
   )
   const applicable = proposals.filter(p => p.change).length
 
+  const toItems = (actions: RawAction[], group: number): Item[] => actions.map(action => ({ id: seq.current++, group, action }))
+
   const onResult = (r: { transcript: string; actions: RawAction[] }) => {
-    setTranscript(r.transcript ?? '')
     const actions = r.actions ?? []
-    if (actions.length === 0) { message.warning('No entendí ningún cambio. Intenta de nuevo.'); return }
-    setItems(prev => [...prev, ...actions.map((action, k) => ({ id: nextId + k, action }))])
-    setNextId(n => n + actions.length)
+    const group = seq.current++
+    // El dictado se queda aunque no haya salido ningún cambio: así se corrige el texto ("chorao" → "cholao").
+    setDictados(prev => [...prev, { id: group, text: r.transcript ?? '', n: actions.length }])
+    if (actions.length === 0) { message.warning('No entendí ningún cambio. Corrige el texto e interprétalo de nuevo.'); return }
+    setItems(prev => [...prev, ...toItems(actions, group)])
+  }
+
+  const escribir = () => { const id = seq.current++; setDictados(prev => [...prev, { id, text: '', n: 0 }]) }
+
+  const editarTexto = (id: number, text: string) => setDictados(prev => prev.map(d => d.id === id ? { ...d, text } : d))
+
+  /** Manda el texto corregido de un dictado y cambia SOLO las propuestas de ese dictado. */
+  const interpretar = async (d: Dictado) => {
+    if (busyGroup !== null || applying) return
+    const quitados = d.n - items.filter(i => i.group === d.id).length
+    if (quitados > 0 && !window.confirm(`Quitaste ${quitados} ${quitados === 1 ? 'cambio' : 'cambios'} de este dictado. Al interpretar de nuevo se reemplazan por lo que salga del texto. ¿Continuar?`)) return
+    setBusyGroup(d.id)
+    try {
+      const fresh = await loadCommandContext(role)
+      setCtx(fresh)
+      const r = await parseVoiceText<{ transcript: string; actions: RawAction[] }>('command', d.text, toPromptContext(fresh))
+      const actions = r.actions ?? []
+      setItems(prev => reemplazarGrupo(prev, d.id, toItems(actions, d.id)))
+      setDictados(prev => prev.map(x => x.id === d.id ? { ...x, n: actions.length } : x))
+      if (actions.length === 0) message.warning('No entendí ningún cambio con ese texto.')
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'No se pudo interpretar el texto')
+    } finally {
+      setBusyGroup(null)
+    }
   }
 
   const apply = async () => {
@@ -126,8 +161,12 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
         className="flex max-h-[90vh] w-full max-w-xl flex-col gap-3 overflow-y-auto rounded-3xl border border-[var(--w-line)] bg-[var(--w-bg)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="m-0 text-lg font-bold text-[var(--w-ink)]">Comando de voz</h3>
+          <button type="button" onClick={escribir} disabled={applying || busyGroup !== null}
+            className="cursor-pointer border-none bg-transparent p-0 text-xs font-semibold text-[var(--w-terra)] underline disabled:opacity-50">
+            Escribir en vez de hablar
+          </button>
           <VoiceButton<{ transcript: string; actions: RawAction[] }>
-            kind="command" label={items.length ? 'Dictar más' : 'Hablar'} onResult={onResult} disabled={applying}
+            kind="command" label={dictados.length ? 'Dictar más' : 'Hablar'} onResult={onResult} disabled={applying || busyGroup !== null}
             context={async () => {
               const fresh = await loadCommandContext(role)
               setCtx(fresh)
@@ -142,11 +181,10 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
           {' '}Revisa los cambios antes de aplicarlos.
         </p>
 
-        {transcript && (
-          <p className="m-0 rounded-xl bg-[var(--w-surface)] px-3 py-2 text-xs italic text-[var(--w-ink-soft)]">
-            Escuché: “{transcript}”
-          </p>
-        )}
+        {dictados.map(d => (
+          <TranscriptEditor key={d.id} value={d.text} onChange={t => editarTexto(d.id, t)} onInterpret={() => void interpretar(d)}
+            busy={busyGroup === d.id} disabled={applying || (busyGroup !== null && busyGroup !== d.id)} />
+        ))}
 
         <ul className="m-0 flex flex-col gap-2 p-0">
           <AnimatePresence initial={false}>

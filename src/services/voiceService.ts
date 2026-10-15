@@ -5,6 +5,7 @@
  * función `voice-parse`, que devuelve transcripción + datos estructurados.
  */
 import { supabase } from './supabaseClient'
+import { MAX_TEXT_CHARS } from './voiceText'
 
 export type VoiceKind = 'transcribe' | 'menu' | 'topping' | 'recipe' | 'ingredient' | 'purchase' | 'task' | 'command'
 
@@ -73,10 +74,19 @@ async function toWavBase64(blob: Blob): Promise<string> {
 }
 
 /** Manda el audio a `voice-parse`. Lanza Error con un mensaje en español. */
-export async function parseVoice<T = Record<string, unknown>>(
-  kind: VoiceKind, audio: string, context: Record<string, unknown> = {},
-): Promise<T> {
-  const { data, error } = await supabase.functions.invoke('voice-parse', { body: { kind, audio, mime: 'audio/wav', context } })
+export const parseVoice = <T = Record<string, unknown>>(kind: VoiceKind, audio: string, context: Record<string, unknown> = {}) =>
+  invokeParse<T>({ kind, audio, mime: 'audio/wav', context })
+
+/** Lo mismo pero con texto escrito (o corregido a mano): más barato y rápido que el audio. */
+export function parseVoiceText<T = Record<string, unknown>>(kind: VoiceKind, text: string, context: Record<string, unknown> = {}): Promise<T> {
+  const clean = text.trim()
+  if (!clean) return Promise.reject(new Error('Escribe lo que quieres hacer.'))
+  if (clean.length > MAX_TEXT_CHARS) return Promise.reject(new Error(`El texto es muy largo (máximo ${MAX_TEXT_CHARS} caracteres).`))
+  return invokeParse<T>({ kind, text: clean, context })
+}
+
+async function invokeParse<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('voice-parse', { body })
   if (error) {
     let msg = 'No se pudo procesar el audio. Intenta de nuevo.'
     try { msg = (await (error as { context?: Response }).context?.json())?.error ?? msg } catch { /* sin cuerpo */ }

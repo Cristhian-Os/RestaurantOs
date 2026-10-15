@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryService } from '../../services/inventoryService'
 import message from 'antd/es/message'
 import { VoiceButton } from '../VoiceButton'
+import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Ingrediente } from '../../types/inventory'
 
 const UNIDADES = ['kg', 'litro', 'pieza', 'gramo', 'ml', 'paquete'] as const
@@ -136,7 +137,7 @@ export function IngredientesManager() {
             <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Nombre</label>
             <div style={{ display: 'flex', gap: '0.375rem' }}>
               <input value={nuevo.nombre} onChange={e => setNuevo(n => ({ ...n, nombre: e.target.value }))} style={inputBase} placeholder="Ej: Queso mozzarella" />
-              <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setNuevo(n => ({ ...n, nombre: r.transcript.trim().replace(/.$/, '') }))} />
+              <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setNuevo(n => ({ ...n, nombre: limpiarTranscripcion(r.transcript) }))} />
             </div>
           </div>
           <div style={{ width: 110 }}>
