@@ -1,15 +1,17 @@
 /**
  * SalesHistory.tsx
- * Historial de ventas del día para revisar ANTES de hacer el corte de caja:
- * qué se vendió y para quién fue cada venta. Usa las mismas reglas del corte
- * (pedidos completados y pagados ese día en hora de Colombia; Rappi aparte,
- * no cuenta como venta). Solo lee: no modifica nada.
+ * Historial de ventas y gastos del día para revisar ANTES de hacer el corte de caja:
+ * qué se vendió y para quién fue cada venta, y cuánto se gastó y en qué. Usa las mismas
+ * reglas del corte (pedidos completados y pagados ese día en hora de Colombia; Rappi aparte,
+ * no cuenta como venta; gastos del mismo día en hora de Colombia). Solo lee: no modifica nada.
  */
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
+import { GastosDesglose, type GastoDetalle } from './GastosDesglose'
+import { totalGastos } from '../../services/gastosResumen'
 import {
   dayBoundsBogota, filterOrders, forWhom, itemsSummary, parseItems, productTotals, summarize,
   type PayFilter, type SaleOrder,
@@ -111,6 +113,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [view, setView]         = useState<'ventas' | 'productos'>('ventas')
   const [filter, setFilter]     = useState<PayFilter>('todas')
   const [openId, setOpenId]     = useState<string | null>(null)
+  const [gastos, setGastos]     = useState<GastoDetalle[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -138,6 +141,13 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       setOrders(list)
       setOpenId(null)
 
+      // Gastos del mismo día (hora de Colombia). Si fallan, las ventas se siguen mostrando.
+      const { data: gd, error: gErr } = await supabase.from('gastos')
+        .select('id, concepto, monto, categoria, created_at')
+        .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false })
+      if (gErr) { setGastos([]); message.warning('No se pudieron cargar los gastos del día') }
+      else setGastos(((gd ?? []) as { id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]))
+
       // Quién tomó el pedido (solo personal; los pedidos del QR traen el usuario del cliente).
       const ids = [...new Set(list.map(o => o.user_id).filter((x): x is string => !!x))]
       if (ids.length > 0) {
@@ -154,6 +164,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   useEffect(() => { void load() }, [load])
 
   const summary  = useMemo(() => summarize(orders), [orders])
+  const gastosDia = useMemo(() => totalGastos(gastos), [gastos])
   const shown    = useMemo(() => filterOrders(orders, filter), [orders, filter])
   const products = useMemo(() => productTotals(shown), [shown])
   const isToday  = date === hoyBogota()
@@ -169,7 +180,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         className="bg-[#CDD0DC] w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-4 flex flex-col gap-3" style={S.neoOut}>
 
         <div className="flex items-center justify-between gap-2">
-          <h3 className="m-0 font-bold text-[#2D3561] text-lg">Historial de ventas</h3>
+          <h3 className="m-0 font-bold text-[#2D3561] text-lg">Ventas y gastos del día</h3>
           <button type="button" onClick={onClose} aria-label="Cerrar"
             className="w-9 h-9 rounded-xl border-none cursor-pointer bg-[#D8DAE4] text-[#6B7280] text-lg" style={S.neoOutSm}>✕</button>
         </div>
@@ -200,6 +211,19 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
           {summary.rappi > 0 && ` · ${summary.rappi} de Rappi (no suman)`}
           {isToday && ' · es lo que va a incluir el corte de hoy'}
         </p>
+
+        {/* Gastos del día y lo que queda: las mismas cuentas del corte (ventas − gastos; la propina no es venta). */}
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="bg-red-50 border border-red-200 rounded-2xl py-2.5 px-1">
+            <p className="m-0 text-[0.625rem] font-bold uppercase tracking-wider text-red-400">Gastos{gastos.length > 0 && ` (${gastos.length})`}</p>
+            <p className="m-0 font-bold text-red-600 text-sm">{gastosDia > 0 ? '−' : ''}{fmt(gastosDia)}</p>
+          </div>
+          <div className="bg-[#D8DAE4] rounded-2xl py-2.5 px-1" style={S.neoOutSm}>
+            <p className="m-0 text-[0.625rem] font-bold uppercase tracking-wider text-[#9CA3AF]">Neto (ventas − gastos)</p>
+            <p className="m-0 font-bold text-[#2D3561] text-sm">{fmt(summary.total - gastosDia)}</p>
+          </div>
+        </div>
+        <GastosDesglose gastos={gastos} periodo="dia" />
 
         <div className="flex gap-1 p-1 rounded-2xl bg-[#D8DAE4]" style={S.neoIn}>
           <button type="button" className={tab(view === 'ventas')} onClick={() => setView('ventas')}>Por venta</button>
