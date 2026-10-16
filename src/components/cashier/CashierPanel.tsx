@@ -1511,7 +1511,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm" style={S.neoOut}
+              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm overscroll-contain" style={{ ...S.neoOut, maxHeight: '90vh', overflowY: 'auto' }}
             >
               <div className="text-center mb-5">
                 <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl mx-auto mb-3" style={S.green}>
@@ -1675,24 +1675,27 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 </p>
               )}
 
-              <button
-                onClick={handleDescargarExcel}
-                className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#1D7A46', ...S.green }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Descargar Excel
-              </button>
+              {/* Botones fijos al fondo: siempre alcanzables aunque el corte sea largo */}
+              <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-[#D8DAE4] rounded-b-3xl">
+                <button
+                  onClick={handleDescargarExcel}
+                  className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#1D7A46', ...S.green }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Descargar Excel
+                </button>
 
-              <button
-                onClick={() => setShowCorte(false)}
-                className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
-                style={S.neoOut}
-              >
-                Cerrar
-              </button>
+                <button
+                  onClick={() => setShowCorte(false)}
+                  className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
+                  style={S.neoOut}
+                >
+                  Cerrar
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
