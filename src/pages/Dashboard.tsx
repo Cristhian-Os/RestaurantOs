@@ -38,6 +38,7 @@ import BrandingManager, { applyBranding } from '../components/branding/BrandingM
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 import { PlatformOverview } from '../components/platform/PlatformOverview'
+import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
 import { Proveedores }      from '../components/cashier/Proveedores'
 import { SetupWizard }      from '../components/onboarding/SetupWizard'
@@ -216,7 +217,7 @@ const ForcePasswordChangeModal = ({ onDone }: { onDone: () => void }) => {
 
   const handleSave = async () => {
     setErr(null)
-    if (pw1.trim().length < 6) { setErr('La contraseña debe tener al menos 6 caracteres'); return }
+    if (pw1.trim().length < 8) { setErr('La contraseña debe tener al menos 8 caracteres'); return }
     if (pw1 !== pw2) { setErr('Las contraseñas no coinciden'); return }
     setSaving(true)
     try {
@@ -239,7 +240,7 @@ const ForcePasswordChangeModal = ({ onDone }: { onDone: () => void }) => {
           Tu cuenta se creó con una contraseña temporal. Por seguridad, elige una nueva antes de continuar.
         </p>
         <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
-          <input type="password" placeholder="Nueva contraseña (mínimo 6 caracteres)" value={pw1}
+          <input type="password" placeholder="Nueva contraseña (mínimo 8 caracteres)" value={pw1}
             onChange={e => setPw1(e.target.value)}
             style={{ width:'100%', padding:'0.75rem 1rem', borderRadius:'0.75rem', border:'1px solid var(--w-line)', outline:'none', fontSize:'0.875rem', color:'var(--w-ink)', background:'var(--w-bg)', boxSizing:'border-box' }} />
           <input type="password" placeholder="Confirma la nueva contraseña" value={pw2}
@@ -447,7 +448,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
-      case 'platform':  return profile.role === 'super_admin' ? <PlatformOverview /> : null
+      case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformOverview /></MfaGate> : null
       default:          return null
     }
   }

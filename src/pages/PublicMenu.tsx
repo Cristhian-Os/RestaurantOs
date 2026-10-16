@@ -474,8 +474,7 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
 
   useEffect(() => {
     if (!restaurantId) { setLoading(false); return }
-    supabase.from('ingredientes_menu_publico').select('*')
-      .eq('restaurant_id', restaurantId).then(({ data }) => {
+    supabase.rpc('ingredientes_publicos', { p_restaurant_id: restaurantId }).then(({ data }) => {
       setIngs((data as PublicIngredient[] | null)?.filter(i => i.disponible) ?? [])
       setLoading(false)
     })
