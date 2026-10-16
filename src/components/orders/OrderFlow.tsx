@@ -25,7 +25,9 @@ import { useMenuConfig } from '../../hooks/useMenuConfig'
 import {
   type MenuConfig, defaultSel, describeSel, flavorsNeeded, hasOptions, lineNotes, orderCategories,
   groupUnits, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
+  gruposDe, selAV2, selIsValidV2, unitPriceForV2, describeSelV2,
 } from '../../services/menuOptions'
+import { OptionGroupsV2 } from './OptionGroupsV2'
 
 // ─── Estilos neomórficos ──────────────────────────────────────
 const S = {
@@ -112,11 +114,17 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
   const hasSizes = !!dish.has_sizes && sizes.length > 0
   const tags = dish.tags ?? []
 
+  // Opciones universales (interruptor por restaurante): grupos v2, precio, validación y texto con el motor nuevo.
+  const v2 = menu.optionsV2
+  const groupsV2 = useMemo(() => gruposDe(dish), [dish])
+  const priceOf = (u: ItemSel) => (v2 ? unitPriceForV2(dish, menu.listas, u) : unitPriceFor(dish, u))
+  const validOf = (u: ItemSel) => (v2 ? selIsValidV2(groupsV2, menu.listas, u) : selIsValid(dish, u))
+
   // Al armar un producto NUEVO cada unidad se elige por separado (dos cholaos pueden llevar
   // sabores o toppings distintos). Al editar una línea que ya está en un pedido se mantiene
   // como siempre: una sola selección para toda la cantidad.
   const perUnit = !initial
-  const [units, setUnits]     = useState<ItemSel[]>(() => [{ ...defaultSel(dish), ...(initial?.sel ?? {}) }])
+  const [units, setUnits]     = useState<ItemSel[]>(() => [{ ...defaultSel(dish), ...(v2 ? selAV2(dish, initial?.sel ?? {}) : (initial?.sel ?? {})) }])
   const [active, setActive]   = useState(0)
   const [editQty, setEditQty] = useState(initial?.qty ?? 1)
   const act = Math.min(active, units.length - 1)
@@ -138,9 +146,9 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
 
   const chosenFlavors = Object.values(sel.helado ?? {}).flat()
   const toppings = (dish.toppings ?? []).filter(t => !menu.toppingsOff.includes(t.nombre) || sel.toppings?.includes(t.nombre))
-  const unitPrice = unitPriceFor(dish, sel)
-  const optionsValid = units.every(u => selIsValid(dish, u))
-  const totalPrice = perUnit ? units.reduce((sum, u) => sum + unitPriceFor(dish, u), 0) : unitPrice * qty
+  const unitPrice = priceOf(sel)
+  const optionsValid = units.every(validOf)
+  const totalPrice = perUnit ? units.reduce((sum, u) => sum + priceOf(u), 0) : unitPrice * qty
 
   const toggleFlavor = (gi: number, flavor: string, max: number) => setSel(s => {
     const k = String(gi)
@@ -163,8 +171,8 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
   const toResult = (u: ItemSel, n: number): BuilderResult => {
     const c = (u.comment ?? '').trim()
     return {
-      qty: n, unitPrice: unitPriceFor(dish, u), size: hasSizes ? (u.size ?? null) : null, toppings: u.toppings ?? [],
-      optsText: describeSel(dish, u, shortages),
+      qty: n, unitPrice: priceOf(u), size: hasSizes ? (u.size ?? null) : null, toppings: u.toppings ?? [],
+      optsText: v2 ? describeSelV2(dish, u, shortages) : describeSel(dish, u, shortages),
       sel: { ...u, comment: c || undefined },
       comment: c,
     }
@@ -212,7 +220,7 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
             <div className="flex flex-wrap gap-2">
               {units.map((u, i) => (
                 <button key={i} onClick={() => setActive(i)} aria-label={`Unidad ${i + 1}`} style={chipStyle(i === act)}>
-                  {i + 1}{selIsValid(dish, u) ? '' : ' ⚠'}
+                  {i + 1}{validOf(u) ? '' : ' ⚠'}
                 </button>
               ))}
             </div>
@@ -233,7 +241,12 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
           </div>
         )}
 
-        {optionGroups.map((g, gi) => {
+        {v2 && (
+          <OptionGroupsV2 groups={groupsV2} listas={menu.listas} sel={sel} setSel={setSel} chip={chipStyle}
+            kicker={{ className: 'text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2' }}
+            hint={{ className: 'text-xs text-[#9CA3AF]' }} />
+        )}
+        {!v2 && optionGroups.map((g, gi) => {
           const need = flavorsNeeded(g, gi, sel)
           const flavorOptions = g.tipo === 'jugo'
             ? visibleOptions(menu.jugoFlavors, menu.jugoOff, chosenFlavors)

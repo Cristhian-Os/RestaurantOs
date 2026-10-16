@@ -106,6 +106,15 @@ export function MenuAvailability() {
     message.success(`${d.name}: ${!d.available ? 'disponible' : 'agotado'}`)
   }
 
+  // Modelo nuevo (options_v2): agotar o reactivar un ítem de cualquier lista
+  const toggleItemLista = async (key: string, label: string, activo: boolean) => {
+    setBusy(`lista:${key}:${label}`)
+    const { error } = await supabase.rpc('option_lista_set_activo', { p_key: key, p_label: label, p_activo: activo })
+    setBusy(null)
+    if (error) message.error('Error: ' + error.message)
+    else message.success(`${label}: ${activo ? 'disponible' : 'agotado'}`)
+  }
+
   const flavorGroup = (tipo: 'helado' | 'jugo', all: string[], off: string[]) => all.length === 0
     ? <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>No hay sabores configurados (se agregan en Menú → Configurar).</p>
     : (
@@ -126,13 +135,27 @@ export function MenuAvailability() {
         </p>
       </div>
 
-      <Section title="Sabores de helado" sub="Los que aparecen al elegir helado.">
-        {flavorGroup('helado', menu.heladoFlavors, menu.heladoOff)}
-      </Section>
+      {menu.optionsV2 ? Object.entries(menu.listas).filter(([, items]) => items.length > 0).map(([key, items]) => (
+        <Section key={key} title={menu.listaNombres[key] ?? key} sub="Toca un ítem para marcarlo agotado o volver a activarlo.">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {items.map(it => {
+              const on = it.activo !== false
+              return <Toggle key={it.label} label={it.label} on={on} busy={busy === `lista:${key}:${it.label}`}
+                onClick={() => toggleItemLista(key, it.label, !on)} />
+            })}
+          </div>
+        </Section>
+      )) : (
+        <>
+          <Section title="Sabores de helado" sub="Los que aparecen al elegir helado.">
+            {flavorGroup('helado', menu.heladoFlavors, menu.heladoOff)}
+          </Section>
 
-      <Section title="Sabores de jugo" sub="Los que aparecen al elegir jugo.">
-        {flavorGroup('jugo', menu.jugoFlavors, menu.jugoOff)}
-      </Section>
+          <Section title="Sabores de jugo" sub="Los que aparecen al elegir jugo.">
+            {flavorGroup('jugo', menu.jugoFlavors, menu.jugoOff)}
+          </Section>
+        </>
+      )}
 
       <Section title="Toppings" sub="Se activan o desactivan en todos los productos que los usan.">
         {toppings.length === 0 ? (

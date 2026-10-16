@@ -17,6 +17,9 @@ export interface MenuConfig {
   heladoOff:     string[]
   jugoOff:       string[]
   toppingsOff:   string[]
+  optionsV2:     boolean   // interruptor por restaurante (modules_enabled.options_v2): opciones universales
+  listas:        ListMap   // listas de opciones (option_lists + las heredadas de sabores)
+  listaNombres:  Record<string, string>   // nombre visible de cada lista, por key
 }
 
 const strList = (v: unknown): string[] =>
@@ -24,14 +27,32 @@ const strList = (v: unknown): string[] =>
 
 export function parseMenuConfig(mods: unknown): MenuConfig {
   const m = (mods && typeof mods === 'object' ? mods : {}) as Record<string, unknown>
-  return {
+  const base = {
     categories:    Array.isArray(m.categories) ? (m.categories as MenuCategory[]).filter(c => c?.value) : [],
     heladoFlavors: strList(m.helado_flavors),
     jugoFlavors:   strList(m.jugo_flavors),
     heladoOff:     strList(m.helado_flavors_off),
     jugoOff:       strList(m.jugo_flavors_off),
     toppingsOff:   strList(m.toppings_off),
+    optionsV2:     m.options_v2 === true,
   }
+  return {
+    ...base, listas: listasHeredadas(base as MenuConfig),
+    listaNombres: { sabores_helado: 'Sabores de helado', sabores_jugo: 'Sabores de jugo' },
+  }
+}
+
+// Suma las listas guardadas (option_lists) a la config; las guardadas mandan sobre las heredadas.
+export const conListas = (menu: MenuConfig, guardadas: OptionList[]): MenuConfig => ({
+  ...menu, listas: mezclarListas(guardadas, menu),
+  listaNombres: { ...menu.listaNombres, ...Object.fromEntries(guardadas.map(l => [l.key, l.nombre])) },
+})
+
+// Interpreta el JSON que devuelve listas_opciones_publicas (menú del cliente).
+export function listasDesdeRpc(raw: unknown): OptionList[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter(l => l && typeof l.key === 'string' && Array.isArray(l.items))
+    .map(l => ({ key: l.key, nombre: String(l.nombre ?? l.key), items: l.items as OptionItem[], sort_order: Number(l.sort_order) || 0 }))
 }
 
 // Orden de aparición de categorías = orden del arreglo de config (se cambia

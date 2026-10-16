@@ -17,7 +17,9 @@ import { openWompiCheckout } from '../config/billing'
 import {
   type MenuConfig, defaultSel, describeSel, flavorsNeeded, hasOptions, lineNotes, orderCategories,
   groupUnits, parseMenuConfig, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
+  gruposDe, selAV2, selIsValidV2, unitPriceForV2, describeSelV2, conListas, listasDesdeRpc,
 } from '../services/menuOptions'
+import { OptionGroupsV2 } from '../components/orders/OptionGroupsV2'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
   all:       'Todo',
@@ -185,11 +187,17 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
   const hasSizes = !!dish.has_sizes && sizes.length > 0
   const optionGroups = dish.options ?? []
 
+  // Opciones universales (interruptor por restaurante): grupos v2, precio, validación y texto con el motor nuevo.
+  const v2 = menu.optionsV2
+  const groupsV2 = useMemo(() => gruposDe(dish), [dish])
+  const priceOf = (u: ItemSel) => (v2 ? unitPriceForV2(dish, menu.listas, u) : unitPriceFor(dish, u))
+  const validOf = (u: ItemSel) => (v2 ? selIsValidV2(groupsV2, menu.listas, u) : selIsValid(dish, u))
+
   // Al armar un producto NUEVO cada unidad se elige por separado (dos cholaos pueden llevar
   // sabores o toppings distintos). Al editar una línea de un pedido ya enviado se mantiene
   // como siempre: una sola selección para toda la cantidad.
   const perUnit = !initial
-  const [units, setUnits]     = useState<ItemSel[]>(() => [{ ...defaultSel(dish), ...(initial?.sel ?? {}) }])
+  const [units, setUnits]     = useState<ItemSel[]>(() => [{ ...defaultSel(dish), ...(v2 ? selAV2(dish, initial?.sel ?? {}) : (initial?.sel ?? {})) }])
   const [active, setActive]   = useState(0)
   const [editQty, setEditQty] = useState(initial?.qty ?? 1)
   const act = Math.min(active, units.length - 1)
@@ -210,9 +218,9 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
     setActive(Math.min(act, units.length - 2))
   }
 
-  const unitPrice = unitPriceFor(dish, sel)
-  const optionsValid = units.every(u => selIsValid(dish, u))
-  const totalPrice = perUnit ? units.reduce((sum, u) => sum + unitPriceFor(dish, u), 0) : unitPrice * qty
+  const unitPrice = priceOf(sel)
+  const optionsValid = units.every(validOf)
+  const totalPrice = perUnit ? units.reduce((sum, u) => sum + priceOf(u), 0) : unitPrice * qty
   const chosenFlavors = Object.values(sel.helado ?? {}).flat()
   const toppings = (dish.toppings ?? []).filter(t => !menu.toppingsOff.includes(t.nombre) || sel.toppings?.includes(t.nombre))
 
@@ -238,8 +246,8 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
   const toItem = (u: ItemSel, n: number): Omit<CartItem, 'uid'> => {
     const c = (u.comment ?? '').trim()
     return {
-      dish, qty: n, notes: c, size: hasSizes ? (u.size ?? '') : '', price: unitPriceFor(dish, u),
-      extras: u.extras ?? [], toppings: u.toppings ?? [], optsText: describeSel(dish, u),
+      dish, qty: n, notes: c, size: hasSizes ? (u.size ?? '') : '', price: priceOf(u),
+      extras: u.extras ?? [], toppings: u.toppings ?? [], optsText: v2 ? describeSelV2(dish, u) : describeSel(dish, u),
       sel: { ...u, comment: c || undefined },
     }
   }
@@ -301,7 +309,7 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
               {units.map((u, i) => (
                 <button key={i} onClick={() => setActive(i)} aria-label={`Unidad ${i + 1}`} style={chip(i === act)}>
-                  {i + 1}{selIsValid(dish, u) ? '' : ' ⚠'}
+                  {i + 1}{validOf(u) ? '' : ' ⚠'}
                 </button>
               ))}
             </div>
@@ -327,7 +335,12 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
         )}
 
         {/* Grupos de opciones: sabores de helado, queso/helado, etc. */}
-        {optionGroups.map((g, gi) => {
+        {v2 && (
+          <OptionGroupsV2 groups={groupsV2} listas={menu.listas} sel={sel} setSel={setSel} chip={chip}
+            kicker={{ className: 'ed-kicker', style: { marginBottom: '0.625rem' } }}
+            hint={{ className: 'ed-body', style: { fontSize: '0.75rem', color: 'var(--w-ink-mut)' } }} />
+        )}
+        {!v2 && optionGroups.map((g, gi) => {
           const need = flavorsNeeded(g, gi, sel)
           const flavorOptions = g.tipo === 'jugo'
             ? visibleOptions(menu.jugoFlavors, menu.jugoOff, chosenFlavors)
@@ -1183,7 +1196,13 @@ export default function PublicMenu() {
       // Marca del restaurante: aplicar su color como acento del menú
       if (cr.data?.color_primario) document.documentElement.style.setProperty('--w-terra', cr.data.color_primario as string)
       // Categorías (nombre y orden), sabores y lo que caja marcó como agotado
-      setMenuCfg(parseMenuConfig(cr.data?.modules_enabled))
+      const baseCfg = parseMenuConfig(cr.data?.modules_enabled)
+      setMenuCfg(baseCfg)
+      // Listas de opciones del restaurante (solo si usa las opciones universales)
+      if (baseCfg.optionsV2) {
+        supabase.rpc('listas_opciones_publicas', { p_restaurant_id: restaurantId })
+          .then(({ data }) => setMenuCfg(conListas(baseCfg, listasDesdeRpc(data))))
+      }
       setLoading(false)
     })
   }, [restaurantId, refreshSocial])

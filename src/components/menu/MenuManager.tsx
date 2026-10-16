@@ -15,7 +15,10 @@ import message from 'antd/es/message'
 import { VoiceButton } from '../VoiceButton'
 import { VoiceMenuModal } from './VoiceMenuModal'
 import { limpiarTranscripcion } from '../../services/voiceText'
-import type { Dish, DishCategory, DishOptionGroup } from '../../types'
+import type { Dish, DishCategory, DishOptionGroup, OptionGroupV2 } from '../../types'
+import { useMenuConfig } from '../../hooks/useMenuConfig'
+import { gruposDe } from '../../services/menuOptions'
+import { DishGroupsEditor, validarGrupos } from './DishGroupsEditor'
 
 const S = {
   neoOut:  { boxShadow: 'var(--shadow-out)' },
@@ -112,6 +115,7 @@ interface DishForm {
   quesoHeladoMulti: boolean  // permite elegir los dos a la vez (ej: el Salpicrem)
   jugoCount:     string   // nº de sabores de jugo a elegir (0/'' = ninguno)
   toppings:      ToppingRow[]   // toppings opcionales (precio 0 = gratis)
+  gruposV2:      OptionGroupV2[]  // opciones universales (solo con options_v2 encendido)
   image_file?:   File | null
   image_preview? :string | null
 }
@@ -120,7 +124,7 @@ const FORM_EMPTY: DishForm = {
   name:'', description:'', price:'', category:'principal',
   tags:'', available:true, has_sizes:false, sizes:[{ nombre:'', precio:'' }],
   heladoCount:'', quesoHelado:false, quesoHeladoMulti:false, jugoCount:'',
-  toppings:[],
+  toppings:[], gruposV2:[],
   image_file:null, image_preview:null,
 }
 
@@ -165,6 +169,7 @@ function dishToForm(d: Dish): DishForm {
     quesoHeladoMulti: !!quesoHeladoGroup?.multiple,
     jugoCount:     jugoGroup?.cantidad ? String(jugoGroup.cantidad) : '',
     toppings:      (d.toppings ?? []).map(t => ({ nombre: t.nombre, precio: String(t.precio ?? 0) })),
+    gruposV2:      gruposDe(d),
     image_file:    null,
     image_preview: d.image_url ?? null,
   }
@@ -331,6 +336,8 @@ function ColorPortal({ anchorRef, onSelect, onClose }: ColorPortalProps) {
 }
 
 export const MenuManager = memo(() => {
+  const menuCfg = useMenuConfig()
+  const v2 = menuCfg.optionsV2   // opciones universales (interruptor por restaurante)
   const [dishes,      setDishes]      = useState<Dish[]>([])
   const [loading,     setLoading]     = useState(true)
   const [showForm,    setShowForm]    = useState(false)
@@ -472,6 +479,10 @@ export const MenuManager = memo(() => {
 
   const handleSave = useCallback(async () => {
     if (!form.name.trim())    { setFormError('El nombre es requerido'); return }
+    if (v2) {
+      const problema = validarGrupos(form.gruposV2, menuCfg.listas)
+      if (problema) { setFormError(problema); return }
+    }
 
     // Precio: por tamaños (cada uno con su precio) o precio único
     let price = parseFloat(form.price)
@@ -500,7 +511,7 @@ export const MenuManager = memo(() => {
         available:           form.available,
         has_sizes:           form.has_sizes,
         sizes:               sizesPayload,
-        options:             buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
+        options:             v2 ? form.gruposV2 : buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
         toppings:            form.toppings
           .map(t => ({ nombre: t.nombre.trim(), precio: Math.max(0, parseFloat(t.precio) || 0) }))
           .filter((t, i, arr) => t.nombre !== '' && arr.findIndex(x => x.nombre === t.nombre) === i),
@@ -536,7 +547,7 @@ export const MenuManager = memo(() => {
     } finally {
       setSaving(false)
     }
-  }, [form, editing, fetchDishes])
+  }, [form, editing, fetchDishes, v2, menuCfg.listas])
 
   const handleToggle = useCallback(async (d: Dish) => {
     const newAvail = !d.available
@@ -1410,6 +1421,13 @@ export const MenuManager = memo(() => {
                       Los sabores de helado y de jugos se gestionan en ⚙️ Ajustes → “Sabores de helado” / “Sabores de jugos”.
                     </p>
 
+                    {v2 && (
+                      <div className="mb-3">
+                        <DishGroupsEditor groups={form.gruposV2} onChange={g => setForm(p => ({ ...p, gruposV2: g }))}
+                          listas={menuCfg.listas} listaNombres={menuCfg.listaNombres} theme={{ bg, bgSurf, acc, txt, txtLt }} />
+                      </div>
+                    )}
+                    {!v2 && (<>
                     {/* Opción Queso / Helado */}
                     <label className="flex items-center gap-3 cursor-pointer mb-3">
                       <div className="relative w-11 h-6 rounded-full transition-colors shrink-0"
@@ -1458,6 +1476,7 @@ export const MenuManager = memo(() => {
                           style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                       </div>
                     )}
+                    </>)}
 
                     {/* Toppings opcionales del plato (el cliente marca los que quiera) */}
                     <div className="mt-3 mb-3 rounded-2xl p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
@@ -1492,6 +1511,7 @@ export const MenuManager = memo(() => {
                     </div>
 
                     {/* Sabores de jugo a elegir (ej: jugos naturales) */}
+                    {!v2 && (
                     <div className="flex items-center gap-3 mt-3">
                       <div className="flex-1">
                         <span className="text-sm font-medium" style={{ color: txt }}>Sabores de jugo a elegir</span>
@@ -1505,6 +1525,7 @@ export const MenuManager = memo(() => {
                         className="w-20 rounded-xl px-3 py-2 text-sm outline-none text-center shrink-0"
                         style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                     </div>
+                    )}
                   </div>
                 </div>
               </div>
