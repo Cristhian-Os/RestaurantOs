@@ -22,6 +22,10 @@ import { VoiceButton } from '../VoiceButton'
 import { matchName } from '../../services/voiceMatch'
 import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
 import { SalesHistory } from './SalesHistory'
+import { GastosDesglose } from './GastosDesglose'
+import { CategoriasGastoEditor } from './CategoriasGastoEditor'
+import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
+import { CATEGORIA_DEFECTO, categoriaLabel, rangoGastosBogota } from '../../services/gastosResumen'
 import message from 'antd/es/message'
 import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Profile } from '../../pages/Dashboard'
@@ -122,6 +126,7 @@ interface Gasto {
   created_at: string
   fuente:     FuenteGasto
   pagado_por_nombre: string | null
+  categoria:  string | null
 }
 
 // Gasto adelantado con dinero propio que aún no se le devuelve a quien lo pagó.
@@ -164,6 +169,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [showPagos,     setShowPagos]     = useState(false)
   const [porReembolsar, setPorReembolsar] = useState<PorReembolsar[]>([])
   const [gastoFuente,   setGastoFuente]   = useState<FuenteGasto>('caja')
+  const [gastoCategoria, setGastoCategoria] = useState<string>(CATEGORIA_DEFECTO)
+  const [showCategorias, setShowCategorias] = useState(false)
+  // Categorías de gastos del restaurante (las edita el admin). `etiquetas` pone el nombre actual en cortes e historial.
+  const { categorias, etiquetas, filas: filasCategorias, usaSugeridas, reload: recargarCategorias } = useCategoriasGasto()
+  // La elegida, si sigue vigente; si no (p. ej. la quitaron), "Otros" o la primera disponible.
+  const categoriaActual = categorias.some(c => c.key === gastoCategoria)
+    ? gastoCategoria
+    : (categorias.find(c => c.key === CATEGORIA_DEFECTO)?.key ?? categorias[0]?.key ?? '')
   const [gastoPagadoPor, setGastoPagadoPor] = useState('')
   const [aporteMonto,   setAporteMonto]   = useState('')
   const [aportePor,     setAportePor]     = useState('')
@@ -202,6 +215,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [editandoBase,  setEditandoBase]  = useState(false)
   const [savingBase,    setSavingBase]    = useState(false)
   const [corteMensual,  setCorteMensual]  = useState<CorteMensual | null>(null)
+  // Gastos del mes con su categoría: para mostrar y exportar "en qué se gastó". Si falla la carga, el corte sigue mostrando el total.
+  const [gastosMes,     setGastosMes]     = useState<{ id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]>([])
   const [loadingMensual,setLoadingMensual]= useState(false)
   const [showHistory,  setShowHistory]  = useState(false)
 
@@ -220,7 +235,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       supabase.from('orders').select('total, payment_method, propina, tipo_pedido')
         .eq('status', 'completed')
         .gte('created_at', inicioDia),
-      supabase.from('gastos').select('id, concepto, monto, created_at, fuente, pagado_por_nombre')
+      supabase.from('gastos').select('id, concepto, monto, created_at, fuente, pagado_por_nombre, categoria')
         .gte('created_at', inicioDia).order('created_at', { ascending: false }),
       supabase.from('bases_caja').select('monto').eq('fecha', hoyBogota()).maybeSingle(),
       // El dinero del día sale de los PAGOS recibidos hoy, no del total de cada pedido.
@@ -284,13 +299,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     const { error } = await supabase.from('gastos').insert({
       concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
       fuente: gastoFuente, pagado_por_nombre: gastoFuente === 'propio' ? gastoPagadoPor.trim() : null,
+      categoria: categoriaActual || null,
     })
     setSavingGasto(false)
     if (error) { message.error('Error: ' + error.message); return }
-    setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoPagadoPor(''); setShowGastoForm(false)
+    setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoCategoria(CATEGORIA_DEFECTO); setGastoPagadoPor(''); setShowGastoForm(false)
     message.success(gastoFuente === 'propio' ? `Gasto registrado · queda por reembolsar a ${gastoPagadoPor.trim()}` : 'Gasto registrado')
     fetchData()
-  }, [gastoConcepto, gastoMonto, gastoFuente, gastoPagadoPor, fetchData])
+  }, [gastoConcepto, gastoMonto, gastoFuente, categoriaActual, gastoPagadoPor, fetchData])
 
   // Cola de pagos sin internet: leerla, enviarla al volver la red y refrescar caja cuando se envíe algo.
   const recargarCola = useCallback(async () => {
@@ -336,10 +352,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   }, [aporteMonto, aportePor])
 
   // Ingredientes existentes, para vincular cada producto de la compra a su stock
-  useEffect(() => {
+  const loadIngredientes = useCallback(() => {
     supabase.from('ingredientes').select('id, nombre, unidad_medida').order('nombre')
       .then(({ data }) => setIngredientesOpts(data ?? []))
   }, [])
+  useEffect(() => { loadIngredientes() }, [loadIngredientes])
 
   // % de propina sugerida configurado en Marca, para prellenar el campo de propina
   useEffect(() => {
@@ -374,7 +391,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     const items = provItems.filter(it => it.nombre_producto.trim() && parseFloat(it.cantidad) > 0 && parseFloat(it.precio_unitario) >= 0)
     if (items.length === 0) { message.error('Agrega al menos un producto con cantidad y precio'); return }
     setSavingGasto(true)
-    const { error } = await supabase.rpc('registrar_compra_proveedor', {
+    const { data, error } = await supabase.rpc('registrar_compra_proveedor', {
       p_concepto: gastoConcepto.trim(),
       p_items: items.map(it => ({
         ingrediente_id:  it.ingrediente_id || null,
@@ -386,10 +403,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     })
     setSavingGasto(false)
     if (error) { message.error('Error: ' + error.message); return }
+    // La base crea el proveedor y los ingredientes que no existían; se avisa qué quedó nuevo.
+    const res = (data ?? {}) as { proveedor_creado?: boolean; ingredientes_creados?: { nombre: string }[] }
+    const creados = res.ingredientes_creados ?? []
+    const nuevos: string[] = []
+    if (res.proveedor_creado) nuevos.push(`proveedor "${gastoConcepto.trim()}"`)
+    if (creados.length > 0) nuevos.push(`${creados.length === 1 ? 'ingrediente' : 'ingredientes'} ${creados.map(c => `"${c.nombre}"`).join(', ')}`)
     setGastoConcepto(''); setProvItems([{ ...PROV_ITEM_EMPTY }]); setShowGastoForm(false)
-    message.success('Compra registrada · stock actualizado')
+    message.success(nuevos.length > 0 ? `Compra registrada · stock actualizado · se creó ${nuevos.join(' y ')}` : 'Compra registrada · stock actualizado')
+    loadIngredientes()
     fetchData()
-  }, [gastoConcepto, provItems, fetchData])
+  }, [gastoConcepto, provItems, fetchData, loadIngredientes])
 
   const handleEliminarGasto = useCallback(async (id: string) => {
     const { error } = await supabase.from('gastos').delete().eq('id', id)
@@ -590,7 +614,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     const { data, error } = await supabase.rpc('get_corte_mensual')
     setLoadingMensual(false)
     if (error) { message.error('Error: ' + error.message); return }
-    setCorteMensual(data as CorteMensual)
+    const corte = data as CorteMensual
+    try {
+      const { from, to } = rangoGastosBogota(corte.desde, corte.hasta)
+      const { data: gm, error: gmErr } = await supabase.from('gastos').select('id, concepto, monto, categoria, created_at')
+        .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false }).limit(2000)
+      setGastosMes(gmErr ? [] : ((gm ?? []) as { id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]))
+    } catch { setGastosMes([]) }
+    setCorteMensual(corte)
   }, [])
 
   // Descargar el corte mensual en Excel (resumen del mes + desglose por día)
@@ -602,11 +633,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       await descargarCorteMensualExcel({
         restauranteNombre: cfg?.display_name ?? 'Restaurante',
         corte: corteMensual,
+        gastos: gastosMes,
+        etiquetas,
       })
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
     }
-  }, [corteMensual])
+  }, [corteMensual, gastosMes, etiquetas])
 
   // Conteo físico de efectivo (arqueo): cantidad de billetes/monedas por denominación
   const denominacionesConteo = DENOMINACIONES
@@ -650,14 +683,15 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           fecha:               corteResult.fecha,
         },
         productos: corteProductos,
-        gastos: gastos.map(g => ({ concepto: g.concepto, monto: Number(g.monto) })),
+        gastos: gastos.map(g => ({ concepto: g.concepto, monto: Number(g.monto), categoria: g.categoria })),
+        etiquetas,
         denominaciones: denominacionesConteo,
         pagos: pagosCorte,
       })
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
     }
-  }, [corteResult, corteProductos, gastos, denominacionesConteo, pagosCorte])
+  }, [corteResult, corteProductos, gastos, denominacionesConteo, pagosCorte, etiquetas])
 
   const totalDia = daySummary.total_efectivo + daySummary.total_transferencia + daySummary.total_tarjeta
   const netoDia  = totalDia - totalGastosHoy
@@ -780,6 +814,23 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
             {gastoModo === 'simple' ? (
               <div className="flex flex-wrap gap-3 items-end">
+                {/* ¿En qué se gastó? Permite sumar gastos por categoría en el corte diario y mensual. El admin edita la lista. */}
+                <div className="w-full">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase">¿En qué se gastó?</label>
+                    {profile.role === 'admin' && (
+                      <button type="button" onClick={() => setShowCategorias(true)}
+                        className="text-[0.6875rem] font-bold text-[#FF5722] bg-transparent border-none cursor-pointer min-h-[32px]">
+                        Editar categorías
+                      </button>
+                    )}
+                  </div>
+                  <select value={categoriaActual} onChange={e => setGastoCategoria(e.target.value)} disabled={categorias.length === 0}
+                    className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn}>
+                    {categorias.length === 0 && <option value="">Sin categorías (el gasto queda sin categoría)</option>}
+                    {categorias.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  </select>
+                </div>
                 {/* ¿Con qué plata se pagó? Define si el gasto resta del efectivo de la caja o queda "por reembolsar". */}
                 <div className="w-full flex flex-wrap gap-3 items-end">
                   <div className="flex-1 min-w-[200px]">
@@ -851,7 +902,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       <input type="number" min={0} step="0.01" value={it.cantidad} onChange={e => updateProvItem(idx, { cantidad: e.target.value })}
                         placeholder="Cantidad" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
                       <input value={it.unidad} onChange={e => updateProvItem(idx, { unidad: e.target.value })}
-                        placeholder="kg / lb / und" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                        placeholder="kg / litro / und" title="Obligatoria si el producto es nuevo: kg, gramo, litro, ml, pieza (und) o paquete" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
                       <input type="number" min={0} step="0.01" value={it.precio_unitario} onChange={e => updateProvItem(idx, { precio_unitario: e.target.value })}
                         placeholder="Precio unit." className="w-24 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
                       <span className="text-xs font-bold text-[#2D3561] w-20 text-right">
@@ -889,6 +940,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
                   <p className="text-[0.6875rem] text-[#9CA3AF]">
                     {new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                    {` · ${categoriaLabel(g.categoria, etiquetas)}`}
                     {g.fuente === 'propio' && ` · lo pagó ${g.pagado_por_nombre ?? 'otra persona'} (no sale del cajón)`}
                     {g.fuente === 'transferencia' && ' · transferencia del negocio'}
                     {g.fuente === 'tarjeta' && ' · tarjeta del negocio'}
@@ -1459,7 +1511,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm" style={S.neoOut}
+              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm overscroll-contain" style={{ ...S.neoOut, maxHeight: '90vh', overflowY: 'auto' }}
             >
               <div className="text-center mb-5">
                 <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl mx-auto mb-3" style={S.green}>
@@ -1500,6 +1552,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <span className="text-sm font-bold text-red-600">Gastos del día</span>
                   <span className="font-bold text-red-600">−{fmt(corteResult.total_gastos)}</span>
                 </div>
+                <GastosDesglose gastos={gastos} periodo="dia" etiquetas={etiquetas} />
                 <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
                   <span className="text-sm font-bold text-white">Beneficio neto</span>
                   <span className="text-xl font-bold text-white">{fmt(corteResult.total_neto ?? corteResult.total_general)}</span>
@@ -1622,26 +1675,39 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 </p>
               )}
 
-              <button
-                onClick={handleDescargarExcel}
-                className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#1D7A46', ...S.green }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Descargar Excel
-              </button>
+              {/* Botones fijos al fondo: siempre alcanzables aunque el corte sea largo */}
+              <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-[#D8DAE4] rounded-b-3xl">
+                <button
+                  onClick={handleDescargarExcel}
+                  className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#1D7A46', ...S.green }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Descargar Excel
+                </button>
 
-              <button
-                onClick={() => setShowCorte(false)}
-                className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
-                style={S.neoOut}
-              >
-                Cerrar
-              </button>
+                <button
+                  onClick={() => setShowCorte(false)}
+                  className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
+                  style={S.neoOut}
+                >
+                  Cerrar
+                </button>
+              </div>
             </motion.div>
           </motion.div>
+        )}
+
+        {showCategorias && (
+          <CategoriasGastoEditor
+            key="categorias-gasto-editor"
+            filas={filasCategorias}
+            usaSugeridas={usaSugeridas}
+            onClose={() => setShowCategorias(false)}
+            onChanged={recargarCategorias}
+          />
         )}
 
         {editingOrder && (
@@ -1698,6 +1764,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <span className="text-sm font-bold text-red-600">Gastos del mes</span>
                   <span className="font-bold text-red-600">−{fmt(corteMensual.total_gastos)}</span>
                 </div>
+                <GastosDesglose gastos={gastosMes} periodo="mes" etiquetas={etiquetas} />
                 <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
                   <span className="text-sm font-bold text-white">Beneficio neto del mes</span>
                   <span className="text-xl font-bold text-white">{fmt(corteMensual.total_neto)}</span>
@@ -1712,6 +1779,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       <div key={d.fecha} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center text-sm bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
                         <span className="text-[#2D3561] font-semibold capitalize">
                           {new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
+                          {Number(d.gastos) > 0 && (
+                            <span className="block text-[0.6875rem] font-normal normal-case text-red-500">Gastos −{fmt(Number(d.gastos))}</span>
+                          )}
                         </span>
                         <span className="text-[#9CA3AF] text-xs">{d.ordenes} órd.</span>
                         <span className="font-bold text-[#2D3561] text-right">{fmt(d.total)}</span>

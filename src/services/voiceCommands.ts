@@ -9,7 +9,10 @@
  * quien está logueado. Este archivo es lógica pura, sin acceso a la base.
  */
 import { matchName } from './voiceMatch.ts'
-import { convertQty } from './voiceUnits.ts'
+import { canonUnit, convertQty } from './voiceUnits.ts'
+
+/** Unidad canónica de voiceUnits → valor que acepta `ingredientes.unidad_medida`. */
+const DB_UNIT: Record<string, string> = { g: 'gramo', kg: 'kg', ml: 'ml', l: 'litro', pieza: 'pieza', paquete: 'paquete' }
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -449,11 +452,19 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
             notes.push(`${ing.nombre}: ${num6(qty)} ${(l.unidad ?? '').trim()} = ${num6(amount)} ${ing.unidad_medida}`)
           }
         }
+        // Producto que no está en inventario: la base lo crea con esta compra, y para eso necesita saber
+        // en qué unidad se cuenta (no se adivina: 2 "libras" no son 2 kg).
+        let newUnit: string | null = null
+        if (!ing) {
+          const cu = canonUnit(l.unidad)
+          if (!cu) return bad(title, `"${name}" es nuevo en tu inventario: di en qué unidad lo compraste (kilos, gramos, litros, mililitros, piezas o paquetes).`)
+          newUnit = DB_UNIT[cu.key]
+        }
         items.push({
           ingrediente_id: ing?.id ?? null,
           nombre_producto: ing?.nombre ?? name,
           cantidad: amount,
-          unidad: ing?.unidad_medida ?? ((l.unidad ?? '').trim() || null),
+          unidad: ing?.unidad_medida ?? newUnit,
           precio_unitario: unitPrice,
         })
         // Igual que la base: sube el stock y el costo del ingrediente (cuenta para órdenes siguientes).
@@ -461,12 +472,12 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       }
       const total = items.reduce((t, i) => t + i.cantidad * i.precio_unitario, 0)
       const show = (i: PurchaseLine) => `${i.nombre_producto} ${num6(i.cantidad)}${i.unidad ? ' ' + i.unidad : ''} × ${money(i.precio_unitario)}`
-      const unlinked = items.filter(i => !i.ingrediente_id).length
+      const nuevos = items.filter(i => !i.ingrediente_id).map(i => i.nombre_producto)
       const parts = [items.map(show).join(' · '), `Total ${money(total)}`]
       if (notes.length > 0) parts.push('Convertido: ' + notes.join('; '))
-      parts.push(sup.linked ? `Proveedor: ${sup.name}` : '⚠ ' + notListed(sup.name))
-      parts.push(unlinked === items.length ? 'Ningún producto está en inventario: no sumará stock' : 'Suma al inventario')
-      if (unlinked > 0 && unlinked < items.length) parts.push(`${unlinked} sin inventario: no sumará stock`)
+      parts.push(sup.linked ? `Proveedor: ${sup.name}` : `Proveedor nuevo: ${sup.name} (se agrega a tu lista)`)
+      parts.push('Suma al inventario')
+      if (nuevos.length > 0) parts.push(`Se crea en inventario: ${nuevos.join(', ')}`)
       return { title, detail: parts.join(' · '), change: { op: 'purchase_add', concepto: concepto.slice(0, 200), items } }
     }
 

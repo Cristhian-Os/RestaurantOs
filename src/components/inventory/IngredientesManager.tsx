@@ -3,6 +3,8 @@
  * Alta de materias primas y registro de compras: el admin agrega un
  * ingrediente nuevo (nombre, unidad, costo, stock inicial) y registra
  * compras posteriores (suma al stock y actualiza el precio unitario).
+ * También permite corregir a mano el stock, el stock mínimo y el costo unitario
+ * de un ingrediente ya creado (conteo físico, errores de digitación).
  */
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -38,6 +40,10 @@ export function IngredientesManager() {
   const [compraFor, setCompraFor] = useState<Ingrediente | null>(null)
   const [compraCantidad, setCompraCantidad] = useState('')
   const [compraPrecio, setCompraPrecio] = useState('')
+  const [editFor, setEditFor] = useState<Ingrediente | null>(null)
+  const [editStock, setEditStock] = useState('')
+  const [editMinimo, setEditMinimo] = useState('')
+  const [editCosto, setEditCosto] = useState('')
 
   const ingredientesQuery = useQuery({
     queryKey: ['ingredientes'],
@@ -82,6 +88,25 @@ export function IngredientesManager() {
     onError: (e) => message.error(e instanceof Error ? e.message : 'Error al registrar la compra'),
   })
 
+  // Los tres valores se guardan en una sola actualización: o cambian todos o ninguno.
+  const editMutation = useMutation({
+    mutationFn: () => {
+      if (!editFor) throw new Error('Sin ingrediente')
+      return inventoryService.updateIngrediente(editFor.id, {
+        stock_actual: parseFloat(editStock),
+        stock_minimo: parseFloat(editMinimo),
+        costo_unitario: parseFloat(editCosto),
+      })
+    },
+    onSuccess: () => {
+      message.success('Ingrediente actualizado')
+      setEditFor(null)
+      invalidate()
+      queryClient.invalidateQueries({ queryKey: ['shopping_list'] })
+    },
+    onError: (e) => message.error(e instanceof Error ? e.message : 'Error al actualizar'),
+  })
+
   const eliminarMutation = useMutation({
     mutationFn: (id: string) => inventoryService.deleteIngrediente(id),
     onSuccess: () => { message.success('Ingrediente eliminado'); invalidate() },
@@ -99,6 +124,17 @@ export function IngredientesManager() {
     const c = parseFloat(compraCantidad), p = parseFloat(compraPrecio)
     return c > 0 && p >= 0
   }, [compraCantidad, compraPrecio])
+
+  const editValido = useMemo(() => {
+    return [editStock, editMinimo, editCosto].every(v => v.trim() !== '' && Number.isFinite(parseFloat(v)) && parseFloat(v) >= 0)
+  }, [editStock, editMinimo, editCosto])
+
+  const openEdit = (ing: Ingrediente) => {
+    setEditFor(ing)
+    setEditStock(String(ing.stock_actual))
+    setEditMinimo(String(ing.stock_minimo))
+    setEditCosto(String(ing.costo_unitario))
+  }
 
   const openCompra = (ing: Ingrediente) => {
     setCompraFor(ing)
@@ -210,6 +246,10 @@ export function IngredientesManager() {
                     style={{ padding: '0.4rem 0.75rem', borderRadius: '0.5rem', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', marginRight: '0.5rem' }}>
                     Registrar compra
                   </button>
+                  <button onClick={() => openEdit(ing)}
+                    style={{ padding: '0.4rem 0.75rem', borderRadius: '0.5rem', border: 'none', background: 'var(--bg)', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', marginRight: '0.5rem', boxShadow: 'var(--shadow-out-sm)' }}>
+                    Editar
+                  </button>
                   <button onClick={() => { if (window.confirm(`¿Eliminar ${ing.nombre}?`)) eliminarMutation.mutate(ing.id) }}
                     style={{ padding: '0.4rem 0.6rem', borderRadius: '0.5rem', border: 'none', background: 'rgba(239,68,68,0.12)', color: '#DC2626', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>
                     Eliminar
@@ -220,6 +260,38 @@ export function IngredientesManager() {
           </tbody>
         </table>
       </div>
+
+      {editFor && (
+        <div onClick={() => setEditFor(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg)', borderRadius: '1.25rem', padding: '1.5rem', width: '100%', maxWidth: 360, boxShadow: 'var(--shadow-out)' }}>
+            <h3 style={{ margin: '0 0 0.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Editar ingrediente</h3>
+            <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{editFor.nombre} · unidad: {editFor.unidad_medida}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Stock actual ({editFor.unidad_medida})</label>
+                <input type="number" min={0} autoFocus value={editStock} onChange={e => setEditStock(e.target.value)} style={inputBase} placeholder="0" />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Stock mínimo ({editFor.unidad_medida})</label>
+                <input type="number" min={0} value={editMinimo} onChange={e => setEditMinimo(e.target.value)} style={inputBase} placeholder="0" />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Costo unitario</label>
+                <input type="number" min={0} value={editCosto} onChange={e => setEditCosto(e.target.value)} style={inputBase} placeholder="0" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem' }}>
+              <button onClick={() => setEditFor(null)} style={{ flex: 1, padding: '0.7rem', borderRadius: '0.75rem', border: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => editMutation.mutate()} disabled={!editValido || editMutation.isPending}
+                style={{ flex: 1, padding: '0.7rem', borderRadius: '0.75rem', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: !editValido || editMutation.isPending ? 0.6 : 1 }}>
+                {editMutation.isPending ? 'Guardando…' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {compraFor && (
         <div onClick={() => setCompraFor(null)}
