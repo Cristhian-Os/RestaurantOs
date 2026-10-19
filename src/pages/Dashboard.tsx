@@ -37,7 +37,7 @@ import SupportChat            from '../components/SupportChat'
 import BrandingManager, { applyBranding } from '../components/branding/BrandingManager'
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
-import { PlatformOverview } from '../components/platform/PlatformOverview'
+import { PlatformPanel } from '../components/platform/PlatformPanel'
 import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
 import { OptionListsSection } from '../components/menu/OptionListsSection'
@@ -451,7 +451,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
-      case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformOverview /></MfaGate> : null
+      case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformPanel /></MfaGate> : null
       default:          return null
     }
   }
