@@ -42,11 +42,12 @@ import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
 import { OptionListsSection } from '../components/menu/OptionListsSection'
 import { Proveedores }      from '../components/cashier/Proveedores'
+import { Facturas }         from '../components/cashier/Facturas'
 import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'branding' | 'billing' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'branding' | 'billing' | 'platform'
 
 export interface Profile {
   id:          string
@@ -93,6 +94,7 @@ const Icons = {
   Moon:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>,
   Platform:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5M3 12a9 3 0 0018 0"/></svg>,
   Toggles:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><rect x="2" y="5" width="20" height="6" rx="3"/><circle cx="16" cy="8" r="1.5"/><rect x="2" y="13" width="20" height="6" rx="3"/><circle cx="8" cy="16" r="1.5"/></svg>,
+  Receipt:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2zM9 7h6M9 11h6"/></svg>,
   Truck:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M1 4h14v12H1zM15 9h4l3 3v4h-7"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg>,
 }
 
@@ -114,6 +116,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú'},
     { view:'menu_listas', icon:<Icons.Menu />,     label:'Listas y opciones'},
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
+    { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'   },
     { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
     { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
   ],
@@ -134,6 +137,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'shifts',       icon:<Icons.Team />,    label:'Mis turnos'   },
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú' },
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'  },
+    { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'     },
   ],
   client:  [{ view:'menu', icon:<Icons.Menu />, label:'Menú' }],
 }
@@ -449,6 +453,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'menu_gestion': return <MenuAvailability />
       case 'menu_listas':  return <OptionListsSection />
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
+      case 'facturas':     return profile.role === 'admin' || profile.role === 'cashier' ? <Facturas profile={profile} /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
       case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformPanel /></MfaGate> : null

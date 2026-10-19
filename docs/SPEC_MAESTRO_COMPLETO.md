@@ -1477,6 +1477,7 @@ Reglas completas en el documento de precios y comisiones. Resumen: el vendedor g
 - [ ] **Roles y permisos** claros y probados: admin, cajero, mesero, cocina.
 - [ ] **Asistente de configuración paso a paso**: tipo de restaurante, datos, mesas, proveedores, inventario, menú con foto y descripción por plato, recetas que conectan cada plato con sus ingredientes, marca con vista previa en vivo y equipo, para dejar el sistema completo sin ayuda en menos de 45 minutos. Diseño completo en el Anexo D (necesita primero las plantillas de 1.5).
 - [ ] **Facturas y comprobantes con foto**: apartado en caja para subir fotos de facturas de compra, con proveedor, monto y fecha, y opción de registrar el gasto. Pedido por Angela. Diseño en el Anexo E.
+- [ ] **Lectura automática de facturas con IA** (Anexo E, punto 3.5): Gemini propone proveedor, fecha, monto y productos al subir la foto; el usuario revisa antes de guardar. Pospuesto por Cristhian el 19-oct-2026; se hace después de la primera entrega de facturas.
 - [ ] **Dominio propio y correos oficiales de la empresa** (no son un cobro a los clientes: son costos de la empresa que ya cubre el aumento de precios). Dejar de mostrar la dirección gratuita de Vercel:
   1. Confirmar que `usarestaurantos.com` está comprado a nombre de la empresa (o tuyo, para transferirlo luego a la SAS) y apuntar su DNS a Vercel.
   2. Tú, en Vercel: Project → Settings → Domains → agregar `usarestaurantos.com` y `www.usarestaurantos.com`; poner el principal como producción. (Hacerlo por la API devolvió 403; es un paso manual.)
