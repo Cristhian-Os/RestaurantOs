@@ -31,6 +31,7 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
   ])
   const failed = [dishes, ingredients, employees, mesas, recetas, suppliers].find(r => r.error)
   if (failed?.error) throw new Error('No pude cargar los datos del restaurante: ' + failed.error.message)
+  const listas = await loadListas()
 
   return {
     ...bogotaNow(),
@@ -45,6 +46,39 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
       id: x.id, nombre: x.nombre as string, telefono: x.telefono ?? null, email: x.email ?? null, producto: x.producto ?? null, notas: x.notas ?? null,
     })),
     mesas:       (mesas.data ?? []).map(m => ({ id: m.id, numero: m.numero, capacidad: m.capacidad, estado: m.estado })),
+    listas,
+  }
+}
+
+/**
+ * Listas cuyos ítems se pueden agotar por voz. Con las opciones nuevas encendidas son las listas del
+ * restaurante (option_lists); si no, los sabores de helado y de jugo de siempre. Un fallo aquí no
+ * debe impedir los demás comandos: sin listas, simplemente no se ofrece esa acción.
+ */
+async function loadListas(): Promise<NonNullable<CommandContext['listas']>> {
+  try {
+    const cfg = await supabase.from('restaurant_config').select('modules_enabled').maybeSingle()
+    const mods = (cfg.data?.modules_enabled ?? {}) as Record<string, unknown>
+    if (mods.options_v2 === true) {
+      const { data, error } = await supabase.from('option_lists').select('key, nombre, items').order('sort_order')
+      if (error) return []
+      return (data ?? []).map(l => ({
+        key: l.key as string, nombre: l.nombre as string,
+        items: ((l.items as { label?: string; activo?: boolean }[] | null) ?? [])
+          .filter(i => i?.label).map(i => ({ label: i.label as string, activo: i.activo !== false })),
+      })).filter(l => l.items.length > 0)
+    }
+    const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '') : [])
+    const heredada = (key: string, nombre: string, todos: unknown, off: unknown) => {
+      const fuera = strs(off)
+      return { key, nombre, items: strs(todos).map(label => ({ label, activo: !fuera.includes(label) })) }
+    }
+    return [
+      heredada('legacy:helado', 'Sabores de helado', mods.helado_flavors, mods.helado_flavors_off),
+      heredada('legacy:jugo', 'Sabores de jugo', mods.jugo_flavors, mods.jugo_flavors_off),
+    ].filter(l => l.items.length > 0)
+  } catch {
+    return []
   }
 }
 
@@ -79,6 +113,14 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
     }
     case 'dish_availability': {
       const { error } = await supabase.rpc('set_plato_disponible', { p_dish_id: c.dishId, p_disponible: c.available })
+      if (error) throw new Error(error.message)
+      return
+    }
+    case 'option_availability': {
+      // Con opciones nuevas: función de la lista del restaurante. Sin ellas: la de sabores heredados de siempre.
+      const { error } = c.key.startsWith('legacy:')
+        ? await supabase.rpc('set_opcion_menu_activa', { p_tipo: c.key.slice('legacy:'.length), p_nombre: c.label, p_activo: c.available })
+        : await supabase.rpc('option_lista_set_activo', { p_key: c.key, p_label: c.label, p_activo: c.available })
       if (error) throw new Error(error.message)
       return
     }

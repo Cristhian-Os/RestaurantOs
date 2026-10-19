@@ -1023,6 +1023,15 @@ export const MenuManager = memo(() => {
                 </div>
               </div>
 
+              {v2 && (
+                <div className="rounded-xl p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: txtLt }}>Sabores y opciones</p>
+                  <p className="text-xs" style={{ color: txt }}>
+                    Tus sabores, leches, salsas y demás opciones ahora se administran en <strong>Listas y opciones</strong> (menú de la izquierda). Los cambios que hagas ahí valen para todos los platos que usan cada lista.
+                  </p>
+                </div>
+              )}
+              {!v2 && (<>
               {/* Sabores de helado */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
@@ -1108,6 +1117,7 @@ export const MenuManager = memo(() => {
                   </div>
                 </div>
               </div>
+              </>)}
             </div>
           </motion.div>
         )}

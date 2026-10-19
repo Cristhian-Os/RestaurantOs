@@ -95,6 +95,7 @@ Si un plato se vende por tamaños, llena "sizes" (nombre y precio de cada uno) y
 Tipos de acción ("type") y los campos que usa cada uno:
 - dish_price: cambiar el precio de un plato. Campos: dish, price, y size SOLO si el plato se vende por tamaños (context.dishes[].sizes no vacío) y dijeron cuál.
 - dish_availability: marcar un plato disponible o agotado ("se acabó el cholao" = available false). Campos: dish, available.
+- option_availability: marcar agotado o disponible un ÍTEM de una lista de opciones que el cliente elige al pedir (sabores de helado o de jugo, leches, salsas, toppings…): "se acabó el sabor fresa", "ya no hay leche de avena", "volvió el sabor mora". Campos: item (valor EXACTO de context.listas[].items cuando encaje), available (false = agotado, true = disponible otra vez), y lista (el nombre de la lista, igual a context.listas[].name) SOLO si lo dijeron ("el sabor…", "la salsa…", "la leche…"). Si lo que se acaba es un ingrediente del inventario y no una opción que se elige, usa ingredient_stock.
 - ingredient_stock: cambiar el inventario de un ingrediente. Campos: ingredient, mode ("set" = dejar en esa cantidad, "add" = sumar, "subtract" = restar), quantity. "Se acabó la fresa" = set con quantity 0. Expresa quantity en la unidad del ingrediente (context.ingredients[].unit): si dicen gramos y la unidad es kg, convierte.
 - task_create: crear una tarea. Campos: title, description, assignee, priority (low, medium, high, urgent; medium por defecto), due_date (YYYY-MM-DD calculado con context.today, "" si no hay fecha).
 - shift_set: asignar o cambiar el turno de un empleado. Campos: employee, date (YYYY-MM-DD calculado con context.today y context.weekday; "el lunes" es el próximo lunes), start y end en formato 24 h HH:MM ("de ocho a cinco" = 08:00 y 17:00), notes opcional.
@@ -115,6 +116,7 @@ Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la
           anyOf: [
             variant('dish_price', { dish: S, size: S, price: N }, ['dish', 'price']),
             variant('dish_availability', { dish: S, available: { type: 'BOOLEAN' } }, ['dish', 'available']),
+            variant('option_availability', { item: S, lista: S, available: { type: 'BOOLEAN' } }, ['item', 'available']),
             variant('ingredient_stock', { ingredient: S, mode: { type: 'STRING', enum: ['set', 'add', 'subtract'] }, quantity: N }, ['ingredient', 'mode', 'quantity']),
             variant('task_create', { title: S, description: S, assignee: S, priority: { type: 'STRING', enum: ['low', 'medium', 'high', 'urgent'] }, due_date: S }, ['title']),
             variant('shift_set', { employee: S, date: S, start: S, end: S, notes: S }, ['employee', 'date', 'start', 'end']),

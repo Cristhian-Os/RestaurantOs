@@ -69,6 +69,43 @@ assert.deepEqual(one({ type: 'dish_availability', dish: 'Limonada', available: f
 assert.equal(one({ type: 'dish_availability', dish: 'Limonada', available: false }).detail, 'Disponible → Agotado')
 assert.match(one({ type: 'dish_availability', dish: 'Limonada' }).problem!, /disponible o agotado/)
 
+// ── Opciones de las listas (sabores, leches, salsas) ──
+{
+  const conListas = (): CommandContext => ({
+    ...base(),
+    listas: [
+      { key: 'sabores_helado', nombre: 'Sabores de helado', items: [{ label: 'Fresa', activo: true }, { label: 'Oreo', activo: true }, { label: 'Mora', activo: false }] },
+      { key: 'leches', nombre: 'Leches', items: [{ label: 'Entera', activo: true }, { label: 'Avena', activo: true }] },
+      { key: 'salsas', nombre: 'Salsas', items: [{ label: 'Fresa', activo: true }, { label: 'Arequipe', activo: true }] },
+    ],
+  })
+  // agotar un ítem que existe en una sola lista
+  const p = one({ type: 'option_availability', item: 'leche de avena', lista: 'leches', available: false }, conListas())
+  assert.deepEqual(p.change, { op: 'option_availability', key: 'leches', label: 'Avena', available: false })
+  assert.equal(p.detail, 'Disponible → Agotado')
+  assert.equal(p.title, 'Avena · Leches')
+  assert.equal(one({ type: 'option_availability', item: 'Oreo', available: false }, conListas()).change?.op, 'option_availability')
+  // volver a activar uno agotado
+  assert.equal(one({ type: 'option_availability', item: 'mora', available: true }, conListas()).detail, 'Agotado → Disponible')
+  // el mismo nombre en dos listas: pide decir de cuál; diciendo la lista, funciona
+  assert.match(one({ type: 'option_availability', item: 'Fresa', available: false }, conListas()).problem!, /varias listas \(Sabores de helado, Salsas\)/)
+  assert.deepEqual(one({ type: 'option_availability', item: 'Fresa', lista: 'sabores de helado', available: false }, conListas()).change,
+    { op: 'option_availability', key: 'sabores_helado', label: 'Fresa', available: false })
+  // errores claros
+  assert.match(one({ type: 'option_availability', item: 'Kiwi', available: false }, conListas()).problem!, /No encontré "Kiwi"/)
+  assert.match(one({ type: 'option_availability', item: 'Oreo' }, conListas()).problem!, /disponible o agotada/)
+  assert.match(one({ type: 'option_availability', item: 'Oreo', available: false }).problem!, /No encontré/)   // restaurante sin listas
+  // dos órdenes seguidas sobre lo mismo: la segunda ve el cambio de la primera
+  const dos = buildProposals([
+    { type: 'option_availability', item: 'Avena', available: false }, { type: 'option_availability', item: 'Avena', available: false },
+  ], conListas(), 'admin1')
+  assert.equal(dos[0].detail, 'Disponible → Agotado'); assert.equal(dos[1].detail, 'Agotado → Agotado')
+  // el cajero puede; la IA recibe los nombres de las listas
+  assert.equal(buildProposals([{ type: 'option_availability', item: 'Oreo', available: false }], conListas(), 'c1', 'cashier')[0].change?.op, 'option_availability')
+  assert.deepEqual(toPromptContext(conListas()).listas[1], { name: 'Leches', items: ['Entera', 'Avena'] })
+  assert.deepEqual(toPromptContext(base()).listas, [])
+}
+
 // ── Inventario ──
 assert.deepEqual(one({ type: 'ingredient_stock', ingredient: 'Fresa', mode: 'set', quantity: 0 }).change, { op: 'ingredient_stock', ingredientId: 'i1', stock: 0 })
 assert.equal(one({ type: 'ingredient_stock', ingredient: 'Fresa', mode: 'add', quantity: 2.5 }).detail, '5 → 7.5 kg')
