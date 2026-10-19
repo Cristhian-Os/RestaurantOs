@@ -1,6 +1,6 @@
 # Bloque 7: Panel de plataforma, Fase 1 (registro y seguimiento)
 
-Estado: construido y probado en el proyecto de prueba. **No está en producción.**
+Estado: aplicado en producción el 19-oct-2026 (versiones 20261019225118, 20261019225215 y 20261019225250), verificado con prueba revertida (FALLAS=0). Código publicado: commit 367d60c.
 
 ## Qué hace
 - **Inicio ("¿qué necesita atención hoy?")**: acciones pendientes con fecha vencida, pruebas que vencen en 3 días, restaurantes sin pedidos en más de 7 días, pagos atrasados y códigos de vendedor inválidos. Cada elemento abre la ficha. Arriba, el conteo del semáforo.
@@ -20,7 +20,7 @@ Estado: construido y probado en el proyecto de prueba. **No está en producción
 - Pruebas (`supabase/tests/panel_plataforma_fase1.sql`): FALLAS=0 en los tres bloques. Cubren: ningún admin, cajero, anónimo ni dueño sin 2 pasos puede leer ni ejecutar nada; registro de cambios inmutable; código válido/inválido/inactivo/propio; una sola versión de `crear_restaurante`.
 
 ## Para pasar a producción (necesita backup reciente y tu confirmación)
-Migraciones (en orden): `20261020010000_panel_crm_tablas`, `20261020010100_crear_restaurante_con_origen`, `20261020010200_panel_restaurantes_ficha`, `20261020010300_panel_atencion_hoy`. Solo agregan tablas y funciones; el paso 2 reemplaza `crear_restaurante` (quedaría una sola versión).
+Migraciones (en orden): `20261019225118_panel_crm_tablas`, `20261019225215_panel_restaurantes_ficha` (incluye la función del Inicio), `20261019225250_crear_restaurante_con_origen`. Solo agregan tablas y funciones; el paso 2 reemplaza `crear_restaurante` (quedaría una sola versión).
 Orden: las 4 migraciones y enseguida el código. Entre una cosa y otra solo falla "Nuevo restaurante" (el formulario viejo no manda el origen que la función nueva exige); el resto de la app y los restaurantes no se tocan. Nadie más usa esa función.
 Estado inicial de las fichas: Cholaos y Bremantia piloto, Demo demo, Sabor encantado y Meriyein prueba.
 Reversas: `supabase/rollback/<versión>_*_down.sql` de cada una.
