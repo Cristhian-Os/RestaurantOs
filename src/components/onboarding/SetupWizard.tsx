@@ -25,6 +25,9 @@ const TIPOS = [
   { id: 'otro', label: 'Otro', emoji: '🍽️' },
 ]
 
+interface Pregunta { id: string; texto: string }
+interface PlantillaActiva { key: string; nombre: string; emoji: string; preguntas: Pregunta[] }
+
 const ing = (nombre: string, unidad: string): Fila => ({ nombre, unidad, stock_actual: '', stock_minimo: '', costo_unitario: '', proveedor: '' })
 const plato = (nombre: string, categoria: string): Fila => ({ nombre, categoria, precio: '', descripcion: '' })
 
@@ -234,7 +237,13 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
   const [paso, setPaso] = useState(1)
   const [hecho, setHecho] = useState<Record<string, boolean>>({})
   const [cargando, setCargando] = useState(true)
-  const [tipo, setTipo] = useState('')
+  // Tipos de negocio elegidos (puede ser más de uno: ej. heladería y cafetería). El primero es el principal.
+  const [tipos, setTipos] = useState<string[]>([])
+  const tipo = tipos[0] ?? ''
+  // Plantillas activas de la plataforma (si hay, reemplazan las tarjetas fijas) y preguntas de cada una
+  const [plantillas, setPlantillas] = useState<PlantillaActiva[]>([])
+  const [sub, setSub] = useState<'tipo' | 'preguntas'>('tipo')
+  const [respuestas, setRespuestas] = useState<Record<string, string>>({})
   const [ciudad, setCiudad] = useState('')
   const [razon, setRazon] = useState('')
   const [nit, setNit] = useState('')
@@ -249,15 +258,23 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
     (async () => {
       const { data: id } = await supabase.rpc('current_restaurant_id')
       setRid((id as string) ?? null)
-      const [{ data: ob }, { data: cfg }, { data: fis }] = await Promise.all([
+      const [{ data: ob }, { data: cfg }, { data: fis }, { data: pls }, { data: resp }] = await Promise.all([
         supabase.from('restaurant_onboarding').select('current_step, steps_done').maybeSingle(),
-        supabase.from('restaurant_config').select('business_type, ciudad, modules_enabled').maybeSingle(),
+        supabase.from('restaurant_config').select('business_type, ciudad, modules_enabled, plantillas_aplicadas').maybeSingle(),
         supabase.from('restaurant_fiscal').select('razon_social, nit').maybeSingle(),
+        supabase.from('restaurant_templates').select('key, nombre, payload').eq('activo', true).order('nombre'),
+        supabase.from('restaurant_template_answers').select('template_key, pregunta_id, respuesta'),
       ])
+      setPlantillas((pls ?? []).map(p => {
+        const pay = (p.payload ?? {}) as { categorias?: { emoji?: string }[]; preguntas?: Pregunta[] }
+        return { key: p.key as string, nombre: p.nombre as string, emoji: pay.categorias?.find(c => c.emoji)?.emoji ?? '🍽️', preguntas: pay.preguntas ?? [] }
+      }))
+      setRespuestas(Object.fromEntries((resp ?? []).map(r => [`${r.template_key}|${r.pregunta_id}`, r.respuesta as string])))
       if (ob) { setPaso(Math.min(Math.max(ob.current_step ?? 1, 1), PASOS.length)); setHecho((ob.steps_done as Record<string, boolean>) ?? {}) }
       if (fis) { setRazon(fis.razon_social ?? ''); setNit(fis.nit ?? '') }
       if (cfg) {
-        setTipo(cfg.business_type ?? ''); setCiudad(cfg.ciudad ?? '')
+        const aplicadas = (cfg.plantillas_aplicadas as string[] | null) ?? []
+        setTipos([...new Set([cfg.business_type, ...aplicadas].filter((x): x is string => !!x))]); setCiudad(cfg.ciudad ?? '')
         const cats = (cfg.modules_enabled as { categories?: { label?: string }[] } | null)?.categories
         if (cats?.length) setCategorias(cats.map(c => c.label ?? '').filter(Boolean))
       }
@@ -289,16 +306,36 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
     })()
   }, [paso])
 
+  const elegidas = plantillas.filter(p => tipos.includes(p.key))
+  const alternar = (id: string) => setTipos(ts => ts.includes(id) ? ts.filter(x => x !== id) : [...ts, id])
+
+  const guardarRespuestas = async () => {
+    const filas = elegidas.flatMap(p => p.preguntas.map(q => ({
+      plantilla: p.key, pregunta_id: q.id, pregunta: q.texto, respuesta: respuestas[`${p.key}|${q.id}`] ?? '',
+    })))
+    setGuardando(true)
+    const { error } = await supabase.rpc('guardar_respuestas_plantilla', { p_respuestas: filas })
+    setGuardando(false)
+    if (error) { message.error('No se pudieron guardar las respuestas: ' + error.message); return }
+    setSub('tipo'); siguiente(true)
+  }
+
   const guardarTipo = async () => {
-    if (!tipo) { message.warning('Elige el tipo de negocio'); return }
+    if (tipos.length === 0) { message.warning('Elige el tipo de negocio'); return }
     setGuardando(true)
     const { error } = await supabase.from('restaurant_config')
-      .update({ business_type: tipo, ciudad: ciudad.trim() || null }).eq('restaurant_id', rid)
+      .update({ business_type: tipos[0], ciudad: ciudad.trim() || null }).eq('restaurant_id', rid)
     // Razón social y NIT van en una tabla privada: restaurant_config la lee cualquier visitante.
     const { error: errFiscal } = await supabase.from('restaurant_fiscal')
       .upsert({ restaurant_id: rid, razon_social: razon.trim() || null, nit: nit.trim() || null, updated_at: new Date().toISOString() })
+    if (error || errFiscal) { setGuardando(false); message.error('No se pudo guardar: ' + (error ?? errFiscal)!.message); return }
+    // Plantillas activas elegidas: copian categorías, listas de opciones y platos de ejemplo (idempotente, no pisa lo editado)
+    for (const p of elegidas) {
+      const { error: errPl } = await supabase.rpc('aplicar_plantilla', { p_key: p.key })
+      if (errPl) message.warning(`No se pudo agregar la plantilla ${p.nombre}: ${errPl.message}`)
+    }
     setGuardando(false)
-    if (error || errFiscal) { message.error('No se pudo guardar: ' + (error ?? errFiscal)!.message); return }
+    if (elegidas.some(p => p.preguntas.length > 0)) { setSub('preguntas'); return }
     siguiente(true)
   }
 
@@ -344,12 +381,48 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
         </div>
 
         {cargando ? <p style={{ color: 'var(--w-ink-mut)' }}>Cargando…</p> : (<>
-          {paso === 1 && (<>
-            <Titulo t="¿Qué tipo de negocio tienes?" s="Con esto te sugerimos listas de ejemplo para el inventario y el menú." />
+          {paso === 1 && sub === 'preguntas' && (<>
+            <Titulo t="Cuéntanos de tu negocio" s="Estas preguntas nos ayudan a dejar tu menú y tus opciones como las necesitas. Responde lo que sepas con tus palabras; puedes dejar en blanco lo que no." />
+            {elegidas.filter(p => p.preguntas.length > 0).map(p => (
+              <div key={p.key} style={{ ...card, marginBottom: '0.75rem' }}>
+                <p className="ed-kicker" style={{ margin: '0 0 0.75rem' }}>{p.emoji} {p.nombre}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                  {p.preguntas.map((q, i) => {
+                    const id = `preg-${p.key}-${q.id}`
+                    return (
+                      <div key={q.id}>
+                        <label htmlFor={id} style={{ display: 'block', fontWeight: 600, marginBottom: '0.375rem' }}>{i + 1}. {q.texto}</label>
+                        <textarea id={id} rows={2} maxLength={2000} placeholder="Escribe tu respuesta aquí"
+                          value={respuestas[`${p.key}|${q.id}`] ?? ''}
+                          onChange={e => setRespuestas(r => ({ ...r, [`${p.key}|${q.id}`]: e.target.value }))}
+                          style={{ ...input, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'var(--w-sans)' }} />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>
+              Tus respuestas las lee el equipo de RestaurantOS para ajustar tu configuración. No son obligatorias y las puedes cambiar después.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+              <button style={{ ...primary, opacity: guardando ? 0.7 : 1 }} disabled={guardando} onClick={guardarRespuestas}>Guardar respuestas y continuar</button>
+              <button style={ghost} onClick={() => { setSub('tipo'); siguiente(true) }}>Omitir las preguntas</button>
+              <button style={ghost} onClick={() => setSub('tipo')}>← Cambiar tipo de negocio</button>
+            </div>
+          </>)}
+
+          {paso === 1 && sub === 'tipo' && (<>
+            <Titulo t="¿Qué tipo de negocio tienes?" s={plantillas.length > 0
+              ? 'Puedes elegir más de uno (por ejemplo heladería y cafetería). Con esto te dejamos categorías, listas de opciones y platos de ejemplo para que solo pongas tus precios.'
+              : 'Con esto te sugerimos listas de ejemplo para el inventario y el menú.'} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))', gap: '0.625rem' }}>
-              {TIPOS.map(t => (
-                <button key={t.id} onClick={() => setTipo(t.id)} aria-pressed={tipo === t.id}
-                  style={{ ...card, cursor: 'pointer', textAlign: 'center', borderColor: tipo === t.id ? 'var(--w-terra)' : 'var(--w-line)', borderWidth: tipo === t.id ? 2 : 1, minHeight: '5.5rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 700 }}>
+              {(plantillas.length > 0
+                ? [...plantillas.map(p => ({ id: p.key, label: p.nombre, emoji: p.emoji })), { id: 'otro', label: 'Otro', emoji: '🍽️' }]
+                : TIPOS
+              ).map(t => (
+                <button key={t.id} onClick={() => (plantillas.length > 0 ? alternar(t.id) : setTipos([t.id]))} aria-pressed={tipos.includes(t.id)}
+                  style={{ ...card, cursor: 'pointer', textAlign: 'center', borderColor: tipos.includes(t.id) ? 'var(--w-terra)' : 'var(--w-line)', borderWidth: tipos.includes(t.id) ? 2 : 1, minHeight: '5.5rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 700 }}>
                   <div style={{ fontSize: '1.75rem' }}>{t.emoji}</div>{t.label}
                 </button>
               ))}
