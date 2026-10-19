@@ -1,6 +1,6 @@
 # Bloque 5A: Facturas de compra con foto
 
-Estado: construido y probado en el proyecto de prueba. **No está en producción.**
+Estado: aplicado en producción el 19-oct-2026 (versión 20261019221242), verificado con prueba revertida.
 
 ## Qué hace
 - Menú "Facturas" para administrador y cajero (mesero y cocina no la ven).
@@ -18,11 +18,11 @@ Estado: construido y probado en el proyecto de prueba. **No está en producción
 
 ## Para pasar a producción (necesita backup reciente y tu confirmación)
 1. Backup manual nuevo.
-2. Aplicar `supabase/migrations/20261019220000_facturas_compra.sql` (solo agrega: tabla, bucket, 2 funciones; no toca nada existente).
+2. Aplicar `supabase/migrations/20261019221242_facturas_compra.sql` (solo agrega: tabla, bucket, 2 funciones; no toca nada existente).
 3. Subir el código (push a main) y esperar Vercel READY.
 4. Verificar con la prueba (cambiando los ids) y subir una factura real de prueba.
 
-Deshacer: `supabase/rollback/20261019220000_facturas_compra_down.sql`.
+Deshacer: `supabase/rollback/20261019221242_facturas_compra_down.sql`.
 
 ## Pendiente
 - Lectura automática con IA (Anexo E 3.5): anotada en el spec para después.
