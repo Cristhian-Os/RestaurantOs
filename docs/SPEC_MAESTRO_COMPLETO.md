@@ -143,6 +143,24 @@ Sigue exactamente este orden. Cada bloque dice qué leer y cuál es la parada.
 - Lee: Anexo G, Fase 4 (Sentry, copias de seguridad, correo, soporte, modo sin internet, auditoría) y Fase 5.
 - Haz: **no empieces nada de aquí sin que Cristhian elija cuál.** Propón cuál sigue según el informe más reciente y espera su respuesta.
 
+### Bloque 13: Panel "Negocio" del superadministrador (mapa y control de la plataforma). SE HACE AL FINAL
+Pedido por Cristhian el 2026-10-19: **dejarlo para lo último**, después de todos los bloques anteriores. No empezar antes sin su orden expresa.
+- Qué es: una pestaña nueva del panel de plataforma llamada **"Negocio"**, que es la pantalla de entrada del dueño de la plataforma (hoy el panel tiene Restaurantes, Plantillas y Opciones por restaurante). Va detrás del código de 2 pasos, como todo lo demás.
+- **Globo terráqueo** al abrir: un punto por cada restaurante en su ubicación real (ciudad o coordenadas), con el color del semáforo de uso. Al tocar un punto se abre su ficha. Debe funcionar en celular, girar con el dedo y tener una lista alternativa para quien no pueda usar el globo.
+- Datos que hacen falta: ubicación de cada restaurante (ciudad ya se pide en el asistente; agregar latitud y longitud, que se calculan desde la ciudad o se marcan a mano). Cuidar la política de seguridad de la app (`vercel.json`: solo se permiten las fuentes necesarias) y evitar librerías pesadas: el globo debe cargar rápido en un celular de gama media.
+- Funciones que viven dentro de "Negocio" (aprobadas como lista de ideas el 2026-10-19; Cristhian elige el orden al llegar):
+  1. **Semáforo de uso** por restaurante (verde, amarillo, rojo según pedidos recientes) y **"qué necesita atención hoy"**: pruebas gratis por vencer, pagos atrasados, restaurantes sin pedidos hace días, asistentes de configuración sin terminar.
+  2. **Ficha editable** de cada restaurante (nombre, contacto, país, notas, plan, fechas, con motivo y registro) y **avance del asistente** con las respuestas del administrador.
+  3. **Suspender, reactivar y borrar con seguridad**: el borrado exige el código de 2 pasos, copia previa y escribir el nombre del restaurante, y deja registro.
+  4. **Vendedores, códigos y comisiones** (Bloques 7 y 8), incluido el código propio de cada restaurante para que gane comisión si vende.
+  5. **Panel de dinero**: ingresos por mes, planes activos, pagos, comisiones que se deben.
+  6. **Costo de la voz e IA por restaurante** para que no se dispare.
+  7. **"Ver como el restaurante"** en solo lectura y con registro, para dar soporte sin pedir claves.
+  8. **Avisos** a todos o a un grupo de restaurantes.
+  9. **Estado de copias y salud del sistema**: última copia, errores recientes, uso de la base.
+- Reutiliza lo que ya exista de los Bloques 7, 8 y 11 en vez de duplicarlo: este bloque es la pantalla que los reúne y los pone sobre el mapa.
+- 🛑 Parada: Cristhian abre "Negocio" en el celular y en el computador, ve el globo con sus restaurantes reales, toca un punto, y confirma que el semáforo y la lista de atención hoy coinciden con lo que él sabe de cada uno. Nada se aplica en producción sin su confirmación y una copia reciente.
+
 ## 6. Lo que Claude Code no puede hacer y depende de Cristhian
 
 No te bloquees por esto: déjalo anotado en el informe y sigue con lo que sí puedes.
