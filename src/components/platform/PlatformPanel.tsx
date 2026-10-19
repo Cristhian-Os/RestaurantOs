@@ -5,10 +5,12 @@
  */
 import { useState } from 'react'
 import { PlatformOverview } from './PlatformOverview'
+import { PlatformInicio } from './PlatformInicio'
 import { PlantillasManager } from './PlantillasManager'
 import { OpcionesRestaurantes } from './OpcionesRestaurantes'
 
 const TABS = [
+  { id: 'inicio', label: 'Inicio' },
   { id: 'restaurantes', label: 'Restaurantes' },
   { id: 'plantillas', label: 'Plantillas' },
   { id: 'opciones', label: 'Opciones por restaurante' },
@@ -16,7 +18,7 @@ const TABS = [
 type TabId = typeof TABS[number]['id']
 
 export function PlatformPanel() {
-  const [tab, setTab] = useState<TabId>('restaurantes')
+  const [tab, setTab] = useState<TabId>('inicio')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div role="tablist" aria-label="Secciones del panel de plataforma" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -28,6 +30,7 @@ export function PlatformPanel() {
           </button>
         ))}
       </div>
+      {tab === 'inicio' && <PlatformInicio />}
       {tab === 'restaurantes' && <PlatformOverview />}
       {tab === 'plantillas' && <PlantillasManager />}
       {tab === 'opciones' && <OpcionesRestaurantes />}

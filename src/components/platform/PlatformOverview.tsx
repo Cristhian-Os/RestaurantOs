@@ -9,6 +9,12 @@
  */
 import { useState, useEffect, memo } from 'react'
 import { supabase } from '../../services/supabaseClient'
+import { FichaRestaurante, SEMAFORO } from './FichaRestaurante'
+
+interface Seguimiento {
+  id: string; estado_comercial: string | null; origen: string | null; semaforo: string | null; vendedor: string | null
+  pedidos_7d: number | null; ultimo_pedido: string | null
+}
 
 const S = {
   out: { boxShadow: 'var(--shadow-out)' },
@@ -60,13 +66,24 @@ export const PlatformOverview = memo(() => {
   const [error,       setError]       = useState<string | null>(null)
 
   // ── Altas, planes y recuperación de administradores (solo el dueño de la plataforma) ──
-  const [nuevo,    setNuevo]    = useState({ nombre: '', admin: '', email: '' })
+  const [nuevo,    setNuevo]    = useState({ nombre: '', admin: '', email: '', origen: '', detalle: '', codigo: '' })
   const [busy,     setBusy]     = useState(false)
   const [planSel,  setPlanSel]  = useState<Record<string, string>>({})
   const [cred,     setCred]     = useState<{ titulo: string; email: string; pass: string } | null>(null)
   const [aviso,    setAviso]    = useState<string | null>(null)
 
-  const recargar = () => supabase.rpc('get_platform_overview').then(({ data }) => setRestaurants((data as RestaurantRow[]) ?? []))
+  const [seg,      setSeg]      = useState<Record<string, Seguimiento>>({})
+  const [filtro,   setFiltro]   = useState({ q: '', estado: '', semaforo: '', origen: '' })
+  const [fichaId,  setFichaId]  = useState<string | null>(null)
+  const cargarSeguimiento = () => supabase.rpc('plataforma_restaurantes').then(({ data }) => {
+    const m: Record<string, Seguimiento> = {}
+    for (const r of (data as Seguimiento[] | null) ?? []) m[r.id] = r
+    setSeg(m)
+  })
+  const recargar = () => {
+    cargarSeguimiento()
+    return supabase.rpc('get_platform_overview').then(({ data }) => setRestaurants((data as RestaurantRow[]) ?? []))
+  }
   const clave = () => {
     const abc = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
     const b = new Uint32Array(12); crypto.getRandomValues(b)
@@ -74,16 +91,21 @@ export const PlatformOverview = memo(() => {
   }
   const crearRestaurante = async () => {
     if (nuevo.nombre.trim().length < 2 || !nuevo.email.includes('@')) { setAviso('Escribe el nombre del restaurante y el correo del administrador'); return }
+    if (!nuevo.origen && !nuevo.codigo.trim()) { setAviso('Elige cómo se enteró de nosotros (o escribe el código del vendedor)'); return }
     setBusy(true); setAviso(null)
     const pass = clave()
-    const { error: e } = await supabase.rpc('crear_restaurante', {
+    const { data, error: e } = await supabase.rpc('crear_restaurante', {
       p_restaurant_name: nuevo.nombre.trim(), p_owner_email: nuevo.email.trim().toLowerCase(),
       p_owner_password: pass, p_owner_full_name: nuevo.admin.trim() || null,
+      p_origen: nuevo.origen || null, p_origen_detalle: nuevo.detalle.trim() || null, p_codigo_vendedor: nuevo.codigo.trim() || null,
     })
     setBusy(false)
     if (e) { setAviso(e.message); return }
+    const estadoCodigo = (data as { codigo_estado?: string | null } | null)?.codigo_estado
+    if (estadoCodigo === 'invalido') setAviso('Ese código no existe, revísalo. El restaurante se creó sin vendedor; puedes asignarlo después en su ficha.')
+    else if (estadoCodigo === 'inactivo') setAviso('Ese código está inactivo o vencido. El restaurante se creó sin vendedor.')
     setCred({ titulo: `Restaurante "${nuevo.nombre.trim()}" creado`, email: nuevo.email.trim().toLowerCase(), pass })
-    setNuevo({ nombre: '', admin: '', email: '' }); recargar()
+    setNuevo({ nombre: '', admin: '', email: '', origen: '', detalle: '', codigo: '' }); recargar()
   }
   const activarPlan = async (rid: string, nombre: string) => {
     const plan = planSel[rid] ?? 'emprende'
@@ -103,6 +125,7 @@ export const PlatformOverview = memo(() => {
   const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: '0.75rem', padding: '0.6rem 1rem', minHeight: '2.75rem' }
 
   useEffect(() => {
+    cargarSeguimiento()
     supabase.rpc('get_platform_overview').then(({ data, error }) => {
       if (error) { setError(error.message); return }
       setRestaurants((data as RestaurantRow[]) ?? [])
@@ -136,6 +159,7 @@ export const PlatformOverview = memo(() => {
         </div>
       )}
       {aviso && <div style={{ borderRadius: '1rem', padding: '0.875rem 1.25rem', backgroundColor: bg, color: txt, ...S.in }}>{aviso}</div>}
+      {fichaId && <FichaRestaurante id={fichaId} onClose={() => setFichaId(null)} onCambio={recargar} />}
       <div style={{ borderRadius: '1rem', padding: '1.25rem', backgroundColor: bg, ...S.out }}>
         <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.25rem', color: txt, margin: '0 0 0.25rem' }}>Nuevo restaurante</h2>
         <p style={{ fontSize: '0.8125rem', color: txtSec, margin: '0 0 0.875rem' }}>El registro público está cerrado. Crea el restaurante cuando el cliente pague; el administrador recibe una contraseña temporal.</p>
@@ -144,17 +168,54 @@ export const PlatformOverview = memo(() => {
           <input style={campo} placeholder="Nombre del administrador" aria-label="Nombre del administrador" value={nuevo.admin} onChange={e => setNuevo(n => ({ ...n, admin: e.target.value }))} />
           <input style={campo} placeholder="Correo del administrador" aria-label="Correo del administrador" type="email" inputMode="email" autoCapitalize="none" value={nuevo.email} onChange={e => setNuevo(n => ({ ...n, email: e.target.value }))} />
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))', gap: '0.5rem', marginTop: '0.5rem' }}>
+          <select style={campo} aria-label="¿Cómo se enteró de nosotros?" value={nuevo.origen} onChange={e => setNuevo(n => ({ ...n, origen: e.target.value }))}>
+            <option value="">¿Cómo se enteró de nosotros?</option>
+            <option value="vendedor">Un vendedor</option>
+            <option value="redes">Redes sociales</option>
+            <option value="restaurante">Lo recomendó otro restaurante</option>
+            <option value="aliado">Un contador o proveedor</option>
+            <option value="google">Google</option>
+            <option value="evento">Una visita o un evento</option>
+            <option value="otro">Otro</option>
+          </select>
+          <input style={campo} placeholder="Detalle (cuál red, qué restaurante…)" aria-label="Detalle del origen" maxLength={200} value={nuevo.detalle} onChange={e => setNuevo(n => ({ ...n, detalle: e.target.value }))} />
+          <input style={campo} placeholder="Código de vendedor o aliado (opcional)" aria-label="Código de vendedor" maxLength={30} autoCapitalize="characters" value={nuevo.codigo} onChange={e => setNuevo(n => ({ ...n, codigo: e.target.value.toUpperCase() }))} />
+        </div>
         <button disabled={busy} onClick={crearRestaurante} style={{ ...boton, marginTop: '0.75rem', background: 'var(--w-terra, #C2570C)', color: '#fff', opacity: busy ? 0.7 : 1 }}>{busy ? 'Creando…' : 'Crear restaurante'}</button>
       </div>
       <div>
         <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: '0 0 1rem' }}>
           Restaurantes {restaurants && `(${restaurants.length})`}
         </h2>
+        {restaurants && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <input style={campo} placeholder="Buscar por nombre" aria-label="Buscar restaurante" value={filtro.q} onChange={e => setFiltro(f => ({ ...f, q: e.target.value }))} />
+            <select style={campo} aria-label="Filtrar por estado comercial" value={filtro.estado} onChange={e => setFiltro(f => ({ ...f, estado: e.target.value }))}>
+              <option value="">Todos los estados</option>
+              {['prospecto', 'demo', 'prueba', 'piloto', 'activo', 'en_riesgo', 'cancelado'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+            </select>
+            <select style={campo} aria-label="Filtrar por semáforo" value={filtro.semaforo} onChange={e => setFiltro(f => ({ ...f, semaforo: e.target.value }))}>
+              <option value="">Todo el semáforo</option>
+              {Object.entries(SEMAFORO).map(([k, v]) => <option key={k} value={k}>{v.texto}</option>)}
+            </select>
+            <select style={campo} aria-label="Filtrar por origen" value={filtro.origen} onChange={e => setFiltro(f => ({ ...f, origen: e.target.value }))}>
+              <option value="">Todos los orígenes</option>
+              {['vendedor', 'aliado', 'redes', 'restaurante', 'google', 'evento', 'otro'].map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        )}
         {!restaurants ? (
           <div style={{ padding: '2rem', textAlign: 'center', color: txtSec }}>Cargando…</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {restaurants.map(r => (
+            {restaurants.filter(r => {
+              const s = seg[r.id]
+              return (!filtro.q || r.name.toLowerCase().includes(filtro.q.toLowerCase()))
+                && (!filtro.estado || s?.estado_comercial === filtro.estado)
+                && (!filtro.semaforo || s?.semaforo === filtro.semaforo)
+                && (!filtro.origen || s?.origen === filtro.origen)
+            }).map(r => (
               <div key={r.id} style={{ borderRadius: '1rem', padding: '1rem 1.25rem', backgroundColor: bg, opacity: r.active ? 1 : 0.55, ...S.out }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div>
@@ -166,6 +227,15 @@ export const PlatformOverview = memo(() => {
                     <div style={{ fontSize: '0.8125rem', color: txtSec, marginTop: '0.125rem' }}>
                       /{r.slug} · {r.country ?? 'país sin registrar'} · cliente desde {fmtDate(r.created_at)}
                     </div>
+                    {seg[r.id] && (
+                      <div style={{ fontSize: '0.8125rem', color: txt, marginTop: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span aria-label={SEMAFORO[seg[r.id].semaforo ?? 'gris']?.texto} title={SEMAFORO[seg[r.id].semaforo ?? 'gris']?.texto}
+                          style={{ width: '0.75rem', height: '0.75rem', borderRadius: '50%', background: SEMAFORO[seg[r.id].semaforo ?? 'gris']?.color, display: 'inline-block' }} />
+                        <span style={{ textTransform: 'capitalize' }}>{(seg[r.id].estado_comercial ?? '').replace('_', ' ')}</span>
+                        <span style={{ color: txtSec }}>· {seg[r.id].pedidos_7d ?? 0} pedidos en 7 días</span>
+                        <button onClick={() => setFichaId(r.id)} style={{ ...boton, minHeight: '2.25rem', padding: '0.25rem 0.75rem', fontSize: '0.75rem', background: bgSurf, color: txt }}>Abrir ficha</button>
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 700, color: txt, textTransform: 'capitalize' }}>{r.plan ?? '—'}</div>

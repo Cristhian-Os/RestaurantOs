@@ -11,11 +11,32 @@ import { CONTACTO_WHATSAPP } from '../config/content'
 
 const go = (path: string) => { window.location.href = path }
 
+const REF_KEY = 'restaurantos_referido'
+const ORIGENES_REDES = ['instagram', 'tiktok', 'facebook', 'whatsapp']
+
+function leerReferido(): { codigo: string | null; origen: string | null } {
+  const q = new URLSearchParams(window.location.search)
+  const v = (q.get('v') ?? '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24)
+  const o = (q.get('o') ?? '').toLowerCase()
+  try {
+    if (v || ORIGENES_REDES.includes(o)) {
+      localStorage.setItem(REF_KEY, JSON.stringify({ codigo: v || null, origen: ORIGENES_REDES.includes(o) ? o : null }))
+    }
+    const guardado = JSON.parse(localStorage.getItem(REF_KEY) ?? 'null') as { codigo: string | null; origen: string | null } | null
+    if (guardado) return { codigo: guardado.codigo ?? null, origen: guardado.origen ?? null }
+  } catch { /* sin almacenamiento: solo vale lo de este enlace */ }
+  return { codigo: v || null, origen: ORIGENES_REDES.includes(o) ? o : null }
+}
+
 export default function Signup() {
   const planId = new URLSearchParams(window.location.search).get('plan') as PlanId | null
   const plan = PLANS.find(p => p.id === planId) ?? null
   const digits = CONTACTO_WHATSAPP.replace(/\D/g, '')
-  const texto = encodeURIComponent(`Hola, quiero activar RestaurantOS en mi restaurante${plan ? ` (plan ${plan.name})` : ''}.`)
+  // Enlaces de seguimiento: ?v=CODIGO (vendedor/aliado) u ?o=instagram|tiktok|facebook|whatsapp. Se guardan al abrir la página
+  // por si la persona escribe después, y van en el mensaje para que el dueño los vea al crear el restaurante.
+  const { codigo, origen } = leerReferido()
+  const referido = codigo ? ` Código: ${codigo}.` : origen ? ` Me enteré por ${origen}.` : ''
+  const texto = encodeURIComponent(`Hola, quiero activar RestaurantOS en mi restaurante${plan ? ` (plan ${plan.name})` : ''}.${referido}`)
 
   return (
     <div style={{
