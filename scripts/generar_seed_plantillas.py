@@ -131,6 +131,11 @@ def sql_literal(s: str) -> str:
 def main() -> None:
     archivos = sorted(f for f in ENTRADA.glob("*.md") if not f.name.startswith("_"))
     plantillas = [limpiar(leer(f)) for f in archivos]
+    # Preguntas para el administrador (docs/plantillas/_preguntas.json): se muestran en el asistente tras elegir el tipo
+    pq = ENTRADA / "_preguntas.json"
+    preguntas = json.loads(pq.read_text(encoding="utf-8")) if pq.exists() else {}
+    for p in plantillas:
+        p["preguntas"] = preguntas.get(p["key"], [])
     renombradas = sufijar_choques(plantillas)
     for p in plantillas:
         validar(p)
@@ -142,7 +147,7 @@ def main() -> None:
         "",
     ]
     for p in plantillas:
-        payload = {k: p[k] for k in ("categorias", "listas", "grupos_tipicos", "platos_ejemplo")}
+        payload = {k: p[k] for k in ("categorias", "listas", "grupos_tipicos", "platos_ejemplo", "preguntas")}
         payload["fuente"] = f"docs/plantillas/{p['key']}.md"
         # La certeza y las fuentes de cada ítem quedan en el .md; a la base solo va lo que usa el motor
         for l in payload["listas"]:
