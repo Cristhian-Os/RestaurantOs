@@ -202,9 +202,9 @@ function PlanCard({ plan, db }: { plan: PlanTexto; db: PlanDB | null }) {
       <p className="ed-body" style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', margin: '0 0 1.25rem' }}>{plan.tagline}</p>
 
       <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem 0.5rem', flexWrap: 'wrap' }}>
           <span className="ed-display" style={{ fontSize: '3rem', fontWeight: 600, lineHeight: 1 }}>{db ? fmtCOP(db.mensual.base_cop) : '…'}</span>
-          <span className="ed-body" style={{ fontSize: '0.9rem', color: 'var(--w-ink-mut)' }}>+ IVA / mes</span>
+          <span className="ed-body" style={{ fontSize: '0.9rem', color: 'var(--w-ink-mut)', whiteSpace: 'nowrap' }}>+ IVA / mes</span>
         </div>
         {db && (
           <p className="ed-body" style={{ fontSize: '0.8rem', color: 'var(--w-ink-mut)', margin: '0.4rem 0 0' }}>
