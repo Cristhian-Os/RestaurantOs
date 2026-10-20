@@ -21,7 +21,7 @@ Esta sección dice dónde va la construcción. Si algo de aquí contradice un bl
 | 4 | Opciones universales, 17 plantillas y su editor, preguntas al dueño, menú por voz | ✅ En producción (19-oct). Opciones nuevas encendidas **solo en Sabor encantado** |
 | 5A | Facturas de compra con foto | ✅ En producción (19-oct). **Falta tu prueba con foto real** |
 | 5B | Opiniones dentro del chatbot | ⏸ Pausado por Cristhian. Solo existe la tabla en el proyecto de prueba |
-| 6 | Planes, precios, IVA, prueba de 7 días, plan anual (10,5 meses) y cobro Wompi | 🟡 Construido y probado en el proyecto de prueba (20-oct). **Falta aplicar en producción** (ver `docs/informes/BLOQUE6_PLANES_Y_PRECIOS.md`). Precios: Esencial 160.000, Pro 260.000, Premium 375.000 (no disponible hasta que existan las sedes), sede extra 70.000 |
+| 6 | Planes, precios, IVA, prueba de 7 días, plan anual (10,5 meses) y cobro Wompi | ✅ En producción desde el 20-oct (cobro real apagado; Cholaos sin tocar). Ver `docs/informes/BLOQUE6_PLANES_Y_PRECIOS.md`. Precios: Esencial 160.000, Pro 260.000, Premium 375.000 (no disponible hasta que existan las sedes), sede extra 70.000 |
 | 7 | Panel de plataforma Fase 1: Inicio, ficha de restaurante, origen, semáforo | ✅ En producción (19-oct) |
 | 8 | Vendedores con contrato, comisiones, pagos, Dinero y Rendimiento | ✅ En producción (20-oct). Sin datos reales todavía |
 | 9 | Asistente de configuración completo | ⬜ Pendiente (ya existe una primera versión con tipo de negocio y preguntas) |
