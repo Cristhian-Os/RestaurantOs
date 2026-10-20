@@ -78,7 +78,8 @@ BEGIN
   SELECT restaurant_id INTO v_rid FROM profiles WHERE id = auth.uid() AND role = 'admin';
   IF v_rid IS NULL THEN RAISE EXCEPTION 'Solo el administrador del restaurante puede elegir el plan'; END IF;
   IF NOT EXISTS (SELECT 1 FROM planes WHERE id = p_plan AND disponible) THEN RAISE EXCEPTION 'Ese plan todavia no esta disponible'; END IF;
-  IF EXISTS (SELECT 1 FROM subscriptions WHERE restaurant_id = v_rid AND is_promo) THEN RAISE EXCEPTION 'Tu restaurante tiene un acuerdo especial; el plan lo cambia el equipo de RestaurantOS'; END IF;
+  IF EXISTS (SELECT 1 FROM subscriptions WHERE restaurant_id = v_rid AND is_promo)
+     OR EXISTS (SELECT 1 FROM restaurants WHERE id = v_rid AND is_founder) THEN RAISE EXCEPTION 'Tu restaurante tiene un acuerdo especial; el plan lo cambia el equipo de RestaurantOS'; END IF;
   v_precio := public.precio_plan(p_plan, p_ciclo);
   UPDATE subscriptions SET plan = p_plan, ciclo = p_ciclo, amount_in_cents = ((v_precio->>'total_cop')::numeric * 100)::integer
    WHERE restaurant_id = v_rid;
