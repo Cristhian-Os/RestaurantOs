@@ -108,6 +108,13 @@ Deno.serve(async (req) => {
     const reference = ref(paymentKind === 'subscription' ? 'sub' : 'ord')
     const integrity = await sha256Hex(`${reference}${amountInCents}${currency}${integritySecret}`)
 
+    // Pago de suscripción: guardar base, IVA y total por separado (las comisiones se calculan sobre la base)
+    let desglose: Record<string, number> = {}
+    if (paymentKind === 'subscription') {
+      const { data: d } = await admin.rpc('desglose_cobro', { p_total_cop: amountInCents / 100 })
+      if (d) desglose = { base_cop: d.base_cop, iva_cop: d.iva_cop, total_cop: d.total_cop }
+    }
+
     // Registrar el pago PENDIENTE (el webhook lo actualizará al confirmarse)
     const { error: insErr } = await admin.from('payments').insert({
       restaurant_id:   restaurantId,
@@ -118,6 +125,7 @@ Deno.serve(async (req) => {
       currency,
       status:          'PENDING',
       customer_email:  customer_email ?? null,
+      ...desglose,
     })
     if (insErr) return json({ error: insErr.message }, 500)
 

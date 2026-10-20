@@ -78,9 +78,11 @@ Deno.serve(async (req) => {
       if (amount && amount >= 100) {
         const reference = ref()
         const integrity = await sha256Hex(`${reference}${amount}COP${integritySecret}`)
+        const { data: d } = await admin.rpc('desglose_cobro', { p_total_cop: amount / 100 })
         await admin.from('payments').insert({
           restaurant_id: restaurantId, kind: 'subscription', reference,
           amount_in_cents: amount, currency: 'COP', status: 'PENDING', customer_email,
+          base_cop: d?.base_cop, iva_cop: d?.iva_cop, total_cop: d?.total_cop,
         })
         const txResp = await fetch(`${base}/transactions`, {
           method: 'POST',

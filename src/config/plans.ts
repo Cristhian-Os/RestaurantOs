@@ -1,81 +1,58 @@
 /**
- * plans.ts — Definición de planes de RestaurantOS
+ * plans.ts — Textos de los planes de RestaurantOS
  * ───────────────────────────────────────────────────────────────
- * Edita aquí precios, nombres y funciones. La landing y el registro
- * leen de este archivo, así no hay que tocar el diseño para ajustar
- * la oferta comercial.
+ * Aquí viven SOLO los textos (qué incluye cada plan). Los precios, los nombres
+ * y los límites vienen de la base de datos (tabla `planes`, ver usePlanes.ts),
+ * para que la página, el panel de cobro y el chatbot digan siempre lo mismo.
  *
- * País inicial: Colombia. Precios en USD (referencia). Para mostrar
- * en COP, ajusta `currency` y `price`.
+ * Regla: nada que todavía no exista se ofrece como incluido.
  */
 
 export type PlanId = 'emprende' | 'pro' | 'premium'
 
-export interface Plan {
+export interface PlanTexto {
   id:        PlanId
-  name:      string
-  price:     number          // por mes
-  currency:  string          // símbolo mostrado
   tagline:   string
   featured?: boolean         // resalta el plan "recomendado"
   features:  string[]
-  /** Solo Emprende: selector interactivo de # de mesas. */
-  tableRange?: { min: number; max: number; default: number }
 }
 
-/** Días de prueba gratuita antes de requerir pago. */
+/** Días de prueba gratuita antes de requerir pago (los fija crear_restaurante en la base). */
 export const TRIAL_DAYS = 7
 
-export const PLANS: Plan[] = [
+export const PLANS: PlanTexto[] = [
   {
     id:       'emprende',
-    name:     'Basic',
-    price:    79,
-    currency: '$',
     tagline:  'Para arrancar tu restaurante',
-    tableRange: { min: 1, max: 12, default: 5 },
     features: [
-      'Elige cuántas mesas necesitas',
       'Menú público con código QR',
       'Toma de pedidos',
-      'Inventario básico',
-      'Recetas de tus platos',
+      'Inventario y recetas de tus platos',
+      'Facturas de compra con foto',
       'Corte de caja en Excel',
-      '1 administrador',
       'Pagos en línea: tus clientes pagan por la app',
       'Soporte estándar',
     ],
   },
   {
     id:       'pro',
-    name:     'Normal',
-    price:    135,
-    currency: '$',
     tagline:  'El favorito de los restaurantes',
     featured: true,
     features: [
-      'Todo lo de Basic',
-      'Mesas ilimitadas',
-      'Equipo ilimitado: meseros, cocina y caja',
-      'Inventario y recetas avanzados',
+      'Todo lo de Esencial',
+      'Mesas y equipo sin límite: meseros, cocina y caja',
       'Panel de cocina en tiempo real',
       'Tareas y turnos del personal',
       'Métricas y reportes de ventas',
-      'Corte de caja profesional en Excel',
       'Soporte prioritario',
     ],
   },
   {
     id:       'premium',
-    name:     'Premium',
-    price:    220,
-    currency: '$',
-    tagline:  'Para crecer sin límites',
+    tagline:  'Para cadenas con varias sedes',
     features: [
-      'Todo lo de Normal',
-      'Multi-sucursal',
-      'Personalización total de tu marca',
-      'Soporte prioritario 24/7',
+      'Todo lo de Pro',
+      'Varias sedes en una sola cuenta',
     ],
   },
 ]

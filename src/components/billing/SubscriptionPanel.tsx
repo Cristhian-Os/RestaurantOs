@@ -7,10 +7,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
-import { formatCentsCOP, openWompiCheckout, type SubStatus } from '../../config/billing'
+import { formatCOP, formatCentsCOP, openWompiCheckout, type SubStatus } from '../../config/billing'
+import { usePlanes } from '../../config/usePlanes'
+import type { PlanId } from '../../config/plans'
 
 interface Sub {
   plan: string
+  ciclo: 'mensual' | 'anual'
   status: SubStatus
   amount_in_cents: number | null
   is_promo: boolean
@@ -45,6 +48,9 @@ const STATUS_META: Record<SubStatus, { label: string; color: string; bg: string 
 const fmtDate = (s: string | null) => s ? new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
 
 export default function SubscriptionPanel() {
+  const { planes } = usePlanes()
+  const [sel,   setSel]   = useState<PlanId | null>(null)
+  const [ciclo, setCiclo] = useState<'mensual' | 'anual'>('mensual')
   const [rid,   setRid]   = useState<string | null>(null)
   const [sub,   setSub]   = useState<Sub | null>(null)
   const [cfg,   setCfg]   = useState<PayCfg>({ enabled: false, wompi_public_key: '', wompi_private_key: '', wompi_events_secret: '', wompi_integrity_secret: '' })
@@ -61,9 +67,13 @@ export default function SubscriptionPanel() {
       setRid(prof?.restaurant_id ?? null)
 
       const { data: s } = await supabase.from('subscriptions')
-        .select('plan, status, amount_in_cents, is_promo, trial_ends_at, current_period_end, grace_ends_at, wompi_payment_source_id')
+        .select('plan, ciclo, status, amount_in_cents, is_promo, trial_ends_at, current_period_end, grace_ends_at, wompi_payment_source_id')
         .maybeSingle()
-      if (s) setSub(s as Sub)
+      if (s) {
+        setSub(s as Sub)
+        if (['emprende', 'pro', 'premium'].includes(s.plan)) setSel(s.plan as PlanId)
+        setCiclo(s.ciclo === 'anual' ? 'anual' : 'mensual')
+      }
 
       // Solo booleanos "ya configurado" — nunca los secretos reales de vuelta al navegador.
       const { data: st } = await supabase.from('restaurant_payment_config_status')
@@ -80,6 +90,10 @@ export default function SubscriptionPanel() {
   const pagar = useCallback(async () => {
     setPaying(true)
     try {
+      // El servidor fija el plan y calcula el monto (base + IVA); el navegador solo dice qué eligió.
+      if (!sel) { message.info('Elige un plan para continuar'); return }
+      const { error: planErr } = await supabase.rpc('elegir_plan', { p_plan: sel, p_ciclo: ciclo })
+      if (planErr) throw new Error(planErr.message)
       const { data, error } = await supabase.functions.invoke('wompi-init', {
         body: { kind: 'subscription', redirect_url: window.location.origin },
       })
@@ -89,7 +103,7 @@ export default function SubscriptionPanel() {
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'No se pudo iniciar el pago')
     } finally { setPaying(false) }
-  }, [])
+  }, [sel, ciclo])
 
   const guardarCfg = useCallback(async () => {
     if (!rid) return
@@ -140,7 +154,7 @@ export default function SubscriptionPanel() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--w-ink-mut)' }}>Plan actual</p>
-            <p style={{ margin: '0.15rem 0 0', fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-ink)', textTransform: 'capitalize' }}>{sub?.plan ?? '—'}</p>
+            <p style={{ margin: '0.15rem 0 0', fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-ink)', }}>{planes?.find(p => p.id === sub?.plan)?.nombre ?? (sub?.plan === 'trial' ? 'Prueba gratis' : sub?.plan ?? '—')}</p>
           </div>
           <span style={{ padding: '0.35rem 0.8rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, color: st.color, background: st.bg }}>{st.label}</span>
         </div>
@@ -165,6 +179,34 @@ export default function SubscriptionPanel() {
                 {fmtDate(sub?.status === 'past_due' ? sub?.grace_ends_at : sub?.status === 'trialing' ? sub?.trial_ends_at : sub?.current_period_end ?? null)}
               </p>
             </div>
+          </div>
+        )}
+
+        {!sub?.is_promo && planes && (
+          <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {(['mensual', 'anual'] as const).map(c => (
+                <button key={c} onClick={() => setCiclo(c)} className="w-press"
+                  style={{ flex: 1, padding: '0.55rem', borderRadius: '0.7rem', border: `1px solid ${ciclo === c ? 'var(--w-terra)' : 'var(--w-line)'}`, background: ciclo === c ? 'rgba(201,106,60,0.10)' : 'var(--w-bg)', color: 'var(--w-ink)', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
+                  {c === 'mensual' ? 'Mensual' : 'Anual · pagas 10,5 meses'}
+                </button>
+              ))}
+            </div>
+            {planes.map(p => {
+              const d = p[ciclo]
+              const activo = sel === p.id
+              return (
+                <button key={p.id} disabled={!p.disponible} onClick={() => setSel(p.id)} className="w-press"
+                  style={{ textAlign: 'left', padding: '0.8rem 1rem', borderRadius: '0.85rem', border: `2px solid ${activo ? 'var(--w-terra)' : 'var(--w-line)'}`, background: 'var(--w-bg)', color: 'var(--w-ink)', opacity: p.disponible ? 1 : 0.55, cursor: p.disponible ? 'pointer' : 'not-allowed' }}>
+                  <span style={{ fontWeight: 700 }}>{p.nombre}</span>
+                  {!p.disponible
+                    ? <span style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>Próximamente</span>
+                    : <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--w-ink-mut)', marginTop: '0.15rem' }}>
+                        {formatCOP(d.total_cop)} {ciclo === 'anual' ? 'al año' : 'al mes'} con IVA ({formatCOP(d.base_cop)} + IVA {formatCOP(d.iva_cop)})
+                      </span>}
+                </button>
+              )
+            })}
           </div>
         )}
 

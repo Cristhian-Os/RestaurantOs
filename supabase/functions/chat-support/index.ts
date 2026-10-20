@@ -10,13 +10,15 @@ const SYSTEM = `Eres "Resti", el asistente de soporte de RestaurantOS, un sistem
 
 Qué hace RestaurantOS: menú digital con código QR, toma de pedidos, control de mesas, inventario y recetas (descuenta ingredientes solo), panel de cocina en tiempo real, caja y corte de caja en Excel (con productos, cantidades y método de pago), métricas de ventas, y gestión del equipo (mesero, cocina, cajero).
 
-Planes (USD/mes): Basic $79 (elige tus mesas, menú QR, pedidos, inventario básico, recetas, corte en Excel, 1 admin, pagos en línea, soporte estándar), Normal $135 (todo Basic + mesas y equipo ilimitados, inventario avanzado, cocina en tiempo real, tareas, métricas, soporte prioritario), Premium $220 (todo Normal + multi-sucursal, personalización total de marca, soporte prioritario 24/7). Los pagos en línea para que tus clientes paguen por la app están incluidos en TODOS los planes. Todos incluyen 7 días de prueba gratis, sin tarjeta.
+Planes y precios (los lee la base de datos, no los inventes ni los cambies):
+{{PLANES}}
+Esencial incluye menú QR, pedidos, inventario, recetas, corte de caja en Excel y pagos en línea. Pro suma equipo y mesas sin límite y reportes. Los pagos en línea para que tus clientes paguen por la app están incluidos en TODOS los planes. Todos incluyen 7 días de prueba gratis, sin tarjeta. Si un plan figura "todavía no disponible", no lo ofrezcas como incluido: di que llegará más adelante.
 
 Promoción de lanzamiento: los primeros 3 restaurantes obtienen Premium GRATIS de por vida (cupos ya ocupados).
 
 Cómo empezar: botón "Comienza gratis" o "Registra tu restaurante" en la página; se crea la cuenta en menos de un minuto y se obtiene un dominio propio y menú. También hay un botón "Ver demo" para probar sin registrarse.
 
-Pagos: la facturación es mensual. Si un pago se atrasa hay 7 días de gracia; si no se paga, se pierde el acceso y los datos se eliminan (esto está en los términos).
+Pagos: la facturación es mensual o anual (el plan anual se paga con descuento). Si un pago se atrasa hay 7 días de gracia; si no se paga, se pierde el acceso y los datos se eliminan (esto está en los términos).
 
 Reglas: responde en español, con tono cálido, claro y breve. Ayuda con dudas de uso y de venta. Si no sabes algo o piden soporte técnico avanzado, sugiere escribir al correo de soporte. No inventes funciones que no existen. No pidas ni manejes contraseñas ni datos de tarjetas.`
 
@@ -46,6 +48,17 @@ Deno.serve(async (req: Request) => {
     const apiKey = secret?.value
     if (!apiKey) return json({ error: 'Config faltante' }, 500)
 
+    // Precios: una sola fuente (tabla planes). Si falla, el chatbot no los inventa.
+    const { data: planes } = await supabase.rpc('planes_publicos')
+    const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
+    const planesTxt = Array.isArray(planes) && planes.length
+      ? planes.map((p: any) => `- ${p.nombre}: ${cop(p.mensual.total_cop)} al mes con IVA incluido (${cop(p.mensual.base_cop)} + IVA), o ${cop(p.anual.total_cop)} al año.`
+          + (p.sede_extra_cop ? ` Sede adicional: ${cop(p.sede_extra_cop)} al mes.` : '')
+          + (p.max_mesas ? ` Hasta ${p.max_mesas} mesas y ${p.max_usuarios} usuarios.` : ' Sin límite de mesas ni usuarios.')
+          + (p.disponible ? '' : ' (todavía no disponible)')).join('\n')
+      : '(los precios no están disponibles ahora: pide al usuario escribir al correo de soporte)'
+    const system = SYSTEM.replace('{{PLANES}}', planesTxt)
+
     const contents = messages.slice(-12).map((m) => ({
       role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
       parts: [{ text: String(m.text ?? '').slice(0, 2000) }],
@@ -59,7 +72,7 @@ Deno.serve(async (req: Request) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM }] },
+          system_instruction: { parts: [{ text: system }] },
           contents,
           generationConfig: { maxOutputTokens: 600, temperature: 0.4 },
         }),

@@ -91,7 +91,12 @@ Deno.serve(async (req) => {
     if (status === 'APPROVED') {
       if (payment.kind === 'subscription') {
         const now = new Date()
-        const periodEnd = new Date(now); periodEnd.setMonth(periodEnd.getMonth() + 1)
+        const { data: subRow } = await supabase.from('subscriptions').select('ciclo, plan').eq('restaurant_id', payment.restaurant_id).maybeSingle()
+        // Al primer pago el restaurante deja de figurar como "trial" y queda con el plan que eligió
+        if (subRow?.plan && ['emprende', 'pro', 'premium'].includes(subRow.plan)) {
+          await supabase.from('restaurants').update({ plan: subRow.plan, trial_ends_at: null }).eq('id', payment.restaurant_id)
+        }
+        const periodEnd = new Date(now); periodEnd.setMonth(periodEnd.getMonth() + (subRow?.ciclo === 'anual' ? 12 : 1))
         await supabase.from('subscriptions').update({
           status:               'active',
           current_period_start: now.toISOString(),

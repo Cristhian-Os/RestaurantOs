@@ -8,20 +8,10 @@
  * convertidos a COP con la misma tasa (~4.000 COP/USD) que ya usaba este
  * archivo. Si la tasa real cambia, ajusta solo estos 3 valores.
  */
-import type { PlanId } from './plans'
-
-/** Precio mensual de cada plan en PESOS colombianos (COP). */
-export const PLAN_COP: Record<PlanId, number> = {
-  emprende: 316_000,
-  pro:      540_000,
-  premium:  880_000,
-}
+/** Los precios de los planes ya NO viven aquí: están en la tabla `planes` (ver usePlanes.ts). */
 
 /** Convierte pesos COP a centavos (lo que espera Wompi). */
 export const copToCents = (cop: number): number => Math.round(cop * 100)
-
-/** amount_in_cents por plan, listo para Wompi. */
-export const planAmountInCents = (plan: PlanId): number => copToCents(PLAN_COP[plan])
 
 /** Formatea un monto en COP para mostrar. Ej: 200000 → "$200.000". */
 export function formatCOP(cop: number): string {

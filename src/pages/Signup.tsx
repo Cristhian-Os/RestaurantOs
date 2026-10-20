@@ -7,6 +7,7 @@
  */
 import { motion } from 'framer-motion'
 import { PLANS, type PlanId } from '../config/plans'
+import { usePlanes } from '../config/usePlanes'
 import { CONTACTO_WHATSAPP } from '../config/content'
 
 const go = (path: string) => { window.location.href = path }
@@ -30,13 +31,14 @@ function leerReferido(): { codigo: string | null; origen: string | null } {
 
 export default function Signup() {
   const planId = new URLSearchParams(window.location.search).get('plan') as PlanId | null
-  const plan = PLANS.find(p => p.id === planId) ?? null
+  const { planes } = usePlanes()
+  const plan = PLANS.some(p => p.id === planId) ? planes?.find(p => p.id === planId) ?? null : null
   const digits = CONTACTO_WHATSAPP.replace(/\D/g, '')
   // Enlaces de seguimiento: ?v=CODIGO (vendedor/aliado) u ?o=instagram|tiktok|facebook|whatsapp. Se guardan al abrir la página
   // por si la persona escribe después, y van en el mensaje para que el dueño los vea al crear el restaurante.
   const { codigo, origen } = leerReferido()
   const referido = codigo ? ` Código: ${codigo}.` : origen ? ` Me enteré por ${origen}.` : ''
-  const texto = encodeURIComponent(`Hola, quiero activar RestaurantOS en mi restaurante${plan ? ` (plan ${plan.name})` : ''}.${referido}`)
+  const texto = encodeURIComponent(`Hola, quiero activar RestaurantOS en mi restaurante${plan ? ` (plan ${plan.nombre})` : ''}.${referido}`)
 
   return (
     <div style={{
@@ -64,7 +66,7 @@ export default function Signup() {
           {plan && (
             <div style={{ padding: '0.75rem 1rem', borderRadius: '0.875rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'color-mix(in oklch, var(--w-terra) 8%, transparent)' }}>
               <span className="ed-kicker" style={{ fontSize: '0.72rem' }}>Plan elegido</span>
-              <span style={{ fontWeight: 700, color: 'var(--w-terra)' }}>{plan.name} · {plan.currency}{plan.price}/mes</span>
+              <span style={{ fontWeight: 700, color: 'var(--w-terra)' }}>{plan.nombre} · ${plan.mensual.total_cop.toLocaleString('es-CO')}/mes con IVA</span>
             </div>
           )}
           <p className="ed-body" style={{ fontSize: '0.95rem', lineHeight: 1.5, margin: '0 0 1.25rem', color: 'var(--w-ink)' }}>

@@ -8,7 +8,8 @@
 import { useRef, useState } from 'react'
 import { motion, useScroll, useTransform, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from '../components/ScrollReveal'
-import { PLANS, type Plan } from '../config/plans'
+import { PLANS, type PlanTexto } from '../config/plans'
+import { usePlanes, type PlanDB } from '../config/usePlanes'
 import { TESTIMONIALS, FAQS } from '../config/content'
 import { supabase } from '../services/supabaseClient'
 import SupportChat from '../components/SupportChat'
@@ -175,8 +176,9 @@ function Features() {
 }
 
 /* ═══════════════════ PLANES ═══════════════════ */
-function PlanCard({ plan }: { plan: Plan }) {
-  const [tables, setTables] = useState(plan.tableRange?.default ?? 0)
+const fmtCOP = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
+
+function PlanCard({ plan, db }: { plan: PlanTexto; db: PlanDB | null }) {
   const accent = plan.featured ? 'var(--w-terra)' : 'var(--w-ink)'
 
   return (
@@ -196,29 +198,26 @@ function PlanCard({ plan }: { plan: Plan }) {
         </span>
       )}
 
-      <h3 className="ed-display" style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 0.25rem', color: accent }}>{plan.name}</h3>
+      <h3 className="ed-display" style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 0.25rem', color: accent }}>{db?.nombre ?? '…'}</h3>
       <p className="ed-body" style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', margin: '0 0 1.25rem' }}>{plan.tagline}</p>
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem', marginBottom: '1.5rem' }}>
-        <span className="ed-display" style={{ fontSize: '3rem', fontWeight: 600, lineHeight: 1 }}>{plan.currency}{plan.price}</span>
-        <span className="ed-body" style={{ fontSize: '0.9rem', color: 'var(--w-ink-mut)' }}>USD / mes</span>
-      </div>
-
-      {/* Selector interactivo de mesas (solo Emprende) */}
-      {plan.tableRange && (
-        <div className="lg" style={{ padding: '1rem', borderRadius: '1rem', marginBottom: '1.25rem', background: 'color-mix(in oklch, var(--w-terra) 7%, transparent)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.625rem' }}>
-            <span className="ed-kicker" style={{ fontSize: '0.72rem' }}>Tus mesas</span>
-            <span className="ed-display" style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-terra)' }}>{tables}</span>
-          </div>
-          <input type="range" min={plan.tableRange.min} max={plan.tableRange.max} value={tables}
-            onChange={e => setTables(Number(e.target.value))}
-            style={{ width: '100%', accentColor: 'var(--w-terra)', cursor: 'pointer' }} />
-          <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.5rem 0 0' }}>
-            Escoge cuántas mesas quieres administrar.
-          </p>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
+          <span className="ed-display" style={{ fontSize: '3rem', fontWeight: 600, lineHeight: 1 }}>{db ? fmtCOP(db.mensual.base_cop) : '…'}</span>
+          <span className="ed-body" style={{ fontSize: '0.9rem', color: 'var(--w-ink-mut)' }}>+ IVA / mes</span>
         </div>
-      )}
+        {db && (
+          <p className="ed-body" style={{ fontSize: '0.8rem', color: 'var(--w-ink-mut)', margin: '0.4rem 0 0' }}>
+            {fmtCOP(db.mensual.total_cop)} al mes con IVA incluido. Plan anual: {fmtCOP(db.anual.total_cop)} (pagas 10,5 meses y usas 12).
+            {db.sede_extra_cop ? ` Cada sede adicional: ${fmtCOP(db.sede_extra_cop)} al mes.` : ''}
+          </p>
+        )}
+        {db && db.max_mesas && (
+          <p className="ed-body" style={{ fontSize: '0.8rem', color: 'var(--w-ink-mut)', margin: '0.25rem 0 0' }}>
+            Hasta {db.max_mesas} mesas y {db.max_usuarios} usuarios.
+          </p>
+        )}
+      </div>
 
       <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.75rem', display: 'flex', flexDirection: 'column', gap: '0.7rem', flex: 1 }}>
         {plan.features.map(f => (
@@ -229,16 +228,17 @@ function PlanCard({ plan }: { plan: Plan }) {
         ))}
       </ul>
 
-      <button onClick={() => go(`/registro?plan=${plan.id}`)}
+      <button onClick={() => go(`/registro?plan=${plan.id}`)} disabled={db ? !db.disponible : false}
         className={plan.featured ? 'lg-accent w-press' : 'lg w-press'}
-        style={{ width: '100%', padding: '0.95rem', border: plan.featured ? 'none' : '1px solid var(--w-line)', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', color: plan.featured ? undefined : 'var(--w-ink)', background: plan.featured ? undefined : 'transparent' }}>
-        Solicitar este plan
+        style={{ width: '100%', padding: '0.95rem', border: plan.featured ? 'none' : '1px solid var(--w-line)', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', cursor: db && !db.disponible ? 'not-allowed' : 'pointer', opacity: db && !db.disponible ? 0.6 : 1, color: plan.featured ? undefined : 'var(--w-ink)', background: plan.featured ? undefined : 'transparent' }}>
+        {db && !db.disponible ? 'Próximamente' : 'Solicitar este plan'}
       </button>
     </div>
   )
 }
 
 function Plans() {
+  const { planes } = usePlanes()
   return (
     <section id="planes" style={{ padding: '5rem 1.5rem', maxWidth: 1150, margin: '0 auto', scrollMarginTop: '5rem' }}>
       <ScrollReveal>
@@ -253,7 +253,7 @@ function Plans() {
       <div className="landing-plans">
         {PLANS.map((p, i) => (
           <ScrollReveal key={p.id} delay={i * 0.1} y={32}>
-            <PlanCard plan={p} />
+            <PlanCard plan={p} db={planes?.find(x => x.id === p.id) ?? null} />
           </ScrollReveal>
         ))}
       </div>
