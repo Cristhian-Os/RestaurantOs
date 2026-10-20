@@ -1,6 +1,6 @@
 # Bloque 8: Vendedores, comisiones y pagos (Fase 2 del panel)
 
-Estado: construido y probado en el proyecto de prueba. **No está en producción.**
+Estado: aplicado en producción el 20-oct-2026 (versiones 20261020034226, 034335, 034423 y 034459), verificado con prueba revertida (FALLAS=0). No se registró ningún pago real.
 
 ## Qué hace
 - **Vendedores y aliados:** alta con contrato firmado adjunto (PDF o foto en bucket privado), versión, fecha de firma y vigencia; sin contrato no se crea ni se activa el código. Condiciones propias del contrato (bono, % recurrente, meses) o las generales. Código inmutable cuando ya trajo clientes. Activar/desactivar con motivo y causa (término normal: se conserva lo ganado; incumplimiento: se congela lo no pagado). Enlace de referido copiable (`/registro?v=CODIGO`). Prospectos por vendedor (gana el primer registro, vencen a los 60 días).
@@ -24,7 +24,7 @@ Estado: construido y probado en el proyecto de prueba. **No está en producción
 - Las pantallas de Vendedores, Pagos, Dinero y Rendimiento están dentro del panel de plataforma.
 
 ## Para pasar a producción (necesita backup reciente y tu confirmación)
-Migraciones en orden: `20261020020000_vendedores_comisiones_tablas` (agrega columnas opcionales a `vendedores`, `restaurant_crm` y `payments`, más tablas y 2 buckets), `20261020020100_vendedores_funciones`, `20261020020200_comisiones_liquidaciones`, `20261020020300_dinero_rendimiento` (reemplaza `plataforma_atencion`, misma firma). Luego el código.
+Migraciones en orden: `20261020034226_vendedores_comisiones_tablas` (agrega columnas opcionales a `vendedores`, `restaurant_crm` y `payments`, más tablas y 2 buckets), `20261020034335_vendedores_funciones`, `20261020034423_comisiones_liquidaciones`, `20261020034459_dinero_rendimiento` (reemplaza `plataforma_atencion`, misma firma). Luego el código.
 Reversas: `supabase/rollback/<versión>_*_down.sql`.
 No correr la parte de pago de la prueba en producción: la numeración LIQ no se revierte.
 
