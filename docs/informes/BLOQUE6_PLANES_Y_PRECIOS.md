@@ -32,7 +32,7 @@ Prueba gratis: 7 días, sin tarjeta (igual que ya estaba). Los identificadores i
 
 ## Para pasar a producción (en este orden, con copia nueva y "apruebo, aplica")
 
-1. Migración `20261020100000_planes_precios.sql` (aditiva; reversa en `supabase/rollback/`).
+1. Migración `20261020205231_planes_precios.sql` (aditiva; reversa en `supabase/rollback/`).
 2. Publicar la app.
 3. Desplegar las 4 funciones de Wompi y `chat-support`.
 
