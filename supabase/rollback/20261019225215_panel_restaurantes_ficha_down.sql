@@ -7,3 +7,5 @@ DROP FUNCTION IF EXISTS public.plataforma_restaurante_ficha(uuid);
 DROP FUNCTION IF EXISTS public.plataforma_restaurantes();
 DROP FUNCTION IF EXISTS public.plataforma_salud_restaurantes();
 DROP FUNCTION IF EXISTS public._exigir_dueno();
+-- Rollback Bloque 7, paso 4: quita la función del Inicio. No toca datos.
+DROP FUNCTION IF EXISTS public.plataforma_atencion();

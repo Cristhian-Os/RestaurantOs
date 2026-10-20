@@ -6,12 +6,20 @@
 import { useState } from 'react'
 import { PlatformOverview } from './PlatformOverview'
 import { PlatformInicio } from './PlatformInicio'
+import { VendedoresPanel } from './VendedoresPanel'
+import { PagosVendedores } from './PagosVendedores'
+import { DineroPanel } from './DineroPanel'
+import { RendimientoPanel } from './RendimientoPanel'
 import { PlantillasManager } from './PlantillasManager'
 import { OpcionesRestaurantes } from './OpcionesRestaurantes'
 
 const TABS = [
   { id: 'inicio', label: 'Inicio' },
   { id: 'restaurantes', label: 'Restaurantes' },
+  { id: 'vendedores', label: 'Vendedores' },
+  { id: 'pagos', label: 'Pagos a vendedores' },
+  { id: 'dinero', label: 'Dinero' },
+  { id: 'rendimiento', label: 'Rendimiento' },
   { id: 'plantillas', label: 'Plantillas' },
   { id: 'opciones', label: 'Opciones por restaurante' },
 ] as const
@@ -32,6 +40,10 @@ export function PlatformPanel() {
       </div>
       {tab === 'inicio' && <PlatformInicio />}
       {tab === 'restaurantes' && <PlatformOverview />}
+      {tab === 'vendedores' && <VendedoresPanel />}
+      {tab === 'pagos' && <PagosVendedores />}
+      {tab === 'dinero' && <DineroPanel />}
+      {tab === 'rendimiento' && <RendimientoPanel />}
       {tab === 'plantillas' && <PlantillasManager />}
       {tab === 'opciones' && <OpcionesRestaurantes />}
     </div>

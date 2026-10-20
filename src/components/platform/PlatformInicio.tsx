@@ -13,6 +13,8 @@ interface Atencion {
   pagos_fallidos: (Item & { estado: string; gracia_hasta: string | null })[]
   acciones_de_hoy: (Item & { accion: string | null; fecha: string })[]
   codigos_a_revisar: (Item & { codigo: string | null; estado: string })[]
+  liquidaciones_por_aprobar: { id: string; vendedor: string; total: number; periodo: string; vencida: boolean }[]
+  contratos_por_vencer: { id: string; vendedor: string; vence: string }[]
   semaforo: { verde: number; amarillo: number; rojo: number; gris: number }
 }
 
@@ -80,6 +82,12 @@ export function PlatformInicio() {
         detalle={i => `Gracia hasta ${fecha((i as Atencion['pagos_fallidos'][number]).gracia_hasta)}`} />
       <Tarjeta titulo="Códigos de vendedor por revisar" vacio="Ningún código inválido." items={a.codigos_a_revisar} onAbrir={setAbierto}
         detalle={i => `Código ${(i as Atencion['codigos_a_revisar'][number]).codigo ?? '—'}: ${(i as Atencion['codigos_a_revisar'][number]).estado === 'invalido' ? 'no existe' : 'inactivo'}`} />
+      <Tarjeta titulo="Liquidaciones a vendedores por pagar" vacio="No hay liquidaciones pendientes." onAbrir={() => undefined}
+        items={(a.liquidaciones_por_aprobar ?? []).map(l => ({ id: l.id, nombre: l.vendedor, total: l.total, vencida: l.vencida, periodo: l.periodo }))}
+        detalle={i => `${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(i.total))}${i.vencida ? ' · VENCIDA' : ''} — ábrela en “Pagos a vendedores”`} />
+      <Tarjeta titulo="Contratos por vencer (30 días)" vacio="Ningún contrato vence pronto." onAbrir={() => undefined}
+        items={(a.contratos_por_vencer ?? []).map(c => ({ id: c.id, nombre: c.vendedor, vence: c.vence }))}
+        detalle={i => `Vence el ${fecha(String(i.vence))} — renuévalo en “Vendedores”`} />
       {abierto && <FichaRestaurante id={abierto} onClose={() => setAbierto(null)} onCambio={cargar} />}
     </div>
   )
