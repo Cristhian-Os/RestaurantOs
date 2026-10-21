@@ -43,11 +43,12 @@ import { MenuAvailability } from '../components/menu/MenuAvailability'
 import { OptionListsSection } from '../components/menu/OptionListsSection'
 import { Proveedores }      from '../components/cashier/Proveedores'
 import { Facturas }         from '../components/cashier/Facturas'
+import { OpinionSection }   from '../components/feedback/OpinionSection'
 import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'branding' | 'billing' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'branding' | 'billing' | 'platform'
 
 export interface Profile {
   id:          string
@@ -96,6 +97,7 @@ const Icons = {
   Toggles:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><rect x="2" y="5" width="20" height="6" rx="3"/><circle cx="16" cy="8" r="1.5"/><rect x="2" y="13" width="20" height="6" rx="3"/><circle cx="8" cy="16" r="1.5"/></svg>,
   Receipt:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2zM9 7h6M9 11h6"/></svg>,
   Truck:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M1 4h14v12H1zM15 9h4l3 3v4h-7"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg>,
+  Opinion:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 0113 3h.5a8.5 8.5 0 018 8z"/></svg>,
 }
 
 const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: string }[]> = {
@@ -117,6 +119,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'menu_listas', icon:<Icons.Menu />,     label:'Listas y opciones'},
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'   },
+    { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'    },
     { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
     { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
   ],
@@ -125,10 +128,12 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'tables', icon:<Icons.Tables />, label:'Mesas'   },
     { view:'tasks',  icon:<Icons.Tasks />,  label:'Tareas'  },
     { view:'shifts', icon:<Icons.Team />,   label:'Mis turnos' },
+    { view:'opinion', icon:<Icons.Opinion />, label:'Opinión' },
   ],
   kitchen: [
     { view:'kitchen', icon:<Icons.Kitchen />, label:'Cocina' },
     { view:'shifts',  icon:<Icons.Team />,    label:'Mis turnos' },
+    { view:'opinion', icon:<Icons.Opinion />, label:'Opinión' },
   ],
   cashier: [
     { view:'cashier',      icon:<Icons.Cashier />, label:'Caja'         },
@@ -138,6 +143,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú' },
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'  },
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'     },
+    { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'      },
   ],
   client:  [{ view:'menu', icon:<Icons.Menu />, label:'Menú' }],
 }
@@ -296,6 +302,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
   const [lowStock,   setLowStock]   = useState(0)
   const [pendingSocial, setPendingSocial] = useState(0)
+  const [opinionesListas, setOpinionesListas] = useState(0)
   const [voiceCmdOpen, setVoiceCmdOpen] = useState(false)
   const [refreshKey,   setRefreshKey]   = useState(0)
   const { theme, setTheme } = useTheme()
@@ -335,6 +342,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       .subscribe()
     return () => { cancelled = true; supabase.removeChannel(channel) }
   }, [profile])
+
+  // Aviso de sugerencias terminadas: cuenta las que pasaron a "hecho" y el restaurante aún no ha visto, sobre "Opinión".
+  useEffect(() => {
+    if (!profile || !['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role)) return
+    let cancelled = false
+    supabase.from('feedback_items').select('id', { count: 'exact', head: true }).eq('estado', 'hecho').is('cierre_visto_at', null)
+      .then(({ count }) => { if (!cancelled) setOpinionesListas(count ?? 0) })
+    return () => { cancelled = true }
+  }, [profile, activeNav])
 
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
@@ -454,6 +470,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'menu_listas':  return <OptionListsSection />
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
       case 'facturas':     return profile.role === 'admin' || profile.role === 'cashier' ? <Facturas profile={profile} /> : null
+      case 'opinion':   return ['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role) ? <OpinionSection /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
       case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformPanel /></MfaGate> : null
@@ -599,6 +616,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 {view==='menu' && pendingSocial>0 && (
                   <span style={{marginLeft:'auto',background:'#DC2626',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{pendingSocial}</span>
                 )}
+                {view==='opinion' && opinionesListas>0 && (
+                  <span style={{marginLeft:'auto',background:'#1D7A46',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{opinionesListas}</span>
+                )}
               </button>
             ))}
           </nav>
@@ -631,6 +651,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 {view==='menu' && pendingSocial>0 && (
                   <span style={{position:'absolute',top:-6,right:-8,background:'#DC2626',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{pendingSocial}</span>
                 )}
+                {view==='opinion' && opinionesListas>0 && (
+                  <span style={{position:'absolute',top:-6,right:-8,background:'#1D7A46',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{opinionesListas}</span>
+                )}
               </span>
               <span style={{fontSize:'0.5625rem',fontWeight:700,lineHeight:1.15,textAlign:'center'}}>
                 {label}
@@ -656,7 +679,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       </div>
 
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
-      <SupportChat />
+      <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />
       {(profile?.role === 'admin' || profile?.role === 'cashier') && (
         <VoiceCommandFab onClick={() => setVoiceCmdOpen(true)} />
       )}

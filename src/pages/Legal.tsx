@@ -77,6 +77,7 @@ const PRIVACIDAD: Sec[] = [
   ]},
   { h: '3. Finalidad', p: [
     'Usamos los datos para prestar el servicio, administrar cuentas, procesar pagos, brindar soporte y mejorar la Plataforma.',
+    'Las opiniones y sugerencias que el equipo de un restaurante escribe al asistente Resti se guardan junto con el restaurante, el rol de quien las envía y la conversación, con el único fin de mejorar la Plataforma. No deben incluir contraseñas ni datos de tarjetas. En el asistente de soporte la dirección IP no se guarda en texto, solo un código irreversible (hash) que sirve para limitar abusos.',
   ]},
   { h: '4. Seguridad y ubicación', p: [
     'La información se almacena en servidores seguros en la nube y puede procesarse en distintos países. Aplicamos medidas técnicas para proteger los datos y aislar la información de cada restaurante.',
@@ -86,6 +87,7 @@ const PRIVACIDAD: Sec[] = [
     `Para ejercer estos derechos, escriba a ${EMPRESA.correo}.`,
   ]},
   { h: '6. Conservación y eliminación', p: [
+    'Las opiniones y sugerencias se conservan mientras la cuenta del restaurante esté activa y se eliminan junto con ella.',
     `Conservamos los datos mientras la cuenta esté activa. En caso de falta de pago, tras la suspensión los datos se conservan ${PURGE_DAYS} días para permitir la reactivación y luego se eliminan de forma permanente. En caso de cancelación voluntaria, los datos podrán borrarse conforme a los Términos y Condiciones.`,
   ]},
   { h: '7. Cambios', p: [
