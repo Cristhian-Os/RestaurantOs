@@ -46,6 +46,7 @@ import { Facturas }         from '../components/cashier/Facturas'
 import { OpinionSection }   from '../components/feedback/OpinionSection'
 import { ConfiguracionGuiada } from '../components/onboarding/ConfiguracionGuiada'
 import { ImpresionConfig } from '../components/print/ImpresionConfig'
+import { EstacionImpresion } from '../components/print/EstacionImpresion'
 import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
@@ -527,6 +528,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
         )}
         <OrderSoundAlerts role={profile!.role} userId={profile!.id} />
+        <EstacionImpresion />
         <KitchenBoard tv onMenu={() => setKitchenMenu(true)} onLogout={onLogout} />
       </div>
     )
@@ -557,6 +559,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {/* Sonido por tipo de pedido: cocina (pedido para preparar) y caja/admin (pedido nuevo) */}
       <OrderSoundAlerts role={profile!.role} userId={profile!.id} />
+      {['admin', 'cashier', 'kitchen'].includes(profile!.role) && <EstacionImpresion />}
       {hasSounds && <SoundUnlockBanner />}
 
       {/* Header */}

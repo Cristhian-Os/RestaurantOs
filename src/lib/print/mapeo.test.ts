@@ -1,6 +1,6 @@
 // Prueba del mapeo de datos. Correr con:  node src/lib/print/mapeo.test.ts
 import assert from 'node:assert/strict'
-import { pagosDesdeFilas, parseItems, pedidoDesdeFila, type FilaPedido } from './mapeo.ts'
+import { pagosDesdeFilas, parseItems, pedidoDesdeFila, planearComandas, type FilaPedido } from './mapeo.ts'
 import { buildTicket } from './tickets.ts'
 import { aTexto } from './modelo.ts'
 
@@ -34,5 +34,13 @@ assert.equal(pagosDesdeFilas([], { ...fila, payment_method: 'tarjeta' })[0].camb
 const r = aTexto(buildTicket('recibo', { encabezado: { nombre: 'Cholaos' }, pedido: p, pagos: viejo, numeroRecibo: 3, pagadoEn: fila.paid_at! }, 58)).join('\n')
 assert.ok(r.includes('$28.000') && r.includes('$3.000') && r.includes('$31.000') && r.includes('Cambio') && r.includes('$6.000'))
 assert.ok(r.includes('Recibo N.º 000003'))
+
+// 5) Qué comandas faltan: nueva, adición, nada repetido, y no se reimprime lo anterior a encender la estación
+const ahora = Date.parse('2026-10-21T15:00:00Z'), hace = (s: number) => new Date(ahora - s * 1000).toISOString(), dos = [{ name: 'A' }, { name: 'B' }]
+const plan = planearComandas([
+  { id: 'nuevo', created_at: hace(5), items: dos }, { id: 'crecio', created_at: hace(600), items: [...dos, { name: 'C' }] },
+  { id: 'igual', created_at: hace(600), items: dos }, { id: 'viejo', created_at: hace(3600), items: dos },
+], new Map([['crecio', 2], ['igual', 2]]), ahora)
+assert.deepEqual(plan, [{ orderId: 'nuevo', desde: 0, hasta: 2, modo: 'nueva' }, { orderId: 'crecio', desde: 2, hasta: 3, modo: 'adicion' }])
 
 console.log('mapeo.test.ts: todo OK')

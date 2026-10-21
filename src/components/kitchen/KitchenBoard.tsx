@@ -13,6 +13,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, memo } from 
 import { supabase } from '../../services/supabaseClient'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import message from 'antd/es/message'
+import { reimprimirComanda } from '../../lib/print/comandas'
 
 // ─── Configuración ────────────────────────────────────────────
 const WARN_SECS = 300   // el cronómetro pasa a ámbar
@@ -269,6 +270,13 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
     } finally { setCancellingOrder(false) }
   }
 
+  const imprimirComanda = async () => {
+    try {
+      const r = await reimprimirComanda(order.id)
+      if (r.fallos.length) message.error(`No se pudo imprimir en ${r.fallos.join(', ')}. Toca 🖨 COMANDA para reintentar.`)
+    } catch (e) { message.error(`No se pudo imprimir: ${e instanceof Error ? e.message : 'error'}`) }
+  }
+
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
   const click = () => { if (next) onAdvance(order.id, next) }
 
@@ -288,6 +296,8 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
         <span className="kb-sub">{sub}</span>
         <span>
           <span className={cn('kb-tag', order.paid_at ? 'paid' : 'unpaid')}>{order.paid_at ? 'PAGADO' : 'POR COBRAR'}</span>
+          <button type="button" className="kb-cancel" style={{ background: 'var(--inset)', color: 'var(--ink-soft)', border: '.06em solid var(--card-line)' }}
+            onClick={e => { stop(e); void imprimirComanda() }}>🖨 COMANDA</button>
           {order.status === 'cooking' && (
             <button type="button" className="kb-cancel" disabled={cancellingOrder}
               onClick={e => { stop(e); void cancelOrder() }}>

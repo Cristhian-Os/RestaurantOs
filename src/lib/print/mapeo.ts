@@ -26,11 +26,29 @@ export function parseItems(raw: unknown): ItemPedido[] {
     const i = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>
     const toppings = (Array.isArray(i.toppings) ? i.toppings : []).map(p => (typeof p === 'string' ? p : t((p as { nombre?: string } | null)?.nombre, 60) ?? '')).filter(Boolean)
     return {
-      name: t(i.name, 120) ?? 'Producto', price: n(i.price), quantity: Math.max(1, Math.round(n(i.quantity) || 1)),
+      id: t(i.id, 80), name: t(i.name, 120) ?? 'Producto', price: n(i.price), quantity: Math.max(1, Math.round(n(i.quantity) || 1)),
       notes: t(i.notes, 300), size: t(i.size, 40), toppings: toppings.length ? toppings : null, cancelled: i.cancelled === true,
       comensal: t(i.comensal, 60),
     }
   })
+}
+
+export interface TrabajoComanda { orderId: string; desde: number; hasta: number; modo: 'nueva' | 'adicion' }
+
+/**
+ * Qué comandas faltan por imprimir. `hechos` = cuántos platos de cada pedido ya salieron en comanda (el pedido solo crece:
+ * lo nuevo es una ADICIÓN). Un pedido que nunca imprimió y es anterior a que se encendiera la estación se ignora
+ * (no se reimprime todo el tablero al abrir): para esos está el botón manual.
+ */
+export function planearComandas(ordenes: { id: string; created_at: string; items: unknown }[], hechos: Map<string, number>, inicioMs: number): TrabajoComanda[] {
+  const out: TrabajoComanda[] = []
+  for (const o of ordenes) {
+    const hecho = hechos.get(o.id) ?? 0
+    if (hecho === 0 && Date.parse(o.created_at) < inicioMs - 60_000) continue
+    const total = parseItems(o.items).length
+    if (total > hecho) out.push({ orderId: o.id, desde: hecho, hasta: total, modo: hecho === 0 ? 'nueva' : 'adicion' })
+  }
+  return out
 }
 
 export function pedidoDesdeFila(f: FilaPedido, mesero?: string | null): Pedido {

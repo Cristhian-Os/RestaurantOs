@@ -9,7 +9,7 @@ export interface Encabezado {
   mensaje?: string | null; pie?: string | null
 }
 export interface ItemPedido {
-  name: string; price: number; quantity: number; notes?: string | null; size?: string | null; toppings?: string[] | null
+  id?: string | null; name: string; price: number; quantity: number; notes?: string | null; size?: string | null; toppings?: string[] | null
   cancelled?: boolean; comensal?: string | null
 }
 export interface Pedido {
