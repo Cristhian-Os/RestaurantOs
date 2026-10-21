@@ -1100,6 +1100,24 @@ export default function PublicMenu() {
   const [socialMap,     setSocialMap]     = useState<Record<string, DishSocial>>({})
   const [reviewDish,    setReviewDish]    = useState<Dish | null>(null)
 
+  // Vista previa del asistente de configuración (?preview=1): el administrador ve este mismo menú con su marca sin guardar.
+  // Solo se aceptan mensajes de la misma página de origen, el color debe ser hexadecimal y los enlaces https.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('preview') !== '1') return
+    const alRecibir = (e: MessageEvent) => {
+      const d = e.data as { tipo?: string; color?: string; nombre?: string; logo?: string | null; portada?: string | null; cerrado?: boolean } | null
+      if (e.origin !== window.location.origin || d?.tipo !== 'ros-preview') return
+      if (typeof d.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(d.color)) document.documentElement.style.setProperty('--w-terra', d.color)
+      if (typeof d.nombre === 'string') setBizName(d.nombre.slice(0, 80) || 'Mi Restaurante')
+      const https = (u: unknown) => (typeof u === 'string' && /^https:\/\//i.test(u) ? u : null)
+      setLogoUrl(https(d.logo))
+      setBrandExtra(b => ({ ...b, portada_url: https(d.portada), cerrado_manual: !!d.cerrado, cerrado_mensaje: d.cerrado ? 'Cerrado temporalmente. Vuelve más tarde.' : null }))
+    }
+    window.addEventListener('message', alRecibir)
+    window.parent.postMessage({ tipo: 'ros-preview-listo' }, window.location.origin)
+    return () => window.removeEventListener('message', alRecibir)
+  }, [])
+
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
   const observerRef = useRef<IntersectionObserver | null>(null)
   const scrollingTo = useRef(false)

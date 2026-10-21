@@ -40,7 +40,10 @@ const CFG_EMPTY: Config = {
   cerrado_manual: false, cerrado_mensaje: '',
 }
 
-export default function BrandingManager() {
+/** Lo que el asistente muestra en la vista previa mientras la persona edita (antes de guardar). */
+export interface BorradorMarca { nombre: string; eslogan: string; color: string; logo: string | null; portada: string | null }
+
+export default function BrandingManager({ onBorrador }: { onBorrador?: (b: BorradorMarca) => void } = {}) {
   const [rid,     setRid]     = useState<string | null>(null)
   const [cfg,     setCfg]     = useState<Config>(CFG_EMPTY)
   const [loading, setLoading] = useState(true)
@@ -155,6 +158,12 @@ export default function BrandingManager() {
       message.error(e instanceof Error ? e.message : 'Error al subir la portada')
     } finally { setUploadingPortada(false) }
   }, [rid])
+
+  // Vista previa del asistente: avisa del borrador (nombre, eslogan, color, logo y portada) cada vez que cambia.
+  useEffect(() => {
+    if (loading) return
+    onBorrador?.({ nombre: cfg.display_name, eslogan: cfg.slogan ?? '', color: cfg.color_primario, logo: cfg.logo_url, portada: cfg.portada_url })
+  }, [loading, cfg.display_name, cfg.slogan, cfg.color_primario, cfg.logo_url, cfg.portada_url, onBorrador])
 
   if (loading) return <div style={{ padding: '2rem', color: 'var(--w-ink-mut)' }}>Cargando…</div>
 

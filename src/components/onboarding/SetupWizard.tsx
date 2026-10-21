@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
-import BrandingManager from '../branding/BrandingManager'
+import { MarcaConVistaPrevia } from './MarcaConVistaPrevia'
 import { MenuFotos } from './MenuFotos'
 import { RecetasPaso } from './RecetasPaso'
 import type { NavView } from '../../pages/Dashboard'
@@ -273,6 +273,8 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
         return { key: p.key as string, nombre: p.nombre as string, emoji: pay.categorias?.find(c => c.emoji)?.emoji ?? '🍽️', preguntas: pay.preguntas ?? [] }
       }))
       setRespuestas(Object.fromEntries((resp ?? []).map(r => [`${r.template_key}|${r.pregunta_id}`, r.respuesta as string])))
+      const { data: rest } = await supabase.from('restaurants').select('slug').maybeSingle()   // la vista previa de la marca abre el menú público
+      setSlug((rest?.slug as string) ?? null)
       if (ob) {
         // El paso "Recetas" se agregó como paso 6: quien ya venía a medias conserva su lugar (lo guardado antes de la marca v2 se corre un paso).
         const sd = (ob.steps_done ?? {}) as Record<string, boolean>
@@ -490,7 +492,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
 
           {paso === 7 && (<>
             <Titulo t="Marca y datos del restaurante" s="Logo, colores, eslogan, portada, dirección, WhatsApp, horario y propina sugerida." />
-            <BrandingManager />
+            <MarcaConVistaPrevia slug={slug} />
             <div style={{ marginTop: '1rem' }}><button style={primary} onClick={() => siguiente(true)}>Continuar</button></div>
           </>)}
 
