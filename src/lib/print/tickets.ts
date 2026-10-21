@@ -168,6 +168,26 @@ export function cierre(d: DatosCierre, ancho: Ancho): Modelo {
   return { ancho, titulo: 'Cierre de caja', lineas: l }
 }
 
+// ── Página de prueba: una línea de cada tipo, con tildes y ñ, para revisar la impresora. ──
+export function paginaPrueba(ancho: Ancho, impresora: string): Modelo {
+  const l: Linea[] = [
+    { k: 'titulo', texto: 'PÁGINA DE PRUEBA' },
+    { k: 'centro', texto: `${impresora} · ${ancho} mm`, negrita: true },
+    { k: 'sep' },
+    { k: 'texto', texto: 'Normal: Piña colada, canelón, ñapa, café' },
+    { k: 'texto', texto: 'NEGRITA: ABCDEFGHIJ 0123456789', negrita: true },
+    { k: 'texto', texto: 'Letra grande', grande: true },
+    { k: 'fila', izq: 'Producto de ejemplo', der: cop(12500) },
+    { k: 'fila', izq: 'TOTAL', der: cop(12500), negrita: true },
+    { k: 'sep' },
+    { k: 'centro', texto: `Ancho: ${COLUMNAS[ancho]} caracteres por línea` },
+    { k: 'centro', texto: '12345678901234567890123456789012'.padEnd(COLUMNAS[ancho], '3456789012') },
+    { k: 'centro', texto: 'Si lees bien las tildes y la ñ, todo está listo' },
+    { k: 'sep' },
+  ]
+  return { ancho, titulo: 'Página de prueba', lineas: l }
+}
+
 export type TipoTicket = 'comanda' | 'precuenta' | 'recibo' | 'cierre'
 export function buildTicket(tipo: 'comanda', d: DatosComanda, ancho: Ancho): Modelo
 export function buildTicket(tipo: 'precuenta', d: DatosPrecuenta, ancho: Ancho): Modelo

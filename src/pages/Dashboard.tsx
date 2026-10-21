@@ -45,11 +45,12 @@ import { Proveedores }      from '../components/cashier/Proveedores'
 import { Facturas }         from '../components/cashier/Facturas'
 import { OpinionSection }   from '../components/feedback/OpinionSection'
 import { ConfiguracionGuiada } from '../components/onboarding/ConfiguracionGuiada'
+import { ImpresionConfig } from '../components/print/ImpresionConfig'
 import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'setup' | 'branding' | 'billing' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'platform'
 
 export interface Profile {
   id:          string
@@ -98,6 +99,7 @@ const Icons = {
   Toggles:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><rect x="2" y="5" width="20" height="6" rx="3"/><circle cx="16" cy="8" r="1.5"/><rect x="2" y="13" width="20" height="6" rx="3"/><circle cx="8" cy="16" r="1.5"/></svg>,
   Receipt:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2zM9 7h6M9 11h6"/></svg>,
   Truck:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M1 4h14v12H1zM15 9h4l3 3v4h-7"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg>,
+  Printer:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>,
   Opinion:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 0113 3h.5a8.5 8.5 0 018 8z"/></svg>,
 }
 
@@ -121,6 +123,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'   },
     { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'    },
+    { view:'impresion',    icon:<Icons.Printer />, label:'Impresión'  },
     { view:'setup',        icon:<Icons.Toggles />, label:'Configuración guiada' },
     { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
     { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
@@ -482,6 +485,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
       case 'facturas':     return profile.role === 'admin' || profile.role === 'cashier' ? <Facturas profile={profile} /> : null
       case 'opinion':   return ['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role) ? <OpinionSection /> : null
+      case 'impresion': return profile.role === 'admin' ? <ImpresionConfig /> : null
       case 'setup':     return profile.role === 'admin' ? <ConfiguracionGuiada onAbrir={() => setWizardOpen(true)} /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
