@@ -10,13 +10,14 @@ import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import BrandingManager from '../branding/BrandingManager'
 import { MenuFotos } from './MenuFotos'
+import { RecetasPaso } from './RecetasPaso'
 import type { NavView } from '../../pages/Dashboard'
 
 type Fila = Record<string, string>
 interface Col { key: string; label: string; ph?: string; unit?: boolean; num?: boolean; list?: boolean }
 interface Resultado { creados: number; existentes: number; errores: { fila: number; motivo: string }[]; proveedores_no_encontrados?: string[] }
 
-const PASOS = ['Tipo de negocio', 'Mesas', 'Proveedores', 'Inventario', 'Menú', 'Marca y datos', 'Equipo', 'Listo']
+const PASOS = ['Tipo de negocio', 'Mesas', 'Proveedores', 'Inventario', 'Menú', 'Recetas', 'Marca y datos', 'Equipo', 'Listo']
 const UNIDADES = ['kg', 'gramo', 'litro', 'ml', 'pieza', 'paquete']
 
 const TIPOS = [
@@ -272,7 +273,14 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
         return { key: p.key as string, nombre: p.nombre as string, emoji: pay.categorias?.find(c => c.emoji)?.emoji ?? '🍽️', preguntas: pay.preguntas ?? [] }
       }))
       setRespuestas(Object.fromEntries((resp ?? []).map(r => [`${r.template_key}|${r.pregunta_id}`, r.respuesta as string])))
-      if (ob) { setPaso(Math.min(Math.max(ob.current_step ?? 1, 1), PASOS.length)); setHecho((ob.steps_done as Record<string, boolean>) ?? {}) }
+      if (ob) {
+        // El paso "Recetas" se agregó como paso 6: quien ya venía a medias conserva su lugar (lo guardado antes de la marca v2 se corre un paso).
+        const sd = (ob.steps_done ?? {}) as Record<string, boolean>
+        const nuevo = sd.v2 === true
+        const corrido = (n: number) => (!nuevo && n >= 6 ? n + 1 : n)
+        setPaso(Math.min(Math.max(corrido(ob.current_step ?? 1), 1), PASOS.length))
+        setHecho(Object.fromEntries(Object.entries(sd).filter(([k]) => k !== 'v2').map(([k, v]) => [String(corrido(Number(k))), !!v])))
+      }
       if (fis) { setRazon(fis.razon_social ?? ''); setNit(fis.nit ?? '') }
       if (cfg) {
         const aplicadas = (cfg.plantillas_aplicadas as string[] | null) ?? []
@@ -286,7 +294,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
 
   const guardarProgreso = useCallback(async (n: number, h: Record<string, boolean>) => {
     if (!rid) return
-    await supabase.from('restaurant_onboarding').upsert({ restaurant_id: rid, current_step: n, steps_done: h, updated_at: new Date().toISOString() })
+    await supabase.from('restaurant_onboarding').upsert({ restaurant_id: rid, current_step: n, steps_done: { ...h, v2: true }, updated_at: new Date().toISOString() })
   }, [rid])
 
   const irA = (n: number, marcar?: boolean) => {
@@ -476,12 +484,17 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
           </>)}
 
           {paso === 6 && (<>
+            <Titulo t="Recetas" s="Qué ingredientes lleva cada plato. Así el inventario se descuenta solo cuando vendes y ves cuánto te deja cada plato." />
+            {rid && <RecetasPaso rid={rid} onListo={() => siguiente(true)} />}
+          </>)}
+
+          {paso === 7 && (<>
             <Titulo t="Marca y datos del restaurante" s="Logo, colores, eslogan, portada, dirección, WhatsApp, horario y propina sugerida." />
             <BrandingManager />
             <div style={{ marginTop: '1rem' }}><button style={primary} onClick={() => siguiente(true)}>Continuar</button></div>
           </>)}
 
-          {paso === 7 && (<>
+          {paso === 8 && (<>
             <Titulo t="Tu equipo" s="Crea los usuarios de cajero, mesero y cocina. Es opcional y lo puedes hacer cuando quieras." />
             <div style={card}>
               <p style={{ margin: '0 0 0.75rem' }}>Cada persona entra con su correo y su contraseña, y ve solo lo de su rol.</p>
@@ -489,7 +502,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
             </div>
           </>)}
 
-          {paso === 8 && (<>
+          {paso === 9 && (<>
             <Titulo t="¡Listo!" s="Esto es lo que quedó configurado y lo que falta." />
             <div style={card}>
               {pendiente(!!tipo, 'Tipo de negocio')}
