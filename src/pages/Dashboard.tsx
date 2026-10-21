@@ -37,6 +37,7 @@ import SupportChat            from '../components/SupportChat'
 import BrandingManager, { applyBranding } from '../components/branding/BrandingManager'
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
+import SedeSelector from '../components/SedeSelector'
 import { PlatformPanel } from '../components/platform/PlatformPanel'
 import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
@@ -586,6 +587,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </div>
 
         <div style={{display:'flex',gap:'0.5rem',alignItems:'center',flexShrink:0,marginLeft:'0.5rem'}}>
+          {profile!.role === 'admin' && <SedeSelector style={{ ...chromeBtn, width: 'auto', padding: '0 0.5rem', maxWidth: 140 }} />}
           <InstallPWA compact />
           {hasSounds && <SoundTestButton style={chromeBtn} />}
           {/* Theme toggle — solo admin */}
