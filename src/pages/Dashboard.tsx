@@ -38,6 +38,7 @@ import BrandingManager, { applyBranding } from '../components/branding/BrandingM
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 import SedeSelector from '../components/SedeSelector'
+import Resti from '../components/resti/Resti'
 import { PlatformPanel } from '../components/platform/PlatformPanel'
 import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
@@ -177,12 +178,12 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
   }, [fetchMetrics])
 
   const cards = [
-    { label:'Ventas hoy',    value:`$${(metrics?.total_sales_today??0).toLocaleString('es-CO')}`, Icon:Icons.Analytics, nav:'analytics' as NavView, color:'var(--w-olive)'   },
-    { label:'Pendientes',    value:metrics?.pending_count??0,   Icon:Icons.Orders,  nav:'kitchen'   as NavView, color:'var(--w-saffron)' },
-    { label:'En cocina',     value:metrics?.cooking_count??0,   Icon:Icons.Kitchen, nav:'kitchen'   as NavView, color:'var(--w-terra)'   },
-    { label:'Listas',        value:metrics?.ready_count??0,     Icon:Icons.Tasks,   nav:'cashier'   as NavView, color:'var(--w-olive)'   },
-    { label:'Completadas',   value:metrics?.completed_today??0, Icon:Icons.Tasks,   nav:'analytics' as NavView, color:'var(--w-wine)'    },
-    { label:'Mesas activas', value:metrics?.active_tables??0,   Icon:Icons.Tables,  nav:'tables'    as NavView, color:'var(--w-terra)'   },
+    { target:'card-ventas-hoy',    label:'Ventas hoy',    value:`$${(metrics?.total_sales_today??0).toLocaleString('es-CO')}`, Icon:Icons.Analytics, nav:'analytics' as NavView, color:'var(--w-olive)'   },
+    { target:'card-pendientes',    label:'Pendientes',    value:metrics?.pending_count??0,   Icon:Icons.Orders,  nav:'kitchen'   as NavView, color:'var(--w-saffron)' },
+    { target:'card-en-cocina',     label:'En cocina',     value:metrics?.cooking_count??0,   Icon:Icons.Kitchen, nav:'kitchen'   as NavView, color:'var(--w-terra)'   },
+    { target:'card-listas',        label:'Listas',        value:metrics?.ready_count??0,     Icon:Icons.Tasks,   nav:'cashier'   as NavView, color:'var(--w-olive)'   },
+    { target:'card-completadas',   label:'Completadas',   value:metrics?.completed_today??0, Icon:Icons.Tasks,   nav:'analytics' as NavView, color:'var(--w-wine)'    },
+    { target:'card-mesas-activas', label:'Mesas activas', value:metrics?.active_tables??0,   Icon:Icons.Tables,  nav:'tables'    as NavView, color:'var(--w-terra)'   },
   ]
 
   if (loading) return <div style={{display:'flex',justifyContent:'center',padding:'5rem 0'}}><Spin size="large"/></div>
@@ -202,7 +203,7 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
 
       <div className="menu-grid">
         {cards.map((card,i) => (
-          <button key={i} onClick={()=>onNavigate(card.nav)}
+          <button key={i} onClick={()=>onNavigate(card.nav)} data-resti-target={card.target}
             className="w-lift w-rise"
             style={{padding:'1.25rem',textAlign:'left',border:'1px solid var(--w-line)',cursor:'pointer',fontFamily:'var(--w-sans)',background:'var(--w-surface)',borderRadius:'1.25rem',boxShadow:'var(--w-shadow-sm)',animationDelay:`${i*45}ms`}}>
             <div style={{color:card.color,marginBottom:'0.75rem'}}><card.Icon /></div>
@@ -217,8 +218,8 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
       </div>
 
       <Tabs defaultActiveKey="orders" items={[
-        { key:'orders', label:'Nueva orden', children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
-        { key:'tables', label:'Mesas',       children:<TableMap profile={profile} /> },
+        { key:'orders', label:<span data-resti-target="tab-nueva-orden">Nueva orden</span>, children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
+        { key:'tables', label:<span data-resti-target="tab-mesas">Mesas</span>,            children:<TableMap profile={profile} /> },
         { key:'tasks',  label:'Tareas',      children:<AdminTasksView profile={profile} /> },
         { key:'qr',     label:'Imprimir QR', children:<QRPrintManager /> },
       ]} />
@@ -304,6 +305,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       if (!data || data.onboarding_completed_at) return
       setWizardPending(true)
       try { if (!sessionStorage.getItem('wizard_cerrado')) setWizardOpen(true) } catch { setWizardOpen(true) }
+    })
+  }, [profile?.role])
+  // Resti (módulo B): solo si el restaurante lo tiene encendido (modules_enabled.resti_agent). Apagado por defecto.
+  const [restiOn, setRestiOn] = useState(false)
+  useEffect(() => {
+    if (profile?.role !== 'admin') return
+    supabase.from('restaurant_config').select('modules_enabled').maybeSingle().then(({ data }) => {
+      setRestiOn((data?.modules_enabled as { resti_agent?: unknown } | null)?.resti_agent === true)
     })
   }, [profile?.role])
   // Pasos del asistente ya hechos (para el aviso "X de 8 pasos"); se vuelve a leer cada vez que se cierra el asistente.
@@ -700,8 +709,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       </div>
 
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
-      <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />
-      {(profile?.role === 'admin' || profile?.role === 'cashier') && (
+      {restiOn && profile!.role === 'admin'
+        ? <Resti onOpenVoiceCommands={() => setVoiceCmdOpen(true)} onGoHome={() => setActiveNav('dashboard')} />
+        : <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />}
+      {(profile?.role === 'admin' || profile?.role === 'cashier') && !(restiOn && profile.role === 'admin') && (
         <VoiceCommandFab onClick={() => setVoiceCmdOpen(true)} />
       )}
       {voiceCmdOpen && (profile?.role === 'admin' || profile?.role === 'cashier') && (

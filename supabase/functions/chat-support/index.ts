@@ -118,7 +118,7 @@ Deno.serve(async (req: Request) => {
       const planesTxt = Array.isArray(planes) && planes.length
         ? planes.map((p: any) => `- ${p.nombre}: ${cop(p.mensual.total_cop)} al mes con IVA incluido (${cop(p.mensual.base_cop)} + IVA), o ${cop(p.anual.total_cop)} al año.`
             + (p.sede_extra_cop ? ` Sede adicional: ${cop(p.sede_extra_cop)} al mes.` : '')
-            + (p.max_mesas ? ` Hasta ${p.max_mesas} mesas y ${p.max_usuarios} usuarios.` : ' Sin límite de mesas ni usuarios.')
+            + (p.max_mesas ? ` Hasta ${p.max_mesas} mesas${p.max_usuarios ? ` y ${p.max_usuarios} usuarios` : ' y usuarios sin límite'}.` : ' Sin límite de mesas.' + (p.max_usuarios ? ` Hasta ${p.max_usuarios} usuarios.` : ' Usuarios sin límite.'))
             + (p.disponible ? '' : ' (todavía no disponible)')).join('\n')
         : '(los precios no están disponibles ahora: pide al usuario escribir al correo de soporte)'
       system = SYSTEM.replace('{{PLANES}}', planesTxt)

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "check:resti": "node scripts/check-resti-targets.mjs",
+    "build": "node scripts/check-resti-targets.mjs && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
