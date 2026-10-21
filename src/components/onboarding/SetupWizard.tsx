@@ -12,6 +12,8 @@ import { MarcaConVistaPrevia } from './MarcaConVistaPrevia'
 import { MenuFotos } from './MenuFotos'
 import { RecetasPaso } from './RecetasPaso'
 import { QRPrintManager } from '../pwa/QRPrintManager'
+import { RestiGuia, RestiConfirma } from './RestiGuia'
+import { motivoClaro, cantidadTxt } from '../../lib/resti/motivos'
 import type { NavView } from '../../pages/Dashboard'
 
 type Fila = Record<string, string>
@@ -111,10 +113,13 @@ function aFilas(matriz: unknown[][], cols: Col[]): Fila[] {
 }
 
 // ── Tabla de carga: filas editables + pegar desde Excel / subir .xlsx o .csv + lista sugerida ──
-function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado }: {
+function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, guia, cosa, intro }: {
   cols: Col[]; rpc: string; sugeridos: Fila[]; categorias?: string[]
   validar?: (f: Fila[]) => string | null; onGuardado: () => void
+  guia?: boolean; cosa?: [string, string]   // con Resti guiando: resumen y confirmación antes de guardar
+  intro?: string                            // lo que Resti dice al abrir el paso
 }) {
+  const [conf, setConf] = useState<Fila[] | null>(null)
   const vacia = (): Fila => Object.fromEntries(cols.map(c => [c.key, c.unit ? 'pieza' : '']))
   const [filas, setFilas] = useState<Fila[]>([vacia()])
   const [pegar, setPegar] = useState(false)
@@ -156,18 +161,24 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado }: {
     a.click(); URL.revokeObjectURL(a.href)
   }
 
-  const guardar = async () => {
+  const guardar = () => {
     const validas = filas.filter(f => limpiar(f[nombreKey]))
     if (validas.length === 0) { message.warning('Agrega al menos una fila'); return }
     const lista = validas.map(f => Object.fromEntries(cols.map(c => [c.key, c.num ? numTxt(limpiar(f[c.key])) : limpiar(f[c.key])])) as Fila)
     const problema = validar?.(lista)
     if (problema) { message.error(problema); return }
+    if (guia) { setConf(lista); return }   // Resti resume y espera el "sí" antes de cargar en lote
+    void ejecutar(lista, validas)
+  }
+
+  const ejecutar = async (lista: Fila[], validas: Fila[]) => {
+    setConf(null)
     setGuardando(true)
     const { data, error } = await supabase.rpc(rpc, { p_filas: lista })
     setGuardando(false)
-    if (error) { message.error('No se pudo guardar: ' + error.message); return }
+    if (error) { message.error('No se pudo guardar: ' + motivoClaro(error.message)); return }
     const res = data as Resultado
-    const lineas = res.errores.map(e => `“${lista[e.fila - 1]?.[nombreKey] ?? 'fila ' + e.fila}”: ${e.motivo}`)
+    const lineas = res.errores.map(e => `“${lista[e.fila - 1]?.[nombreKey] ?? 'fila ' + e.fila}”: ${motivoClaro(e.motivo)}`)
     if (res.proveedores_no_encontrados?.length) lineas.push('Proveedores que no existen (quedaron sin proveedor): ' + res.proveedores_no_encontrados.join(', '))
     setAviso(lineas)
     const malas = new Set(res.errores.map(e => e.fila - 1))
@@ -176,8 +187,16 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado }: {
     if (malas.size === 0) onGuardado()
   }
 
+  if (conf) return (
+    <RestiConfirma ocupado={guardando}
+      resumen={`Voy a guardar ${cantidadTxt(conf.length, cosa?.[0] ?? 'fila', cosa?.[1] ?? 'filas')} (${conf.slice(0, 3).map(f => f[nombreKey]).join(', ')}${conf.length > 3 ? '…' : ''}). Lo que ya exista no se repite.`}
+      onConfirmar={() => void ejecutar(conf, filas.filter(f => limpiar(f[nombreKey])))}
+      onRevisar={() => setConf(null)} />
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {guia && intro && <RestiGuia texto={intro} pose="click" />}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {sugeridos.length > 0 && <button style={ghost} onClick={() => agregarFilas(sugeridos.map(s => ({ ...vacia(), ...s })))}>✨ Usar lista sugerida</button>}
         <button style={ghost} onClick={() => setPegar(p => !p)}>📋 Pegar o subir Excel / CSV</button>
@@ -221,7 +240,9 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado }: {
       </div>
       {aviso.length > 0 && (
         <div style={{ ...card, borderColor: 'var(--w-wine)' }}>
-          <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Revisa estas filas (las demás ya quedaron guardadas):</p>
+          {guia
+            ? <RestiGuia texto="Hubo filas que no pude guardar; las demás ya quedaron listas. Corrígelas y vuelve a guardar:" pose="think" />
+            : <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Revisa estas filas (las demás ya quedaron guardadas):</p>}
           {aviso.map((a, i) => <p key={i} style={{ margin: '0.125rem 0', fontSize: '0.875rem' }}>{a}</p>)}
         </div>
       )}
@@ -259,6 +280,10 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
   const [guardando, setGuardando] = useState(false)
   const [subMenu, setSubMenu] = useState<'carga' | 'fotos'>('carga')
   const [verQr, setVerQr] = useState(false)
+  // Resti guía solo mientras la configuración está pendiente (onboarding_completed_at nulo); al terminar se apaga.
+  const [guia, setGuia] = useState(false)
+  const [topeMesas, setTopeMesas] = useState<number | null>(null)
+  const [confMesas, setConfMesas] = useState<number | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -266,7 +291,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
       setRid((id as string) ?? null)
       const [{ data: ob }, { data: cfg }, { data: fis }, { data: pls }, { data: resp }] = await Promise.all([
         supabase.from('restaurant_onboarding').select('current_step, steps_done').maybeSingle(),
-        supabase.from('restaurant_config').select('business_type, ciudad, modules_enabled, plantillas_aplicadas').maybeSingle(),
+        supabase.from('restaurant_config').select('business_type, ciudad, modules_enabled, plantillas_aplicadas, onboarding_completed_at').maybeSingle(),
         supabase.from('restaurant_fiscal').select('razon_social, nit').maybeSingle(),
         supabase.from('restaurant_templates').select('key, nombre, payload').eq('activo', true).order('nombre'),
         supabase.from('restaurant_template_answers').select('template_key, pregunta_id, respuesta'),
@@ -278,6 +303,10 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
       setRespuestas(Object.fromEntries((resp ?? []).map(r => [`${r.template_key}|${r.pregunta_id}`, r.respuesta as string])))
       const { data: rest } = await supabase.from('restaurants').select('slug').maybeSingle()   // la vista previa de la marca abre el menú público
       setSlug((rest?.slug as string) ?? null)
+      // Tope de mesas del plan (el servidor también lo hace cumplir)
+      const [{ data: sus }, { data: pp }] = await Promise.all([supabase.from('subscriptions').select('plan').maybeSingle(), supabase.rpc('planes_publicos')])
+      const tope = (Array.isArray(pp) ? pp : []).find((p: { id: string }) => p.id === sus?.plan)?.max_mesas
+      setTopeMesas(typeof tope === 'number' ? tope : null)
       if (ob) {
         // El paso "Recetas" se agregó como paso 6: quien ya venía a medias conserva su lugar (lo guardado antes de la marca v2 se corre un paso).
         const sd = (ob.steps_done ?? {}) as Record<string, boolean>
@@ -288,6 +317,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
       }
       if (fis) { setRazon(fis.razon_social ?? ''); setNit(fis.nit ?? '') }
       if (cfg) {
+        setGuia(!cfg.onboarding_completed_at)
         const aplicadas = (cfg.plantillas_aplicadas as string[] | null) ?? []
         setTipos([...new Set([cfg.business_type, ...aplicadas].filter((x): x is string => !!x))]); setCiudad(cfg.ciudad ?? '')
         const cats = (cfg.modules_enabled as { categories?: { label?: string }[] } | null)?.categories
@@ -360,15 +390,44 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
     siguiente(true)
   }
 
-  const guardarMesas = async () => {
+  const guardarMesas = async (confirmado = false) => {
     const n = Number(mesas)
     if (!Number.isInteger(n) || n < 0 || n > 100) { message.warning('Escribe un número de mesas entre 0 y 100'); return }
+    if (topeMesas && n > topeMesas) { message.warning(`Tu plan permite hasta ${topeMesas} mesas`); return }
+    if (guia && n > 0 && !confirmado) { setConfMesas(n); return }   // Resti resume y espera el "sí" antes de crear
+    setConfMesas(null)
     setGuardando(true)
     const { error } = await supabase.rpc('crear_mesas', { p_cantidad: n })
     setGuardando(false)
-    if (error) { message.error('No se pudieron crear las mesas: ' + error.message); return }
+    if (error) { message.error('No se pudieron crear las mesas: ' + motivoClaro(error.message)); return }
     siguiente(true)
   }
+
+  const sugeridosDe = (t: string) => SUGERIDOS[t || 'otro'] ?? SUGERIDOS.otro
+  // Lo que Resti pregunta o propone en cada paso (solo mientras la configuración está pendiente)
+  const nombreTipo = plantillas.find(p => p.key === tipo)?.nombre ?? TIPOS.find(t => t.id === tipo)?.label ?? 'tu negocio'
+  const textoGuia = (): { texto: string; pose: 'wave' | 'click' | 'think' } | null => {
+    if (!guia) return null
+    switch (paso) {
+      case 1: return sub === 'preguntas'
+        ? { texto: 'Gracias. Cuéntame con tus palabras lo que sepas; lo que no, lo dejas en blanco.', pose: 'think' }
+        : { texto: '¡Hola! Soy Resti, tu chef asistente. Te acompaño a dejar listo tu restaurante. Para empezar: ¿qué tipo de negocio tienes?', pose: 'wave' }
+      case 2: return confMesas !== null ? null : { texto: soloDomicilio ? 'Entonces vendes solo por domicilio y para llevar: no creo mesas.'
+        : `¿Cuántas mesas tienes? Te propongo ${mesas}${topeMesas ? ` (tu plan permite hasta ${topeMesas})` : ''}. Cámbialo si quieres y yo las creo.`, pose: 'click' }
+      case 3: case 4: return null   // los dice la tabla de carga, para no repetir a Resti cuando pide confirmar
+      case 5: return subMenu === 'carga' ? null : { texto: 'Una foto y una descripción hacen que tus platos se vendan más. Es opcional.', pose: 'wave' }
+      case 6: return { texto: 'Las recetas conectan cada plato con sus ingredientes; así el inventario se descuenta solo cuando vendes.', pose: 'think' }
+      case 7: return { texto: 'Dale tu marca: logo, colores y datos. Mira la vista previa mientras lo haces.', pose: 'wave' }
+      case 8: return { texto: 'Tu equipo: crea los usuarios de caja, mesero y cocina cuando quieras.', pose: 'wave' }
+      default: return { texto: 'Esto es lo que quedó listo. Haz un pedido de prueba y termina cuando estés tranquilo.', pose: 'wave' }
+    }
+  }
+  const introIng = sugeridosDe(tipo).ingredientes.length
+    ? `Estos son los ingredientes que usas. Para ${nombreTipo} te propongo una lista: pulsa “Usar lista sugerida” y ajústala. Antes de guardar te hago un resumen.`
+    : 'Estos son los ingredientes que usas. Escríbelos o pega tu lista; antes de guardar te hago un resumen.'
+  const introMenu = sugeridosDe(tipo).menu.length
+    ? 'Ahora el menú. Te propongo platos de ejemplo, pero los precios los pones tú: yo no los invento. Antes de guardar te hago un resumen.'
+    : 'Ahora el menú. Escribe tus platos con su precio; antes de guardar te hago un resumen.'
 
   const terminar = async () => {
     setGuardando(true)
@@ -402,6 +461,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
         </div>
 
         {cargando ? <p style={{ color: 'var(--w-ink-mut)' }}>Cargando…</p> : (<>
+          {(() => { const g = textoGuia(); return g && <RestiGuia texto={g.texto} pose={g.pose} /> })()}
           {paso === 1 && sub === 'preguntas' && (<>
             <Titulo t="Cuéntanos de tu negocio" s="Estas preguntas nos ayudan a dejar tu menú y tus opciones como las necesitas. Responde lo que sepas con tus palabras; puedes dejar en blanco lo que no." />
             {elegidas.filter(p => p.preguntas.length > 0).map(p => (
@@ -458,26 +518,32 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
 
           {paso === 2 && (<>
             <Titulo t="Mesas" s="Se crean numeradas del 1 en adelante. Si ya tienes algunas, no se repiten." />
-            <div style={card}>
+            {confMesas !== null && (
+              <RestiConfirma ocupado={guardando} resumen={`Voy a crear ${cantidadTxt(confMesas, 'mesa', 'mesas')}, numeradas del 1 al ${confMesas}. Las que ya existan no se repiten.`}
+                onConfirmar={() => void guardarMesas(true)} onRevisar={() => setConfMesas(null)} />
+            )}
+            <div style={{ ...card, display: confMesas !== null ? 'none' : undefined }}>
               <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', fontWeight: 600 }}>
                 <input type="checkbox" checked={soloDomicilio} onChange={e => setSoloDomicilio(e.target.checked)} style={{ width: '1.25rem', height: '1.25rem' }} />
                 Solo vendo por domicilio y para llevar (sin mesas)
               </label>
-              {!soloDomicilio && <input style={{ ...input, maxWidth: '12rem' }} type="number" min={0} max={100} value={mesas} aria-label="Cantidad de mesas" onChange={e => setMesas(e.target.value)} />}
+              {!soloDomicilio && <input style={{ ...input, maxWidth: '12rem' }} type="number" min={0} max={topeMesas ?? 100} value={mesas} aria-label="Cantidad de mesas" onChange={e => setMesas(e.target.value)} />}
             </div>
-            <div style={{ marginTop: '1rem' }}>
+            <div style={{ marginTop: '1rem', display: confMesas !== null ? 'none' : undefined }}>
               <button style={{ ...primary, opacity: guardando ? 0.7 : 1 }} disabled={guardando} onClick={() => soloDomicilio ? siguiente(true) : guardarMesas()}>Guardar y continuar</button>
             </div>
           </>)}
 
           {paso === 3 && (<>
             <Titulo t="Proveedores" s="A quién le compras. Después puedes asignar un proveedor a cada ingrediente." />
-            <CargaTabla key="prov" cols={COLS_PROV} rpc="importar_proveedores" sugeridos={[]} onGuardado={() => siguiente(true)} />
+            <CargaTabla key="prov" cols={COLS_PROV} rpc="importar_proveedores" sugeridos={[]} onGuardado={() => siguiente(true)}
+              guia={guia} cosa={['proveedor', 'proveedores']} intro="Ahora, ¿a quién le compras? Escribe tus proveedores o pega una lista. Si no los tienes a la mano, omite este paso. Antes de guardar te hago un resumen." />
           </>)}
 
           {paso === 4 && (<>
             <Titulo t="Inventario" s="Los ingredientes que usas, con su unidad, cuánto tienes, el mínimo para avisarte y su costo." />
-            <CargaTabla key="ing" cols={COLS_ING} rpc="importar_ingredientes" sugeridos={sug.ingredientes} onGuardado={() => siguiente(true)} />
+            <CargaTabla key="ing" cols={COLS_ING} rpc="importar_ingredientes" sugeridos={sug.ingredientes} onGuardado={() => siguiente(true)}
+              guia={guia} cosa={['ingrediente', 'ingredientes']} intro={introIng} />
           </>)}
 
           {paso === 5 && (<>
@@ -485,7 +551,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
               <Titulo t="Menú" s="Tus platos con categoría, precio y descripción. En la siguiente pantalla les pones foto." />
               <CargaTabla key="menu" cols={COLS_MENU} rpc="importar_menu" sugeridos={sug.menu} categorias={categorias}
                 validar={f => f.some(x => !(Number(x.precio) > 0)) ? 'Ponle precio a todos los platos (mayor que 0)' : null}
-                onGuardado={() => setSubMenu('fotos')} />
+                onGuardado={() => setSubMenu('fotos')} guia={guia} cosa={['plato', 'platos']} intro={introMenu} />
               <div style={{ marginTop: '0.75rem' }}><button style={ghost} onClick={() => setSubMenu('fotos')}>Ya tengo mis platos: ir a las fotos →</button></div>
             </>) : (<>
               <Titulo t="Fotos y descripciones" s="Una foto y una descripción corta hacen que tus platos se vendan más. Todo es opcional." />
