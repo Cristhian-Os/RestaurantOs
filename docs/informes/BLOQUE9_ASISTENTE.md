@@ -26,7 +26,7 @@ La migración `fotos_por_restaurante` deja: carpeta del restaurante → solo su 
 
 ## Para pasar a producción (con tu "apruebo, aplica")
 
-1. Migraciones `20261021160000_importar_recetas` (solo funciones nuevas) y `20261021160100_fotos_por_restaurante` (cambia 2 reglas de fotos; reversa en `supabase/rollback/`).
+1. Migraciones `20261021165337_importar_recetas` (solo funciones nuevas) y `20261021165349_fotos_por_restaurante` (cambia 2 reglas de fotos; reversa en `supabase/rollback/`).
 2. Publicar la app (despliegue manual en Vercel).
 3. Prueba: crear un restaurante de prueba, recorrer el asistente y subir una portada.
 
