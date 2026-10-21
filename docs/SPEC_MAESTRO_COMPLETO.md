@@ -24,7 +24,7 @@ Esta sección dice dónde va la construcción. Si algo de aquí contradice un bl
 | 6 | Planes, precios, IVA, prueba de 7 días, plan anual (10,5 meses) y cobro Wompi | ✅ En producción desde el 20-oct (cobro real apagado; Cholaos sin tocar). Ver `docs/informes/BLOQUE6_PLANES_Y_PRECIOS.md`. Precios: Esencial 160.000, Pro 260.000, Premium 375.000 (no disponible hasta que existan las sedes), sede extra 70.000 |
 | 7 | Panel de plataforma Fase 1: Inicio, ficha de restaurante, origen, semáforo | ✅ En producción (19-oct) |
 | 8 | Vendedores con contrato, comisiones, pagos, Dinero y Rendimiento | ✅ En producción (20-oct). Sin datos reales todavía |
-| 9 | Asistente de configuración completo | ⬜ Pendiente (ya existe una primera versión con tipo de negocio y preguntas) |
+| 9 | Asistente de configuración completo | 🟡 Construido y probado en el proyecto de prueba y el simulador (21-oct); **falta aplicar en producción** (ver `docs/informes/BLOQUE9_ASISTENTE.md`). Incluye cierre del hueco de fotos entre restaurantes |
 | 10 | Impresión de comandas, tickets y recibos | ⬜ Pendiente |
 | 11 | Reportes con inteligencia artificial real | ⬜ Pendiente |
 | 12 | Fase 4 restante y Fase 5 (Sentry, copias automáticas, soporte, etc.) | ⬜ Pendiente (se elige con Cristhian) |
