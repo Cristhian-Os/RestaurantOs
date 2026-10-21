@@ -1,6 +1,6 @@
 // Prueba del mapeo de datos. Correr con:  node src/lib/print/mapeo.test.ts
 import assert from 'node:assert/strict'
-import { pagosDesdeFilas, parseItems, pedidoDesdeFila, planearComandas, type FilaPedido } from './mapeo.ts'
+import { datosCierre, pagosDesdeFilas, parseItems, pedidoDesdeFila, planearComandas, type FilaPedido } from './mapeo.ts'
 import { buildTicket } from './tickets.ts'
 import { aTexto } from './modelo.ts'
 
@@ -42,5 +42,14 @@ const plan = planearComandas([
   { id: 'igual', created_at: hace(600), items: dos }, { id: 'viejo', created_at: hace(3600), items: dos },
 ], new Map([['crecio', 2], ['igual', 2]]), ahora)
 assert.deepEqual(plan, [{ orderId: 'nuevo', desde: 0, hasta: 2, modo: 'nueva' }, { orderId: 'crecio', desde: 2, hasta: 3, modo: 'adicion' }])
+
+// 6) Cierre de caja: mismas cifras del corte, y el conteo físico marca la diferencia
+const corte = { fecha: '2026-10-21', total_efectivo: '100000', total_transferencia: 50000, total_tarjeta: null, total_general: 150000, total_ordenes: 12, total_propinas: 5000,
+  total_gastos: 20000, total_neto: 130000, base_caja: 30000, aportes_a_caja: 10000, gastos_pagados_de_caja: 15000, gastos_adelantados: 5000, reembolsos_de_caja: 0, efectivo_esperado_cajon: 125000 }
+const dc = datosCierre(corte, 124000)
+assert.equal(dc.ventas.tarjeta, 0); assert.equal(dc.efectivoEsperado, 125000); assert.equal(dc.neto, 130000)
+const cierreTxt = aTexto(buildTicket('cierre', { encabezado: { nombre: 'Cholaos' }, ...dc }, 58)).join('\n')
+assert.ok(cierreTxt.includes('$150.000') && cierreTxt.includes('$125.000') && cierreTxt.includes('Falta') && cierreTxt.includes('$1.000'), cierreTxt)
+assert.equal(datosCierre({ total_efectivo: 7 }, null).efectivoEsperado, 7, 'sin efectivo_esperado_cajon usa el efectivo')
 
 console.log('mapeo.test.ts: todo OK')

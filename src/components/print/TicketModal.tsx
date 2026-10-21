@@ -10,29 +10,34 @@ import { renderHtml } from '../../lib/print/render'
 const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.9375rem', borderRadius: '0.75rem', padding: '0.7rem 1.1rem', minHeight: '2.75rem' }
 const secundario: React.CSSProperties = { ...boton, flex: 1, background: 'rgba(120,110,95,0.12)', color: 'inherit' }
 
-export function TicketModal({ tipo, orderId, automatico, onClose }: { tipo: 'precuenta' | 'recibo'; orderId: string; automatico?: boolean; onClose: () => void }) {
-  const [ticket, setTicket] = useState<TicketListo | null>(null)
+interface Props { tipo: 'precuenta' | 'recibo' | 'cierre'; orderId?: string; preparado?: TicketListo; automatico?: boolean; onClose: () => void }
+const TITULO = { recibo: 'Recibo de pago', precuenta: 'Pre-cuenta', cierre: 'Cierre de caja' }
+
+/** Pre-cuenta y recibo se arman desde `orderId`; el cierre llega ya armado en `preparado`. */
+export function TicketModal({ tipo, orderId, preparado, automatico, onClose }: Props) {
+  const [ticket, setTicket] = useState<TicketListo | null>(preparado ?? null)
   const [error, setError] = useState<string | null>(null)
   const [falloImpresion, setFalloImpresion] = useState<string | null>(null)
   const [imprimiendo, setImprimiendo] = useState(false)
   const yaAutomatico = useRef(false)
 
   useEffect(() => {
+    if (preparado || tipo === 'cierre' || !orderId) return
     let vivo = true
     armarTicket(tipo, orderId).then(t => { if (vivo) setTicket(t) }).catch(e => { if (vivo) setError(e instanceof Error ? e.message : 'No se pudo armar el documento') })
     return () => { vivo = false }
-  }, [tipo, orderId])
+  }, [tipo, orderId, preparado])
 
   const imprimir = useCallback(async (t: TicketListo) => {
     setImprimiendo(true); setFalloImpresion(null)
-    try { await imprimirEnNavegador(t.modelo); void registrarImpresion(tipo, orderId, 'impreso') }
-    catch (e) { const m = e instanceof Error ? e.message : 'error'; setFalloImpresion(m); void registrarImpresion(tipo, orderId, 'error', m) }
+    try { await imprimirEnNavegador(t.modelo); void registrarImpresion(tipo, orderId ?? null, 'impreso') }
+    catch (e) { const m = e instanceof Error ? e.message : 'error'; setFalloImpresion(m); void registrarImpresion(tipo, orderId ?? null, 'error', m) }
     finally { setImprimiendo(false) }
   }, [tipo, orderId])
 
   useEffect(() => { if (automatico && ticket && !yaAutomatico.current) { yaAutomatico.current = true; void imprimir(ticket) } }, [automatico, ticket, imprimir])
 
-  const titulo = tipo === 'recibo' ? 'Recibo de pago' : 'Pre-cuenta'
+  const titulo = TITULO[tipo]
   return (
     <div role="dialog" aria-modal="true" aria-label={titulo} onClick={e => { e.stopPropagation(); onClose() }}
       style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(30,35,60,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
@@ -57,7 +62,7 @@ export function TicketModal({ tipo, orderId, automatico, onClose }: { tipo: 'pre
               {imprimiendo ? 'Abriendo impresión…' : falloImpresion ? '↻ Reintentar impresión' : '🖨 Imprimir'}
             </button>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button style={secundario} onClick={() => void compartirPdf(ticket.modelo, tipo === 'recibo' ? 'recibo' : 'pre-cuenta')}>PDF</button>
+              <button style={secundario} onClick={() => void compartirPdf(ticket.modelo, titulo.toLowerCase().replace(/ /g, '-'))}>PDF</button>
               <button style={secundario} onClick={() => abrirWhatsApp(ticket.modelo, ticket.telefonoCliente)}>WhatsApp</button>
               <button style={secundario} onClick={onClose}>Cerrar</button>
             </div>

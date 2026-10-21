@@ -4,7 +4,7 @@
  */
 import { supabase } from '../../services/supabaseClient'
 import { cargarConfig, cargarEncabezado } from './config'
-import { pagosDesdeFilas, pedidoDesdeFila, type FilaPago, type FilaPedido } from './mapeo.ts'
+import { datosCierre, pagosDesdeFilas, pedidoDesdeFila, type FilaPago, type FilaPedido } from './mapeo.ts'
 import type { Modelo } from './modelo.ts'
 import { buildTicket } from './tickets.ts'
 
@@ -39,6 +39,13 @@ export async function armarTicket(tipo: 'precuenta' | 'recibo', orderId: string)
   const n = Number(numero) || null
   const modelo = buildTicket('recibo', { encabezado, pedido, pagos: pagosDesdeFilas(pagos, fila), numeroRecibo: n, pagadoEn: fila.paid_at }, cfg.anchoRecibo)
   return { modelo, telefonoCliente: null, numeroRecibo: n }
+}
+
+/** Cierre de caja con las cifras que ya devolvió el corte (y el conteo físico, si se hizo). */
+export async function armarCierre(corte: Record<string, unknown>, contado: number | null): Promise<TicketListo> {
+  const cfg = await cargarConfig()
+  const encabezado = await cargarEncabezado(cfg)
+  return { modelo: buildTicket('cierre', { encabezado, ...datosCierre(corte, contado) }, cfg.anchoRecibo), telefonoCliente: null, numeroRecibo: null }
 }
 
 /** Deja constancia de cada impresión (y de las que fallan, para poder reintentar). Nunca interrumpe lo que se está haciendo. */

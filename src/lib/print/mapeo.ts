@@ -2,7 +2,7 @@
  * mapeo.ts — de las filas de la base (pedido y pagos) a los datos que usan los tickets. Parte pura, con prueba.
  * Los pagos salen de order_payments (incluye pagos divididos o mixtos); si un pedido viejo no tiene, se arma uno con lo guardado en el pedido.
  */
-import type { ItemPedido, PagoRecibo, Pedido } from './tickets.ts'
+import type { DatosCierre, ItemPedido, PagoRecibo, Pedido } from './tickets.ts'
 
 export interface FilaPedido {
   id: string; order_number_today?: number | null; table_num: number | null; tipo_pedido: string; customer_name: string | null
@@ -31,6 +31,17 @@ export function parseItems(raw: unknown): ItemPedido[] {
       comensal: t(i.comensal, 60),
     }
   })
+}
+
+/** Resultado de `hacer_corte_caja` → cifras del cierre impreso (las mismas de la pantalla del corte; no se recalcula nada). */
+export function datosCierre(c: Record<string, unknown>, contado: number | null): Omit<DatosCierre, 'encabezado'> {
+  return {
+    fecha: String(c.fecha ?? ''), efectivoEsperado: n(c.efectivo_esperado_cajon ?? c.total_efectivo), efectivoContado: contado,
+    ventas: { efectivo: n(c.total_efectivo), transferencia: n(c.total_transferencia), tarjeta: n(c.total_tarjeta), total: n(c.total_general), ordenes: n(c.total_ordenes) },
+    propinas: n(c.total_propinas), baseCaja: n(c.base_caja), aportes: n(c.aportes_a_caja),
+    gastosDeCaja: n(c.gastos_pagados_de_caja), gastosAdelantados: n(c.gastos_adelantados), reembolsos: n(c.reembolsos_de_caja),
+    gastosTotal: n(c.total_gastos), neto: n(c.total_neto ?? c.total_general),
+  }
 }
 
 export interface TrabajoComanda { orderId: string; desde: number; hasta: number; modo: 'nueva' | 'adicion' }

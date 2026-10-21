@@ -24,6 +24,7 @@ import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
 import { SalesHistory } from './SalesHistory'
 import { TicketModal } from '../print/TicketModal'
 import { cargarConfig } from '../../lib/print/config'
+import { armarCierre, type TicketListo } from '../../lib/print/datos'
 import { GastosDesglose } from './GastosDesglose'
 import { CategoriasGastoEditor } from './CategoriasGastoEditor'
 import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
@@ -221,6 +222,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [gastosMes,     setGastosMes]     = useState<{ id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]>([])
   const [loadingMensual,setLoadingMensual]= useState(false)
   const [showHistory,  setShowHistory]  = useState(false)
+  const [cierreTicket, setCierreTicket] = useState<TicketListo | null>(null)
   const [ticket, setTicket] = useState<{ tipo: 'precuenta' | 'recibo'; orderId: string; automatico?: boolean } | null>(null)
 
   // Tras un cobro completo: el recibo se ofrece o se imprime según lo configurado. Nunca estorba al cobro (si falla la config, no pasa nada).
@@ -1340,6 +1342,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
       <AnimatePresence>
         {showHistory && <SalesHistory onClose={() => setShowHistory(false)} />}
+        {cierreTicket && <TicketModal tipo="cierre" preparado={cierreTicket} onClose={() => setCierreTicket(null)} />}
         {ticket && <TicketModal tipo={ticket.tipo} orderId={ticket.orderId} automatico={ticket.automatico} onClose={() => setTicket(null)} />}
         {showPagos && (
           <PagosDelDia esAdmin={profile.role === 'admin'} onClose={() => setShowPagos(false)} onChanged={fetchData} />
@@ -1702,6 +1705,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   Descargar Excel
+                </button>
+
+                <button
+                  onClick={() => armarCierre(corteResult, denominacionesConteo.length > 0 ? totalContado : null).then(setCierreTicket).catch(e => message.error(`No se pudo preparar el cierre: ${e instanceof Error ? e.message : 'error'}`))}
+                  className="w-full py-3 rounded-2xl font-bold text-[#2D3561] mb-3"
+                  style={S.neoOut}
+                >
+                  🖨 Imprimir cierre (con el conteo, si lo hiciste)
                 </button>
 
                 <button
