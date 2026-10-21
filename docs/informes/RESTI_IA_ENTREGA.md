@@ -15,6 +15,8 @@ Rama: `feature/resti-ia` (un commit por módulo). **Nada de esto está aplicado 
 | E | Asistente de la carta en el menú QR (sin personaje) + mascota opcional como imagen fija. | 8cd6bd7 |
 | F | Resti registra las sugerencias de mejora del administrador (reusa `feedback_items`). | ce3905c |
 
+> **La guía detallada y vigente está en `docs/informes/PASO_A_PRODUCCION_RESTI.md`** (incluye una sexta migración, el interruptor de Resti por restaurante). Lo de abajo es el resumen original.
+
 ## Orden para llevarlo a producción (necesita copia manual y el "apruebo" del dueño)
 
 1. Copia manual de la base (`Backups-RestaurantOS`).

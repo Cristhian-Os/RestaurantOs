@@ -25,12 +25,15 @@ export function OpcionesRestaurantes() {
   const [abierto, setAbierto] = useState<string | null>(null)
   const [respuestas, setRespuestas] = useState<Respuesta[]>([])
   const [busy, setBusy] = useState<string | null>(null)
+  const [resti, setResti] = useState<Record<string, boolean>>({})   // restaurant_id → Resti encendido (modules_enabled.resti_agent)
 
   const cargar = useCallback(async () => {
-    const [{ data, error: e }, { data: pl }] = await Promise.all([
+    const [{ data, error: e }, { data: pl }, { data: rs }] = await Promise.all([
       supabase.rpc('plataforma_opciones_restaurantes'),
       supabase.from('restaurant_templates').select('key, nombre, activo').order('nombre'),
+      supabase.rpc('plataforma_resti_estado'),   // si la función aún no existe, el resto de la pantalla funciona igual
     ])
+    setResti((rs as Record<string, boolean> | null) ?? {})
     if (e) { setError(e.message); return }
     setError(null); setFilas((data as Fila[]) ?? [])
     const lista = (pl ?? []) as { key: string; nombre: string; activo: boolean }[]
@@ -49,6 +52,18 @@ export function OpcionesRestaurantes() {
     setBusy(null)
     if (e) { setAviso(e.message); return }
     setAviso(`${f.nombre}: opciones nuevas ${f.options_v2 ? 'apagadas' : 'encendidas'}`); cargar()
+  }
+
+  const interruptorResti = async (f: Fila) => {
+    const on = !!resti[f.restaurant_id]
+    if (!window.confirm(on
+      ? `¿Apagar a Resti en "${f.nombre}"? El administrador vuelve a ver el chat y el botón de voz de antes.`
+      : `¿Encender a Resti en "${f.nombre}"? Reemplaza el chat y el botón de voz flotante del administrador. Resti solo navega; los cambios de datos siguen pasando por los comandos de voz con aprobación.`)) return
+    setBusy(f.restaurant_id)
+    const { error: e } = await supabase.rpc('plataforma_activar_resti', { p_restaurant_id: f.restaurant_id, p_activo: !on })
+    setBusy(null)
+    if (e) { setAviso(e.message); return }
+    setAviso(`${f.nombre}: Resti ${on ? 'apagado' : 'encendido'}`); cargar()
   }
 
   const aplicar = async (f: Fila) => {
@@ -89,11 +104,17 @@ export function OpcionesRestaurantes() {
               <div style={{ fontSize: '0.8125rem', color: txtSec, marginTop: '0.125rem' }}>
                 Opciones nuevas: <strong style={{ color: f.options_v2 ? 'var(--w-olive, #2f6b3d)' : txtSec }}>{f.options_v2 ? 'ENCENDIDAS' : 'apagadas'}</strong>
                 {' · '}Plantillas: {f.plantillas.length > 0 ? f.plantillas.map(k => todas[k] ?? k).join(', ') : 'ninguna'}
+                {' · '}Resti: <strong style={{ color: resti[f.restaurant_id] ? 'var(--w-olive, #2f6b3d)' : txtSec }}>{resti[f.restaurant_id] ? 'ENCENDIDO' : 'apagado'}</strong>
               </div>
             </div>
-            <button style={boton(!f.options_v2)} disabled={busy === f.restaurant_id} onClick={() => interruptor(f)}>
-              {f.options_v2 ? 'Apagar opciones nuevas' : 'Encender opciones nuevas'}
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button style={boton(!f.options_v2)} disabled={busy === f.restaurant_id} onClick={() => interruptor(f)}>
+                {f.options_v2 ? 'Apagar opciones nuevas' : 'Encender opciones nuevas'}
+              </button>
+              <button style={boton(!resti[f.restaurant_id])} disabled={busy === f.restaurant_id} onClick={() => interruptorResti(f)}>
+                {resti[f.restaurant_id] ? 'Apagar a Resti' : 'Encender a Resti'}
+              </button>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem', alignItems: 'center' }}>
             <select style={campo} aria-label={`Plantilla para ${f.nombre}`} value={elegida[f.restaurant_id] ?? ''} onChange={e => setElegida(s => ({ ...s, [f.restaurant_id]: e.target.value }))}>
