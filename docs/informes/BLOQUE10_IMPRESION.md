@@ -1,6 +1,6 @@
-# Bloque 10: impresión de comandas, pre-cuenta, recibo y cierre de caja (informe)
+﻿# Bloque 10: impresión de comandas, pre-cuenta, recibo y cierre de caja (informe)
 
-Estado: **construido y probado en el proyecto de prueba y en el simulador. Nada en producción.** Commits locales 53976b7, 03c68ec, ef3bf22, 28751f1, 827da91 y 3f9576e.
+Estado: **en producción desde el 21-oct** (migración 20261021182625 y app publicada, commit cfc9de1; Cholaos sin tocar). Probado en la base de producción con el administrador de Demo y revertido: recibos 1, 1 repetido y 2, otro restaurante y pedido sin pagar bloqueados, clave de impresión única. Commits locales 53976b7, 03c68ec, ef3bf22, 28751f1, 827da91 y 3f9576e.
 
 ## Qué cambia para el restaurante
 
