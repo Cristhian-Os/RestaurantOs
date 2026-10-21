@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
+import { MascotaUploader } from './MascotaUploader'
 
 // Aplica el color primario del restaurante como acento de toda la app
 export function applyBranding(color?: string | null) {
@@ -214,6 +215,8 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
           Foto grande que aparece arriba del menú de tus clientes (opcional).
         </p>
       </div>
+
+      <MascotaUploader />
 
       {/* Nombre + eslogan */}
       <div style={card}>

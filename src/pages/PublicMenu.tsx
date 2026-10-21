@@ -20,6 +20,7 @@ import {
   gruposDe, selAV2, selIsValidV2, unitPriceForV2, describeSelV2, conListas, listasDesdeRpc,
 } from '../services/menuOptions'
 import { OptionGroupsV2 } from '../components/orders/OptionGroupsV2'
+import CartaAsistente, { MascotaMenu } from '../components/menu/CartaAsistente'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
   all:       'Todo',
@@ -1065,6 +1066,7 @@ export default function PublicMenu() {
   const [bizName,       setBizName]       = useState('RestaurantOS')
   const [promo,         setPromo]         = useState<string | null>(null)
   const [logoUrl,       setLogoUrl]       = useState<string | null>(null)
+  const [mascotaUrl,    setMascotaUrl]    = useState<string | null>(null)   // mascota del restaurante (imagen fija, opcional)
   const [menuCfg,       setMenuCfg]       = useState<MenuConfig>(() => parseMenuConfig(null))
   const [activeCat,     setActiveCat]     = useState<DishCategory | 'all'>('all')
   const [search,        setSearch]        = useState('')
@@ -1187,6 +1189,9 @@ export default function PublicMenu() {
 
   const fetchMenuData = useCallback(() => {
     if (!restaurantId) return
+    // Mascota (imagen fija, opcional). Consulta aparte: si la columna aún no existe, el menú sigue igual sin mascota.
+    supabase.from('restaurant_config').select('mascota_url').eq('restaurant_id', restaurantId).maybeSingle()
+      .then(({ data }) => { const u = data?.mascota_url; setMascotaUrl(typeof u === 'string' && /^https:\/\//.test(u) ? u : null) })
     Promise.all([
       supabase.from('dishes').select('*').eq('restaurant_id', restaurantId).eq('available', true)
         .neq('availability_status', 'discontinued').order('sort_order').order('name'),
@@ -1458,6 +1463,7 @@ export default function PublicMenu() {
 
       {/* ── Editorial hero ── */}
       <header className="menu-wrap" style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', margin: '0 auto', overflow: 'hidden' }}>
+        {mascotaUrl && <MascotaMenu url={mascotaUrl} nombre={bizName} />}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
           {logoUrl && (
             <img src={logoUrl} alt={bizName}
@@ -1475,6 +1481,7 @@ export default function PublicMenu() {
           <p className="ed-body" style={{ marginTop: '0.75rem', fontSize: '0.9375rem', color: 'var(--w-ink-mut)', maxWidth: '34ch' }}>
             Elige tus platos favoritos y pide directo desde tu mesa.
           </p>
+          <CartaAsistente slug={null} restaurantId={restaurantId} mesa={mesa} />
         </motion.div>
       </header>
 
