@@ -35,10 +35,14 @@ const CSS = `
 
 async function preguntarIA(text: string): Promise<RestiBrainResponse> {
   const timeout = new Promise<null>(r => setTimeout(() => r(null), 10_000))
-  const res = await Promise.race([supabase.functions.invoke('resti-brain', { body: { text } }), timeout])
-  if (!res) return { speech: 'Me estoy tardando demasiado. Intenta otra vez en un momento.', action: 'NONE' }
-  if (res.error) return { speech: 'Ahora mismo no puedo ayudarte. Intenta en un momento.', action: 'NONE' }
-  return parseBrainResponse(res.data) ?? NO_ENTENDI
+  try {
+    const res = await Promise.race([supabase.functions.invoke('resti-brain', { body: { text } }), timeout])
+    if (!res) return { speech: 'Me estoy tardando demasiado. Intenta otra vez en un momento.', action: 'NONE' }
+    if (res.error) return { speech: 'Ahora mismo no puedo ayudarte. Intenta en un momento.', action: 'NONE' }
+    return parseBrainResponse(res.data) ?? NO_ENTENDI
+  } catch {
+    return { speech: 'Ahora mismo no puedo ayudarte. Intenta en un momento.', action: 'NONE' }
+  }
 }
 
 interface Props { onOpenVoiceCommands: () => void; onGoHome: () => void }
