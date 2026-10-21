@@ -4,6 +4,7 @@ import Spin from 'antd/es/spin'
 import Alert from 'antd/es/alert'
 import message from 'antd/es/message'
 import { useBusinessMetrics } from '../hooks/useBusinessMetrics'
+import { ResumenIA } from '../components/analytics/ResumenIA'
 import { analyticsService, UMBRALES_INICIALES, type Cuadrante, type Umbrales } from '../services/analyticsService'
 
 const S = {
@@ -58,6 +59,8 @@ export default function BusinessAssistant() {
           <h1 className="text-4xl font-bold text-neo-dark mb-2">Asistente de Negocio</h1>
           <p className="text-neo-mid">Cifras reales de tu restaurante, calculadas por el sistema. Nada aquí es una suposición.</p>
         </div>
+
+        <ResumenIA />
 
         {/* Rentabilidad del menú */}
         <section className="mb-8">

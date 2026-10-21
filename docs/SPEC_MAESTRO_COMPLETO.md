@@ -26,7 +26,7 @@ Esta sección dice dónde va la construcción. Si algo de aquí contradice un bl
 | 8 | Vendedores con contrato, comisiones, pagos, Dinero y Rendimiento | ✅ En producción (20-oct). Sin datos reales todavía |
 | 9 | Asistente de configuración completo | 🟡 Construido y probado en el proyecto de prueba y el simulador (21-oct); **falta aplicar en producción** (ver `docs/informes/BLOQUE9_ASISTENTE.md`). Incluye cierre del hueco de fotos entre restaurantes |
 | 10 | Impresión de comandas, tickets y recibos | ✅ En producción desde el 21-oct (migración 20261021182625, Cholaos sin tocar); **falta probar con una impresora real** (ver `docs/informes/BLOQUE10_IMPRESION.md`). Impresión rápida ESC/POS pospuesta hasta tener impresora |
-| 11 | Reportes con inteligencia artificial real | ⬜ Pendiente |
+| 11 | Reportes con inteligencia artificial real | 🟡 Pasos 1 a 5 construidos y probados en el proyecto de prueba y el simulador (22-oct); **nada en producción, IA apagada por defecto**. Decisión del 22-oct: solo reporte semanal y mensual con IA; el antifraude avisa solo si detecta algo; el dueño ve el consumo por restaurante. Pendiente: pasos 6 a 8, prueba real con Gemini, precios y comparación con una semana real de Cholaos (ver `docs/informes/BLOQUE11_REPORTES_IA.md`) |
 | 12 | Fase 4 restante y Fase 5 (Sentry, copias automáticas, soporte, etc.) | ⬜ Pendiente (se elige con Cristhian) |
 | 13 | Panel "Negocio": globo con restaurantes, semáforo y control de la plataforma | ⬜ Al final, solo por orden expresa |
 
