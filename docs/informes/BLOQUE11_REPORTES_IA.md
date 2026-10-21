@@ -1,6 +1,6 @@
-# Bloque 11: reportes con inteligencia artificial real (informe, pasos 1 a 5)
+﻿# Bloque 11: reportes con inteligencia artificial real (informe, pasos 1 a 5)
 
-Estado: **construido y probado en el proyecto de prueba y en el simulador. Nada en producción. La IA queda APAGADA para todos los restaurantes hasta que el dueño de la plataforma la encienda uno por uno.** Pasos 6 a 8 (programación, pregunta libre, día flojo/promociones) sin empezar.
+Estado: **en producción desde el 21-oct** (4 migraciones 20261021193600 a 20261021193732, función `ai-report` y app publicada, commit 9d18349). **La IA está encendida SOLO en Demo RestaurantOS; en los demás (incluido Cholaos) sigue apagada.** Lo verificado en producción: tablas con seguridad, funciones cerradas, reporte_datos y análisis corren con datos reales de Demo, y la función responde 401 sin sesión. Falta la primera llamada real a Gemini desde Demo. Pasos 6 a 8 (programación, pregunta libre, día flojo/promociones) sin empezar.
 
 ## Cómo queda (decisiones que pediste)
 
