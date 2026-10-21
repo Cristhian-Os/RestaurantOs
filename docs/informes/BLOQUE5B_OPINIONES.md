@@ -1,6 +1,6 @@
 # Bloque 5B: opiniones dentro del chatbot (informe)
 
-Estado: **construido y probado en el proyecto de prueba y en el simulador. Nada en producción.** Commits locales d1a7b6c, 09150bd y 40c7c4a.
+Estado: **EN PRODUCCIÓN desde el 21-oct-2026** (migraciones `20261021144012` y `20261021144034`, app commit de3a160, `chat-support` v13 y `feedback-resumen` v1). Pendiente: prueba real con Gemini por un usuario de Sabor encantado.
 
 ## Qué hace
 
