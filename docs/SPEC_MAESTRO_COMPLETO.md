@@ -25,7 +25,7 @@ Esta sección dice dónde va la construcción. Si algo de aquí contradice un bl
 | 7 | Panel de plataforma Fase 1: Inicio, ficha de restaurante, origen, semáforo | ✅ En producción (19-oct) |
 | 8 | Vendedores con contrato, comisiones, pagos, Dinero y Rendimiento | ✅ En producción (20-oct). Sin datos reales todavía |
 | 9 | Asistente de configuración completo | 🟡 Construido y probado en el proyecto de prueba y el simulador (21-oct); **falta aplicar en producción** (ver `docs/informes/BLOQUE9_ASISTENTE.md`). Incluye cierre del hueco de fotos entre restaurantes |
-| 10 | Impresión de comandas, tickets y recibos | ⬜ Pendiente |
+| 10 | Impresión de comandas, tickets y recibos | 🟡 Construido y probado en el proyecto de prueba y el simulador (21-oct); **falta aplicar en producción** y **probar con una impresora real** (ver `docs/informes/BLOQUE10_IMPRESION.md`). Impresión rápida ESC/POS pospuesta hasta tener impresora |
 | 11 | Reportes con inteligencia artificial real | ⬜ Pendiente |
 | 12 | Fase 4 restante y Fase 5 (Sentry, copias automáticas, soporte, etc.) | ⬜ Pendiente (se elige con Cristhian) |
 | 13 | Panel "Negocio": globo con restaurantes, semáforo y control de la plataforma | ⬜ Al final, solo por orden expresa |
