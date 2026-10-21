@@ -18,7 +18,7 @@ Estado: **construido y probado en el proyecto de prueba y en el simulador. Nada 
 
 ## Para pasar a producción (con tu "apruebo, aplica")
 
-1. Migraciones `20261019230000_opiniones_feedback` y `20261021000000_opiniones_en_inicio` (nueva tabla vacía y funciones; la segunda reemplaza `plataforma_atencion` con la misma firma). Reversas en `supabase/rollback/`.
+1. Migraciones `20261021144012_opiniones_feedback` y `20261021144034_opiniones_en_inicio` (nueva tabla vacía y funciones; la segunda reemplaza `plataforma_atencion` con la misma firma). Reversas en `supabase/rollback/`.
 2. Publicar la app.
 3. Desplegar `chat-support` (modo opinión) y `feedback-resumen` (nueva).
 4. Prueba: tú escribes una opinión real desde Sabor encantado y la ves en Opiniones.
