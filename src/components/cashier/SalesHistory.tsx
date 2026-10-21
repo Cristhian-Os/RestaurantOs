@@ -11,6 +11,7 @@ import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
 import { GastosDesglose, type GastoDetalle } from './GastosDesglose'
+import { TicketModal } from '../print/TicketModal'
 import { totalGastos } from '../../services/gastosResumen'
 import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
 import {
@@ -49,9 +50,10 @@ interface SaleCardProps {
   takenBy?: string
   open:     boolean
   onToggle: () => void
+  onRecibo: () => void
 }
 
-const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, open, onToggle }, ref) => {
+const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, open, onToggle, onRecibo }, ref) => {
   // Cuenta dividida con varios métodos => "Pago mixto"; si no, el método del pedido.
   const distintos = new Set((order.pagos ?? []).map(p => p.payment_method)).size
   const metodo = METODO[distintos > 1 ? 'mixto' : (order.payment_method ?? '')] ?? { label: order.payment_method ?? 'Sin método', color: '#9CA3AF' }
@@ -97,6 +99,9 @@ const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, op
           {order.notes && <p className="m-0 mt-2 text-xs italic text-[#6B7280]">Nota del pedido: {order.notes}</p>}
           {Number(order.propina) > 0 && <p className="m-0 mt-2 text-xs text-[#6B7280]">Propina: {fmt(Number(order.propina))}</p>}
           {takenBy && <p className="m-0 mt-1 text-xs text-[#6B7280]">Tomó el pedido: {takenBy}</p>}
+          <button type="button" onClick={onRecibo} className="w-full min-h-[44px] mt-3 rounded-2xl text-xs font-bold text-[#2D3561] border-none cursor-pointer" style={S.neoOutSm}>
+            🖨 Recibo (imprimir / PDF / WhatsApp)
+          </button>
         </div>
       )}
     </div>
@@ -114,6 +119,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [view, setView]         = useState<'ventas' | 'productos'>('ventas')
   const [filter, setFilter]     = useState<PayFilter>('todas')
   const [openId, setOpenId]     = useState<string | null>(null)
+  const [reciboId, setReciboId] = useState<string | null>(null)
   const [gastos, setGastos]     = useState<GastoDetalle[]>([])
   const { etiquetas }           = useCategoriasGasto()
 
@@ -247,7 +253,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
             {shown.map(o => (
               <motion.div key={o.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <SaleCard order={o} takenBy={o.user_id ? staff[o.user_id] : undefined}
-                  open={openId === o.id} onToggle={() => setOpenId(openId === o.id ? null : o.id)} />
+                  open={openId === o.id} onToggle={() => setOpenId(openId === o.id ? null : o.id)} onRecibo={() => setReciboId(o.id)} />
               </motion.div>
             ))}
           </div>
@@ -263,6 +269,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </motion.div>
+      {reciboId && <TicketModal tipo="recibo" orderId={reciboId} onClose={() => setReciboId(null)} />}
     </motion.div>
   )
 }

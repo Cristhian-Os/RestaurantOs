@@ -13,6 +13,7 @@ assert.equal(n.impresoras[0].categorias.length, 2); assert.equal(n.impresoras[0]
 assert.equal(n.impresoras[1].ancho, 58, 'un ancho raro vuelve a 58'); assert.equal(n.impresoras[1].activa, false); assert.equal(n.impresoras[1].nombre, 'Impresora 2')
 assert.equal(n.recibo, 'siempre'); assert.equal(n.propinaSugeridaPct, 30); assert.equal(n.comandaAutomatica, false, 'solo true real activa lo automático'); assert.equal(n.pie.length, 160)
 assert.equal(normalizarConfig({ impresoras: Array.from({ length: 40 }, () => ({})) }).impresoras.length, 12, 'máximo 12 impresoras')
+assert.equal(normalizarConfig({ anchoRecibo: 58 }).anchoRecibo, 58); assert.equal(normalizarConfig({ anchoRecibo: 72 }).anchoRecibo, 80, 'ancho raro del recibo vuelve a 80'); assert.equal(CONFIG_INICIAL.anchoRecibo, 80)
 
 // 2) Reparto: bebidas a barra, comidas a cocina; un pedido con ambas sale en dos comandas
 const it = (name: string, cat: string): ItemPedido & { cat: string } => ({ name, price: 1000, quantity: 1, cat })

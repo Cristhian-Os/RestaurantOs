@@ -11,12 +11,13 @@ export interface ConfigImpresion {
   impresoras: Impresora[]
   comandaAutomatica: boolean          // imprimir la comanda sola al enviar el pedido (en la "estación de impresión")
   recibo: ReciboAlCobrar              // qué hacer con el recibo al cobrar
+  anchoRecibo: Ancho                  // papel del recibo y la pre-cuenta (la impresora de caja)
   propinaSugeridaPct: number          // 0 = sin línea de propina sugerida
   mensaje: string                     // agradecimiento en el recibo
   pie: string                         // pie legal; vacío = "Recibo de pago, no es factura electrónica"
 }
 
-export const CONFIG_INICIAL: ConfigImpresion = { impresoras: [], comandaAutomatica: false, recibo: 'preguntar', propinaSugeridaPct: 0, mensaje: '¡Gracias por su visita!', pie: '' }
+export const CONFIG_INICIAL: ConfigImpresion = { impresoras: [], comandaAutomatica: false, recibo: 'preguntar', anchoRecibo: 80, propinaSugeridaPct: 0, mensaje: '¡Gracias por su visita!', pie: '' }
 
 const texto = (v: unknown, max: number) => String(v ?? '').replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, max)
 const num = (v: unknown, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def }
@@ -39,6 +40,7 @@ export function normalizarConfig(raw: unknown): ConfigImpresion {
     impresoras,
     comandaAutomatica: r.comandaAutomatica === true,
     recibo: r.recibo === 'siempre' || r.recibo === 'nunca' ? r.recibo : 'preguntar',
+    anchoRecibo: Number(r.anchoRecibo) === 58 ? 58 : 80,
     propinaSugeridaPct: num(r.propinaSugeridaPct, 0, 30, 0),
     mensaje: texto(r.mensaje ?? CONFIG_INICIAL.mensaje, 120),
     pie: texto(r.pie, 160),

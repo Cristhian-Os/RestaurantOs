@@ -22,6 +22,8 @@ import { VoiceButton } from '../VoiceButton'
 import { matchName } from '../../services/voiceMatch'
 import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
 import { SalesHistory } from './SalesHistory'
+import { TicketModal } from '../print/TicketModal'
+import { cargarConfig } from '../../lib/print/config'
 import { GastosDesglose } from './GastosDesglose'
 import { CategoriasGastoEditor } from './CategoriasGastoEditor'
 import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
@@ -219,6 +221,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [gastosMes,     setGastosMes]     = useState<{ id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]>([])
   const [loadingMensual,setLoadingMensual]= useState(false)
   const [showHistory,  setShowHistory]  = useState(false)
+  const [ticket, setTicket] = useState<{ tipo: 'precuenta' | 'recibo'; orderId: string; automatico?: boolean } | null>(null)
+
+  // Tras un cobro completo: el recibo se ofrece o se imprime según lo configurado. Nunca estorba al cobro (si falla la config, no pasa nada).
+  const reciboTrasCobro = useCallback((orderId: string) => {
+    cargarConfig().then(cfg => { if (cfg.recibo !== 'nunca') setTicket({ tipo: 'recibo', orderId, automatico: cfg.recibo === 'siempre' }) }).catch(() => {})
+  }, [])
 
   const fetchData = useCallback(async () => {
     const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
@@ -515,7 +523,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     }
     setSplitOrder(null)
     fetchData()
-  }, [splitOrder, fetchData])
+    reciboTrasCobro(order.id)
+  }, [splitOrder, fetchData, reciboTrasCobro])
 
   // Cobrar
   const handleCobrar = useCallback(async () => {
@@ -548,14 +557,16 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           ? `Cobrado · Cambio: $${Math.round(data.change).toLocaleString('es-CO')}`
           : payingKind === 'inicial' ? 'Cobrado · enviado a cocina' : 'Cobrado exitosamente'
       )
+      const cobradaId = payingOrder.id
       setPayingOrder(null)
       fetchData()
+      reciboTrasCobro(cobradaId)
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al cobrar'}`)
     } finally {
       setProcessing(false)
     }
-  }, [payingOrder, payingKind, payMethod, amountPaid, propinaInput, fetchData])
+  }, [payingOrder, payingKind, payMethod, amountPaid, propinaInput, fetchData, reciboTrasCobro])
 
   // Corte de caja
   const handleCorte = useCallback(async () => {
@@ -1252,6 +1263,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     )}
                   </>
                 )}
+                <button onClick={() => setTicket({ tipo: order.paid_at ? 'recibo' : 'precuenta', orderId: order.id })}
+                  className="w-full min-h-[44px] mt-2 rounded-2xl text-xs font-bold text-[#2D3561]" style={S.neoOutSm}>
+                  🖨 {order.paid_at ? 'Recibo' : 'Pre-cuenta'}
+                </button>
                 <div className="flex gap-2 mt-2">
                   <motion.button
                     whileTap={{ scale: 0.97 }}
@@ -1325,6 +1340,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
       <AnimatePresence>
         {showHistory && <SalesHistory onClose={() => setShowHistory(false)} />}
+        {ticket && <TicketModal tipo={ticket.tipo} orderId={ticket.orderId} automatico={ticket.automatico} onClose={() => setTicket(null)} />}
         {showPagos && (
           <PagosDelDia esAdmin={profile.role === 'admin'} onClose={() => setShowPagos(false)} onChanged={fetchData} />
         )}

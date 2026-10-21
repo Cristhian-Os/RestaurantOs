@@ -116,6 +116,11 @@ export function ImpresionConfig() {
             <option value="preguntar">Preguntar cada vez</option><option value="siempre">Imprimir siempre</option><option value="nunca">No imprimir (solo si lo piden)</option>
           </select>
         </label>
+        <label style={{ display: 'grid', gap: '0.25rem', fontWeight: 600, fontSize: '0.875rem' }}>Papel del recibo y de la pre-cuenta (impresora de caja)
+          <select style={campo} value={cfg.anchoRecibo} onChange={e => cambiar({ anchoRecibo: Number(e.target.value) === 58 ? 58 : 80 })}>
+            <option value={80}>80 mm</option><option value={58}>58 mm</option>
+          </select>
+        </label>
         <label style={{ display: 'grid', gap: '0.25rem', fontWeight: 600, fontSize: '0.875rem' }}>Propina sugerida en la pre-cuenta (% — 0 para no mostrarla; nunca es obligatoria)
           <input style={{ ...campo, maxWidth: '8rem' }} type="number" min={0} max={30} value={cfg.propinaSugeridaPct} onChange={e => cambiar({ propinaSugeridaPct: Number(e.target.value) })} />
         </label>

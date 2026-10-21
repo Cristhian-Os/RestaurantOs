@@ -20,7 +20,7 @@ export interface PagoRecibo { metodo: string; monto: number; propina?: number; r
 
 export const PIE_LEGAL = 'Recibo de pago, no es factura electrónica'
 const TIPO_TXT: Record<string, string> = { LOCAL: 'EN MESA', LLEVAR: 'PARA LLEVAR', DOMICILIO: 'DOMICILIO', RAPPI: 'RAPPI' }
-const METODO_TXT: Record<string, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta', mixto: 'Mixto' }
+const METODO_TXT: Record<string, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta', mixto: 'Mixto', rappi: 'Rappi' }
 
 const donde = (p: Pedido) => (p.mesa ? `MESA ${p.mesa}` : TIPO_TXT[p.tipo] ?? p.tipo)
 const detalleItem = (it: ItemPedido): string[] => {
