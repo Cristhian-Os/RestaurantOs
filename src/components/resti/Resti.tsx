@@ -108,8 +108,9 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     el.style.outline = '3px solid var(--w-terra)'; el.style.outlineOffset = '3px'
     const resaltado = el
     setTimeout(() => { resaltado.style.outline = ''; resaltado.style.outlineOffset = '' }, 1800)
-    if (shouldClick) resaltado.click()
     if (speechText) decir(speechText, enVoz)
+    // Primero lo dice y luego pulsa: en Caja, Cocina y pagos Resti no aparece, y el subtítulo se perdería al cambiar de pantalla.
+    if (shouldClick) { await esperar(speechText ? 1300 : 0); resaltado.click() }
     return true
   }, [decir, onGoHome, pos, reducido])
 
