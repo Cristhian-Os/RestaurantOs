@@ -15,6 +15,7 @@ interface Atencion {
   codigos_a_revisar: (Item & { codigo: string | null; estado: string })[]
   liquidaciones_por_aprobar: { id: string; vendedor: string; total: number; periodo: string; vencida: boolean }[]
   contratos_por_vencer: { id: string; vendedor: string; vence: string }[]
+  opiniones_urgentes?: { id: string; numero: number; restaurante: string; titulo: string; fecha: string }[]
   semaforo: { verde: number; amarillo: number; rojo: number; gris: number }
 }
 
@@ -72,6 +73,9 @@ export function PlatformInicio() {
           ))}
         </div>
       </div>
+      <Tarjeta titulo="Opiniones urgentes sin revisar" vacio="No hay opiniones urgentes." onAbrir={() => undefined}
+        items={(a.opiniones_urgentes ?? []).map(o => ({ id: o.id, nombre: `#${o.numero} · ${o.restaurante}`, titulo: o.titulo, fecha: o.fecha }))}
+        detalle={i => `${String(i.titulo)} · ${fecha(String(i.fecha))} — ábrela en “Opiniones”`} />
       <Tarjeta titulo="Acciones pendientes" vacio="Nada pendiente para hoy." items={a.acciones_de_hoy} onAbrir={setAbierto}
         detalle={i => `${(i as Atencion['acciones_de_hoy'][number]).accion ?? 'Sin descripción'} · ${fecha((i as Atencion['acciones_de_hoy'][number]).fecha)}`} />
       <Tarjeta titulo="Pruebas que vencen en 3 días" vacio="Ninguna prueba vence pronto." items={a.pruebas_por_vencer} onAbrir={setAbierto}
