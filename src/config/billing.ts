@@ -55,7 +55,7 @@ export function openWompiCheckout(p: WompiCheckoutParams): void {
 /** Estados posibles de una suscripción (reflejan la tabla subscriptions). */
 export type SubStatus = 'trialing' | 'active' | 'past_due' | 'canceled'
 
-/** ¿El restaurante puede usar la app? (trial y mora siguen con acceso). */
+/** ¿El restaurante puede usar la app? (`trialing` solo queda en filas antiguas: ningún restaurante nuevo nace así; la mora sigue con acceso). */
 export function hasAccess(status: SubStatus | null | undefined): boolean {
   return status === 'trialing' || status === 'active' || status === 'past_due'
 }

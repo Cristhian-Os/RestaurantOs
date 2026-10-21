@@ -16,7 +16,7 @@ function clean(t: string): string {
   return t.replace(/\*\*(.*?)\*\*/g, '$1').replace(/^\s*[*-]\s+/gm, '• ')
 }
 
-const WELCOME: Msg = { role: 'assistant', text: '¡Hola! Soy Resti 👋 el asistente de RestaurantOS. ¿En qué te ayudo? Puedo contarte de los planes, la prueba gratis o cómo empezar.' }
+const WELCOME: Msg = { role: 'assistant', text: '¡Hola! Soy Resti 👋 el asistente de RestaurantOS. ¿En qué te ayudo? Puedo contarte de los planes, el cobro o cómo empezar.' }
 const WELCOME_OPINION: Msg = { role: 'assistant', text: '¡Hola! Soy Resti 👋 Cuéntame qué falló, qué mejorarías o cómo quieres personalizar tu restaurante, y lo dejo anotado para el equipo.' }
 const ATAJOS: { id: AtajoOpinion; texto: string; semilla: string }[] = [
   { id: 'fallo', texto: 'Reportar un fallo', semilla: 'Quiero reportar un fallo.' },

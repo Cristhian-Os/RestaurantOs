@@ -17,9 +17,6 @@ export interface PlanTexto {
   features:  string[]
 }
 
-/** Días de prueba gratuita antes de requerir pago (los fija crear_restaurante en la base). */
-export const TRIAL_DAYS = 7
-
 export const PLANS: PlanTexto[] = [
   {
     id:       'emprende',

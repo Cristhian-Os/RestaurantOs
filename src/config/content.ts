@@ -5,7 +5,7 @@
  * textos cuando tengas testimonios reales de tus clientes.
  */
 
-/** Cupos de la promoción de lanzamiento (primeros N = Premium gratis).
+/** Cupos de la promoción de lanzamiento (primeros N = plan sin costo).
  *  Bajado de 5 a 3 el 2026-09-26 — los 3 cupos ya están ocupados por
  *  restaurantes existentes, así que de aquí en adelante ningún restaurante
  *  nuevo la recibe automáticamente (nunca se activó de forma automática:
@@ -51,8 +51,8 @@ export const FAQS: Faq[] = [
     a: 'No. RestaurantOS funciona desde el navegador de cualquier celular, tablet o computador. Solo entras con tu cuenta.',
   },
   {
-    q: '¿Cómo funciona la prueba gratis?',
-    a: 'Tienes 7 días para usar todas las funciones sin costo y sin tarjeta. Al terminar, eliges el plan que más te sirva.',
+    q: '¿Cómo funciona el cobro?',
+    a: 'Se cobra desde el primer mes, sin permanencia, y la comisión de Wompi ya viene incluida en el precio. Puedes pagar mes a mes o el plan anual prepagado, que sale más barato. Si no te convence, te devolvemos el primer pago si lo pides dentro de los 30 días.',
   },
   {
     q: '¿Puedo cambiar de plan o cancelar?',

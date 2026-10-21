@@ -39,7 +39,7 @@ interface PayStatus {
 }
 
 const STATUS_META: Record<SubStatus, { label: string; color: string; bg: string }> = {
-  trialing: { label: 'En prueba',   color: '#8a6d3b', bg: 'rgba(201,160,64,0.14)' },
+  trialing: { label: 'Por activar', color: '#8a6d3b', bg: 'rgba(201,160,64,0.14)' },
   active:   { label: 'Activa',      color: '#1D7A46', bg: 'rgba(29,122,70,0.12)'  },
   past_due: { label: 'En mora',     color: '#B0341D', bg: 'rgba(176,52,29,0.12)'  },
   canceled: { label: 'Cancelada',   color: '#6b6b6b', bg: 'rgba(0,0,0,0.06)'      },
@@ -173,7 +173,7 @@ export default function SubscriptionPanel() {
             </div>
             <div>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>
-                {sub?.status === 'trialing' ? 'Prueba termina' : sub?.status === 'past_due' ? 'Mora vence' : 'Próximo cobro'}
+                {sub?.status === 'trialing' ? 'Acceso vence' : sub?.status === 'past_due' ? 'Mora vence' : 'Próximo cobro'}
               </p>
               <p style={{ margin: '0.1rem 0 0', fontWeight: 700, color: 'var(--w-ink)' }}>
                 {fmtDate(sub?.status === 'past_due' ? sub?.grace_ends_at : sub?.status === 'trialing' ? sub?.trial_ends_at : sub?.current_period_end ?? null)}

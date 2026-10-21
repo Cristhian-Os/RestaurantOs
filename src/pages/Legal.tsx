@@ -5,7 +5,6 @@
  * un SaaS que puede operar en varios países, pero DEBE ser revisada
  * por un abogado antes de operar. Edita nombre de empresa y correo.
  */
-import { TRIAL_DAYS } from '../config/plans'
 import { PROMO_SLOTS } from '../config/content'
 
 const go = (path: string) => { window.location.href = path }
@@ -32,13 +31,13 @@ const TERMINOS: Sec[] = [
     'El Cliente es responsable de la veracidad de sus datos, de la seguridad de sus contraseñas y de toda la actividad realizada bajo su cuenta y las de su personal.',
     'El Cliente es el único responsable de la información, precios y contenido que carga sobre su negocio.',
   ]},
-  { h: '4. Prueba gratuita y promoción de lanzamiento', p: [
-    `La Plataforma ofrece una prueba gratuita de ${TRIAL_DAYS} días, sin necesidad de tarjeta.`,
-    `Como promoción de lanzamiento, los primeros ${PROMO_SLOTS} restaurantes registrados reciben el plan Premium sin costo de forma permanente ("gratis de por vida"). Esta promoción es personal, intransferible, aplica solo mientras la cuenta se mantenga activa y conforme a estos Términos, y puede modificarse para futuros registros.`,
+  { h: '4. Acuerdos de lanzamiento', p: [
+    `El cobro de la Plataforma comienza desde el primer mes.`,
+    `Como acuerdo de lanzamiento, ${PROMO_SLOTS} restaurantes tienen un plan sin costo de forma permanente. Este acuerdo es personal, intransferible, aplica solo mientras la cuenta se mantenga activa y conforme a estos Términos, y no se ofrece a nuevos registros.`,
   ]},
   { h: '5. Planes, facturación mensual y renovación', p: [
-    'Salvo la promoción de lanzamiento, el uso de la Plataforma requiere un plan de pago. Los planes se facturan de forma mensual y recurrente, por adelantado, y se renuevan automáticamente cada mes hasta que el Cliente cancele.',
-    'Los precios pueden cambiar avisando con antelación razonable. Salvo que la ley aplicable exija lo contrario, los pagos de periodos ya iniciados no son reembolsables.',
+    'Salvo los acuerdos de lanzamiento, el uso de la Plataforma requiere un plan de pago. Los planes se facturan por adelantado, de forma mensual (con renovación automática cada mes hasta que el Cliente cancele) o anual prepagada.',
+    'Los precios pueden cambiar avisando con antelación razonable. Se devuelve el primer pago si el Cliente lo solicita dentro de los 30 días siguientes; después de ese plazo, y salvo que la ley aplicable exija lo contrario, los pagos no son reembolsables.',
   ]},
   { h: '6. Mora, suspensión y eliminación de la cuenta', warn: true, p: [
     `Si un pago no se realiza en la fecha correspondiente, el Cliente contará con un periodo de gracia de ${GRACE_DAYS} días (una semana) para ponerse al día, durante el cual conserva el acceso a la Plataforma.`,
