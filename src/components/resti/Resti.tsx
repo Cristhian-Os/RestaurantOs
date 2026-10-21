@@ -103,6 +103,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
       ir('WALKING', 'walk'); setPos({ x, y })
       await esperar(650)
     }
+    setMirarDer(false)   // el brazo del sprite "click" ya apunta a la derecha
     ir('POINTING', 'click')
     el.style.outline = '3px solid var(--w-terra)'; el.style.outlineOffset = '3px'
     const resaltado = el

@@ -1,5 +1,35 @@
-/** Resti: chef 2.5D sin rostro, en SVG (respaldo mientras no estén los sprites webp). Lienzo 197×329, origen en los pies. */
+/**
+ * Resti: chef 2.5D sin rostro. Usa los sprites webp (public/assets/resti, lienzo 197×329, origen en los pies);
+ * si alguno no carga, cae al SVG de respaldo para no dejar nunca una imagen rota.
+ */
+import { useState } from 'react'
+
 export type RestiPose = 'wave' | 'walk' | 'click' | 'think'
+
+const SPRITE: Record<RestiPose, string> = {
+  wave: '/assets/resti/resti-pose-1-wave.webp',
+  walk: '/assets/resti/resti-pose-2-walk.webp',   // mira a la izquierda: scaleX(-1) para ir a la derecha
+  click: '/assets/resti/resti-pose-3-click.webp', // el brazo apunta a la derecha de la imagen
+  think: '/assets/resti/resti-pose-4-think.webp',
+}
+const HAT = '/assets/resti/resti-hat.webp'
+
+export function RestiSprite({ pose = 'wave', width = 84, mirarDerecha = false }: { pose?: RestiPose; width?: number; mirarDerecha?: boolean }) {
+  const [fallo, setFallo] = useState<Set<string>>(new Set())
+  if (fallo.has(pose)) return <RestiSpriteSvg pose={pose} width={width} mirarDerecha={mirarDerecha} />
+  return (
+    <img src={SPRITE[pose]} alt="Resti, tu chef asistente" width={width} height={Math.round(width * 329 / 197)} draggable={false}
+      onError={() => setFallo(s => new Set(s).add(pose))}
+      style={{ display: 'block', transformOrigin: '50% 100%', transform: mirarDerecha ? 'scaleX(-1)' : undefined }} />
+  )
+}
+
+/** Solo el gorro: así vive Resti cuando está guardado. */
+export function RestiHat({ size = 58 }: { size?: number }) {
+  const [roto, setRoto] = useState(false)
+  if (roto) return <RestiHatSvg size={size} />
+  return <img src={HAT} alt="" aria-hidden="true" width={size * 0.8} draggable={false} onError={() => setRoto(true)} style={{ display: 'block', height: 'auto' }} />
+}
 
 const BLANCO = '#FFFFFF', SOMBRA = '#E6DAC8', PIEL = '#F4E3CC', NARANJA = '#F26A1B', OSCURO = '#3A3A42'
 
@@ -11,7 +41,7 @@ const Brazo = ({ x, y, deg }: { x: number; y: number; deg: number }) => (
   </g>
 )
 
-export function RestiSprite({ pose = 'wave', width = 84, mirarDerecha = false }: { pose?: RestiPose; width?: number; mirarDerecha?: boolean }) {
+function RestiSpriteSvg({ pose = 'wave', width = 84, mirarDerecha = false }: { pose?: RestiPose; width?: number; mirarDerecha?: boolean }) {
   const der = pose === 'wave' ? -160 : pose === 'click' ? -90 : pose === 'think' ? -148 : 14
   const izq = pose === 'walk' ? -14 : -4
   const paso = pose === 'walk' ? 8 : 0
@@ -45,8 +75,7 @@ export function RestiSprite({ pose = 'wave', width = 84, mirarDerecha = false }:
   )
 }
 
-/** Solo el gorro: así vive Resti cuando está guardado. */
-export function RestiHat({ size = 58 }: { size?: number }) {
+function RestiHatSvg({ size = 58 }: { size?: number }) {
   return (
     <svg viewBox="30 4 140 100" width={size * 0.8} height={size * 0.8 * 100 / 140} aria-hidden="true" style={{ display: 'block' }}>
       <circle cx={68} cy={52} r={26} fill={BLANCO} stroke={SOMBRA} strokeWidth={3} />
