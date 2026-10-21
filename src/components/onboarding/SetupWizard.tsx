@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import BrandingManager from '../branding/BrandingManager'
+import { MenuFotos } from './MenuFotos'
 import type { NavView } from '../../pages/Dashboard'
 
 type Fila = Record<string, string>
@@ -253,6 +254,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
   const [resumen, setResumen] = useState<Record<string, number>>({})
   const [slug, setSlug] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const [subMenu, setSubMenu] = useState<'carga' | 'fotos'>('carga')
 
   useEffect(() => {
     (async () => {
@@ -460,10 +462,17 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
           </>)}
 
           {paso === 5 && (<>
-            <Titulo t="Menú" s="Tus platos con categoría, precio y descripción. Las fotos las subes después en Menú, plato por plato." />
-            <CargaTabla key="menu" cols={COLS_MENU} rpc="importar_menu" sugeridos={sug.menu} categorias={categorias}
-              validar={f => f.some(x => !(Number(x.precio) > 0)) ? 'Ponle precio a todos los platos (mayor que 0)' : null}
-              onGuardado={() => siguiente(true)} />
+            {subMenu === 'carga' ? (<>
+              <Titulo t="Menú" s="Tus platos con categoría, precio y descripción. En la siguiente pantalla les pones foto." />
+              <CargaTabla key="menu" cols={COLS_MENU} rpc="importar_menu" sugeridos={sug.menu} categorias={categorias}
+                validar={f => f.some(x => !(Number(x.precio) > 0)) ? 'Ponle precio a todos los platos (mayor que 0)' : null}
+                onGuardado={() => setSubMenu('fotos')} />
+              <div style={{ marginTop: '0.75rem' }}><button style={ghost} onClick={() => setSubMenu('fotos')}>Ya tengo mis platos: ir a las fotos →</button></div>
+            </>) : (<>
+              <Titulo t="Fotos y descripciones" s="Una foto y una descripción corta hacen que tus platos se vendan más. Todo es opcional." />
+              {rid && <MenuFotos rid={rid} onListo={() => { setSubMenu('carga'); siguiente(true) }} />}
+              <div style={{ marginTop: '0.75rem' }}><button style={ghost} onClick={() => setSubMenu('carga')}>← Volver a la lista de platos</button></div>
+            </>)}
           </>)}
 
           {paso === 6 && (<>
