@@ -11,6 +11,7 @@ import { supabase } from '../../services/supabaseClient'
 import { MarcaConVistaPrevia } from './MarcaConVistaPrevia'
 import { MenuFotos } from './MenuFotos'
 import { RecetasPaso } from './RecetasPaso'
+import { QRPrintManager } from '../pwa/QRPrintManager'
 import type { NavView } from '../../pages/Dashboard'
 
 type Fila = Record<string, string>
@@ -18,6 +19,7 @@ interface Col { key: string; label: string; ph?: string; unit?: boolean; num?: b
 interface Resultado { creados: number; existentes: number; errores: { fila: number; motivo: string }[]; proveedores_no_encontrados?: string[] }
 
 const PASOS = ['Tipo de negocio', 'Mesas', 'Proveedores', 'Inventario', 'Menú', 'Recetas', 'Marca y datos', 'Equipo', 'Listo']
+export const PASOS_ASISTENTE = PASOS
 const UNIDADES = ['kg', 'gramo', 'litro', 'ml', 'pieza', 'paquete']
 
 const TIPOS = [
@@ -256,6 +258,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
   const [slug, setSlug] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [subMenu, setSubMenu] = useState<'carga' | 'fotos'>('carga')
+  const [verQr, setVerQr] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -311,12 +314,18 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
     if (paso !== PASOS.length) return
     ;(async () => {
       const n = async (t: string) => (await supabase.from(t).select('id', { count: 'exact', head: true })).count ?? 0
-      const [mesasN, prov, ings, platos, recetas] = await Promise.all([n('mesas'), n('proveedores'), n('ingredientes'), n('dishes'), n('recetas')])
-      setResumen({ mesas: mesasN, proveedores: prov, ingredientes: ings, platos, recetas })
+      // El menú es público: los platos se cuentan SOLO de este restaurante.
+      const platosDe = () => supabase.from('dishes').select('id', { count: 'exact', head: true }).eq('restaurant_id', rid ?? '')
+      const [mesasN, prov, ings, platos, conFoto, recs] = await Promise.all([
+        n('mesas'), n('proveedores'), n('ingredientes'),
+        platosDe().then(r => r.count ?? 0), platosDe().not('image_url', 'is', null).then(r => r.count ?? 0),
+        supabase.from('recetas').select('producto_id').eq('restaurant_id', rid ?? '').then(r => r.data ?? []),
+      ])
+      setResumen({ mesas: mesasN, proveedores: prov, ingredientes: ings, platos, conFoto, recetas: new Set(recs.map(x => x.producto_id as string)).size })
       const { data } = await supabase.from('restaurants').select('slug').maybeSingle()
       setSlug((data?.slug as string) ?? null)
     })()
-  }, [paso])
+  }, [paso, rid])
 
   const elegidas = plantillas.filter(p => tipos.includes(p.key))
   const alternar = (id: string) => setTipos(ts => ts.includes(id) ? ts.filter(x => x !== id) : [...ts, id])
@@ -511,16 +520,29 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
               {pendiente((resumen.mesas ?? 0) > 0 || soloDomicilio, `Mesas (${resumen.mesas ?? 0})`)}
               {pendiente((resumen.proveedores ?? 0) > 0, `Proveedores (${resumen.proveedores ?? 0})`, 'proveedores')}
               {pendiente((resumen.ingredientes ?? 0) > 0, `Inventario (${resumen.ingredientes ?? 0} ingredientes)`, 'inventory')}
-              {pendiente((resumen.platos ?? 0) > 0, `Menú (${resumen.platos ?? 0} platos). Falta subir las fotos en Menú`, 'menu')}
-              {pendiente((resumen.recetas ?? 0) > 0, `Recetas (${resumen.recetas ?? 0}). Conectan cada plato con sus ingredientes para descontar el inventario solo`, 'inventory')}
+              {pendiente((resumen.platos ?? 0) > 0, `Menú (${resumen.platos ?? 0} platos, ${resumen.conFoto ?? 0} con foto)`, 'menu')}
+              {pendiente((resumen.recetas ?? 0) > 0, `Recetas (${resumen.recetas ?? 0} de ${resumen.platos ?? 0} platos). Conectan cada plato con sus ingredientes para descontar el inventario solo`, 'inventory')}
             </div>
             {slug && (
               <div style={{ ...card, marginTop: '0.75rem' }}>
                 <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Tu menú público</p>
                 <a href={`/menu/${slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--w-terra)', fontWeight: 700, wordBreak: 'break-all' }}>{window.location.origin}/menu/{slug}</a>
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Los códigos QR para las mesas los imprimes desde Menú.</p>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Un QR por mesa para que tus clientes abran el menú y pidan desde su celular.</p>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <button style={ghost} onClick={() => setVerQr(v => !v)}>{verQr ? 'Ocultar los QR' : '🖨 Imprimir los QR de mis mesas (PDF)'}</button>
+                </div>
+                {verQr && <div style={{ marginTop: '0.75rem' }}><QRPrintManager /></div>}
               </div>
             )}
+            <div style={{ ...card, marginTop: '0.75rem' }}>
+              <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Haz tu primer pedido de prueba</p>
+              <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'grid', gap: '0.5rem', fontSize: '0.9375rem' }}>
+                <li>Abre tu menú y pide un plato como si fueras un cliente.{slug && <> <a href={`/menu/${slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--w-terra)', fontWeight: 700 }}>Abrir mi menú</a></>}</li>
+                <li>Míralo llegar a la pantalla de <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('kitchen')}>Cocina</button></li>
+                <li>Cóbralo en <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('cashier')}>Caja</button></li>
+                <li>Revisa en <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('inventory')}>Inventario</button> que el stock de sus ingredientes bajó solo.</li>
+              </ol>
+            </div>
             <div style={{ marginTop: '1rem' }}><button style={{ ...primary, opacity: guardando ? 0.7 : 1 }} disabled={guardando} onClick={terminar}>Terminar configuración</button></div>
           </>)}
 

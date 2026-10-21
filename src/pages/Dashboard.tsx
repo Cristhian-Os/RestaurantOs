@@ -44,11 +44,12 @@ import { OptionListsSection } from '../components/menu/OptionListsSection'
 import { Proveedores }      from '../components/cashier/Proveedores'
 import { Facturas }         from '../components/cashier/Facturas'
 import { OpinionSection }   from '../components/feedback/OpinionSection'
+import { ConfiguracionGuiada } from '../components/onboarding/ConfiguracionGuiada'
 import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'branding' | 'billing' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'setup' | 'branding' | 'billing' | 'platform'
 
 export interface Profile {
   id:          string
@@ -120,6 +121,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'   },
     { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'    },
+    { view:'setup',        icon:<Icons.Toggles />, label:'Configuración guiada' },
     { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
     { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
   ],
@@ -299,6 +301,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       try { if (!sessionStorage.getItem('wizard_cerrado')) setWizardOpen(true) } catch { setWizardOpen(true) }
     })
   }, [profile?.role])
+  // Pasos del asistente ya hechos (para el aviso "X de 8 pasos"); se vuelve a leer cada vez que se cierra el asistente.
+  const [wizardHechos, setWizardHechos] = useState(0)
+  useEffect(() => {
+    if (profile?.role !== 'admin' || wizardOpen) return
+    supabase.from('restaurant_onboarding').select('steps_done').maybeSingle().then(({ data }) => {
+      const sd = (data?.steps_done ?? {}) as Record<string, boolean>
+      setWizardHechos(Object.entries(sd).filter(([k, v]) => k !== 'v2' && v === true && Number(k) < 9).length)
+    })
+  }, [profile?.role, wizardOpen])
   const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
   const [lowStock,   setLowStock]   = useState(0)
   const [pendingSocial, setPendingSocial] = useState(0)
@@ -471,6 +482,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
       case 'facturas':     return profile.role === 'admin' || profile.role === 'cashier' ? <Facturas profile={profile} /> : null
       case 'opinion':   return ['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role) ? <OpinionSection /> : null
+      case 'setup':     return profile.role === 'admin' ? <ConfiguracionGuiada onAbrir={() => setWizardOpen(true)} /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
       case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformPanel /></MfaGate> : null
@@ -669,7 +681,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               width:'100%', marginBottom:'1rem', padding:'0.875rem 1rem', borderRadius:'1rem', cursor:'pointer', textAlign:'left',
               border:'1px solid var(--w-terra)', background:'var(--w-surface)', color:'var(--w-ink)', fontFamily:'var(--w-sans)', fontWeight:700, minHeight:'2.75rem',
             }}>
-              Completa la configuración de tu restaurante → continuar
+              Completa la configuración de tu restaurante ({wizardHechos} de 8 pasos) → continuar
             </button>
           )}
           {/* La key re-monta la sección activa tras un comando de voz para que muestre los datos nuevos */}
