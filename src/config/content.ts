@@ -12,6 +12,10 @@
  *  siempre fue el dueño marcando is_promo=true a mano). */
 export const PROMO_SLOTS = 3
 
+/** WhatsApp del equipo de VENTAS al que Resti manda a quien quiere comprar (con indicativo). Vacío = Resti no muestra el botón y el equipo escribe desde los leads.
+ *  Aparte de CONTACTO_WHATSAPP porque ese número no es de RestaurantOS (pendiente de que el dueño ponga el correcto). */
+export const WHATSAPP_VENTAS: string = ''
+
 /** WhatsApp de contacto para activar un restaurante (con indicativo, ej. +57 300 000 0000). Vacío = solo texto. */
 export const CONTACTO_WHATSAPP = '+57 304 538 8425'
 

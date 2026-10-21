@@ -8,6 +8,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
 import { EVENTO_ABRIR_OPINION, EVENTO_OPINION_GUARDADA, type AtajoOpinion } from './feedback/OpinionSection'
+import { WHATSAPP_VENTAS } from '../config/content'
 
 interface Msg { role: 'user' | 'assistant'; text: string }
 
@@ -17,6 +18,18 @@ function clean(t: string): string {
 }
 
 const WELCOME: Msg = { role: 'assistant', text: '¡Hola! Soy Resti 👋 el asistente de RestaurantOS. ¿En qué te ayudo? Puedo contarte de los planes, el cobro o cómo empezar.' }
+const WELCOME_LANDING: Msg = { role: 'assistant', text: '¡Hola! Soy Resti 👋 el asistente de RestaurantOS. Cuéntame de tu restaurante y te digo qué plan te sirve. ¿Qué tipo de restaurante tienes?' }
+const RAPIDAS = ['Heladería', 'Cafetería', 'Comida rápida', 'Pizzería', 'Almuerzos', 'Otro']
+const GLOBO_VISTO = 'ros_globo_visto'
+// Una conversación = una sesión del navegador; el servidor la usa para limitar el abuso. El ?ref= de la landing se conserva.
+const sesionId = (): string => { try { let s = sessionStorage.getItem('ros_sesion'); if (!s) { s = crypto.randomUUID().replace(/-/g, ''); sessionStorage.setItem('ros_sesion', s) } return s } catch { return 'sinalmacen' + Math.random().toString(36).slice(2, 12) } }
+const refActual = (): string | null => {
+  try {
+    const r = new URLSearchParams(window.location.search).get('ref')
+    if (r && /^[A-Za-z0-9_-]{1,40}$/.test(r)) { sessionStorage.setItem('ros_ref', r); return r }
+    return sessionStorage.getItem('ros_ref')
+  } catch { return null }
+}
 const WELCOME_OPINION: Msg = { role: 'assistant', text: '¡Hola! Soy Resti 👋 Cuéntame qué falló, qué mejorarías o cómo quieres personalizar tu restaurante, y lo dejo anotado para el equipo.' }
 const ATAJOS: { id: AtajoOpinion; texto: string; semilla: string }[] = [
   { id: 'fallo', texto: 'Reportar un fallo', semilla: 'Quiero reportar un fallo.' },
@@ -29,10 +42,13 @@ const leerBorrador = (): string => { try { return localStorage.getItem(BORRADOR)
 const guardarBorrador = (t: string) => { try { if (t) localStorage.setItem(BORRADOR, t); else localStorage.removeItem(BORRADOR) } catch { /* sin almacenamiento: no se conserva el borrador */ } }
 const dispositivo = () => `${/Mobi|Android/i.test(navigator.userAgent) ? 'móvil' : 'computador'} ${window.innerWidth}px`
 
-export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'soporte' | 'opinion'; pantalla?: string }) {
+export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'soporte' | 'opinion' | 'landing'; pantalla?: string }) {
   const opinion = modo === 'opinion'
+  const landing = modo === 'landing'
   const [open,    setOpen]    = useState(false)
-  const [msgs,    setMsgs]    = useState<Msg[]>([opinion ? WELCOME_OPINION : WELCOME])
+  const [globo,   setGlobo]   = useState(false)
+  const [guardado, setGuardado] = useState(false)
+  const [msgs,    setMsgs]    = useState<Msg[]>([opinion ? WELCOME_OPINION : landing ? WELCOME_LANDING : WELCOME])
   const [input,   setInput]   = useState(opinion ? leerBorrador() : '')
   const [loading, setLoading] = useState(false)
   const [aviso,   setAviso]   = useState<string | null>(null)
@@ -55,9 +71,11 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
     try {
       const mensajes = next.map(m => ({ role: m.role, text: m.text }))
       const { data, error } = await supabase.functions.invoke('chat-support', {
-        body: opinion ? { mode: 'opinion', pantalla, dispositivo: dispositivo(), messages: mensajes } : { messages: mensajes },
+        body: opinion ? { mode: 'opinion', pantalla, dispositivo: dispositivo(), messages: mensajes }
+          : landing ? { mode: 'landing', session: sesionId(), ref: refActual(), messages: mensajes } : { messages: mensajes },
       })
       if (error) throw error
+      if (landing && data?.lead?.saved) setGuardado(true)
       setMsgs(m => [...m, { role: 'assistant', text: (data?.reply as string) ?? 'No pude responder ahora.' }])
       if (opinion) {
         guardarBorrador('')
@@ -75,7 +93,21 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
     } finally {
       setLoading(false)
     }
-  }, [opinion, pantalla])
+  }, [opinion, landing, pantalla])
+
+  // Landing: un globo "¿Qué tipo de restaurante tienes?" UNA sola vez, a los 9 s o al llegar a los precios. Sin voz.
+  useEffect(() => {
+    if (!landing) return
+    let visto = false
+    try { visto = sessionStorage.getItem(GLOBO_VISTO) === '1' } catch { /* sin almacenamiento: se muestra una vez por carga */ }
+    if (visto) return
+    const mostrar = () => setGlobo(g => { try { sessionStorage.setItem(GLOBO_VISTO, '1') } catch { /* nada */ } return g || !open })
+    const t = setTimeout(mostrar, 9000)
+    const planes = document.getElementById('planes')
+    const io = planes ? new IntersectionObserver(([e]) => { if (e.isIntersecting) { mostrar(); io?.disconnect() } }, { threshold: 0.3 }) : null
+    if (planes && io) io.observe(planes)
+    return () => { clearTimeout(t); io?.disconnect() }
+  }, [landing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Desde "Opinión y sugerencias": abre el chat y arranca con el atajo elegido.
   useEffect(() => {
@@ -94,7 +126,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
     <>
       {/* Botón flotante */}
       <motion.button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { setOpen(o => !o); setGlobo(false) }}
         whileTap={{ scale: 0.92 }}
         style={{
           position: 'fixed', bottom: 20, right: 20, zIndex: 90,
@@ -107,6 +139,16 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
           ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 24, height: 24 }}><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" /></svg>
           : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 26, height: 26 }}><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" strokeLinecap="round" strokeLinejoin="round" /></svg>}
       </motion.button>
+
+      {landing && globo && !open && (
+        <div role="status" style={{ position: 'fixed', bottom: 90, right: 20, zIndex: 90, maxWidth: 'min(260px, calc(100vw - 40px))', display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
+          padding: '0.7rem 0.9rem', borderRadius: '1rem', background: 'var(--w-surface)', border: '1px solid var(--w-line)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)', fontFamily: 'var(--w-sans)' }}>
+          <button onClick={() => { setOpen(true); setGlobo(false) }} style={{ border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: 'var(--w-ink)', fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: 1.4 }}>
+            <b>Resti:</b> ¿Qué tipo de restaurante tienes?
+          </button>
+          <button onClick={() => setGlobo(false)} aria-label="Cerrar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1rem', lineHeight: 1, padding: 0 }}>✕</button>
+        </div>
+      )}
 
       <AnimatePresence>
         {open && (
@@ -154,12 +196,31 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
                   ))}
                 </div>
               )}
+              {landing && msgs.length === 1 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {RAPIDAS.map(t => (
+                    <button key={t} onClick={() => void enviar(t === 'Otro' ? 'Tengo otro tipo de restaurante' : `Tengo una ${t.toLowerCase()}`)} disabled={loading}
+                      style={{ padding: '0.5rem 0.85rem', minHeight: '2.5rem', borderRadius: '999px', border: '1px solid var(--w-terra)', background: 'var(--w-surface)', color: 'var(--w-terra)', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              )}
               {loading && (
                 <div style={{ alignSelf: 'flex-start', padding: '0.6rem 0.85rem', color: 'var(--w-ink-mut)', fontSize: '0.85rem' }}>
                   Escribiendo…
                 </div>
               )}
             </div>
+
+            {/* Landing: si quiere comprar o Resti no sabe algo, lo manda a WhatsApp con un resumen (solo si hay número de ventas configurado) */}
+            {landing && WHATSAPP_VENTAS && (guardado || msgs.filter(m => m.role === 'user').length >= 3) && (
+              <a href={`https://wa.me/${WHATSAPP_VENTAS.replace(/\D/g, '')}?text=${encodeURIComponent('Hola, hablé con Resti en la página de RestaurantOS y quiero más información.\n' + msgs.filter(m => m.role === 'user').slice(-4).map(m => '• ' + m.text.slice(0, 120)).join('\n'))}`}
+                target="_blank" rel="noreferrer"
+                style={{ display: 'block', textAlign: 'center', padding: '0.6rem', background: '#1D7A46', color: '#fff', fontWeight: 700, fontSize: '0.875rem', textDecoration: 'none' }}>
+                Seguir por WhatsApp con el equipo
+              </a>
+            )}
 
             {/* Avisos */}
             {aviso && <div style={{ padding: '0.5rem 0.9rem', fontSize: '0.78rem', background: 'rgba(176,52,29,0.10)', color: '#B0341D' }}>{aviso}</div>}

@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { validarOpinion, contexto, conversacionGuardable, TIPOS, MODULOS, URGENCIAS } from './opinion.ts'
+import { SYSTEM_LANDING, GUARDAR_LEAD, MAX_MENSAJES_SESION, CIERRE_LARGO, planesTexto, filtrarRespuesta, validarLead, refValido, sesionValida, sinTelefonos, type PlanPublico } from './landing.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -68,6 +69,8 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}))
     const messages: Array<{ role?: string; text?: string }> = Array.isArray(body?.messages) ? body.messages : []
     const modoOpinion = body?.mode === 'opinion'
+    const modoLanding = body?.mode === 'landing'   // Resti vendedor de la página de inicio (prompt y límites propios)
+    let planesLanding: PlanPublico[] = []
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -100,6 +103,12 @@ Deno.serve(async (req: Request) => {
       // dinero real (llamada a Gemini) — sin esto, un script podía generar una factura sorpresa.
       const { data: withinLimit } = await supabase.rpc('check_rate_limit', { p_key: `chat:${ipHash}`, p_max: 20, p_window_seconds: 600 })
       if (withinLimit === false) return json({ reply: 'Has enviado muchos mensajes seguidos. Espera unos minutos e intenta de nuevo.' }, 429)
+      if (modoLanding) {
+        // Landing: además del límite por IP, tope por conversación y por sesión (cada mensaje cuesta una llamada a Gemini).
+        if (messages.filter((m) => m.role === 'user').length > MAX_MENSAJES_SESION) return json({ reply: CIERRE_LARGO })
+        const { data: okSesion } = await supabase.rpc('check_rate_limit', { p_key: `ls:${sesionValida(body?.session) ?? ipHash}`, p_max: 40, p_window_seconds: 3600 })
+        if (okSesion === false) return json({ reply: CIERRE_LARGO }, 429)
+      }
     }
 
     const { data: secret } = await supabase
@@ -114,6 +123,7 @@ Deno.serve(async (req: Request) => {
     } else {
       // Precios: una sola fuente (tabla planes). Si falla, el chatbot no los inventa.
       const { data: planes } = await supabase.rpc('planes_publicos')
+      if (modoLanding) planesLanding = Array.isArray(planes) ? planes as PlanPublico[] : []
       const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
       const planesTxt = Array.isArray(planes) && planes.length
         ? planes.map((p: any) => `- ${p.nombre}: ${cop(p.mensual.total_cop)} al mes con IVA incluido (${cop(p.mensual.base_cop)} + IVA), o ${cop(p.anual.total_cop)} al año.`
@@ -121,7 +131,7 @@ Deno.serve(async (req: Request) => {
             + (p.max_mesas ? ` Hasta ${p.max_mesas} mesas${p.max_usuarios ? ` y ${p.max_usuarios} usuarios` : ' y usuarios sin límite'}.` : ' Sin límite de mesas.' + (p.max_usuarios ? ` Hasta ${p.max_usuarios} usuarios.` : ' Usuarios sin límite.'))
             + (p.disponible ? '' : ' (todavía no disponible)')).join('\n')
         : '(los precios no están disponibles ahora: pide al usuario escribir al correo de soporte)'
-      system = SYSTEM.replace('{{PLANES}}', planesTxt)
+      system = modoLanding ? SYSTEM_LANDING(planesTexto(planesLanding)) : SYSTEM.replace('{{PLANES}}', planesTxt)
     }
 
     const contents = messages.slice(-12).map((m) => ({
@@ -140,8 +150,8 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           system_instruction: { parts: [{ text: system }] },
           contents,
-          ...(modoOpinion ? { tools: [{ functionDeclarations: [GUARDAR_OPINION] }] } : {}),
-          generationConfig: { maxOutputTokens: 600, temperature: 0.4 },
+          ...(modoOpinion ? { tools: [{ functionDeclarations: [GUARDAR_OPINION] }] } : modoLanding ? { tools: [{ functionDeclarations: [GUARDAR_LEAD] }] } : {}),
+          generationConfig: { maxOutputTokens: modoLanding ? 350 : 600, temperature: modoLanding ? 0.3 : 0.4 },
         }),
       },
     )
@@ -173,15 +183,32 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const reply = parts.map((p) => p.text ?? '').join('').trim()
+    // Landing: si el modelo llamó a guardar_lead, se valida y se guarda (la función de la base limita por IP y deduplica).
+    if (modoLanding) {
+      const llamada = parts.find((p) => p.functionCall?.name === 'guardar_lead')?.functionCall
+      if (llamada) {
+        const lead = validarLead(llamada.args)
+        if ('error' in lead) return json({ reply: 'Para pasarle tus datos al equipo necesito tu nombre y un WhatsApp válido. ¿Me los das?' })
+        const { error } = await supabase.rpc('registrar_lead', {
+          p_nombre: lead.nombre, p_whatsapp: lead.whatsapp, p_restaurante: lead.restaurante, p_ciudad: lead.ciudad, p_tipo_negocio: lead.tipo_negocio,
+          p_mesas: lead.mesas, p_interes: lead.interes, p_resumen: lead.resumen, p_ref: refValido(body?.ref), p_ip_hash: ipHash,
+        })
+        if (error) { console.error('lead insert failed', error.message); return json({ reply: 'No pude guardar tus datos ahora mismo. Inténtalo de nuevo en un momento.' }) }
+        return json({ reply: `Listo, ${lead.nombre.split(' ')[0]}. Ya pasé tus datos al equipo y te escriben por WhatsApp pronto.`, lead: { saved: true } })
+      }
+    }
+
+    const replyCrudo = parts.map((p) => p.text ?? '').join('').trim()
       || 'No pude generar una respuesta. ¿Puedes reformular tu pregunta?'
+    // Landing: lo que Resti dice nunca trae precios fuera de la tabla, "gratis" ni promociones inventadas.
+    const reply = modoLanding ? filtrarRespuesta(replyCrudo, planesLanding).texto : replyCrudo
 
     // Log para que el super-admin pueda revisar quejas/dudas reales del chatbot (solo modo soporte; la IP va con hash).
     // Best-effort: si falla el insert, no debe romper la respuesta al usuario.
     if (!modoOpinion) {
       const lastUserMessage = contents.filter((c) => c.role === 'user').at(-1)?.parts[0]?.text ?? ''
       supabase.from('platform_chat_logs').insert({
-        user_message: lastUserMessage,
+        user_message: modoLanding ? sinTelefonos(lastUserMessage) : lastUserMessage,   // en la landing los teléfonos no van al registro de chats
         bot_reply: reply,
         ip: ipHash,
       }).then(({ error }) => { if (error) console.error('chat log insert failed', error) })

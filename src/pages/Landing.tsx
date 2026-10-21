@@ -334,7 +334,7 @@ function Faqs() {
 }
 
 /* ═══════════════════ CTA FINAL ═══════════════════ */
-function TrialCTA() {
+function ActivaCTA() {
   return (
     <section style={{ padding: '2rem 1.5rem 6rem' }}>
       <ScrollReveal y={32}>
@@ -399,7 +399,7 @@ export default function Landing() {
       <Plans />
       <Testimonials />
       <Faqs />
-      <TrialCTA />
+      <ActivaCTA />
 
       {/* Footer */}
       <footer style={{ borderTop: '1px solid var(--w-line)', padding: '2.5rem 1.5rem', textAlign: 'center' }}>
@@ -415,7 +415,7 @@ export default function Landing() {
         </p>
       </footer>
 
-      <SupportChat />
+      <SupportChat modo="landing" />
     </div>
   )
 }

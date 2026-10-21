@@ -14,6 +14,7 @@ import { PlantillasManager } from './PlantillasManager'
 import { OpcionesRestaurantes } from './OpcionesRestaurantes'
 import { PlatformOpiniones } from './PlatformOpiniones'
 import { PlatformIA } from './PlatformIA'
+import { PlatformLeads } from './PlatformLeads'
 
 const TABS = [
   { id: 'inicio', label: 'Inicio' },
@@ -22,6 +23,7 @@ const TABS = [
   { id: 'pagos', label: 'Pagos a vendedores' },
   { id: 'dinero', label: 'Dinero' },
   { id: 'rendimiento', label: 'Rendimiento' },
+  { id: 'leads', label: 'Leads' },
   { id: 'opiniones', label: 'Opiniones' },
   { id: 'ia', label: 'Uso de IA' },
   { id: 'plantillas', label: 'Plantillas' },
@@ -48,6 +50,7 @@ export function PlatformPanel() {
       {tab === 'pagos' && <PagosVendedores />}
       {tab === 'dinero' && <DineroPanel />}
       {tab === 'rendimiento' && <RendimientoPanel />}
+      {tab === 'leads' && <PlatformLeads />}
       {tab === 'opiniones' && <PlatformOpiniones />}
       {tab === 'ia' && <PlatformIA />}
       {tab === 'plantillas' && <PlantillasManager />}
