@@ -12,6 +12,7 @@ import { DineroPanel } from './DineroPanel'
 import { RendimientoPanel } from './RendimientoPanel'
 import { PlantillasManager } from './PlantillasManager'
 import { OpcionesRestaurantes } from './OpcionesRestaurantes'
+import { PlatformOpiniones } from './PlatformOpiniones'
 
 const TABS = [
   { id: 'inicio', label: 'Inicio' },
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'pagos', label: 'Pagos a vendedores' },
   { id: 'dinero', label: 'Dinero' },
   { id: 'rendimiento', label: 'Rendimiento' },
+  { id: 'opiniones', label: 'Opiniones' },
   { id: 'plantillas', label: 'Plantillas' },
   { id: 'opciones', label: 'Opciones por restaurante' },
 ] as const
@@ -44,6 +46,7 @@ export function PlatformPanel() {
       {tab === 'pagos' && <PagosVendedores />}
       {tab === 'dinero' && <DineroPanel />}
       {tab === 'rendimiento' && <RendimientoPanel />}
+      {tab === 'opiniones' && <PlatformOpiniones />}
       {tab === 'plantillas' && <PlantillasManager />}
       {tab === 'opciones' && <OpcionesRestaurantes />}
     </div>
