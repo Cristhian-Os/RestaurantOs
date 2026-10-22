@@ -38,14 +38,18 @@ const estado3D = (e: Estado, saludando: boolean): RestiEstado3D => {
 const esperar = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 const sinMovimiento = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
-const casa = () => ({ x: window.innerWidth - W - 16, y: window.innerHeight - H - 84 })
+const movil = () => window.innerWidth < 768
+/** Distancia del borde de abajo: en el celular hay una barra de pestañas fija (Nueva orden, Mesas…) que Resti no debe tapar. */
+const abajo = () => (movil() ? 76 : 16)
+const casa = () => ({ x: window.innerWidth - W - 12, y: window.innerHeight - H - abajo() - 66 })
 const buscar = (id: string) => document.querySelector<HTMLElement>(`[data-resti-target="${id}"]`)
 
 const CSS = `
 @keyframes resti-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-@keyframes resti-emerge{from{transform:scaleY(.1);opacity:0}to{transform:scaleY(1);opacity:1}}
-@keyframes resti-beam{0%{opacity:0}40%{opacity:.85}100%{opacity:0}}
-@keyframes resti-spark{from{transform:translate(0,0);opacity:1}to{transform:translate(var(--dx),var(--dy));opacity:0}}
+@keyframes resti-surge{0%{opacity:0;transform:translateY(22px) scale(.55)}55%{opacity:1;transform:translateY(-5px) scale(1.04)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes resti-guarda{from{opacity:1;transform:translate(0,0) scale(1)}to{opacity:0;transform:translate(26px,30px) scale(.4)}}
+@keyframes resti-hat-pop{0%{opacity:0;transform:scale(.4)}60%{opacity:1;transform:scale(1.1)}100%{opacity:1;transform:scale(1)}}
+@keyframes resti-globo{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes resti-pulso{0%,100%{box-shadow:0 0 0 0 rgba(242,106,27,.45)}50%{box-shadow:0 0 0 8px rgba(242,106,27,0)}}
 @media (prefers-reduced-motion: reduce){.resti-anim{animation:none!important}.resti-move{transition:none!important}}
 `
@@ -86,6 +90,8 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   const [dir, setDir] = useState(0)                      // -1 izquierda, 1 derecha: hacia dónde gira y señala
   const [desplazando, setDesplazando] = useState(false)
   const [saludando, setSaludando] = useState(false)
+  const [saliendo, setSaliendo] = useState(false)         // animación de vuelta al gorro (no desaparece de golpe)
+  const [listo3D, setListo3D] = useState(false)          // el 3D ya dibujó su primer cuadro (hasta entonces se ve la captura del mismo modelo)
   const [sin3D, setSin3D] = useState(false)               // el equipo no puede con el 3D: se usan los sprites
   const [texto, setTexto] = useState('')
   const ocupado = useRef(false)
@@ -132,13 +138,17 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
 
   const guardar = useCallback(() => {
     clearTimeout(timerHabla.current); clearTimeout(timerLimpiar.current)
-    convRef.current.detener(); historial.current = []; moviendose.current = false
-    setHabla(''); setPos(null); setEstado('HAT'); setDir(0); setDesplazando(false); setSaludando(false)
+    convRef.current.detener(); convRef.current.callar(); historial.current = []; moviendose.current = false
+    const volver = () => { setHabla(''); setPos(null); setEstado('HAT'); setDir(0); setDesplazando(false); setSaludando(false); setListo3D(false); setSaliendo(false) }
+    if (sinMovimiento()) { volver(); return }
+    setSaliendo(true); setHabla('')
+    timerLimpiar.current = setTimeout(volver, 300)   // lo que dura la animación de vuelta al gorro
   }, [])
 
   const invocar = async () => {
     setPos(casa()); setEstado('SUMMONING'); setSaludando(true)
-    await esperar(reducido ? 0 : 400)
+    void convRef.current.hablarSuelto('Dime qué necesitas.')   // dentro del clic: los navegadores solo dejan sonar tras un gesto
+    await esperar(reducido ? 0 : 380)
     decir('Dime qué necesitas.')
   }
 
@@ -218,6 +228,15 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
 
   useEffect(() => () => { clearTimeout(timerHabla.current); clearTimeout(timerLimpiar.current) }, [])
 
+  // Precarga (con el navegador libre) three.js y el modelo: así, al tocar el gorro, Resti aparece enseguida y no tras varios segundos en blanco.
+  useEffect(() => {
+    const red = (navigator as unknown as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+    if (red?.saveData || /(^|-)2g$/.test(red?.effectiveType ?? '')) return
+    const w = window as unknown as { requestIdleCallback?: (f: () => void) => number; cancelIdleCallback?: (i: number) => void }
+    const id = w.requestIdleCallback ? w.requestIdleCallback(() => { void cargar3D(); void fetch('/assets/resti/resti.glb').catch(() => {}) }) : window.setTimeout(() => { void cargar3D() }, 3000)
+    return () => { if (w.requestIdleCallback) w.cancelIdleCallback?.(id); else clearTimeout(id) }
+  }, [])
+
   // Los botones de "Opinión y sugerencias" abren a Resti (ya no hay otro chat en pantalla para el administrador).
   const atenderRef = useRef(atender); atenderRef.current = atender
   useEffect(() => {
@@ -242,9 +261,9 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
         <style>{CSS}</style>
         <button type="button" onClick={invocar} onPointerEnter={() => { void cargar3D() }} onFocus={() => { void cargar3D() }} aria-label="Abrir a Resti, tu chef asistente" title="Resti"
           className="resti-anim"
-          style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 90, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer',
+          style={{ position: 'fixed', right: 16, bottom: movil() ? 84 : 20, zIndex: 90, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer', padding: 0,
             border: '1px solid var(--w-line)', background: 'var(--w-surface)', boxShadow: 'var(--w-shadow-sm)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'resti-float 2s ease-in-out 3' }}>
+            display: 'grid', placeItems: 'center', animation: 'resti-hat-pop 320ms cubic-bezier(.34,1.4,.64,1) both, resti-float 2s ease-in-out 400ms 3' }}>
           <RestiHat />
         </button>
       </>
@@ -252,7 +271,14 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   }
 
   const p = pos ?? casa()
-  const globoALaIzquierda = p.x > 270
+  const mov = movil()
+  // Globo de texto: ENCIMA de la cabeza, con una colita hacia ella, así nunca tapa la cara. Si arriba no hay espacio (Resti caminó al borde), va al costado.
+  const anchoGlobo = Math.min(260, window.innerWidth - 24)
+  const arriba = p.y > 84
+  const gx = arriba ? clamp(p.x + W - anchoGlobo + 6, 12, window.innerWidth - anchoGlobo - 12)
+    : (p.x > anchoGlobo + 20 ? p.x - anchoGlobo - 8 : clamp(p.x + W + 8, 8, window.innerWidth - anchoGlobo - 8))
+  const gy = arriba ? p.y - 8 : Math.max(8, p.y)
+  const colita = clamp(p.x + W / 2 - gx - 6, 16, anchoGlobo - 28)
   return (
     <>
       <style>{CSS}</style>
@@ -260,20 +286,16 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
         <div className="resti-move" aria-hidden={estado === 'SUMMONING'}
           style={{ position: 'fixed', left: 0, top: 0, zIndex: 95, width: W, height: H, pointerEvents: 'none',
             transform: `translate(${p.x}px, ${p.y}px)`, transition: `transform 650ms ${EASE}` }}>
-          {estado === 'SUMMONING' && (
-            <>
-              <div className="resti-anim" style={{ position: 'absolute', left: W / 2 - 22, top: -40, width: 44, height: H + 40,
-                background: 'linear-gradient(to top, rgba(242,106,27,.0), rgba(242,106,27,.55))', animation: 'resti-beam 400ms ease-out both' }} />
-              {[[-40, -30], [40, -36], [-26, -60], [30, -64], [-6, -76], [14, -52]].map(([dx, dy], i) => (
-                <span key={i} className="resti-anim" style={{ position: 'absolute', left: W / 2, top: 20, width: 5, height: 5, borderRadius: '50%',
-                  background: '#F26A1B', ['--dx' as string]: `${dx}px`, ['--dy' as string]: `${dy}px`, animation: 'resti-spark 400ms ease-out both' }} />
-              ))}
-            </>
-          )}
-          <div className="resti-anim" style={{ animation: estado === 'SUMMONING' ? 'resti-emerge 400ms ease-out both' : undefined, transformOrigin: '50% 100%' }}>
+          <div className="resti-anim" style={{ position: 'relative', width: W, height: H, animation: saliendo ? 'resti-guarda 280ms cubic-bezier(.5,0,.75,0) both' : estado === 'SUMMONING' ? 'resti-surge 420ms cubic-bezier(.34,1.4,.64,1) both' : undefined, transformOrigin: '50% 100%' }}>
             {sin3D
               ? <div style={{ width: W, height: H, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}><RestiSprite estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} /></div>
-              : <Suspense fallback={null}><Resti3D estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} height={H} onFallo={() => setSin3D(true)} /></Suspense>}
+              : (
+                <>
+                  {/* Mientras el 3D carga se ve la captura del mismo modelo (nunca un hueco en blanco) */}
+                  {!listo3D && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}><RestiSprite estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} /></div>}
+                  <Suspense fallback={null}><Resti3D estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} height={H} onListo={() => setListo3D(true)} onFallo={() => setSin3D(true)} /></Suspense>
+                </>
+              )}
           </div>
         </div>
       )}
@@ -281,37 +303,45 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
       {habla && (
         <div role="status" aria-live="polite"
           style={reducido
-            ? { position: 'fixed', right: 16, bottom: 80, zIndex: 96, maxWidth: 'min(320px, calc(100vw - 32px))' }
-            : { position: 'fixed', left: 0, top: 0, zIndex: 96, width: 240, maxWidth: 'calc(100vw - 16px)', pointerEvents: 'none',
-                transform: `translate(${globoALaIzquierda ? Math.max(8, p.x - 248) : Math.min(window.innerWidth - 248, p.x + W + 8)}px, ${Math.max(8, p.y)}px)`,
-                transition: `transform 650ms ${EASE}` }}>
-          <p style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#111113', color: '#fff', borderRadius: '0.875rem', fontSize: '0.8125rem',
-            lineHeight: 1.35, fontFamily: 'var(--w-sans)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-            {habla}
-          </p>
+            ? { position: 'fixed', right: 16, bottom: abajo() + 70, zIndex: 96, maxWidth: 'min(320px, calc(100vw - 32px))' }
+            : { position: 'fixed', left: 0, top: 0, zIndex: 96, width: anchoGlobo, pointerEvents: 'none',
+                transform: `translate(${gx}px, ${gy}px)`, transition: `transform 650ms ${EASE}` }}>
+          <div style={{ transform: arriba && !reducido ? 'translateY(-100%)' : undefined }}>
+            <div className="resti-anim" key={habla} style={{ position: 'relative', animation: 'resti-globo 220ms ease-out both' }}>
+              <p style={{ margin: 0, padding: '0.55rem 0.8rem', background: '#111113', color: '#fff', borderRadius: '1rem', fontSize: '0.8125rem',
+                lineHeight: 1.35, fontFamily: 'var(--w-sans)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', boxShadow: '0 6px 18px rgba(0,0,0,.25)' }}>
+                {habla}
+              </p>
+              {arriba && !reducido && <span aria-hidden style={{ position: 'absolute', left: colita, bottom: -5, width: 12, height: 12, background: '#111113', transform: 'rotate(45deg)', borderRadius: 2 }} />}
+            </div>
+          </div>
         </div>
       )}
 
       <form onSubmit={e => { e.preventDefault(); const t = texto; setTexto(''); void atender(t) }}
-        style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 96, display: 'flex', gap: 6, alignItems: 'center', padding: 6,
-          background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '999px', boxShadow: 'var(--w-shadow-sm)', maxWidth: 'calc(100vw - 32px)' }}>
+        style={{ position: 'fixed', bottom: abajo(), zIndex: 96, display: 'flex', gap: 8, alignItems: 'center', padding: 6, boxSizing: 'border-box',
+          ...(mov ? { left: 12, right: 12 } : { right: 16 }),
+          background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '999px', boxShadow: 'var(--w-shadow-sm)',
+          opacity: saliendo ? 0 : 1, transform: saliendo ? 'translateY(10px)' : 'none', transition: 'opacity 200ms ease, transform 200ms ease', pointerEvents: saliendo ? 'none' : undefined }}>
         {conv.soportado && (
           <button type="button" onClick={() => { void conv.alternar() }} aria-label={etiquetaMic} aria-pressed={conv.activa} title={conv.modo === 'navegador' && conv.activa ? 'Voz del navegador (sin interrupción)' : etiquetaMic}
             className={conv.activa ? 'resti-anim' : undefined}
-            style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0,
-              background: conv.activa ? 'var(--w-terra)' : 'var(--w-bg)', color: conv.activa ? '#fff' : 'var(--w-terra)',
+            style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, display: 'grid', placeItems: 'center', lineHeight: 0,
+              background: 'var(--w-terra)', color: '#fff', opacity: conv.activa ? 1 : 0.92,
               animation: conv.activa && conv.estado === 'escuchando' ? 'resti-pulso 1.6s ease-in-out infinite' : undefined }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={20} height={20}>
-              <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v4" />
-            </svg>
+            {conv.activa
+              ? <svg viewBox="0 0 24 24" width={20} height={20} fill="currentColor" aria-hidden><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
+              : <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0013 0M12 18v3" />
+                </svg>}
           </button>
         )}
         <input value={texto} onChange={e => setTexto(e.target.value)} maxLength={200} placeholder={placeholder} aria-label="Escríbele a Resti"
-          style={{ border: 'none', outline: 'none', background: 'transparent', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontSize: '0.875rem',
-            width: 160, minWidth: 0 }} />
+          style={{ border: 'none', outline: 'none', background: 'transparent', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontSize: '0.9rem',
+            minWidth: 0, height: 44, ...(mov ? { flex: 1 } : { width: 200 }) }} />
         <button type="button" onClick={guardar} aria-label="Guardar a Resti" title="Descansa, Resti"
-          style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0, background: 'var(--w-bg)', color: 'var(--w-ink-mut)', fontSize: '1rem' }}>
-          ✕
+          style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, display: 'grid', placeItems: 'center', lineHeight: 0, background: 'var(--w-bg)', color: 'var(--w-ink-mut)' }}>
+          <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
       </form>
     </>

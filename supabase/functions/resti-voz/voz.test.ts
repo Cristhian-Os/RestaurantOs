@@ -1,6 +1,6 @@
 // Pruebas de la lógica de resti-voz (sin red). Correr con:  node supabase/functions/resti-voz/voz.test.ts
 import assert from 'node:assert/strict'
-import { validarPeticion, pedidoTranscribir, leerTranscripcion, pedidoHablar, leerAudio, pcmDeWav, listaModelos, esReintentable, MODELOS_TTS_POR_DEFECTO, MAX_AUDIO_B64 } from './voz.ts'
+import { crearLectorSse, vocabulario, validarPeticion, pedidoTranscribir, leerTranscripcion, pedidoHablar, leerAudio, pcmDeWav, listaModelos, esReintentable, MODELOS_TTS_POR_DEFECTO, MAX_AUDIO_B64 } from './voz.ts'
 
 const wavB64 = 'UklGR' + 'A'.repeat(400)
 // Validación: solo peticiones bien formadas llegan a Gemini
@@ -44,4 +44,23 @@ assert.equal(leerAudio({ candidates: [] }), null)
 assert.deepEqual(listaModelos(' gemini-3.8-flash-tts , gemini-3.1-flash-tts-preview ', []), ['gemini-3.8-flash-tts', 'gemini-3.1-flash-tts-preview'])
 assert.deepEqual(listaModelos(undefined, MODELOS_TTS_POR_DEFECTO), MODELOS_TTS_POR_DEFECTO); assert.deepEqual(listaModelos('mal modelo; drop', ['x-y-z']), ['x-y-z'])
 assert.ok(esReintentable(404) && esReintentable(429) && esReintentable(503) && !esReintentable(400) && !esReintentable(401))
+// Streaming SSE: eventos partidos entre trozos, cabecera WAV y frecuencia
+{
+  const pcm = (...v: number[]) => btoa(String.fromCharCode(...v))
+  const ev = (b64: string, mime = 'audio/l16; rate=24000; channels=1') => `data: {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "${mime}","data": "${b64}"}}]}}]}\r\n\r\n`
+  const l = crearLectorSse(), e1 = ev(pcm(1, 0, 2, 0)), e2 = ev(pcm(3, 0, 4, 0))
+  const a = [...l.empujar(e1.slice(0, 40)), ...l.empujar(e1.slice(40) + e2.slice(0, 25)), ...l.empujar(e2.slice(25))]
+  assert.deepEqual(a.map(x => Array.from(x)), [[1, 0, 2, 0], [3, 0, 4, 0]]); assert.equal(l.rate(), 24000)
+  const l2 = crearLectorSse(); assert.deepEqual(l2.empujar(ev(pcm(9, 0)).trimEnd()).length, 0, 'sin línea en blanco aún no es un evento completo'); assert.equal(l2.cerrar().length, 1)
+  const wav = new Uint8Array(46); wav.set([82, 73, 70, 70], 0); wav[44] = 7; wav[45] = 0
+  const l3 = crearLectorSse(); const r3 = l3.empujar(ev(btoa(String.fromCharCode(...wav)), 'audio/L16; rate=22050')); assert.deepEqual(Array.from(r3[0]), [7, 0]); assert.equal(l3.rate(), 22050)
+  assert.equal(crearLectorSse().empujar('data: {no es json}\r\n\r\n').length, 0)
+}
+// Pedido de hablar en streaming y vocabulario del restaurante
+assert.deepEqual(validarPeticion({ accion: 'hablar_stream', texto: 'Hola' }), { accion: 'hablar_stream', texto: 'Hola' })
+assert.equal(validarPeticion({ accion: 'hablar_stream', texto: '  ' }), null)
+assert.equal(vocabulario(['Helado de vainilla', 'helado de vainilla', 'x', 'Oreo\n', 'Brownie']), 'Helado de vainilla, Oreo, Brownie')
+assert.ok(vocabulario(Array.from({ length: 500 }, (_, i) => 'plato número ' + i), 300).length <= 300)
+assert.match(JSON.stringify(pedidoTranscribir('A'.repeat(300), 'Oreo, Brownie')), /Oreo, Brownie/)
+assert.doesNotMatch(JSON.stringify(pedidoTranscribir('A'.repeat(300))), /ayuda para escribir/)
 console.log('voz.test OK')

@@ -57,23 +57,19 @@ Deno.serve(async (req: Request) => {
     // Usuario, rol y restaurante salen de la sesión; el navegador no envía métricas ni restaurant_id.
     const { data: { user } } = await admin.auth.getUser(auth.replace('Bearer ', ''))
     if (!user) return json({ speech: 'Inicia sesión para hablar conmigo.', action: 'NONE' }, 401)
-    const { data: prof } = await admin.from('profiles').select('role, active, restaurant_id').eq('id', user.id).maybeSingle()
-    if (!prof || prof.active === false || prof.role !== 'admin') return json({ speech: 'Solo trabajo con el administrador del restaurante.', action: 'NONE' }, 403)
-
-    // Tope por usuario (ráfaga y día): controla el costo. Se responde 200 para que Resti lo diga en voz alta.
-    for (const [key, max, secs] of [[`rb:${user.id}`, 20, 600], [`rbd:${user.id}`, 80, 86400]] as const) {
-      const { data: ok } = await admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs })
-      if (ok === false) return json({ speech: 'Hoy ya hablamos bastante. Mañana seguimos, o escríbeme algo corto.', action: 'NONE' })
-    }
-
+    // Todo lo que necesita la respuesta se pide a la vez (antes era uno tras otro y sumaba ~1 s): perfil, topes, métricas, nombre y proveedor de IA.
     // Las métricas se leen con el JWT del usuario: la RLS decide qué restaurante ve.
     const userDb = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } })
-    const [{ data: metricas }, { data: cfgRest }] = await Promise.all([
+    const [{ data: prof }, topes, { data: metricas }, { data: cfgRest }, cfg] = await Promise.all([
+      admin.from('profiles').select('role, active, restaurant_id').eq('id', user.id).maybeSingle(),
+      Promise.all([[`rb:${user.id}`, 20, 600], [`rbd:${user.id}`, 80, 86400]].map(([key, max, secs]) => admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs }))),
       userDb.rpc('get_admin_metrics'),
       userDb.from('restaurant_config').select('display_name').maybeSingle(),
+      cargarProveedor(admin),
     ])
-
-    const cfg = await cargarProveedor(admin)
+    if (!prof || prof.active === false || prof.role !== 'admin') return json({ speech: 'Solo trabajo con el administrador del restaurante.', action: 'NONE' }, 403)
+    // Tope por usuario (ráfaga y día): controla el costo. Se responde 200 para que Resti lo diga en voz alta.
+    if (topes.some(({ data: ok }) => ok === false)) return json({ speech: 'Hoy ya hablamos bastante. Mañana seguimos, o escríbeme algo corto.', action: 'NONE' })
     if (!cfg) return json({ speech: 'Ahora mismo no puedo ayudarte. Intenta en un momento.', action: 'NONE' })
 
     let crudo: unknown = null
