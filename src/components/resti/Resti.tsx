@@ -152,10 +152,10 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
         <style>{CSS}</style>
         <button type="button" onClick={invocar} aria-label="Abrir a Resti, tu chef asistente" title="Resti"
           className="resti-anim"
-          style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 90, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer',
+          style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 90, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer', padding: 0, overflow: 'hidden',
             border: '1px solid var(--w-line)', background: 'var(--w-surface)', boxShadow: 'var(--w-shadow-sm)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'resti-float 2s ease-in-out 3' }}>
-          <RestiHat />
+          <RestiHat size={56} />
         </button>
       </>
     )

@@ -28,7 +28,9 @@ export function RestiSprite({ pose = 'wave', width = 84, mirarDerecha = false }:
 export function RestiHat({ size = 58 }: { size?: number }) {
   const [roto, setRoto] = useState(false)
   if (roto) return <RestiHatSvg size={size} />
-  return <img src={HAT} alt="" aria-hidden="true" width={size * 0.8} draggable={false} onError={() => setRoto(true)} style={{ display: 'block', height: 'auto' }} />
+  // El gorro es la cara redonda del botón que invoca a Resti: la imagen llena el círculo.
+  return <img src={HAT} alt="" aria-hidden="true" width={size} height={size} draggable={false} onError={() => setRoto(true)}
+    style={{ display: 'block', width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />
 }
 
 const BLANCO = '#FFFFFF', SOMBRA = '#E6DAC8', PIEL = '#F4E3CC', NARANJA = '#F26A1B', OSCURO = '#3A3A42'
