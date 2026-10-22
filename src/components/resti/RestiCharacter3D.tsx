@@ -1,22 +1,26 @@
 /**
  * Resti 3D: renderiza el rig (src/components/resti/rig) en un lienzo transparente.
  * Se carga bajo demanda (React.lazy desde Resti.tsx). Si WebGL no está disponible llama a `onFallo` y Resti usa los sprites.
- * La apariencia es siempre la misma: el rig, los materiales y los colores no dependen del estado (solo cambia la postura).
+ * La apariencia es siempre la misma: solo cambian la postura y el color de la luz del collar (`luz`).
  * No gasta nada si la pestaña está oculta; en reposo baja a ~24 cuadros por segundo.
  */
 import { useEffect, useRef } from 'react'
-import { WebGLRenderer, SRGBColorSpace, ACESFilmicToneMapping } from 'three'
+import { WebGLRenderer, SRGBColorSpace, ACESFilmicToneMapping, Color } from 'three'
 import { crearEscena } from './rig/escena.ts'
 import { crearRig } from './rig/restiRig.ts'
 import { crearAnimador, type RestiEstado3D } from './rig/restiAnim.ts'
 
 export type { RestiEstado3D }
+/** Luz del collar (lo único que cambia de color): marca = naranja de la referencia; los otros cuatro, según la lámina del personaje. */
+export type RestiLuz = 'marca' | 'disponible' | 'atencion' | 'urgente' | 'procesando'
+const COLOR_LUZ: Record<RestiLuz, number> = { marca: 0xff8a1a, disponible: 0x38d66b, atencion: 0xffc233, urgente: 0xff4a3d, procesando: 0x3d8bff }
 export interface RestiMetricas { cargaMs: number; fps: number; calidad: 'alta' | 'baja' }
 
 interface Props {
   estado: RestiEstado3D
   direccion?: number
   desplazando?: boolean
+  luz?: RestiLuz
   width: number
   height: number
   onFallo: () => void
@@ -29,10 +33,10 @@ const equipoModesto = () => {
   return (n.hardwareConcurrency ?? 8) <= 4 || (n.deviceMemory ?? 8) <= 2
 }
 
-export default function RestiCharacter3D({ estado, direccion = 0, desplazando = false, width, height, onFallo, onListo }: Props) {
+export default function RestiCharacter3D({ estado, direccion = 0, desplazando = false, luz = 'marca', width, height, onFallo, onListo }: Props) {
   const lienzo = useRef<HTMLCanvasElement>(null)
-  const entrada = useRef({ estado, direccion, desplazando })
-  entrada.current = { estado, direccion, desplazando }
+  const entrada = useRef({ estado, direccion, desplazando, luz })
+  entrada.current = { estado, direccion, desplazando, luz }
   const cb = useRef({ onFallo, onListo }); cb.current = { onFallo, onListo }
 
   useEffect(() => {
@@ -54,6 +58,7 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
 
     const rig = crearRig(); scene.add(rig.raiz)
     const animador = crearAnimador(rig)
+    const colorActual = new Color(COLOR_LUZ.marca), colorMeta = new Color()
 
     let raf = 0, anterior = performance.now(), ultimoDibujo = 0, t = 0, vivo = true
     let cuadros = 0, desdeFps = anterior, fps = 0, avisado = false
@@ -65,6 +70,9 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
       if (animador.quieto() && ahora - ultimoDibujo < 41) return   // reposo: ~24 cuadros por segundo
       anterior = ahora; ultimoDibujo = ahora; t += dt
       const e = entrada.current
+      colorMeta.setHex(COLOR_LUZ[e.luz]); colorActual.lerp(colorMeta, 1 - Math.exp(-6 * dt))   // transición suave de la luz del collar
+      rig.luzCuello.material.color.copy(colorActual); rig.luzCuello.material.emissive.copy(colorActual)
+      rig.luzCuello.halo?.material.color.copy(colorActual)
       animador.actualizar(dt, t, e)
       renderer.render(scene, camara)
       cuadros++

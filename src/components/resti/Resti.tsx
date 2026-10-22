@@ -26,6 +26,8 @@ const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const NO_ENTENDI: RestiBrainResponse = { speech: 'No te entendí bien. ¿Me lo dices de otra forma?', action: 'NONE' }
 
 /** Estado visual → postura 3D. El saludo solo ocurre al invocarlo. */
+/** Luz del collar: verde disponible, azul trabajando. Atención/urgente quedan para las alertas proactivas (aún no existen). */
+const luzDe = (e: Estado) => (e === 'THINKING' || e === 'WALKING' || e === 'POINTING' ? 'procesando' : 'disponible') as 'procesando' | 'disponible'
 const estado3D = (e: Estado, saludando: boolean): RestiEstado3D => {
   if (e === 'SPEAKING' && saludando) return 'saludo'
   return ({ HAT: 'reposo', SUMMONING: 'saludo', IDLE: 'reposo', LISTENING: 'escuchar', THINKING: 'pensar', WALKING: 'caminar', POINTING: 'senalar', SPEAKING: 'explicar' } as const)[e]
@@ -201,7 +203,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
           <div className="resti-anim" style={{ animation: estado === 'SUMMONING' ? 'resti-emerge 400ms ease-out both' : undefined, transformOrigin: '50% 100%' }}>
             {sin3D
               ? <div style={{ width: W, height: H, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}><RestiSprite pose={pose} width={SPRITE_W} mirarDerecha={mirarDer} /></div>
-              : <Suspense fallback={null}><Resti3D estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} width={W} height={H} onFallo={() => setSin3D(true)} /></Suspense>}
+              : <Suspense fallback={null}><Resti3D estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} height={H} onFallo={() => setSin3D(true)} /></Suspense>}
           </div>
         </div>
       )}

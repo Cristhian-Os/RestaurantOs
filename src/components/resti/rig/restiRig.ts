@@ -23,18 +23,20 @@ export interface Rig {
   j: Record<Junta, Object3D>
   dedos: { D: Object3D[]; I: Object3D[] }      // 4 dedos + pulgar por mano; rotation.x = curvatura
   emblema: Group
+  /** La única parte que cambia de color con el estado (la luz del collar); todo lo demás es fijo. */
+  luzCuello: { material: MeshStandardMaterial; halo: Sprite | null }
   dispose: () => void
 }
 
 /** Halo suave aditivo (el resplandor naranja del emblema y del cuello de la referencia). */
-function halo(color: string, tam: number, recursos: { dispose: () => void }[]): Sprite | null {
+function halo(tinte: number, tam: number, recursos: { dispose: () => void }[]): Sprite | null {
   if (typeof document === 'undefined') return null
   const c = document.createElement('canvas'); c.width = c.height = 64
   const g = c.getContext('2d'); if (!g) return null
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
-  grad.addColorStop(0, color + '55'); grad.addColorStop(0.45, color + '22'); grad.addColorStop(1, color + '00')
+  grad.addColorStop(0, '#ffffff77'); grad.addColorStop(0.45, '#ffffff33'); grad.addColorStop(1, '#ffffff00')
   g.fillStyle = grad; g.fillRect(0, 0, 64, 64)
-  const tex = new CanvasTexture(c), m = new SpriteMaterial({ map: tex, blending: AdditiveBlending, depthWrite: false, transparent: true })
+  const tex = new CanvasTexture(c), m = new SpriteMaterial({ map: tex, color: tinte, blending: AdditiveBlending, depthWrite: false, transparent: true })
   recursos.push(tex, m)
   const s = new Sprite(m); s.scale.set(tam, tam, 1); return s
 }
@@ -53,6 +55,7 @@ export function crearRig(): Rig {
   const dorado = mat(new MeshStandardMaterial({ color: DORADO, roughness: 0.4, metalness: 0.4, emissive: DORADO, emissiveIntensity: 0.3 }))
   const brillo = mat(new MeshStandardMaterial({ color: NARANJA, emissive: NARANJA, emissiveIntensity: 0.6, roughness: 0.45 }))
   const brilloLuz = mat(new MeshStandardMaterial({ color: NARANJA, emissive: NARANJA, emissiveIntensity: 1.1, roughness: 0.4 }))
+  const luzCuelloMat = mat(new MeshStandardMaterial({ color: NARANJA, emissive: NARANJA, emissiveIntensity: 1.1, roughness: 0.4 }))
   const iconoPower = mat(new MeshStandardMaterial({ color: 0xffe9c4, emissive: 0xffd9a0, emissiveIntensity: 0.7, roughness: 0.4 }))
   const acero = mat(new MeshStandardMaterial({ color: 0xd9dbe0, roughness: 0.28, metalness: 0.7 }))
 
@@ -111,13 +114,13 @@ export function crearRig(): Rig {
   const arco = malla(new TorusGeometry(0.026, 0.0065, 10, 32, Math.PI * 2 * 0.78), iconoPower, emblema, 0, -0.003, 0.012)
   arco.rotation.z = Math.PI / 2 + Math.PI * 2 * 0.11
   malla(new CylinderGeometry(0.0065, 0.0065, 0.036, 10), iconoPower, emblema, 0, 0.016, 0.012)
-  const haloEmblema = halo('#ff8a00', 0.3, recursos); if (haloEmblema) { haloEmblema.position.z = 0.03; emblema.add(haloEmblema) }
+  const haloEmblema = halo(NARANJA, 0.3, recursos); if (haloEmblema) { haloEmblema.position.z = 0.03; emblema.add(haloEmblema) }
 
   // Cuello alto con borde luminoso, cabeza ovalada sin rostro y gorro de chef con pliegues
   const cuello = junta('cuello', columna, 0, 0.6, 0)
   malla(new CylinderGeometry(0.115, 0.135, 0.085, 32, 1, true), blancoDoble, cuello, 0, 0.02, 0)
-  aro(0.118, 0.02, brilloLuz, cuello, 0, 0.065, 0.005).rotation.x = Math.PI / 2 - 0.1
-  const haloCuello = halo('#ff8a00', 0.42, recursos); if (haloCuello) { haloCuello.position.set(0, 0.06, 0.1); cuello.add(haloCuello) }
+  aro(0.118, 0.02, luzCuelloMat, cuello, 0, 0.065, 0.005).rotation.x = Math.PI / 2 - 0.1
+  const haloCuello = halo(NARANJA, 0.42, recursos); if (haloCuello) { haloCuello.position.set(0, 0.06, 0.1); cuello.add(haloCuello) }
   const cabeza = junta('cabeza', cuello, 0, 0.02, 0)
   malla(new SphereGeometry(1, 40, 32), cabezaMat, cabeza, 0, 0.23, 0, 0.2, 0.26, 0.215)
   malla(new CylinderGeometry(0.215, 0.208, 0.12, 36), blanco, cabeza, 0, 0.425, 0)                                  // banda del gorro
@@ -173,5 +176,5 @@ export function crearRig(): Rig {
   }
   pierna(-1, 'D'); pierna(1, 'I')
 
-  return { raiz, j, dedos, emblema, dispose: () => { for (const r of recursos) r.dispose() } }
+  return { raiz, j, dedos, emblema, luzCuello: { material: luzCuelloMat, halo: haloCuello }, dispose: () => { for (const r of recursos) r.dispose() } }
 }
