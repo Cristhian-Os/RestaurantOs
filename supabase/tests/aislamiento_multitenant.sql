@@ -40,7 +40,7 @@ DECLARE
   b_ids text[]; stem text; j int; nm text; ty text; permden boolean;
   v_sec int; vinv boolean;
   bk text; bkok boolean; objname text; pol_n int; ass boolean;
-  leaky text := ''; lines text[]; ln text; n_ok int := 0; n_fail int := 0; n_aviso int := 0;
+  stub_made boolean := false; ctl_st boolean; leaky text := ''; lines text[]; ln text; n_ok int := 0; n_fail int := 0; n_aviso int := 0;
 BEGIN
   ---------------------------------------------------------------------------------------------------------------
   -- 0. Preparacion: restaurantes, usuarios, perfiles
@@ -63,6 +63,12 @@ BEGIN
     (ubw,'waiter','Mesero B','mesero@aisl-b.test',rb,true),(ubk,'kitchen','Cocina B','cocina@aisl-b.test',rb,true)
     ON CONFLICT (id) DO UPDATE SET role=EXCLUDED.role, restaurant_id=EXCLUDED.restaurant_id, active=EXCLUDED.active,
       full_name=EXCLUDED.full_name, email=EXCLUDED.email;
+
+  -- La replica puede no traer storage.filename (lo usa public._asset_ok): se agrega un stub SOLO si falta (se revierte con todo lo demas)
+  IF to_regclass('storage.objects') IS NOT NULL AND to_regprocedure('storage.filename(text)') IS NULL THEN
+    EXECUTE 'CREATE FUNCTION storage.filename(name text) RETURNS text LANGUAGE sql IMMUTABLE AS ''SELECT (string_to_array(name, ''''/''''))[array_length(string_to_array(name, ''''/''''), 1)]''';
+    stub_made := true;
+  END IF;
 
   -- Actores de prueba. forbid = restaurantes cuyas filas NO debe tocar. own = su restaurante (para el "secuestro").
   actors := jsonb_build_array(
@@ -741,11 +747,7 @@ BEGIN
   IF to_regclass('storage.objects') IS NULL OR to_regclass('storage.buckets') IS NULL THEN
     r := r || 'AVISO: storage no probado (la base no tiene el esquema storage)'||E'\n';
   ELSE
-    -- la replica puede no traer storage.filename / storage.foldername: se agregan como stub SOLO si faltan (se revierte)
-    IF to_regprocedure('storage.filename(text)') IS NULL THEN
-      EXECUTE 'CREATE FUNCTION storage.filename(name text) RETURNS text LANGUAGE sql IMMUTABLE AS ''SELECT (string_to_array(name, ''''/''''))[array_length(string_to_array(name, ''''/''''), 1)]''';
-      r := r || 'INFO: la base no tiene storage.filename; se uso un stub equivalente (solo en esta prueba)'||E'\n';
-    END IF;
+    IF stub_made THEN r := r || 'INFO: la base no tiene storage.filename; se uso un stub equivalente (solo en esta prueba)'||E'\n'; END IF;
     FOREACH bk IN ARRAY ARRAY['restaurant-assets','branding'] LOOP
       SELECT count(*) INTO pol_n FROM pg_policies WHERE schemaname='storage' AND tablename='objects'
         AND (coalesce(qual,'') || ' ' || coalesce(with_check,'')) LIKE '%'||bk||'%';
@@ -756,27 +758,35 @@ BEGIN
       BEGIN
         INSERT INTO storage.buckets (id, name, public) VALUES (bk, bk, true) ON CONFLICT (id) DO NOTHING;
       EXCEPTION WHEN OTHERS THEN NULL; END;
-      -- control positivo: admin A escribe en SU carpeta; negativo: en la carpeta de B (insert / update / delete)
-      FOREACH op IN ARRAY ARRAY['INSERT carpeta propia','INSERT carpeta de B','UPDATE objeto de B','DELETE objeto de B'] LOOP
+      -- Para cada operacion: control positivo (admin A escribe en SU carpeta) y negativo (en la carpeta de B).
+      -- Si el control positivo falla, el negativo no prueba nada (faltan politicas de escritura): se avisa como no concluyente.
+      ctl_st := false;
+      FOREACH op IN ARRAY ARRAY['INSERT carpeta propia','INSERT carpeta de B','UPDATE objeto propio','UPDATE objeto de B','DELETE objeto propio','DELETE objeto de B'] LOOP
         err := NULL; st := NULL; cnt := 0;
         BEGIN
           RESET ROLE;
-          INSERT INTO storage.objects (bucket_id, name) VALUES (bk, rb::text||'/semilla.png');
+          INSERT INTO storage.objects (bucket_id, name) VALUES (bk, rb::text||'/semilla.png'), (bk, ra::text||'/semilla.png');
           PERFORM set_config('request.jwt.claims', (actors->0->'claims')::text, true);
           SET LOCAL ROLE authenticated;
           IF op = 'INSERT carpeta propia' THEN INSERT INTO storage.objects (bucket_id, name) VALUES (bk, ra::text||'/prueba.png');
           ELSIF op = 'INSERT carpeta de B' THEN INSERT INTO storage.objects (bucket_id, name) VALUES (bk, rb::text||'/intruso.png');
+          ELSIF op = 'UPDATE objeto propio' THEN UPDATE storage.objects SET name = name WHERE bucket_id = bk AND name LIKE ra::text||'/%';
           ELSIF op = 'UPDATE objeto de B' THEN UPDATE storage.objects SET name = name WHERE bucket_id = bk AND name LIKE rb::text||'/%';
+          ELSIF op = 'DELETE objeto propio' THEN DELETE FROM storage.objects WHERE bucket_id = bk AND name LIKE ra::text||'/%';
           ELSE DELETE FROM storage.objects WHERE bucket_id = bk AND name LIKE rb::text||'/%'; END IF;
           GET DIAGNOSTICS cnt = ROW_COUNT;
           RESET ROLE;
           RAISE EXCEPTION 'undo' USING ERRCODE = 'P9999';
-        EXCEPTION WHEN OTHERS THEN RESET ROLE; st := SQLSTATE; err := left(SQLERRM,80); END;
-        n := n + 1;
-        IF op = 'INSERT carpeta propia' THEN
-          r := r || 'INFO: storage '||bk||' control positivo (admin A '||op||'): '||CASE WHEN cnt > 0 THEN 'permitido' ELSE 'rechazado ('||coalesce(err,'0 filas')||')' END||E'\n'; n := n - 1;
-        ELSIF cnt > 0 THEN r := r || n||') storage '||bk||': admin A hace '||op||': FALLA (afecto '||cnt||' objetos)'||E'\n';
-        ELSE r := r || n||') storage '||bk||': admin A hace '||op||' rechazado/0 filas: OK'||E'\n'; END IF;
+        EXCEPTION WHEN OTHERS THEN RESET ROLE; st := SQLSTATE; err := CASE WHEN SQLSTATE = 'P9999' THEN NULL ELSE left(SQLERRM,80) END; END;
+        IF op LIKE '%propi%' THEN
+          ctl_st := cnt > 0;
+          r := r || 'INFO: storage '||bk||' control positivo (admin A '||op||'): '||CASE WHEN cnt > 0 THEN 'permitido' ELSE 'rechazado ('||coalesce(err,'0 filas')||')' END||E'\n';
+        ELSE
+          n := n + 1;
+          IF cnt > 0 THEN r := r || n||') storage '||bk||': admin A hace '||op||': FALLA (afecto '||cnt||' objetos)'||E'\n';
+          ELSIF NOT ctl_st THEN n := n - 1; r := r || 'AVISO: storage '||bk||': '||op||' rechazado pero NO concluyente (ni el admin puede esa operacion en su propia carpeta: faltan politicas de escritura en esta base)'||E'\n';
+          ELSE r := r || n||') storage '||bk||': admin A hace '||op||' rechazado/0 filas: OK'||E'\n'; END IF;
+        END IF;
       END LOOP;
     END LOOP;
     -- La funcion real que decide las rutas de restaurant-assets (si existe en la base)
