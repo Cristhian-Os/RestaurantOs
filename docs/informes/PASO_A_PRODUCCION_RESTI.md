@@ -23,6 +23,8 @@ Todo lo de esta guía está **listo y probado fuera de producción**. Nada se ap
 
 ## 3. Pasos, en orden
 
+> **Decisión del dueño (2026-10-21): se usa la copia del 19 de octubre (`…_2026-10-19_1554.sql`), sin copia nueva.** Anotado en `REGISTRO_COPIAS.txt`. Esa copia es anterior a la tabla `planes`, así que la reversa de la migración 1 sale de su archivo `down` (verificado contra los valores actuales de producción). El Paso 1 de abajo queda como referencia; con esta decisión solo falta el "apruebo, aplica".
+
 ### Paso 1 — Copia nueva (la haces tú)
 Ejecuta `scripts/copia_produccion.ps1` (pide la cadena de conexión con casilla oculta; genera `esquema_`, `datos_` y `auth_` en `Backups-RestaurantOS`) y escribe **"listo"**. Yo comparo los conteos contra producción (pedidos, restaurantes, platos, perfiles, pagos, ingredientes, usuarios) y lo anoto en `REGISTRO_COPIAS.txt`.
 La última copia es del 19 de octubre. Recomiendo una nueva (hay más pedidos y 8 migraciones desde entonces; una de las nuevas cambia 3 filas y otra agrega un disparador a `mesas`). Si prefieres reutilizar la del 19, dilo y lo dejo anotado como en los bloques anteriores.
