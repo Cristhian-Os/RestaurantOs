@@ -73,7 +73,16 @@ Volver a Gemini para el cerebro: borrar `ai_proveedor` (o ponerlo distinto de `c
 - El audio y el texto no se guardan ni se registran; los errores solo registran el mensaje. Topes por usuario: cerebro 20/10 min y 80/día; voz 40/10 min y 400/día.
 - Resti no cambia datos por sí mismo: abre el modal de comandos con lo que dijiste y **tú apruebas** cada cambio.
 
-## Pendiente acordado
+## Resti absorbe el chatbot y vive en la landing (en el repo; **no desplegado** en ningún proyecto)
 
-- Resti con las funciones del chatbot de soporte: el cerebro ya incluye el conocimiento de la app y la captura de ideas; falta decidir si absorbe también el modo opinión.
-- Resti en la landing con habilidades de venta (planes, demo, captar contacto con `guardar_lead`): reutiliza `chat-support` modo landing. Sin voz del servidor para visitantes anónimos (costo/abuso): texto + voz del navegador.
+- **Panel (administrador con Resti encendido):** Resti hace lo del chatbot de soporte (el cerebro lleva el conocimiento de la app) y lo de opinión: con `START_FEEDBACK` abre un hilo que usa `chat-support` modo opinión (mismas reglas, topes y tabla `feedback_items`); los botones "Opinión y sugerencias" ahora abren a Resti. Cancela con "cancelar" / "ya no". El personal (cajero, mesero, cocina) sigue con el chat de opinión de siempre porque Resti es solo del administrador.
+- **Landing:** el botón del chat es Resti (capturas del mismo modelo, no 3D, para no cargar three.js a visitantes). Habla con `chat-support` modo landing (ventas, planes desde la base, `guardar_lead`). Voz solo del navegador: "Activar voz" lee las respuestas y el micrófono dicta con el reconocimiento del navegador (si no existe, no aparece). Sin Gemini para visitantes anónimos.
+- Probado: el cerebro con un modelo real (7 frases: datos, navegar, reportar fallo, dudas de uso, saludo, cambio de precio, intento de saltarse las reglas) y el panel de la landing en Chromium (abrir, escribir, respuesta, voz). Falta: DeepSeek real, `chat-support` desplegada con el modelo real, y probar el hilo de opinión de punta a punta con sesión.
+
+## Migración de modelos y claves de Gemini
+
+- Los modelos de Google cambian: con claves nuevas `gemini-2.5-flash` da 404. El adaptador (`_shared/modelo.ts`) y `voice-parse` ahora prueban en orden `gemini-3.5-flash-lite` → `gemini-3.6-flash` → `gemini-2.5-flash` y pasan al siguiente ante 404/429/5xx; `ai_modelo` (admite lista con comas) se prueba primero. `gemini-3.5-flash-lite` rechaza `thinkingBudget` (400): se repite sin él y se recuerda. `gemini-3.6-flash` "piensa" y tardó ~8 s en un comando de voz, por eso lite va primero (≈1 s, mismo resultado en la prueba).
+- La clave de `voice-parse` ya no va en la URL sino en la cabecera `x-goog-api-key`.
+- No hay claves en el código: siguen en `platform_secrets` (`gemini_api_key`, `ai_*`). Nada que migrar en la base.
+- **Antes de desplegar a producción** comprueba que la clave de producción acepta los modelos 3.x (si no, el respaldo cae a 2.5 y sigue funcionando mientras Google no lo retire): `curl -s -o /dev/null -w "%{http_code}" -H "x-goog-api-key: $CLAVE" -H 'Content-Type: application/json' -d '{"contents":[{"parts":[{"text":"hola"}]}]}' https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent` debe dar 200.
+- Funciones a desplegar en producción para esto: `resti-brain`, `resti-voz`, `chat-support`, `menu-asistente`, `feedback-resumen`, `ai-report`, `voice-parse` (las que importan `_shared/modelo.ts` necesitan ese archivo incluido).
