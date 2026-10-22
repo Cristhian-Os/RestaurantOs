@@ -22,7 +22,7 @@ DECLARE
   actors jsonb; ctls jsonb; ac jsonb; ct jsonb;
   rels jsonb := '[]'; rel jsonb; relname text; relk text; tc text; pkc text;
   pkcol jsonb := '{}'; pktype jsonb := '{}'; inscols jsonb := '{}'; seedrow jsonb := '{}'; seedpk jsonb := '{}'; seederr jsonb := '{}';
-  rec record; cl record; fn record; rowj2 jsonb; o_esc text[];
+  rec record; cl record; fn record; rowj2 jsonb; o_esc text[]; phsql text; ph_out text; ph_err text;
   -- siembra
   pass int; tn int; attempt int; tag text; rid uuid; uid_ uuid; key text; cols text; vals text; val text; sqltxt text; rowj jsonb;
   fkrel text; fkcol text; lit text; isrich boolean; has_rid_ref boolean; bt oid; btname text; typt "char"; mk text;
@@ -628,6 +628,10 @@ BEGIN
         argtxt := argtxt || CASE WHEN i>1 THEN ', ' ELSE '' END || val;
       END LOOP;
       callsql := format('SELECT string_agg(q::text, E''\n'') FROM public.%I(%s) q', fn.nm, argtxt);
+      -- misma llamada pero con ids inexistentes en lugar de los de B (para saber si la respuesta revela algo)
+      x := argtxt;
+      FOREACH lit IN ARRAY b_ids LOOP x := replace(x, lit, gen_random_uuid()::text); END LOOP;
+      phsql := format('SELECT string_agg(q::text, E''\n'') FROM public.%I(%s) q', fn.nm, x);
       -- (b) ejecutar como controles (dueno de B) y como cada actor; cada ejecucion se deshace
       ctl_ok := false; ctl_err := NULL; res := '{}';
       FOR ct IN SELECT value FROM jsonb_array_elements(ctls || actors) LOOP
