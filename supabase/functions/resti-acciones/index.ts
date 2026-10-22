@@ -3,6 +3,7 @@ import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
 import { validarAcciones, contextoPrompt, SISTEMA } from './menu.ts'
 import { validarAccionesPedidos, contextoPedidos, SISTEMA_PEDIDOS } from './pedidos.ts'
 import { validarAccionesEquipo, contextoEquipo, SISTEMA_EQUIPO } from './equipo.ts'
+import { validarAccionesOp, contextoOp, SISTEMA_OP } from './operaciones.ts'
 import { leerItems } from '../resti-brain/datos.ts'
 
 const cors = {
@@ -11,7 +12,7 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Interpreta una orden de cambio (menú, pedidos o equipo) y devuelve las acciones propuestas. NO escribe nada: el administrador las confirma
+// Interpreta una orden de cambio (menú, pedidos, equipo u operación: gastos, proveedores, tareas, ingredientes, mesas) y devuelve las acciones propuestas. NO escribe nada: el administrador las confirma
 // en pantalla y el navegador las aplica con sus propios permisos (RLS). Solo el administrador activo de un restaurante.
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -19,7 +20,7 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({}))
     const text = typeof body?.text === 'string' ? body.text.replace(/\s+/g, ' ').trim().slice(0, 400) : ''
-    const ambito = ['menu', 'pedidos', 'equipo'].includes(body?.ambito) ? body.ambito as 'menu' | 'pedidos' | 'equipo' : 'menu'
+    const ambito = ['menu', 'pedidos', 'equipo', 'operaciones'].includes(body?.ambito) ? body.ambito as 'menu' | 'pedidos' | 'equipo' | 'operaciones' : 'menu'
     if (text.length < 3) return json({ actions: [] })
 
     const url = Deno.env.get('SUPABASE_URL')!
@@ -36,6 +37,24 @@ Deno.serve(async (req: Request) => {
         const ps = (data ?? []).map((o: any) => ({ numero: o.order_number_today ?? null, mesa: o.table_num ?? null, status: String(o.status), cliente: o.customer_name ?? null, total: Number(o.total) || 0,
           resumen: leerItems(o.items).slice(0, 4).map(i => `${i.quantity} ${i.name}`).join(', ') }))
         return { sistema: SISTEMA_PEDIDOS(contextoPedidos(ps)), validar: validarAccionesPedidos }
+      }
+      if (ambito === 'operaciones') {
+        const [g, pv, eq, t, ing, m] = await Promise.all([
+          userDb.from('gastos').select('concepto, monto, categoria, created_at').order('created_at', { ascending: false }).limit(40),
+          userDb.from('proveedores').select('nombre').order('nombre').limit(60),
+          userDb.from('profiles').select('full_name, role, active').order('full_name').limit(80),
+          userDb.from('tasks').select('title, status, assigned_to').order('created_at', { ascending: false }).limit(40),
+          userDb.from('ingredientes').select('nombre, unidad_medida, stock_actual, costo_unitario, stock_minimo').order('nombre').limit(120),
+          userDb.from('mesas').select('numero').eq('activa', true).order('numero').limit(120),
+        ])
+        return { sistema: SISTEMA_OP(contextoOp({
+          gastos: (g.data ?? []).map((x: any) => ({ concepto: String(x.concepto), monto: Number(x.monto) || 0, categoria: x.categoria ?? undefined, fecha: String(x.created_at ?? '').slice(0, 10) })),
+          proveedores: (pv.data ?? []).map((x: any) => String(x.nombre)),
+          equipo: (eq.data ?? []).filter((x: any) => x.full_name).map((x: any) => ({ nombre: String(x.full_name), rol: String(x.role), activo: x.active !== false })),
+          tareas: (t.data ?? []).map((x: any) => ({ titulo: String(x.title), status: String(x.status) })),
+          ingredientes: (ing.data ?? []).map((x: any) => ({ nombre: String(x.nombre), unidad: x.unidad_medida, stock: Number(x.stock_actual), costo: Number(x.costo_unitario), minimo: Number(x.stock_minimo) })),
+          mesas: (m.data ?? []).map((x: any) => Number(x.numero)),
+        })), validar: validarAccionesOp }
       }
       if (ambito === 'equipo') {
         const { data } = await userDb.from('profiles').select('full_name, role, active').order('full_name').limit(80)

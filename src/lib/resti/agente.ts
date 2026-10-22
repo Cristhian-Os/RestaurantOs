@@ -10,8 +10,8 @@ export function esOrdenDeCambio(frase: string): boolean {
   const t = norm(frase)
   if (t.length < 6) return false
   if (/^(cuanto|cuantos|cuantas|que|como|donde|quien|cual|cuando|por que|me (muestras|dices|llevas))\b/.test(t) && !/^que (el|la|los|las) \w+ (lleve|tenga|sea|venda)/.test(t)) return false   // preguntas y consultas
-  return /\b(desactiva\w*|activa\w*|agot\w+|se (acabo|termino|agoto)|ya no (hay|queda)|volvio|sube\w*|baja\w*|cambia\w*|pon\w*|marca\w*|quita\w*|registra\w*|anota\w*|agrega\w*|resta\w*|suma\w*|crea\w*|asigna\w*|compre|le pague|lleve\w*|tenga\w*|aumenta\w*|reduce\w*|elimina\w*|borra\w*|renombra\w*|llama\w*|anade\w*|incluye\w*|cancel\w*|despide\w*)\b/.test(t)
-    && /\b(helado|sabor|jugo|plato|precio|inventario|stock|mesa|gasto|tarea|turno|receta|proveedor|ingrediente|cholao|limon|fresa|vainilla|leche|topping\w*|bolas?|descripcion|tamano\w*|categoria|carta|menu|agotad\w+|disponible|pedido|orden|empleado|empleada|mesero|mesera|cocinero|cajero|cajera|equipo|restaurante|negocio)\b|\$|\d/.test(t)
+  return /\b(desactiva\w*|activa\w*|agot\w+|se (acabo|termino|agoto)|ya no (hay|queda)|volvio|sube\w*|baja\w*|cambia\w*|pon\w*|marca\w*|quita\w*|registra\w*|anota\w*|agrega\w*|resta\w*|suma\w*|crea\w*|asigna\w*|compre|le pague|lleve\w*|tenga\w*|aumenta\w*|reduce\w*|elimina\w*|borra\w*|renombra\w*|llama\w*|anade\w*|incluye\w*|cancel\w*|despide\w*|corrig\w+|edita\w*|actualiza\w*|modifica\w*|contrata\w*|complet\w+|termin\w+|rechaza\w*|da de alta)\b/.test(t)
+    && /\b(helado|sabor|jugo|plato|precio|inventario|stock|mesa|gasto|tarea|turno|receta|proveedor|ingrediente|cholao|limon|fresa|vainilla|leche|topping\w*|bolas?|descripcion|tamano\w*|categoria|carta|menu|agotad\w+|disponible|pedido|orden|empleado|empleada|mesero|mesera|cocinero|cajero|cajera|equipo|restaurante|negocio|costo|minimo|rol|telefono|celular|prioridad|titulo)\b|\$|\d/.test(t)
 }
 
 /** ¿Es un cambio de la CARTA (toppings, bolas, tamaños, descripción, categoría, crear o quitar un plato)? Va al intérprete del menú. */
@@ -22,12 +22,27 @@ export function esCambioDeMenu(frase: string): boolean {
 }
 
 /** ¿A qué parte del sistema va la orden? pedidos, equipo, menú (carta) o «comando» (inventario, precios, mesas, gastos, tareas…: lo de siempre). */
-export function ambitoDe(frase: string): 'pedidos' | 'equipo' | 'menu' | 'comando' {
+export function ambitoDe(frase: string): 'pedidos' | 'equipo' | 'operaciones' | 'menu' | 'comando' {
   const t = norm(frase)
   if (/\b(pedidos?|ordenes?)\b/.test(t) && /\b(cancel\w*|elimin\w*|anul\w*|listo|lista|cocina|pendiente|marca\w*|pasa\w*)\b/.test(t) && !/\b(nueva orden|nuevo pedido|tomar)\b/.test(t)) return 'pedidos'
   if (/\b(empleados?|empleadas?|meseros?|meseras?|cocineros?|cocineras?|cajeros?|cajeras?|trabajador\w*|equipo)\b/.test(t) && /\b(desactiva\w*|activa\w*|despide\w*|reactiva\w*|quita\w*|saca\w*)\b/.test(t)) return 'equipo'
   if (/\b(nombre del (restaurante|negocio|local)|renombra\w* (el|mi) (restaurante|negocio))\b/.test(t) || /\bllama\w* .*(restaurante|negocio)\b/.test(t)) return 'equipo'
+  if (esOperacion(t)) return 'operaciones'
   return esCambioDeMenu(frase) ? 'menu' : 'comando'
+}
+
+/** Operación: corregir o borrar gastos y proveedores, altas y datos del equipo, estado o texto de tareas, ingredientes y mesas (agregar o quitar). Lo demás de «comando» se queda como estaba. */
+function esOperacion(t: string): boolean {
+  const gente = /\b(empleados?|empleadas?|meseros?|meseras?|cocineros?|cocineras?|cajeros?|cajeras?|trabajador\w*|equipo|personal)\b/
+  if (/\bgastos?\b/.test(t) && /\b(corrig\w*|edita\w*|cambia\w*|modifica\w*|actualiza\w*|elimina\w*|borra\w*|quita\w*|anula\w*|era de|eran de|fueron)\b/.test(t) && !/\b(registra\w*|anota\w*|agrega\w*|nuevo gasto)\b/.test(t)) return true
+  if (/\bproveedor(es)?\b/.test(t) && /\b(elimina\w*|borra\w*|quita\w*|saca\w*)\b/.test(t)) return true
+  if (gente.test(t) && /\b(agrega\w*|anade\w*|crea\w*|contrata\w*|da de alta|nuevo|nueva|registra\w*)\b/.test(t)) return true
+  if ((gente.test(t) || /\b(rol|telefono|celular)\b/.test(t)) && /\b(rol|telefono|celular|apellido|nombre|cambia\w* (a|de)|pasa\w* a|ascien\w*)\b/.test(t) && /\b(cambia\w*|edita\w*|actualiza\w*|pon\w*|pasa\w*|corrig\w*|modifica\w*)\b/.test(t)) return true
+  if (/\btareas?\b/.test(t) && /\b(complet\w*|termin\w*|rechaz\w*|progreso|prioridad|titulo|descripcion|marca\w*|cambia\w*|edita\w*|renombra\w*)\b/.test(t) && !/\b(crea\w*|asigna\w*|nueva|nuevo)\b/.test(t)) return true
+  if (/\bingredientes?\b/.test(t) && /\b(nuevo|nueva|crea\w*|agrega\w*|anade\w*|costo|minimo|unidad|renombra\w*|nombre|cambia\w*)\b/.test(t) && !/\b(stock|inventario|resta\w*|suma\w*|quedan?)\b/.test(t)) return true
+  if (/\bcosto\b/.test(t) && /\b(por (kilo|litro|libra|unidad|gramo)|del ingrediente|de la (fresa|leche|mora|crema))\b/.test(t)) return true
+  if (/\bmesas?\b/.test(t) && /\b(agrega\w*|anade\w*|crea\w*|nueva|nuevo|quita\w*|elimina\w*|borra\w*|desactiva\w*)\b/.test(t) && !/\b(mesera|libre|ocupada|reservada)\b/.test(t)) return true
+  return false
 }
 
 /** Confirmación REFORZADA para cambios delicados (cancelar un pedido, desactivar a alguien): no basta un «sí» suelto; hay que decir de qué se trata. */

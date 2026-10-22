@@ -16,7 +16,8 @@ import { esOrdenDeCambio, ambitoDe, esConfirmacion, esConfirmacionReforzada, esC
 import { loadCommandContext, applyChange } from '../../services/voiceCommandsApi'
 import { buildProposals, toPromptContext, type Proposal, type RawAction } from '../../services/voiceCommands'
 import { parseVoiceText } from '../../services/voiceService'
-import { interpretarMenu, interpretarPedidos, interpretarEquipo, cargarMenu, cargarPedidosAbiertos, cargarEquipo } from '../../services/restiMenu'
+import { interpretarMenu, interpretarPedidos, interpretarEquipo, interpretarOperaciones, cargarMenu, cargarPedidosAbiertos, cargarEquipo, cargarDatosOp } from '../../services/restiMenu'
+import { proponerCambiosOp } from '../../lib/resti/operacionesCambios'
 import { proponerCambiosMenu } from '../../lib/resti/menuCambios'
 import { proponerCambiosPedidos, proponerCambiosEquipo } from '../../lib/resti/pedidosEquipoCambios'
 import { EVENTO_ABRIR_OPINION, EVENTO_OPINION_GUARDADA, type AtajoOpinion } from '../feedback/OpinionSection'
@@ -108,6 +109,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
   const propsRef = useRef({ userId, role, onApplied, onOpenVoiceCommands }); propsRef.current = { userId, role, onApplied, onOpenVoiceCommands }
   // Cambio que Resti preparó y espera tu confirmación (tocando Aplicar o diciendo «sí»). Nada se escribe sin ella.
   const propuesta = useRef<{ proposals: Proposal[]; dicho: string } | null>(null)
+  const [credenciales, setCredenciales] = useState<string[] | null>(null)
   const [tarjeta, setTarjeta] = useState<{ proposals: Proposal[]; dicho: string; aplicando?: boolean } | null>(null)
   const [saliendo, setSaliendo] = useState(false)         // animación de vuelta al gorro (no desaparece de golpe)
   const [listo3D, setListo3D] = useState(false)          // el 3D ya dibujó su primer cuadro (hasta entonces se ve la captura del mismo modelo)
@@ -244,7 +246,11 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
       const [acciones, eq] = await Promise.all([interpretarEquipo(dicho), cargarEquipo()])
       return aProposal(proponerCambiosEquipo(acciones, eq.gente, eq.nombreRestaurante))
     }
-    const caminos = { comando: porComando, menu: porMenu, pedidos: porPedidos, equipo: porEquipo }
+    const porOperaciones = async (): Promise<Proposal[]> => {
+      const [acciones, datos] = await Promise.all([interpretarOperaciones(dicho), cargarDatosOp()])
+      return aProposal(proponerCambiosOp(acciones, datos))
+    }
+    const caminos = { comando: porComando, menu: porMenu, pedidos: porPedidos, equipo: porEquipo, operaciones: porOperaciones }
     const primero = ambitoDe(dicho)
     // Primero el camino que corresponde; si no entiende nada, se prueba el de la carta o el de comandos (el otro «comodín»).
     let origen: keyof typeof caminos = primero
@@ -258,7 +264,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
 
     const abrirEditor = (speech: string): RestiBrainResponse => ({ speech, action: 'OPEN_VOICE_COMMANDS' })
     const solo = origen !== 'comando'   // lo que no es de comandos no tiene editor: se le pide que lo diga de otra forma
-    if (proposals.length === 0) return solo ? { speech: 'No entendí qué cambiar. Dímelo de otra forma, por ejemplo: agrégale topping de oreo al cholao, o cancela el pedido de la mesa 4.', action: 'NONE' } : abrirEditor('No entendí qué cambiar. Te abro el editor para que lo escribas.')
+    if (proposals.length === 0) return solo ? { speech: 'No entendí qué cambiar. Dímelo de otra forma, por ejemplo: agrégale topping de oreo al cholao, corrige el gasto del gas a 60 mil, o cancela el pedido de la mesa 4.', action: 'NONE' } : abrirEditor('No entendí qué cambiar. Te abro el editor para que lo escribas.')
     if (!proposals.some(p => p.change)) {
       const problema = proposals[0].problem ?? 'No pude preparar ese cambio'
       return solo ? { speech: problema, action: 'NONE' } : abrirEditor(`${problema}. Te abro el editor.`)
@@ -274,14 +280,16 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
     const p = propuesta.current
     if (!p) return { speech: 'No tengo ningún cambio pendiente.', action: 'NONE' }
     setTarjeta(t => t && { ...t, aplicando: true })
-    let hechos = 0; const fallos: string[] = []
+    let hechos = 0; const fallos: string[] = [], avisos: string[] = []
     for (const x of p.proposals) {   // en orden: las propuestas se calcularon suponiendo ese orden
       if (!x.change) continue
-      try { await applyChange(x.change, propsRef.current.role); hechos++ } catch (e) { fallos.push(e instanceof Error ? e.message : 'no se pudo aplicar') }
+      try { const aviso = await applyChange(x.change, propsRef.current.role); if (aviso) avisos.push(aviso); hechos++ } catch (e) { fallos.push(e instanceof Error ? e.message : 'no se pudo aplicar') }
     }
     propuesta.current = null; setTarjeta(null)
     if (hechos > 0) propsRef.current.onApplied()
-    return { speech: resumenAplicado(hechos, fallos), action: 'NONE' }
+    // Datos que solo se muestran (la clave temporal de un alta): nunca se dicen en voz alta ni se guardan en el historial.
+    if (avisos.length) { setCredenciales(avisos); setTimeout(() => setCredenciales(null), 120_000) }
+    return { speech: resumenAplicado(hechos, fallos) + (avisos.length ? ' La clave temporal está en pantalla, anótala.' : ''), action: 'NONE' }
   }, [])
 
   const ejecutar = useCallback(async (r: RestiBrainResponse, dicho: string) => {
@@ -440,6 +448,19 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
               {arriba && !reducido && <span aria-hidden style={{ position: 'absolute', left: colita, bottom: -5, width: 12, height: 12, background: '#fff', borderRight: '1px solid rgba(0,0,0,.08)', borderBottom: '1px solid rgba(0,0,0,.08)', transform: 'rotate(45deg)', borderRadius: 2 }} />}
             </div>
           </div>
+        </div>
+      )}
+
+      {credenciales && !tarjeta && (
+        <div role="dialog" aria-label="Acceso del nuevo empleado"
+          style={{ position: 'fixed', bottom: abajo(), zIndex: 97, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 8, padding: 14,
+            ...(mov ? { left: 12, right: 12 } : { right: 16, width: 360 }),
+            background: 'var(--w-surface)', color: 'var(--w-ink)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', boxShadow: '0 14px 36px rgba(0,0,0,.3)',
+            fontFamily: 'var(--w-sans)', animation: 'resti-globo 220ms ease-out both' }}>
+          <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--w-terra)' }}>Acceso creado · se muestra una sola vez</p>
+          {credenciales.map((c, i) => <p key={i} style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, wordBreak: 'break-all', userSelect: 'all' }}>{c}</p>)}
+          <p style={{ margin: 0, fontSize: '0.75rem', opacity: 0.7 }}>Entrégasela a la persona; podrá cambiarla al entrar.</p>
+          <button type="button" onClick={() => setCredenciales(null)} style={{ minHeight: 44, border: 'none', borderRadius: '0.9rem', cursor: 'pointer', fontWeight: 800, fontFamily: 'inherit', background: 'var(--w-terra)', color: '#fff' }}>Ya la anoté</button>
         </div>
       )}
 
