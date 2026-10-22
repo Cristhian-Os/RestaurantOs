@@ -42,14 +42,17 @@
     <!-- Estilos críticos inline — previenen flash blanco en móvil -->
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html { background: #F4EEE4; }
+      /* El fondo sigue el tema (--w-bg); el crema es solo el valor previo a que cargue el CSS */
+      html { background: var(--w-bg, #F4EEE4); overflow-x: hidden; overflow-x: clip; }
       body {
-        background-color: #F4EEE4 !important;
+        background-color: var(--w-bg, #F4EEE4);
         font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif;
         min-height: 100vh;
         min-height: 100dvh;
         -webkit-font-smoothing: antialiased;
         overflow-x: hidden;
+        overflow-x: clip;
+        max-width: 100%;
         /* Safe area para notch iOS */
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
@@ -57,7 +60,7 @@
       #root {
         min-height: 100vh;
         min-height: 100dvh;
-        background-color: #F4EEE4;
+        background-color: var(--w-bg, #F4EEE4);
       }
       /* Prevenir tap highlight azul en mobile */
       * { -webkit-tap-highlight-color: transparent; }
