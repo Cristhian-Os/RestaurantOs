@@ -94,7 +94,8 @@ BEGIN
     'obtener_interacciones_platos','online_payments_enabled','create_public_order','crear_comentario_plato','dejar_resena_plato',
     'obtener_comentarios_plato','obtener_resenas_aprobadas','reaccionar_plato','reaccionar_comentario_plato','mi_reaccion_plato',
     'reportar_comentario_plato','editar_comentario_plato','borrar_comentario_plato','verificar_cliente_pidio_plato',
-    'tv_cocina_datos','tv_cocina_avanzar','tv_cocina_cancelar'];
+    'tv_cocina_datos','tv_cocina_avanzar','tv_cocina_cancelar',
+    '_restaurante_activo'];  -- helper de la politica publica de dishes: solo dice si un restaurante esta activo (dato ya publico en restaurants_public)
   --  * "Capacidad por uuid de pedido" (el comensal anonimo cancela/edita/consulta SU pedido con el uuid como secreto). Solo para anon: AVISO.
   wl_cap := ARRAY['estado_pedido_publico','obtener_items_pedido_cliente','cancelar_orden','editar_items_pedido'];
 

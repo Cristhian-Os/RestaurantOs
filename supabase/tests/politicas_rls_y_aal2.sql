@@ -128,7 +128,9 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN r := r||'28) S-06 cajero inserta una base directa rechazado: OK'||E'\n'; END;
   -- Su flujo real (RPC) sigue funcionando
   BEGIN j := registrar_base_caja(7000); r := r||'29) S-06 cajero registra la base por RPC: OK'||E'\n';
-  EXCEPTION WHEN OTHERS THEN r := r||'29) S-06 cajero registra la base por RPC: FALLA '||sqlerrm||E'\n'; END;
+  EXCEPTION WHEN OTHERS THEN
+    -- Con la migracion de funciones (124000) el cajero no cambia la base tras el corte del dia: la RPC responde esa regla, no un error de permisos.
+    r := r||'29) S-06 cajero registra la base por RPC: '||CASE WHEN sqlerrm LIKE '%solo el administrador puede cambiar la base%' THEN 'OK (regla: tras el corte solo el admin)' ELSE 'FALLA '||sqlerrm END||E'\n'; END;
   BEGIN j := hacer_corte_caja(NULL); r := r||'30) S-06 cajero hace el corte por RPC: OK'||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'30) S-06 cajero hace el corte por RPC: FALLA '||sqlerrm||E'\n'; END;
   SELECT count(*) INTO n FROM cortes_caja WHERE fecha = fecha_bog;

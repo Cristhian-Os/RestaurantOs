@@ -1,4 +1,5 @@
 -- Reversa de 20261022123000_pagos_en_linea_verificados
+DROP FUNCTION IF EXISTS public.guardar_config_pagos(boolean, text, text, text, text);
 DROP FUNCTION IF EXISTS public.procesar_pago_wompi(text,text,text,integer,text,text,text,jsonb);
 DROP FUNCTION IF EXISTS public.suscripcion_puede_cobrar(uuid);
 DROP FUNCTION IF EXISTS public.mark_order_paid(uuid, text, text, integer);
