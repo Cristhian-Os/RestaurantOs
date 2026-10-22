@@ -1,6 +1,6 @@
 // Pruebas del adaptador de modelos (sin red). Correr con:  node supabase/functions/_shared/modelo.test.ts
 import assert from 'node:assert/strict'
-import { callModel, cargarProveedor, type Fetch } from './modelo.ts'
+import { callModel, cargarProveedor, cadenaGemini, type Fetch } from './modelo.ts'
 
 const capturas: { url: string; init: any }[] = []
 const falso = (cuerpo: unknown, ok = true, status = 200): Fetch => async (url, init) => { capturas.push({ url, init }); return { ok, status, json: async () => cuerpo } }
@@ -70,5 +70,26 @@ assert.deepEqual(await cargarProveedor(admin({ ai_proveedor: 'compatible', ai_ur
 assert.equal((await cargarProveedor(admin({ gemini_api_key: 'g' })))?.proveedor, 'gemini')
 assert.equal(await cargarProveedor(admin({ ai_proveedor: 'compatible', ai_modelo: 'm1' })), null)
 assert.equal(await cargarProveedor(admin({})), null)
+
+// Gemini: respaldo de modelos (404 → siguiente) y repetición sin thinkingConfig cuando el modelo responde 400
+{
+  assert.deepEqual(cadenaGemini('uno, dos'), ['uno', 'dos', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-flash'])
+  assert.equal(cadenaGemini('mal modelo; x').length, 3, 'un nombre inválido se descarta')
+  const llamadas: { modelo: string; pensar: boolean }[] = []
+  const f: Fetch = async (url, init) => {
+    const modelo = /models\/([^:]+):/.exec(url)![1], pensar = 'thinkingConfig' in JSON.parse(init.body).generationConfig
+    llamadas.push({ modelo, pensar })
+    if (modelo === 'viejo') return { ok: false, status: 404, json: async () => ({}) }
+    if (modelo === 'gemini-3.5-flash-lite' && pensar) return { ok: false, status: 400, json: async () => ({}) }
+    return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: 'hola' }] } }] }) }
+  }
+  const r = await callModel({ proveedor: 'gemini', modelo: 'viejo', clave: 'K' }, { sistema: 's', usuario: 'u', json: false }, f)
+  assert.equal(r.texto, 'hola'); assert.equal(r.modelo, 'gemini-3.5-flash-lite')
+  assert.deepEqual(llamadas, [{ modelo: 'viejo', pensar: true }, { modelo: 'gemini-3.5-flash-lite', pensar: true }, { modelo: 'gemini-3.5-flash-lite', pensar: false }])
+  // un 401 (clave mala) no recorre la cadena
+  llamadas.length = 0
+  await assert.rejects(callModel({ proveedor: 'gemini', modelo: 'gemini-3.6-flash', clave: 'K' }, { sistema: 's', usuario: 'u' }, async () => { llamadas.push({ modelo: 'x', pensar: true }); return { ok: false, status: 401, json: async () => ({}) } }), /401/)
+  assert.equal(llamadas.length, 1)
+}
 
 console.log('modelo.test OK')

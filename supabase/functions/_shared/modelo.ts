@@ -27,7 +27,7 @@ export interface RespuestaModelo { texto: string; tokensEntrada: number; tokensS
 export interface ConfigProveedor { proveedor: 'gemini' | 'compatible'; modelo: string; clave: string; urlBase?: string }
 export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>
 
-export const MODELO_POR_DEFECTO = 'gemini-2.5-flash'
+export const MODELO_POR_DEFECTO = 'gemini-3.5-flash-lite'
 
 type Obj = Record<string, any>
 
@@ -46,29 +46,52 @@ async function conTiempo<T>(ms: number, hacer: (signal: AbortSignal) => Promise<
   } finally { clearTimeout(t) }
 }
 
+/** Gemini: modelos en orden de preferencia. Google retira modelos (gemini-2.5-flash ya da 404 con claves nuevas): si uno no existe o está saturado se prueba el siguiente. */
+export const MODELOS_GEMINI_RESPALDO = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-flash']   // lite: ~1 s y exacto en pruebas reales; 3.6-flash "piensa" y tardó ~8 s
+export const cadenaGemini = (modelo: string): string[] => {
+  const pedidos = String(modelo ?? '').split(',').map(x => x.trim()).filter(x => /^[a-z0-9.\-]{3,80}$/i.test(x))
+  return [...new Set([...pedidos, ...MODELOS_GEMINI_RESPALDO])]
+}
+/** Modelos que ya rechazaron thinkingBudget en esta instancia: no se vuelve a intentar con él (ahorra una ida y vuelta por llamada). */
+const sinThinking = new Set<string>()
+const reintentable = (status: number) => [404, 429, 500, 502, 503, 504].includes(status)
+
 async function llamarGemini(c: ConfigProveedor, p: PedidoModelo, f: Fetch): Promise<RespuestaModelo> {
   const contents = [
     ...(p.mensajes ?? []).map(m => ({ role: m.rol === 'assistant' ? 'model' : 'user', parts: [{ text: m.texto }] })),
     { role: 'user', parts: [{ text: p.usuario }] },
   ]
-  const resp = await conTiempo(p.timeoutMs ?? 12_000, signal => f(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.modelo)}:generateContent`, {
-    method: 'POST', signal,
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.clave },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: p.sistema }] },
-      contents,
-      // Sin "pensar" de más: es redactar con datos ya calculados, no razonar; ahorra costo.
-      ...(p.herramientas?.length ? { tools: [{ functionDeclarations: p.herramientas }] } : {}),
-      generationConfig: { maxOutputTokens: p.maxTokens ?? 1500, temperature: p.temperatura ?? 0.2, ...(p.json === false || p.herramientas?.length ? {} : { responseMimeType: 'application/json' }), thinkingConfig: { thinkingBudget: 0 } },
-    }),
-  }))
+  const cuerpo = (sinPensar: boolean) => JSON.stringify({
+    system_instruction: { parts: [{ text: p.sistema }] },
+    contents,
+    ...(p.herramientas?.length ? { tools: [{ functionDeclarations: p.herramientas }] } : {}),
+    // Sin "pensar" de más: es redactar con datos ya calculados, no razonar; ahorra costo y tiempo.
+    // Algunos modelos (p. ej. gemini-3.5-flash-lite) rechazan thinkingBudget con 400: ahí se repite sin él.
+    generationConfig: { maxOutputTokens: p.maxTokens ?? 1500, temperature: p.temperatura ?? 0.2, ...(p.json === false || p.herramientas?.length ? {} : { responseMimeType: 'application/json' }), ...(sinPensar ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
+  })
+  let resp: Awaited<ReturnType<Fetch>> | undefined, usado = c.modelo
+  const t0 = Date.now(), total = p.timeoutMs ?? 12_000
+  for (const modelo of cadenaGemini(c.modelo)) {
+    const restante = total - (Date.now() - t0)
+    if (restante < 1500 && resp) break   // sin tiempo para otro intento
+    const intentar = (sinPensar: boolean) => conTiempo(Math.max(restante, 1500), signal => f(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, {
+      method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.clave }, body: cuerpo(sinPensar),
+    }))
+    try {
+      resp = await intentar(!sinThinking.has(modelo))
+      if (resp.status === 400 && !sinThinking.has(modelo)) { sinThinking.add(modelo); resp = await intentar(false) }
+    } catch (e) { if (modelo === cadenaGemini(c.modelo).at(-1)) throw e; continue }
+    usado = modelo
+    if (resp.ok || !reintentable(resp.status)) break
+  }
+  if (!resp) throw new Error('El proveedor tardó demasiado')
   const d = (await resp.json()) as Obj
   if (!resp.ok) throw new Error(`El proveedor respondió ${resp.status}`)
   const partes = (d?.candidates?.[0]?.content?.parts ?? []) as { text?: string; functionCall?: { name?: string; args?: Record<string, unknown> } }[]
   const texto = partes.map(x => x.text ?? '').join('').trim()
   const llamadas = partes.filter(x => x.functionCall?.name).map(x => ({ nombre: String(x.functionCall!.name), args: x.functionCall!.args ?? {} }))
   const u = d?.usageMetadata ?? {}
-  return { texto, llamadas, tokensEntrada: Number(u.promptTokenCount) || 0, tokensSalida: (Number(u.candidatesTokenCount) || 0) + (Number(u.thoughtsTokenCount) || 0), proveedor: 'gemini', modelo: c.modelo }
+  return { texto, llamadas, tokensEntrada: Number(u.promptTokenCount) || 0, tokensSalida: (Number(u.candidatesTokenCount) || 0) + (Number(u.thoughtsTokenCount) || 0), proveedor: 'gemini', modelo: usado }
 }
 
 async function llamarCompatible(c: ConfigProveedor, p: PedidoModelo, f: Fetch): Promise<RespuestaModelo> {

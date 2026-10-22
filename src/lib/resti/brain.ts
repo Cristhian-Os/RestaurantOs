@@ -1,6 +1,6 @@
 import { isRestiTarget, type RestiBrainResponse } from './targets.ts'
 
-const ACCIONES = ['NONE', 'WALK_AND_POINT', 'OPEN_VOICE_COMMANDS', 'SLEEP']
+const ACCIONES = ['NONE', 'WALK_AND_POINT', 'OPEN_VOICE_COMMANDS', 'SLEEP', 'START_FEEDBACK']
 
 /** Máximo 2 oraciones y 260 caracteres: lo que Resti dice se muestra en un subtítulo de 2 líneas. */
 export function recortarHabla(s: string): string {

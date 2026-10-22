@@ -12,6 +12,7 @@ import { RestiSprite, RestiHat } from './RestiSprite'
 import { isRestiTarget, type RestiBrainResponse } from '../../lib/resti/targets'
 import { parseBrainResponse } from '../../lib/resti/brain'
 import { intencionLocal } from '../../lib/resti/intents'
+import { EVENTO_ABRIR_OPINION, EVENTO_OPINION_GUARDADA, type AtajoOpinion } from '../feedback/OpinionSection'
 import type { RestiEstado3D } from './rig/restiAnim.ts'
 
 // El personaje 3D (three.js) se descarga solo cuando se invoca a Resti; si el equipo no puede, se usan los sprites (capturas del mismo modelo).
@@ -61,6 +62,21 @@ async function preguntarIA(text: string, historial: Turno[]): Promise<RestiBrain
   }
 }
 
+interface MsgOpinion { role: 'user' | 'assistant'; text: string }
+const SEMILLAS: Record<AtajoOpinion, string> = { fallo: 'Quiero reportar un fallo.', mejora: 'Quiero sugerir una mejora.', personalizacion: 'Quiero personalizar mi restaurante.' }
+const CANCELA = /^\s*(cancel\w*|ya no|d[eé]jalo|olv[ií]dalo|salir|no gracias|nada)\b/i
+const dispositivo = () => `${/Mobi|Android/i.test(navigator.userAgent) ? 'móvil' : 'computador'} ${window.innerWidth}px`
+
+/** Opinión/fallo/personalización: la entrevista y el guardado los hace chat-support (mismas reglas, topes y tabla que el chat de opinión). */
+async function conversarOpinion(mensajes: MsgOpinion[]): Promise<{ reply: string; saved: boolean }> {
+  const timeout = new Promise<null>(r => setTimeout(() => r(null), 25_000))
+  try {
+    const res = await Promise.race([supabase.functions.invoke('chat-support', { body: { mode: 'opinion', pantalla: 'resti', dispositivo: dispositivo(), messages: mensajes } }), timeout])
+    if (!res || res.error) return { reply: 'No pude conectar ahora. Intenta de nuevo en un momento.', saved: false }
+    return { reply: String((res.data as { reply?: string })?.reply ?? 'No pude responder ahora.'), saved: !!(res.data as { saved?: unknown })?.saved }
+  } catch { return { reply: 'No pude conectar ahora. Intenta de nuevo en un momento.', saved: false } }
+}
+
 interface Props { onOpenVoiceCommands: (textoDicho?: string) => void; onGoHome: () => void }
 
 export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
@@ -76,6 +92,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   const moviendose = useRef(false)                        // caminando o señalando: ahí el estado visual lo manda el movimiento
   const timerHabla = useRef<ReturnType<typeof setTimeout>>()
   const timerLimpiar = useRef<ReturnType<typeof setTimeout>>()
+  const opinion = useRef<MsgOpinion[] | null>(null)       // hilo de opinión/fallo en curso (null = conversación normal)
   const historial = useRef<Turno[]>([])                   // memoria de la conversación (últimos turnos; el servidor la valida y la recorta)
   const posRef = useRef<{ x: number; y: number } | null>(null); posRef.current = pos
   const reducido = sinMovimiento()
@@ -173,9 +190,19 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
 
   /** La respuesta de Resti a lo que dijo la persona: primero las órdenes locales (gratis e inmediatas) y si no, el cerebro. */
   const obtenerRespuesta = useCallback(async (frase: string): Promise<RestiBrainResponse> => {
+    if (opinion.current) {
+      if (CANCELA.test(frase)) { opinion.current = null; return { speech: 'Listo, lo dejamos así.', action: 'NONE' } }
+      if (!convRef.current.activa) ir('THINKING')
+      const hilo: MsgOpinion[] = [...opinion.current, { role: 'user', text: frase }]
+      const { reply, saved } = await conversarOpinion(hilo)
+      opinion.current = saved ? null : [...hilo, { role: 'assistant', text: reply }]
+      if (saved) window.dispatchEvent(new CustomEvent(EVENTO_OPINION_GUARDADA))
+      return { speech: reply, action: 'NONE' }
+    }
     let r = intencionLocal(frase)
     if (!r) { if (!convRef.current.activa) ir('THINKING'); r = await preguntarIA(frase, historial.current) }
     recordar('user', frase); recordar('assistant', r.speech)
+    if (r.action === 'START_FEEDBACK') opinion.current = [{ role: 'user', text: frase }, { role: 'assistant', text: r.speech }]
     return r
   }, [])
 
@@ -190,6 +217,21 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   }, [ejecutar, obtenerRespuesta])
 
   useEffect(() => () => { clearTimeout(timerHabla.current); clearTimeout(timerLimpiar.current) }, [])
+
+  // Los botones de "Opinión y sugerencias" abren a Resti (ya no hay otro chat en pantalla para el administrador).
+  const atenderRef = useRef(atender); atenderRef.current = atender
+  useEffect(() => {
+    const alAbrir = (e: Event) => {
+      const atajo = (e as CustomEvent<{ atajo?: AtajoOpinion }>).detail?.atajo
+      if (!posRef.current) { setPos(casa()); setEstado('SUMMONING'); setSaludando(true) }
+      opinion.current = []
+      const semilla = atajo ? SEMILLAS[atajo] : undefined
+      if (semilla) void atenderRef.current(semilla)
+      else decir('Cuéntame qué falló, qué mejorarías o qué quieres personalizar.')
+    }
+    window.addEventListener(EVENTO_ABRIR_OPINION, alAbrir)
+    return () => window.removeEventListener(EVENTO_ABRIR_OPINION, alAbrir)
+  }, [decir])
 
   const etiquetaMic = conv.estado === 'apagado' ? 'Hablar con Resti' : 'Terminar la conversación'
   const placeholder = ({ apagado: 'Pregúntale a Resti…', iniciando: 'Activando el micrófono…', escuchando: 'Te escucho…', transcribiendo: 'Pensando…', pensando: 'Pensando…', hablando: 'Háblale para interrumpir' } as const)[conv.estado]

@@ -1,6 +1,6 @@
 // Esquema de la respuesta de Resti. Copia del validador del navegador (src/lib/resti): mantener las dos listas iguales.
 export const TARGETS = ['card-ventas-hoy', 'card-pendientes', 'card-en-cocina', 'card-listas', 'card-completadas', 'card-mesas-activas', 'tab-nueva-orden', 'tab-mesas', 'btn-notificaciones'] as const
-export const ACCIONES = ['NONE', 'WALK_AND_POINT', 'OPEN_VOICE_COMMANDS', 'SLEEP'] as const
+export const ACCIONES = ['NONE', 'WALK_AND_POINT', 'OPEN_VOICE_COMMANDS', 'SLEEP', 'START_FEEDBACK'] as const
 
 export interface BrainResponse { speech: string; action: typeof ACCIONES[number]; targetId?: typeof TARGETS[number] }
 
