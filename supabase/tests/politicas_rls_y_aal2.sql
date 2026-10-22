@@ -32,8 +32,8 @@ BEGIN
   INSERT INTO mesas (numero, restaurant_id) VALUES (91, ra),(91, rb);
   INSERT INTO dishes (name, price, category, restaurant_id) VALUES ('Plato A', 10000, 'x', ra) RETURNING id INTO dish_a;
   INSERT INTO dishes (name, price, category, restaurant_id) VALUES ('Plato B', 10000, 'x', rb) RETURNING id INTO dish_b;
-  INSERT INTO ingredientes (nombre, unidad, stock_actual, restaurant_id) VALUES ('Ing B','kg',100,rb) RETURNING id INTO ing_b;
-  INSERT INTO ingredientes (nombre, unidad, stock_actual, restaurant_id) VALUES ('Ing A','kg',100,ra) RETURNING id INTO ing_a;
+  INSERT INTO ingredientes (nombre, unidad_medida, stock_actual, restaurant_id) VALUES ('Ing B','kg',100,rb) RETURNING id INTO ing_b;
+  INSERT INTO ingredientes (nombre, unidad_medida, stock_actual, restaurant_id) VALUES ('Ing A','kg',100,ra) RETURNING id INTO ing_a;
   INSERT INTO recetas (producto_id, ingrediente_id, cantidad_necesaria, restaurant_id) VALUES (dish_b, ing_b, 1, rb);
   INSERT INTO orders (user_id, status, restaurant_id, total) VALUES (uw, 'pending', ra, 10000) RETURNING id INTO ord_a;
   INSERT INTO orders (user_id, status, restaurant_id, total) VALUES (uw2, 'pending', rb, 10000) RETURNING id INTO ord_b;
@@ -68,7 +68,7 @@ BEGIN
   RESET ROLE; PERFORM set_config('request.jwt.claims', CXS, true); SET LOCAL ROLE authenticated;
   r := r||'9) S-05 super_admin inactivo con aal2: '||is_super_admin()||CASE WHEN NOT is_super_admin() THEN ': OK' ELSE ': FALLA' END||E'\n';
   -- Sin JWT (migraciones, service_role, cron): no hay usuario, no es super_admin ni se rompe nada.
-  RESET ROLE; PERFORM set_config('request.jwt.claims', '', true);
+  RESET ROLE; PERFORM set_config('request.jwt.claims', '{}', true);
   r := r||'10) S-05 sin JWT: is_super_admin() = '||is_super_admin()||CASE WHEN NOT is_super_admin() THEN ': OK' ELSE ': FALLA' END||E'\n';
 
   -- ===== S-06: cajero =====
