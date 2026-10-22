@@ -47,6 +47,10 @@ const buscar = (id: string) => document.querySelector<HTMLElement>(`[data-resti-
 const CSS = `
 @keyframes resti-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes resti-surge{0%{opacity:0;transform:translateY(22px) scale(.55)}55%{opacity:1;transform:translateY(-5px) scale(1.04)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes resti-hat-sube{from{transform:translateY(0) scale(1);filter:drop-shadow(0 0 0 rgba(255,190,90,0))}to{transform:translateY(-16px) scale(1.1);filter:drop-shadow(0 6px 14px rgba(255,170,60,.85))}}
+@keyframes resti-hat-sale{from{opacity:1;transform:translateY(-16px) scale(1.1)}to{opacity:0;transform:translateY(-34px) scale(.45)}}
+@keyframes resti-luz{0%{opacity:0;transform:scale(.25)}35%{opacity:1}100%{opacity:0;transform:scale(1.5)}}
+@keyframes resti-materializa{0%{opacity:0;transform:translateY(16px) scale(.6);filter:brightness(2.6) saturate(.4)}55%{opacity:1;transform:translateY(-4px) scale(1.03);filter:brightness(1.5) saturate(.8)}100%{opacity:1;transform:translateY(0) scale(1);filter:none}}
 @keyframes resti-guarda{from{opacity:1;transform:translate(0,0) scale(1)}to{opacity:0;transform:translate(26px,30px) scale(.4)}}
 @keyframes resti-hat-pop{0%{opacity:0;transform:scale(.4)}60%{opacity:1;transform:scale(1.1)}100%{opacity:1;transform:scale(1)}}
 @keyframes resti-globo{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
@@ -90,6 +94,9 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   const [dir, setDir] = useState(0)                      // -1 izquierda, 1 derecha: hacia dónde gira y señala
   const [desplazando, setDesplazando] = useState(false)
   const [saludando, setSaludando] = useState(false)
+  const [gorro, setGorro] = useState<'sube' | 'sale' | null>(null)   // el gorro se eleva y se desvanece en la luz mientras sale Resti
+  const [luz, setLuz] = useState(false)
+  const invocando = useRef(false)
   const [saliendo, setSaliendo] = useState(false)         // animación de vuelta al gorro (no desaparece de golpe)
   const [listo3D, setListo3D] = useState(false)          // el 3D ya dibujó su primer cuadro (hasta entonces se ve la captura del mismo modelo)
   const [sin3D, setSin3D] = useState(false)               // el equipo no puede con el 3D: se usan los sprites
@@ -141,16 +148,25 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     convRef.current.detener(); convRef.current.callar(); historial.current = []; moviendose.current = false
     const volver = () => { setHabla(''); setPos(null); setEstado('HAT'); setDir(0); setDesplazando(false); setSaludando(false); setListo3D(false); setSaliendo(false) }
     if (sinMovimiento()) { volver(); return }
-    setSaliendo(true); setHabla('')
-    timerLimpiar.current = setTimeout(volver, 300)   // lo que dura la animación de vuelta al gorro
+    setSaliendo(true); setHabla(''); setLuz(true)
+    timerLimpiar.current = setTimeout(() => { volver(); setTimeout(() => setLuz(false), 250) }, 300)   // lo que dura la animación de vuelta al gorro
   }, [])
 
+  /** Secuencia: el gorro se eleva, aparece una luz y de la luz sale Resti. */
   const invocar = async () => {
-    setPos(casa()); setEstado('SUMMONING'); setSaludando(true)
+    if (invocando.current) return
+    invocando.current = true
     void convRef.current.hablarSuelto('Dime qué necesitas.')   // dentro del clic: los navegadores solo dejan sonar tras un gesto
-    await esperar(reducido ? 0 : 380)
-    decir('Dime qué necesitas.')
+    if (reducido) { setPos(casa()); setEstado('SUMMONING'); setSaludando(true); decir('Dime qué necesitas.'); invocando.current = false; return }
+    setGorro('sube'); setLuz(true)
+    await esperar(260)
+    setPos(casa()); setEstado('SUMMONING'); setSaludando(true); setGorro('sale')
+    await esperar(420)
+    decir('Dime qué necesitas.'); setGorro(null)
+    setTimeout(() => setLuz(false), 400)
+    invocando.current = false
   }
+
 
   /** Camina hasta el elemento de la lista blanca, lo resalta y, si es de navegación, lo pulsa. */
   const walkToAndClick = useCallback(async (targetId: string, speechText?: string, shouldClick = true) => {
@@ -255,15 +271,22 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   const etiquetaMic = conv.estado === 'apagado' ? 'Hablar con Resti' : 'Terminar la conversación'
   const placeholder = ({ apagado: 'Pregúntale a Resti…', iniciando: 'Activando el micrófono…', escuchando: 'Te escucho…', transcribiendo: 'Pensando…', pensando: 'Pensando…', hablando: 'Háblale para interrumpir' } as const)[conv.estado]
 
+  const bajoGorro = movil() ? 84 : 20   // el gorro vive aquí (en el celular, por encima de la barra de pestañas)
+  const luzEl = luz && !reducido && (
+    <div aria-hidden className="resti-anim" style={{ position: 'fixed', right: 45 - 110, bottom: bajoGorro + 29 - 110, width: 220, height: 220, zIndex: 93, pointerEvents: 'none', borderRadius: '50%',
+      background: 'radial-gradient(circle, rgba(255,226,160,.95) 0%, rgba(255,170,70,.6) 32%, rgba(242,106,27,0) 70%)', animation: 'resti-luz 900ms ease-out both' }} />
+  )
   if (estado === 'HAT') {
     return (
       <>
         <style>{CSS}</style>
+        {luzEl}
         <button type="button" onClick={invocar} onPointerEnter={() => { void cargar3D() }} onFocus={() => { void cargar3D() }} aria-label="Abrir a Resti, tu chef asistente" title="Resti"
           className="resti-anim"
-          style={{ position: 'fixed', right: 16, bottom: movil() ? 84 : 20, zIndex: 90, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer', padding: 0,
+          style={{ position: 'fixed', right: 16, bottom: bajoGorro, zIndex: 94, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer', padding: 0,
             border: '1px solid var(--w-line)', background: 'var(--w-surface)', boxShadow: 'var(--w-shadow-sm)',
-            display: 'grid', placeItems: 'center', animation: 'resti-hat-pop 320ms cubic-bezier(.34,1.4,.64,1) both, resti-float 2s ease-in-out 400ms 3' }}>
+            display: 'grid', placeItems: 'center',
+            animation: gorro === 'sube' ? 'resti-hat-sube 260ms cubic-bezier(.2,.8,.3,1) both' : 'resti-hat-pop 320ms cubic-bezier(.34,1.4,.64,1) both, resti-float 2s ease-in-out 400ms 3' }}>
           <RestiHat />
         </button>
       </>
@@ -282,11 +305,18 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   return (
     <>
       <style>{CSS}</style>
+      {luzEl}
+      {gorro === 'sale' && !reducido && (
+        <div aria-hidden className="resti-anim" style={{ position: 'fixed', right: 16, bottom: bajoGorro, zIndex: 92, width: 58, height: 58, borderRadius: '50%', pointerEvents: 'none',
+          border: '1px solid var(--w-line)', background: 'var(--w-surface)', display: 'grid', placeItems: 'center', animation: 'resti-hat-sale 300ms ease-in both' }}>
+          <RestiHat />
+        </div>
+      )}
       {!reducido && (
         <div className="resti-move" aria-hidden={estado === 'SUMMONING'}
           style={{ position: 'fixed', left: 0, top: 0, zIndex: 95, width: W, height: H, pointerEvents: 'none',
             transform: `translate(${p.x}px, ${p.y}px)`, transition: `transform 650ms ${EASE}` }}>
-          <div className="resti-anim" style={{ position: 'relative', width: W, height: H, animation: saliendo ? 'resti-guarda 280ms cubic-bezier(.5,0,.75,0) both' : estado === 'SUMMONING' ? 'resti-surge 420ms cubic-bezier(.34,1.4,.64,1) both' : undefined, transformOrigin: '50% 100%' }}>
+          <div className="resti-anim" style={{ position: 'relative', width: W, height: H, animation: saliendo ? 'resti-guarda 280ms cubic-bezier(.5,0,.75,0) both' : estado === 'SUMMONING' ? 'resti-materializa 520ms cubic-bezier(.25,.9,.35,1) both' : undefined, transformOrigin: '50% 100%' }}>
             {sin3D
               ? <div style={{ width: W, height: H, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}><RestiSprite estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} /></div>
               : (
@@ -308,11 +338,11 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
                 transform: `translate(${gx}px, ${gy}px)`, transition: `transform 650ms ${EASE}` }}>
           <div style={{ transform: arriba && !reducido ? 'translateY(-100%)' : undefined }}>
             <div className="resti-anim" key={habla} style={{ position: 'relative', animation: 'resti-globo 220ms ease-out both' }}>
-              <p style={{ margin: 0, padding: '0.55rem 0.8rem', background: '#111113', color: '#fff', borderRadius: '1rem', fontSize: '0.8125rem',
+              <p style={{ margin: 0, padding: '0.55rem 0.8rem', background: '#fff', color: '#17171a', border: '1px solid rgba(0,0,0,.08)', borderRadius: '1rem', fontSize: '0.8125rem',
                 lineHeight: 1.35, fontFamily: 'var(--w-sans)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', boxShadow: '0 6px 18px rgba(0,0,0,.25)' }}>
                 {habla}
               </p>
-              {arriba && !reducido && <span aria-hidden style={{ position: 'absolute', left: colita, bottom: -5, width: 12, height: 12, background: '#111113', transform: 'rotate(45deg)', borderRadius: 2 }} />}
+              {arriba && !reducido && <span aria-hidden style={{ position: 'absolute', left: colita, bottom: -5, width: 12, height: 12, background: '#fff', borderRight: '1px solid rgba(0,0,0,.08)', borderBottom: '1px solid rgba(0,0,0,.08)', transform: 'rotate(45deg)', borderRadius: 2 }} />}
             </div>
           </div>
         </div>
