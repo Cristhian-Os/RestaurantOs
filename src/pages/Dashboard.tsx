@@ -8,6 +8,7 @@ import { supabase } from '../services/supabaseClient'
 import { useTheme } from '../contexts/ThemeContext'
 import { initializeOfflineSync } from '../services/offlineService'
 import { queryClient } from '../services/queryClient'
+import type { Profile, Role } from '../types'
 import { VoiceCommandModal } from '../components/VoiceCommandModal'
 import { VoiceCommandFab } from '../components/VoiceCommandFab'
 import { pushNotificationService } from '../services/pushNotificationService'
@@ -43,19 +44,9 @@ import { Proveedores }      from '../components/cashier/Proveedores'
 import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
-export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
+// Profile y Role viven en types/index.ts; se re-exportan aquí porque varios componentes los importan de esta página.
+export type { Profile, Role }
 export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'proveedores' | 'branding' | 'billing' | 'platform'
-
-export interface Profile {
-  id:          string
-  role:        Role
-  full_name:   string | null
-  email?:      string
-  phone?:      string | null
-  avatar_url?: string | null
-  active?:     boolean
-  must_change_password?: boolean
-}
 
 interface Metrics {
   total_sales_today: number
@@ -67,7 +58,6 @@ interface Metrics {
 }
 
 const S = {
-  sm:    { boxShadow: 'var(--w-shadow-sm)' },
   md:    { boxShadow: 'var(--w-shadow-md)' },
   terra: { boxShadow: 'var(--w-shadow-terra)' },
 } as const
@@ -86,7 +76,6 @@ const Icons = {
   Menu:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M12 2a9 9 0 100 18A9 9 0 0012 2z"/><circle cx="12" cy="12" r="4"/></svg>,
   Logout:    () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
   Hamburger: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
-  Download:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   Sun:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>,
   Moon:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>,
   Platform:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5M3 12a9 3 0 0018 0"/></svg>,
@@ -134,6 +123,18 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
   ],
   client:  [{ view:'menu', icon:<Icons.Menu />, label:'Menú' }],
 }
+
+// Vistas permitidas por rol (derivadas del menú de cada rol). 'dashboard' es solo del admin.
+// Se valida al navegar y al renderizar, para que un rol no abra una vista que no le corresponde.
+const ALLOWED_VIEWS: Record<Role, NavView[]> = {
+  super_admin: NAV_BY_ROLE.super_admin.map(n => n.view),
+  admin:       NAV_BY_ROLE.admin.map(n => n.view),
+  waiter:      NAV_BY_ROLE.waiter.map(n => n.view),
+  kitchen:     NAV_BY_ROLE.kitchen.map(n => n.view),
+  cashier:     NAV_BY_ROLE.cashier.map(n => n.view),
+  client:      NAV_BY_ROLE.client.map(n => n.view),
+}
+const puedeVer = (role: Role, view: NavView) => ALLOWED_VIEWS[role]?.includes(view) ?? false
 
 // ── Admin Dashboard ────────────────────────────────────────────
 const AdminDashboard = memo(({ profile, onNavigate }: {
@@ -197,7 +198,7 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
       </div>
 
       <Tabs defaultActiveKey="orders" items={[
-        { key:'orders', label:'Nueva orden', children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
+        { key:'orders', label:'Nueva orden', children:<OrderFlow profile={profile} /> },
         { key:'tables', label:'Mesas',       children:<TableMap profile={profile} /> },
         { key:'tasks',  label:'Tareas',      children:<AdminTasksView profile={profile} /> },
         { key:'qr',     label:'Imprimir QR', children:<QRPrintManager /> },
@@ -216,7 +217,7 @@ const ForcePasswordChangeModal = ({ onDone }: { onDone: () => void }) => {
 
   const handleSave = async () => {
     setErr(null)
-    if (pw1.trim().length < 6) { setErr('La contraseña debe tener al menos 6 caracteres'); return }
+    if (pw1.trim().length < 8) { setErr('La contraseña debe tener al menos 8 caracteres'); return }
     if (pw1 !== pw2) { setErr('Las contraseñas no coinciden'); return }
     setSaving(true)
     try {
@@ -239,7 +240,7 @@ const ForcePasswordChangeModal = ({ onDone }: { onDone: () => void }) => {
           Tu cuenta se creó con una contraseña temporal. Por seguridad, elige una nueva antes de continuar.
         </p>
         <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
-          <input type="password" placeholder="Nueva contraseña (mínimo 6 caracteres)" value={pw1}
+          <input type="password" placeholder="Nueva contraseña (mínimo 8 caracteres)" value={pw1}
             onChange={e => setPw1(e.target.value)}
             style={{ width:'100%', padding:'0.75rem 1rem', borderRadius:'0.75rem', border:'1px solid var(--w-line)', outline:'none', fontSize:'0.875rem', color:'var(--w-ink)', background:'var(--w-bg)', boxSizing:'border-box' }} />
           <input type="password" placeholder="Confirma la nueva contraseña" value={pw2}
@@ -296,7 +297,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   // Aviso de stock bajo: cuenta ingredientes por debajo de su mínimo (lo define
   // el admin en Inventario) y lo muestra como insignia sobre "Inventario".
   useEffect(() => {
-    if (!profile || profile.role !== 'admin') return
+    if (!profile?.id || profile.role !== 'admin') return
     let cancelled = false
     const check = () => supabase.from('ingredientes').select('stock_actual, stock_minimo')
       .then(({ data }) => {
@@ -308,11 +309,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes' }, check)
       .subscribe()
     return () => { cancelled = true; supabase.removeChannel(channel) }
-  }, [profile])
+  }, [profile?.id, profile?.role])
 
   // Aviso de reseñas por aprobar / comentarios reportados, sobre "Menú".
   useEffect(() => {
-    if (!profile || profile.role !== 'admin') return
+    if (!profile?.id || profile.role !== 'admin') return
     let cancelled = false
     const check = () => Promise.all([
       supabase.from('resenas_platos').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente'),
@@ -327,7 +328,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios_platos' }, check)
       .subscribe()
     return () => { cancelled = true; supabase.removeChannel(channel) }
-  }, [profile])
+  }, [profile?.id, profile?.role])
 
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
@@ -354,44 +355,59 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     return () => window.removeEventListener('branding-updated', onBrand)
   }, [])
 
+  // Resultado de la carga del perfil:
+  //  - 'ok'        → perfil cargado
+  //  - 'sin_perfil'→ no existe o está desactivado → se cierra la sesión
+  //  - 'red'       → falló la red/servidor → se ofrece reintentar SIN cerrar sesión
+  const [cargaPerfil, setCargaPerfil] = useState<'ok' | 'sin_perfil' | 'red'>('ok')
+  const [reintento, setReintento] = useState(0)
+
   useEffect(() => {
     // Variable local — cada ejecución del efecto tiene su propio 'active'
     let active = true
 
     const load = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { if (active) setLoading(false); return }
-
-        let { data: prof, error } = await supabase
-          .from('profiles').select('*').eq('id', user.id).single()
-
-        if (error?.code === 'PGRST116' || (!prof && error)) {
-          const { data: np } = await supabase.from('profiles').insert({
-            id: user.id, email: user.email ?? '',
-            full_name: user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Usuario',
-            role: user.user_metadata?.role ?? 'waiter', active: true,
-          }).select('*').single()
-          prof = np; error = null
-        }
-
+        const { data: { user }, error: userErr } = await supabase.auth.getUser()
         if (!active) return
-        if (prof) {
-          setProfile(prof)
-          const defaults: Record<Role, NavView> = {
-            super_admin:'platform', admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
-          }
-          startTransition(() => setActiveNav(defaults[prof!.role as Role] ?? 'orders'))
+        if (userErr && !user) {
+          // Sin red no se puede validar el usuario: no es lo mismo que "no hay sesión"
+          const status = (userErr as { status?: number }).status
+          setCargaPerfil(status === 401 || status === 403 ? 'sin_perfil' : 'red')
+          return
         }
+        if (!user) { setCargaPerfil('sin_perfil'); return }
+
+        // El perfil lo crea el trigger handle_new_user al dar de alta la cuenta; el cliente no lo inserta.
+        const { data: prof, error } = await supabase
+          .from('profiles').select('*').eq('id', user.id).maybeSingle()
+        if (!active) return
+
+        if (error) { setCargaPerfil('red'); return }
+        if (!prof) { setCargaPerfil('sin_perfil'); return }
+        if (prof.active === false) {
+          message.error('Tu cuenta está desactivada. Contacta al administrador de tu restaurante.')
+          setCargaPerfil('sin_perfil')
+          return
+        }
+
+        setCargaPerfil('ok')
+        setProfile(prof as Profile)
+        const defaults: Record<Role, NavView> = {
+          super_admin:'platform', admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
+        }
+        startTransition(() => setActiveNav(defaults[prof.role as Role] ?? 'orders'))
       } catch (e) {
         console.error('Dashboard load:', e)
+        if (active) setCargaPerfil('red')
       } finally {
         if (active) setLoading(false)
       }
     }
+    setLoading(true)
     load()
     return () => { active = false }
-  }, [])
+  }, [reintento])
 
   // Redirigir si no-admin aterriza en 'dashboard'
   useEffect(() => {
@@ -405,18 +421,26 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }, [profile, activeNav])
 
-  // signOut en useEffect — NUNCA durante el render
+  // Cerrar sesión (perfil inexistente o desactivado) en useEffect — NUNCA durante el render.
+  // Un error de red NO cierra sesión: se muestra "Reintentar".
   useEffect(() => {
-    if (!loading && !profile) {
-      supabase.auth.signOut().then(() => onLogout())
+    if (!loading && !profile && cargaPerfil === 'sin_perfil') {
+      onLogout()
     }
-  }, [loading, profile, onLogout])
+  }, [loading, profile, cargaPerfil, onLogout])
+
+  // Navegar solo a vistas permitidas para el rol
+  const navegar = useCallback((v: NavView) => {
+    if (!profile || !puedeVer(profile.role, v)) return
+    setActiveNav(v)
+  }, [profile])
 
   const renderContent = () => {
     if (!profile) return null
+    if (!puedeVer(profile.role, activeNav)) return null
     switch (activeNav) {
       case 'dashboard': return profile.role === 'admin'
-        ? <AdminDashboard profile={profile} onNavigate={setActiveNav} />
+        ? <AdminDashboard profile={profile} onNavigate={navegar} />
         : null
       case 'orders':    return (
         <div>
@@ -463,6 +487,25 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     </div>
   )
 
+  if (!loading && !profile && cargaPerfil === 'red') return (
+    <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
+      <div style={{textAlign:'center',fontFamily:'var(--w-sans)'}}>
+        <p style={{color:'var(--w-ink)',fontWeight:700,margin:'0 0 0.5rem'}}>No pudimos cargar tu perfil</p>
+        <p style={{color:'var(--w-ink-mut)',fontSize:'0.875rem',margin:'0 0 1rem'}}>Revisa tu conexión a internet e inténtalo de nuevo.</p>
+        <div style={{display:'flex',gap:'0.5rem',justifyContent:'center'}}>
+          <button onClick={() => setReintento(n => n + 1)}
+            style={{padding:'0.75rem 1.25rem',borderRadius:'1rem',border:'none',cursor:'pointer',fontWeight:700,background:'var(--w-terra)',color:'#fff'}}>
+            Reintentar
+          </button>
+          <button onClick={onLogout}
+            style={{padding:'0.75rem 1.25rem',borderRadius:'1rem',cursor:'pointer',fontWeight:700,background:'var(--w-surface)',color:'var(--w-ink-soft)',border:'1px solid var(--w-line)'}}>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   if (!loading && !profile) return (
     <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <p style={{color:'var(--w-terra)',fontWeight:700,fontFamily:'var(--w-sans)'}}>Reiniciando sesión...</p>
@@ -502,7 +545,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           onClose={ir => {
             try { sessionStorage.setItem('wizard_cerrado', '1') } catch { /* sin almacenamiento: se reabre en la próxima visita */ }
             setWizardOpen(false)
-            if (ir) setActiveNav(ir)
+            if (ir) navegar(ir)
           }}
           onFinished={() => { setWizardOpen(false); setWizardPending(false) }}
         />
@@ -574,7 +617,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               Navegación
             </p>
             {navItems.map(({view,icon,label})=>(
-              <button key={view} onClick={()=>{setActiveNav(view);setMobileOpen(false)}}
+              <button key={view} onClick={()=>{navegar(view);setMobileOpen(false)}}
                 className="w-press"
                 style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 1rem',
                   borderRadius:'0.875rem',border:'none',cursor:'pointer',fontFamily:'var(--w-sans)',
@@ -605,7 +648,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           overflowY:'auto',borderRadius:0,borderRight:'1px solid var(--w-line)',
           display:'none'}}>
           {navItems.map(({view,icon,label})=>(
-            <button key={view} onClick={()=>setActiveNav(view)} title={label}
+            <button key={view} onClick={()=>navegar(view)} title={label}
               className="w-press"
               style={{width:72,padding:'0.625rem 0',borderRadius:'0.875rem',border:'none',
                 cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',
@@ -631,7 +674,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </nav>
 
         <main style={{flex:1,padding:'1.25rem',overflowX:'hidden',minWidth:0}}>
-          {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
+          {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={navegar} />}
           {wizardPending && !wizardOpen && (
             <button onClick={() => setWizardOpen(true)} style={{
               width:'100%', marginBottom:'1rem', padding:'0.875rem 1rem', borderRadius:'1rem', cursor:'pointer', textAlign:'left',

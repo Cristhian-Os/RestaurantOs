@@ -20,7 +20,7 @@ export default function SubscriptionBanner({ onNavigate }: { onNavigate?: (v: Na
   useEffect(() => {
     supabase.from('subscriptions')
       .select('status, trial_ends_at, grace_ends_at, is_promo')
-      .maybeSingle()
+      .limit(1).maybeSingle()
       .then(({ data }) => { if (data) setInfo(data as any) })
     supabase.rpc('platform_billing_active').then(({ data }) => setBillingActive(data === true))
   }, [])

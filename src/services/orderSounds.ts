@@ -39,10 +39,13 @@ function getCtx(): AudioContext | null {
 }
 
 // Llamar SIEMPRE dentro de un toque/clic del usuario.
+let desbloqueado = false   // el buffer mudo de iOS solo hace falta la primera vez
 export function unlockAudio() {
   const c = getCtx()
   if (!c) return
   if (c.state !== 'running') c.resume().then(notify).catch(() => {})
+  if (desbloqueado) return
+  desbloqueado = true
   // iOS: un buffer mudo dentro del gesto termina de "despertar" la salida de audio
   const b = c.createBufferSource()
   b.buffer = c.createBuffer(1, 1, 22050)
@@ -58,9 +61,11 @@ export function onAudioStateChange(fn: () => void) {
   return () => { listeners.delete(fn) }
 }
 
+// Un solo desbloqueo: el primer gesto despierta el audio. Si el navegador lo vuelve a suspender,
+// el aviso de OrderSoundAlerts llama unlockAudio() desde su botón.
 if (typeof window !== 'undefined') {
   for (const ev of ['pointerdown', 'keydown', 'touchend'] as const) {
-    window.addEventListener(ev, unlockAudio, { passive: true })
+    window.addEventListener(ev, unlockAudio, { passive: true, once: true })
   }
 }
 

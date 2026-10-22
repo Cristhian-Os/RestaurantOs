@@ -204,7 +204,7 @@ function readContact(a: RawAction): Contact {
 }
 
 /** Cambia datos de contacto de un proveedor que ya está en la lista (y deja la lista simulada al día). */
-function updateSupplier(sup: Supplier, c: Contact, ctx: CommandContext): Built {
+function updateSupplier(sup: Supplier, c: Contact): Built {
   const title = `Proveedor: ${sup.nombre}`
   if (c.problem) return bad(title, c.problem)
   const patch: SupplierPatch = {}
@@ -488,7 +488,7 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       const dup = matchName(nombre, ctx.suppliers, x => x.nombre)
       const c = readContact(a)
       // Ya está en la lista: lo dictado completa o corrige sus datos en vez de duplicarlo.
-      if (dup && normTxt(dup.nombre) === normTxt(nombre)) return updateSupplier(dup, c, ctx)
+      if (dup && normTxt(dup.nombre) === normTxt(nombre)) return updateSupplier(dup, c)
       if (c.problem) return bad(title, c.problem)
       const row = {
         nombre: nombre.slice(0, 120), telefono: c.telefono ?? null, email: c.email ?? null,
@@ -511,7 +511,7 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       const said = (a.proveedor ?? '').trim()
       const sup = matchName(said, ctx.suppliers, x => x.nombre)
       if (!sup) return bad(`Proveedor “${said || '?'}”`, `No encontré a “${said}” en tu lista de Proveedores. Di “agrega al proveedor ${said || 'Nombre'}” para crearlo.`)
-      return updateSupplier(sup, readContact(a), ctx)
+      return updateSupplier(sup, readContact(a))
     }
 
     default:

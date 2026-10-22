@@ -112,12 +112,15 @@ export interface TaskEvidence {
   uploader?:    { full_name: string | null }
 }
 
+export type Role = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
+
 export interface Profile {
   id:          string
-  role:        'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
+  role:        Role
   full_name:   string | null
   email?:      string
   phone?:      string | null
   avatar_url?: string | null
   active?:     boolean
+  must_change_password?: boolean
 }

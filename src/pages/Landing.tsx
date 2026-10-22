@@ -12,13 +12,20 @@ import { PLANS, type Plan } from '../config/plans'
 import { TESTIMONIALS, FAQS } from '../config/content'
 import { supabase } from '../services/supabaseClient'
 import SupportChat from '../components/SupportChat'
+import message from 'antd/es/message'
 
 const go = (path: string) => { window.location.href = path }
 
 // Entra a la cuenta demo (datos de ejemplo, aislada por restaurante)
 const enterDemo = async () => {
-  await supabase.auth.signInWithPassword({ email: 'demo@demo.com', password: 'demo1234' })
-  // onAuthStateChange en App detecta la sesión y renderiza el Dashboard
+  try {
+    const { error } = await supabase.auth.signInWithPassword({ email: 'demo@demo.com', password: 'demo1234' })
+    if (error) throw error
+    // onAuthStateChange en App detecta la sesión y renderiza el Dashboard
+  } catch {
+    // Sin esto el botón "Ver demo" fallaba en silencio
+    message.error('No pudimos abrir la demo en este momento. Revisa tu conexión e inténtalo de nuevo.')
+  }
 }
 
 /* ── Ícono de check ── */
@@ -109,7 +116,7 @@ function Hero() {
 
 /* ═══════════════════ CÓMO FUNCIONA ═══════════════════ */
 const STEPS = [
-  { n: '01', t: 'Regístrate', d: 'Crea tu restaurante en menos de un minuto. Te damos tu propio dominio y menú.' },
+  { n: '01', t: 'Solicita acceso', d: 'Escríbenos y activamos tu restaurante contigo. Te damos tu propio enlace y menú.' },
   { n: '02', t: 'Configura tu menú', d: 'Sube tus platos, precios y arma tu carta. Genera el QR para tus mesas.' },
   { n: '03', t: 'Empieza a vender', d: 'Recibe pedidos, controla la cocina y haz tu corte de caja en Excel.' },
 ]

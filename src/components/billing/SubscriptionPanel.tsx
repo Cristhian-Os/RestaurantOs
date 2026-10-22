@@ -52,18 +52,25 @@ export default function SubscriptionPanel() {
   const [loading, setLoading] = useState(true)
   const [paying,  setPaying]  = useState(false)
   const [savingCfg, setSavingCfg] = useState(false)
+  const [subError, setSubError] = useState<string | null>(null)   // la consulta de la suscripción falló: no se muestra "En prueba" por defecto
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
-      const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).single()
+      const { data: prof, error: profErr } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).single()
+      if (profErr) setSubError(profErr.message)
       setRid(prof?.restaurant_id ?? null)
 
-      const { data: s } = await supabase.from('subscriptions')
-        .select('plan, status, amount_in_cents, is_promo, trial_ends_at, current_period_end, grace_ends_at, wompi_payment_source_id')
-        .maybeSingle()
-      if (s) setSub(s as Sub)
+      // Filtrada por restaurante (sin filtro, un usuario con acceso a varias filas rompe .maybeSingle()).
+      if (prof?.restaurant_id) {
+        const { data: s, error: subErr } = await supabase.from('subscriptions')
+          .select('plan, status, amount_in_cents, is_promo, trial_ends_at, current_period_end, grace_ends_at, wompi_payment_source_id')
+          .eq('restaurant_id', prof.restaurant_id)
+          .limit(1).maybeSingle()
+        if (subErr) setSubError(subErr.message)
+        else if (s) setSub(s as Sub)
+      }
 
       // Solo booleanos "ya configurado" — nunca los secretos reales de vuelta al navegador.
       const { data: st } = await supabase.from('restaurant_payment_config_status')
@@ -126,7 +133,7 @@ export default function SubscriptionPanel() {
   const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.5rem' }
   const label: React.CSSProperties = { display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--w-ink-soft)', marginBottom: '0.4rem' }
   const inputBox: React.CSSProperties = { width: '100%', padding: '0.7rem 0.9rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }
-  const st = sub ? STATUS_META[sub.status] : STATUS_META.trialing
+  const st = sub ? STATUS_META[sub.status] : null   // sin datos no se inventa un estado (antes decía "En prueba")
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans)' }}>
@@ -142,8 +149,14 @@ export default function SubscriptionPanel() {
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--w-ink-mut)' }}>Plan actual</p>
             <p style={{ margin: '0.15rem 0 0', fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-ink)', textTransform: 'capitalize' }}>{sub?.plan ?? '—'}</p>
           </div>
-          <span style={{ padding: '0.35rem 0.8rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, color: st.color, background: st.bg }}>{st.label}</span>
+          {st && <span style={{ padding: '0.35rem 0.8rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, color: st.color, background: st.bg }}>{st.label}</span>}
         </div>
+
+        {subError && (
+          <div role="alert" style={{ marginTop: '1rem', padding: '0.8rem 1rem', borderRadius: '0.75rem', background: 'rgba(176,52,29,0.12)', color: '#B0341D', fontSize: '0.85rem', fontWeight: 600 }}>
+            No se pudo cargar el estado de tu suscripción ({subError}). Recarga la página; si sigue igual, avisa a soporte.
+          </div>
+        )}
 
         {sub?.is_promo && (
           <div style={{ marginTop: '1rem', padding: '0.8rem 1rem', borderRadius: '0.75rem', background: 'rgba(29,122,70,0.10)', color: '#1D7A46', fontSize: '0.85rem', fontWeight: 600 }}>
@@ -195,7 +208,7 @@ export default function SubscriptionPanel() {
           ] as const).map(([k, txt, has]) => (
             <div key={k}>
               <label style={label}>{txt}</label>
-              <input value={cfg[k]} onChange={e => setCfg(c => ({ ...c, [k]: e.target.value }))} style={inputBox}
+              <input type="password" autoComplete="new-password" value={cfg[k]} onChange={e => setCfg(c => ({ ...c, [k]: e.target.value }))} style={inputBox}
                 placeholder={has ? '•••• ya configurado — déjalo vacío para no cambiarlo' : 'pega aquí tu llave/secreto de Wompi'} />
             </div>
           ))}

@@ -60,12 +60,16 @@ export const ClientMenuSection = memo(() => {
       .eq('available', true)
       .neq('availability_status', 'discontinued')
       .order('sort_order').order('name')
-      .then(({ data }) => { setDishes(data || []); setLoading(false) })
+      .then(({ data, error }) => {
+        if (error) message.error('No se pudo cargar el menú: ' + error.message)
+        else setDishes(data || [])
+        setLoading(false)
+      })
   }, [])
 
   // Cargar categorías personalizadas del negocio (evita etiquetas en blanco / crash)
   useEffect(() => {
-    supabase.from('restaurant_config').select('modules_enabled').single()
+    supabase.from('restaurant_config').select('modules_enabled').maybeSingle()
       .then(({ data }) => {
         const mods = data?.modules_enabled as { categories?: { value: string; label: string; emoji?: string; color?: string }[] } | null
         const cats = mods?.categories
@@ -100,6 +104,13 @@ export const ClientMenuSection = memo(() => {
   const totalPrice = cart.reduce((s, i) => s + i.dish.price * i.quantity, 0)
 
   const handleAdd = useCallback((dish: Dish) => {
+    // La orden se crea con crear_orden_con_custom, que cobra SIEMPRE el precio base del plato y no recibe
+    // tamaño, sabores ni adicionales. Para no cobrar de menos ni perder lo que el comensal eligió,
+    // los platos con tamaños/opciones/adicionales se piden por el flujo de mesero o caja.
+    if (dish.has_sizes || (dish.options?.length ?? 0) > 0 || (dish.toppings?.length ?? 0) > 0) {
+      message.info('Este plato tiene tamaños u opciones: pídelo al mesero o en caja para que quede bien armado.')
+      return
+    }
     setCart(prev => {
       const ex = prev.find(i => i.dish.id === dish.id)
       return ex
@@ -152,7 +163,8 @@ export const ClientMenuSection = memo(() => {
   // Self-ordering: el cliente envía su propio pedido (con soporte para platos custom)
   const handleOrder = useCallback(async () => {
     if (cart.length === 0) return
-    if (!tableNum.trim()) { message.warning('Ingresa tu número de mesa'); return }
+    const mesaNum = parseInt(tableNum, 10)
+    if (!tableNum.trim() || !Number.isFinite(mesaNum) || mesaNum < 1) { message.warning('Ingresa tu número de mesa'); return }
     setSubmitting(true)
     try {
       // Separar el carrito en items normales (del catálogo) y platos custom
@@ -181,7 +193,7 @@ export const ClientMenuSection = memo(() => {
         p_items_normales: itemsNormales,
         p_platos_custom:  platosCustom,
         p_tipo_pedido:    'LOCAL',
-        p_table_num:      parseInt(tableNum),
+        p_table_num:      mesaNum,
         p_mesa_id:        null,
         p_notes:          null,
       })
@@ -226,7 +238,7 @@ export const ClientMenuSection = memo(() => {
               <span className="text-xs text-[#9CA3AF]">Carrito</span>
               <span className="text-sm font-bold text-[#FF5722]">{totalItems}</span>
               <span className="text-xs text-[#6B7280]">·</span>
-              <span className="text-sm font-bold text-[#2D3561]">${totalPrice.toFixed(2)}</span>
+              <span className="text-sm font-bold text-[#2D3561]">${Math.round(totalPrice).toLocaleString('es-CO')}</span>
             </div>
           )}
         </div>
@@ -361,7 +373,7 @@ export const ClientMenuSection = memo(() => {
 
               <div className="flex items-center justify-between pt-3 mt-1">
                 <span className="text-sm font-bold text-[#2D3561]">Total</span>
-                <span className="text-xl font-bold text-[#FF5722]">${totalPrice.toFixed(2)}</span>
+                <span className="text-xl font-bold text-[#FF5722]">${Math.round(totalPrice).toLocaleString('es-CO')}</span>
               </div>
 
               {/* Número de mesa para self-ordering */}

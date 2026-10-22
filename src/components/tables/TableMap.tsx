@@ -4,7 +4,7 @@
  * - Meseros también ven alertas de pedido listo
  * - Admin puede cambiar estado de mesa
  */
-import { useState, useEffect, useCallback, memo } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
@@ -66,7 +66,7 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelado',
 }
 
-export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => void }>(({ profile }) => {
+export const TableMap = memo<{ profile: Profile }>(({ profile }) => {
   const [mesas,        setMesas]       = useState<Mesa[]>([])
   const [activeOrders, setActiveOrders]= useState<ActiveOrder[]>([])
   const [readyOrders,  setReadyOrders] = useState<Set<string>>(new Set())
@@ -83,6 +83,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
   const [editCapacidad,setEditCapacidad] = useState('')
   const [savingEdit,   setSavingEdit]  = useState(false)
   const isAdmin = profile.role === 'admin'
+  const estadoPrevio = useRef(new Map<string, string>())   // id del pedido → último estado conocido (para avisar "listo" solo al cambiar)
 
   const fetchData = useCallback(async () => {
     const [mr, or] = await Promise.all([
@@ -98,6 +99,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
         items: (() => { try { return JSON.parse(typeof o.items === 'string' ? o.items : JSON.stringify(o.items)) } catch { return [] } })()
       }))
       setActiveOrders(orders)
+      estadoPrevio.current = new Map(orders.map(o => [o.id as string, o.status as string]))
       // Detectar pedidos listos para alerta
       const readySet = new Set(orders.filter(o => o.status === 'ready').map(o => o.mesa_id))
       setReadyOrders(readySet as Set<string>)
@@ -116,10 +118,13 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
       ch = supabase.channel('tablemap-v2')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas', filter: `restaurant_id=eq.${rid}` }, fetchData)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${rid}` }, (payload) => {
+          // Estado anterior: el que trae el evento (REPLICA IDENTITY FULL) o, si no viene, el último que cargó esta pantalla.
+          const newRow = payload.new as { id?: string; status?: string; table_num?: number }
+          const antes = (payload.old as { status?: string } | undefined)?.status ?? (newRow?.id ? estadoPrevio.current.get(newRow.id) : undefined)
+          if (newRow?.id && newRow.status) estadoPrevio.current.set(newRow.id, newRow.status)
           fetchData()
-          // Alerta al mesero cuando un pedido pasa a "ready"
-          const newRow = payload.new as { status?: string; table_num?: number }
-          if (newRow?.status === 'ready') {
+          // Alerta al mesero SOLO cuando un pedido pasa a "ready" (no en cada edición de un pedido que ya estaba listo)
+          if (newRow?.status === 'ready' && antes !== 'ready') {
             const mesa = newRow?.table_num
             message.open({
               type: 'success',

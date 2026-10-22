@@ -174,16 +174,31 @@ function parseTags(raw: string): string[] {
   return raw.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0)
 }
 
+const IMAGE_MIMES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
 async function uploadDishImage(dishId: string, file: File): Promise<string | null> {
-  const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `dishes/${dishId}.${ext}`
+  const ext = IMAGE_MIMES[file.type]
+  if (!ext) { message.error('Formato de imagen no permitido (usa JPG, PNG o WebP)'); return null }
+  if (file.size > MAX_IMAGE_BYTES) { message.error('La imagen debe pesar 5 MB o menos'); return null }
+  const { data: rid, error: ridErr } = await supabase.rpc('current_restaurant_id')
+  if (ridErr || !rid) { message.error('No se pudo subir la foto: no se identificó el restaurante'); return null }
+  // El 2º segmento del path debe ser el restaurant_id (política del bucket); sin upsert: cada subida es un archivo nuevo.
+  const path = `dishes/${rid}/${dishId}-${Date.now()}.${ext}`
   const { error } = await supabase.storage
     .from('restaurant-assets')
-    .upload(path, file, { upsert: true, contentType: file.type })
+    .upload(path, file, { contentType: file.type })
   if (error) { message.error(`No se pudo subir la foto: ${error.message}`); return null }
   const { data: { publicUrl } } = supabase.storage
     .from('restaurant-assets').getPublicUrl(path)
-  return publicUrl + `?v=${Date.now()}`
+  return publicUrl
+}
+
+/** Guarda una clave de restaurant_config.modules_enabled de forma atómica (función admin de la base). */
+async function setModuleConfig(key: string, value: unknown): Promise<boolean> {
+  const { error } = await supabase.rpc('set_module_config', { p_key: key, p_value: value })
+  if (error) { message.error(`No se pudo guardar: ${error.message}`); return false }
+  return true
 }
 
 // ── Portal para el emoji picker (evita overflow-hidden) ──────
@@ -380,14 +395,15 @@ export const MenuManager = memo(() => {
   const [reportedComments,setReportedComments]= useState<ReportedComment[]>([])
 
   const fetchDishes = useCallback(async () => {
-    const { data } = await supabase.from('dishes').select('*').order('category').order('sort_order').order('name')
-    setDishes(data || [])
+    const { data, error } = await supabase.from('dishes').select('*').order('category').order('sort_order').order('name')
+    if (error) message.error('No se pudo cargar el menú: ' + error.message)
+    else setDishes(data || [])
     setLoading(false)
   }, [])
 
   useEffect(() => {
     fetchDishes()
-    supabase.from('restaurant_config').select('display_name, modules_enabled').single()
+    supabase.from('restaurant_config').select('display_name, modules_enabled').maybeSingle()
       .then(({ data }) => {
         if (data?.display_name) setBizName(data.display_name)
         const modules = data?.modules_enabled as Record<string, unknown> | null
@@ -421,14 +437,21 @@ export const MenuManager = memo(() => {
         .select('id, cliente_nombre, texto, reportado_count, created_at, dishes(name)')
         .eq('estado', 'visible').gt('reportado_count', 0).order('reportado_count', { ascending: false }),
     ])
+    const rvErr = pendRes.error || reportedRes.error
+    if (rvErr) message.error('No se pudieron cargar las reseñas: ' + rvErr.message)
     setPendingReviews((pendRes.data as unknown as PendingResena[] | null) ?? [])
     setSocialOverview(((overviewRes.data as InteraccionRow[] | null) ?? []).filter(r => r.likes_count > 0 || r.dislikes_count > 0 || r.rating_count > 0 || r.comentarios_count > 0))
     setReportedComments((reportedRes.data as unknown as ReportedComment[] | null) ?? [])
     setLoadingReviews(false)
   }, [])
 
-  useEffect(() => { fetchReviews() }, [fetchReviews])
-  useEffect(() => { if (showReviews) fetchReviews() }, [showReviews, fetchReviews])
+  // Una sola carga al montar (para el contador del botón) y otra al abrir el panel; al cerrarlo no se recarga.
+  const reviewsLoadedRef = useRef(false)
+  useEffect(() => {
+    if (reviewsLoadedRef.current && !showReviews) return
+    reviewsLoadedRef.current = true
+    fetchReviews()
+  }, [showReviews, fetchReviews])
 
   const moderarResena = async (id: string, estado: 'aprobada' | 'rechazada') => {
     setModeratingId(id)
@@ -464,7 +487,8 @@ export const MenuManager = memo(() => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 4 * 1024 * 1024) { message.error('La imagen debe ser menor a 4MB'); return }
+    if (!IMAGE_MIMES[file.type]) { message.error('Formato no permitido: usa JPG, PNG o WebP'); e.target.value = ''; return }
+    if (file.size > MAX_IMAGE_BYTES) { message.error('La imagen debe pesar 5 MB o menos'); e.target.value = ''; return }
     const preview = URL.createObjectURL(file)
     setForm(p => ({ ...p, image_file: file, image_preview: preview }))
     e.target.value = ''
@@ -500,12 +524,21 @@ export const MenuManager = memo(() => {
         available:           form.available,
         has_sizes:           form.has_sizes,
         sizes:               sizesPayload,
-        options:             buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
+        // Se conservan los grupos que este formulario no sabe armar (p. ej. cargados por voz o importación)
+        options:             [
+          ...buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
+          ...(editing?.options ?? []).filter(o =>
+            o.tipo !== 'helado' && o.tipo !== 'jugo' &&
+            !(o.tipo === 'opcion' && (o.opciones ?? []).some(c => c.helado))),
+        ],
         toppings:            form.toppings
           .map(t => ({ nombre: t.nombre.trim(), precio: Math.max(0, parseFloat(t.precio) || 0) }))
           .filter((t, i, arr) => t.nombre !== '' && arr.findIndex(x => x.nombre === t.nombre) === i),
-        availability_status: form.available ? 'available' : 'out_of_stock',
         updated_at:          new Date().toISOString(),
+      }
+      // Un plato descontinuado no se reactiva al editarlo
+      if (!(editing && editing.availability_status === 'discontinued')) {
+        payload.availability_status = form.available ? 'available' : 'out_of_stock'
       }
 
       let dishId: string
@@ -524,7 +557,8 @@ export const MenuManager = memo(() => {
       if (form.image_file) {
         const imgUrl = await uploadDishImage(dishId, form.image_file)
         if (imgUrl) {
-          await supabase.from('dishes').update({ image_url: imgUrl }).eq('id', dishId)
+          const { error: imgErr } = await supabase.from('dishes').update({ image_url: imgUrl }).eq('id', dishId)
+          if (imgErr) message.error('El plato se guardó, pero no se pudo asociar la foto: ' + imgErr.message)
         }
       }
 
@@ -572,14 +606,7 @@ export const MenuManager = memo(() => {
     }
   }, [])
 
-  const persistCategories = async (cats: Category[]) => {
-    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
-    if (!cfg) return
-    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
-    await supabase.from('restaurant_config')
-      .update({ modules_enabled: { ...modules, categories: cats } })
-      .eq('id', cfg.id)
-  }
+  const persistCategories = (cats: Category[]) => setModuleConfig('categories', cats)
 
   const handleAddCategory = async () => {
     if (!newCatLabel.trim()) return
@@ -595,7 +622,7 @@ export const MenuManager = memo(() => {
     const newCat: Category = { value, label: newCatLabel.trim(), emoji: newCatEmoji, color: newCatColor }
     const updated = [...categories, newCat]
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) { setCategories(categories); setSavingCat(false); return }
     setNewCatLabel(''); setNewCatEmoji('🍽️'); setNewCatColor('#FF6B4A'); setSavingCat(false)
     message.success(`Categoría "${newCat.label}" creada`)
   }
@@ -616,7 +643,7 @@ export const MenuManager = memo(() => {
       }
       const updated = categories.filter(c => c.value !== value)
       setCategories(updated)
-      await persistCategories(updated)
+      if (!(await persistCategories(updated))) { setCategories(categories); return }
       message.success('Categoría eliminada')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al eliminar categoría'
@@ -631,16 +658,18 @@ export const MenuManager = memo(() => {
     if (to < 0 || to >= categories.length) return
     const updated = [...categories]
     ;[updated[index], updated[to]] = [updated[to], updated[index]]
+    const prev = categories
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) setCategories(prev)
   }
 
   // Guardar label de categoría
   const handleSaveCatLabel = async (catValue: string) => {
     if (!catLabel.trim()) return
     const updated = categories.map(c => c.value === catValue ? { ...c, label: catLabel.trim() } : c)
+    const prev = categories
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) { setCategories(prev); return }
     setEditingCat(null)
     message.success('Categoría actualizada')
   }
@@ -648,8 +677,9 @@ export const MenuManager = memo(() => {
   // Guardar emoji de categoría existente
   const handleSaveCatEmoji = async (catValue: string, emoji: string) => {
     const updated = categories.map(c => c.value === catValue ? { ...c, emoji } : c)
+    const prev = categories
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) { setCategories(prev); return }
     setEditEmojiForCat(null)
     message.success('Emoji actualizado')
   }
@@ -657,21 +687,15 @@ export const MenuManager = memo(() => {
   // Guardar color de categoría existente
   const handleSaveCatColor = async (catValue: string, color: string) => {
     const updated = categories.map(c => c.value === catValue ? { ...c, color } : c)
+    const prev = categories
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) { setCategories(prev); return }
     setEditColorForCat(null)
     message.success('Color actualizado')
   }
 
   // ── Sabores de helado (config.helado_flavors) ──────────────
-  const persistFlavors = async (list: string[]) => {
-    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
-    if (!cfg) return
-    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
-    await supabase.from('restaurant_config')
-      .update({ modules_enabled: { ...modules, helado_flavors: list } })
-      .eq('id', cfg.id)
-  }
+  const persistFlavors = (list: string[]) => setModuleConfig('helado_flavors', list)
 
   const handleAddFlavor = async () => {
     const name = newFlavor.trim()
@@ -681,26 +705,19 @@ export const MenuManager = memo(() => {
     }
     const updated = [...flavors, name]
     setFlavors(updated); setNewFlavor('')
-    await persistFlavors(updated)
+    if (!(await persistFlavors(updated))) { setFlavors(flavors); setNewFlavor(name); return }
     message.success(`Sabor "${name}" agregado`)
   }
 
   const handleDeleteFlavor = async (name: string) => {
     const updated = flavors.filter(f => f !== name)
     setFlavors(updated)
-    await persistFlavors(updated)
+    if (!(await persistFlavors(updated))) { setFlavors(flavors); return }
     message.success('Sabor eliminado')
   }
 
   // ── Sabores de jugos (config.jugo_flavors) ──────────────────
-  const persistJugoFlavors = async (list: string[]) => {
-    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
-    if (!cfg) return
-    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
-    await supabase.from('restaurant_config')
-      .update({ modules_enabled: { ...modules, jugo_flavors: list } })
-      .eq('id', cfg.id)
-  }
+  const persistJugoFlavors = (list: string[]) => setModuleConfig('jugo_flavors', list)
 
   const handleAddJugoFlavor = async () => {
     const name = newJugoFlavor.trim()
@@ -710,14 +727,14 @@ export const MenuManager = memo(() => {
     }
     const updated = [...jugoFlavors, name]
     setJugoFlavors(updated); setNewJugoFlavor('')
-    await persistJugoFlavors(updated)
+    if (!(await persistJugoFlavors(updated))) { setJugoFlavors(jugoFlavors); setNewJugoFlavor(name); return }
     message.success(`Sabor "${name}" agregado`)
   }
 
   const handleDeleteJugoFlavor = async (name: string) => {
     const updated = jugoFlavors.filter(f => f !== name)
     setJugoFlavors(updated)
-    await persistJugoFlavors(updated)
+    if (!(await persistJugoFlavors(updated))) { setJugoFlavors(jugoFlavors); return }
     message.success('Sabor eliminado')
   }
 
@@ -725,31 +742,49 @@ export const MenuManager = memo(() => {
     if (!bizName.trim()) return
     setSavingName(true)
     try {
-      const { data: cfg } = await supabase.from('restaurant_config').select('id').single()
-      if (cfg) {
-        await supabase.from('restaurant_config').update({ display_name: bizName.trim() }).eq('id', cfg.id)
-      }
+      const { data: cfg, error: cfgErr } = await supabase.from('restaurant_config').select('id').maybeSingle()
+      if (cfgErr) throw cfgErr
+      if (!cfg) throw new Error('No hay configuración del restaurante')
+      const { error } = await supabase.from('restaurant_config').update({ display_name: bizName.trim() }).eq('id', cfg.id)
+      if (error) throw error
       message.success('Nombre actualizado')
-    } catch { message.error('Error al guardar nombre') }
-    finally { setSavingName(false) }
+    } catch (e) {
+      message.error('Error al guardar nombre' + (e instanceof Error && e.message ? `: ${e.message}` : ''))
+    } finally { setSavingName(false) }
   }
 
   const handleSaveTables = async () => {
     const n = parseInt(tableCount)
     if (isNaN(n) || n < 1) { message.error('Ingresa un número válido'); return }
+    if (n > 100) { message.error('El máximo es 100 mesas'); return }
     setSavingTables(true)
     try {
-      const { data: existing } = await supabase.from('mesas').select('numero').order('numero')
+      const { data: existing, error: exErr } = await supabase.from('mesas').select('numero').order('numero')
+      if (exErr) throw exErr
       const existingNums  = (existing || []).map((m: { numero: number }) => m.numero)
       const toInsert      = Array.from({ length: n }, (_, i) => i + 1)
         .filter(x => !existingNums.includes(x))
         .map(numero => ({ numero, capacidad: 4, estado: 'libre', zona: 'principal', activa: true }))
-      if (toInsert.length > 0) await supabase.from('mesas').insert(toInsert)
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('mesas').insert(toInsert)
+        if (error) throw error
+      }
+      // Al subir el número se reactivan las mesas que habían sido desactivadas antes
+      const toEnable = existingNums.filter(x => x <= n)
+      if (toEnable.length > 0) {
+        const { error } = await supabase.from('mesas').update({ activa: true }).in('numero', toEnable)
+        if (error) throw error
+      }
       const toDisable = existingNums.filter(x => x > n)
-      if (toDisable.length > 0) await supabase.from('mesas').update({ activa: false }).in('numero', toDisable)
+      if (toDisable.length > 0) {
+        const { error } = await supabase.from('mesas').update({ activa: false }).in('numero', toDisable)
+        if (error) throw error
+      }
+      if (!(await setModuleConfig('table_count', n))) return
       message.success(`Mesas actualizadas (${n} mesas activas)`)
-    } catch { message.error('Error al actualizar mesas') }
-    finally { setSavingTables(false) }
+    } catch (e) {
+      message.error('Error al actualizar mesas' + (e instanceof Error && e.message ? `: ${e.message}` : ''))
+    } finally { setSavingTables(false) }
   }
 
   const filtered = dishes.filter(d => {

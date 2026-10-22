@@ -149,8 +149,8 @@ Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la
   },
 }
 
-const GEMINI_URL = (key: string) =>
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`
+// La llave va en el header (no en la URL) para que no quede en logs de red ni de errores.
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 const MAX_WAIT_MS = 25_000 // lo máximo que esperamos si Gemini pide reintentar (límite por minuto)
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -159,7 +159,7 @@ interface GeminiReply { status: number; data: { error?: { details?: { retryDelay
 
 async function callGemini(key: string, body: unknown): Promise<GeminiReply> {
   try {
-    const resp = await fetch(GEMINI_URL(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const resp = await fetch(GEMINI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) })
     const data = await resp.json().catch(() => ({}))
     return { status: resp.status, data }
   } catch {
@@ -190,7 +190,8 @@ async function askGemini(key: string, text: string, input: { audio: { mimeType: 
       { text: withSchema ? text : `${text}\nResponde SOLO con un JSON que cumpla exactamente este esquema (tipos OpenAPI de Gemini): ${JSON.stringify(schema)}` },
       media,
     ] }],
-    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', ...(withSchema ? { responseSchema: schema } : {}) },
+    // thinkingBudget 0: sin "pensamiento" facturable; el JSON estructurado no lo necesita.
+    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 }, ...(withSchema ? { responseSchema: schema } : {}) },
   })
 
   let withSchema = true
@@ -218,6 +219,23 @@ async function askGemini(key: string, text: string, input: { audio: { mimeType: 
   return reply
 }
 
+/** Recorta el contexto por LISTAS (no a la mitad del JSON, que dejaba un JSON roto y platos sin ver). */
+function recortarContexto(ctx: unknown, max: number): string {
+  let s = JSON.stringify(ctx ?? {})
+  if (s.length <= max || typeof ctx !== 'object' || ctx === null) return s.slice(0, max)
+  const c: Record<string, unknown> = { ...(ctx as Record<string, unknown>) }
+  for (let i = 0; i < 40 && s.length > max; i++) {
+    let changed = false
+    for (const k of Object.keys(c)) {
+      const v = c[k]
+      if (Array.isArray(v) && v.length > 1) { c[k] = v.slice(0, Math.max(1, Math.floor(v.length * 0.8))); changed = true }
+    }
+    s = JSON.stringify(c)
+    if (!changed) break
+  }
+  return s.slice(0, max)
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   const json = (o: unknown, s = 200) =>
@@ -242,18 +260,24 @@ Deno.serve(async (req: Request) => {
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
     const { data: { user } } = await supabase.auth.getUser(token)
     if (!user) return json({ error: 'no autenticado' }, 401)
-    const { data: prof } = await supabase.from('profiles').select('role, restaurant_id').eq('id', user.id).maybeSingle()
-    if (!prof?.restaurant_id || !cfg.roles.includes(prof.role)) return json({ error: 'Sin permiso para este dictado' }, 403)
+    const { data: prof } = await supabase.from('profiles').select('role, restaurant_id, active').eq('id', user.id).maybeSingle()
+    if (!prof?.restaurant_id || !prof.active || !cfg.roles.includes(prof.role)) return json({ error: 'Sin permiso para este dictado' }, 403)
 
     // Cada llamada cuesta dinero: máx 30 dictados por usuario cada 10 min.
+    // Falla cerrado: si el contador no responde, no se llama a Gemini.
     const { data: ok } = await supabase.rpc('check_rate_limit', { p_key: `voice:${user.id}`, p_max: 30, p_window_seconds: 600 })
-    if (ok === false) return json({ error: 'Muchos dictados seguidos. Espera unos minutos.' }, 429)
+    if (ok !== true) return json({ error: 'Muchos dictados seguidos. Espera unos minutos.' }, 429)
+    // Tope diario por restaurante y global: una cuenta comprometida no puede disparar la factura.
+    const { data: okRest } = await supabase.rpc('check_rate_limit', { p_key: `voice-rest:${prof.restaurant_id}`, p_max: 400, p_window_seconds: 86400 })
+    if (okRest !== true) return json({ error: 'Se llegó al límite diario de dictados de tu restaurante. Intenta mañana.' }, 429)
+    const { data: okGlobal } = await supabase.rpc('check_rate_limit', { p_key: 'voice-global', p_max: 20000, p_window_seconds: 86400 })
+    if (okGlobal !== true) return json({ error: 'El servicio de voz está en su límite diario. Intenta más tarde.' }, 429)
 
     const { data: secret } = await supabase.from('platform_secrets').select('value').eq('key', 'gemini_api_key').single()
     if (!secret?.value) return json({ error: 'Config faltante' }, 500)
 
     // Los comandos llevan menú + inventario + equipo + mesas, así que necesitan más espacio.
-    const ctx = JSON.stringify(context).slice(0, kind === 'command' ? 20000 : 8000)
+    const ctx = recortarContexto(context, kind === 'command' ? 20000 : 8000)
     const reply = await askGemini(
       secret.value,
       `${cfg.prompt}\nSi en vez de un audio recibes un texto escrito, ese texto es lo que se dijo: devuélvelo igual en "transcript".\nResponde solo con el JSON pedido. No inventes datos que no se dijeron.\ncontext: ${ctx}`,

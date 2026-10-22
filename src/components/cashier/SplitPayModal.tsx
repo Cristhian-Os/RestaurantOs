@@ -5,13 +5,14 @@
  * Tres modos: montos libres, partes iguales y por persona (si el pedido se tomó por persona).
  * Pensado primero para celular: tarjetas apiladas y botones táctiles de 44 px.
  */
-import { forwardRef, useCallback, useEffect, useState, type InputHTMLAttributes } from 'react'
+import { forwardRef, useCallback, useEffect, useRef, useState, type InputHTMLAttributes } from 'react'
 import { motion } from 'framer-motion'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { cn } from '../../lib/cn'
 import { destinoPedido } from '../../lib/destino'
-import { COLA_CAMBIO, esErrorDeRed, guardarPagoPendiente, listarPagosPendientes, type PagoPendiente } from '../../services/paymentQueue'
+import { fmt } from './shared'
+import { COLA_CAMBIO, esErrorDeRed, esErrorTransitorio, guardarPagoPendiente, listarPagosPendientes, type PagoPendiente } from '../../services/paymentQueue'
 
 type Metodo = 'efectivo' | 'transferencia' | 'tarjeta'
 type Modo = 'libres' | 'iguales' | 'persona'
@@ -53,7 +54,6 @@ const METODOS: { id: Metodo; label: string }[] = [
   { id: 'tarjeta',       label: 'Tarjeta' },
 ]
 
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 const num = (s: string) => { const v = parseFloat(s); return Number.isFinite(v) ? v : 0 }
 const uid = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
 
@@ -106,6 +106,7 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
   const [filas, setFilas]       = useState<Fila[]>([])
   // Pagos guardados en el teléfono por falta de internet (se envían solos al volver la conexión)
   const [locales, setLocales]   = useState<PagoPendiente[]>([])
+  const cobrando = useRef(new Set<string>())   // candado contra doble toque (antes de que se pinte "cobrando")
 
   const cargarLocales = useCallback(async () => {
     try { setLocales((await listarPagosPendientes()).filter(p => p.order_id === order.id)) } catch { setLocales([]) }
@@ -166,13 +167,16 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
     setFilas(prev => prev.map(f => f.key === key ? { ...f, ...patch, error: null } : f))
 
   const cobrar = async (f: Fila) => {
-    const monto = num(f.monto)
-    const propina = Math.max(num(f.propina), 0)
-    const recibido = f.metodo === 'efectivo' && f.recibido !== '' ? num(f.recibido) : null
+    // Pesos enteros: el servidor rechaza un monto mayor a lo que falta, así que no hay tolerancia.
+    const monto = Math.round(num(f.monto))
+    const propina = Math.max(Math.round(num(f.propina)), 0)
+    const recibido = f.metodo === 'efectivo' && f.recibido !== '' ? Math.round(num(f.recibido)) : null
     if (monto <= 0) { editar(f.key, { error: 'Escribe cuánto paga' }); return }
-    if (monto > falta + 0.5) { editar(f.key, { error: `Solo faltan ${fmt(falta)} por cobrar` }); return }
+    if (monto > falta) { editar(f.key, { error: `Solo faltan ${fmt(falta)} por cobrar` }); return }
     if (recibido !== null && recibido < monto + propina) { editar(f.key, { error: 'El efectivo recibido no alcanza' }); return }
-
+    if (cobrando.current.has(f.key)) return
+    cobrando.current.add(f.key)
+    try {
     setFilas(prev => prev.map(x => x.key === f.key ? { ...x, estado: 'cobrando', error: null } : x))
     const args = {
       p_order_id: order.id, p_comensal: f.nombre.trim() || null, p_metodo: f.metodo, p_monto: monto,
@@ -188,9 +192,9 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
       setFilas(prev => prev.filter(x => x.key !== f.key))
     }
     if (!navigator.onLine) { await guardarLocal(); return }
-    const { data, error } = await supabase.rpc('registrar_pago', args)
+    const { data, error, status } = await supabase.rpc('registrar_pago', args)
     if (error) {
-      if (esErrorDeRed(error.message)) { await guardarLocal(); return }
+      if (esErrorTransitorio(error, status)) { await guardarLocal(); return }   // red, 5xx o sesión por renovar: la clave evita duplicar
       setFilas(prev => prev.map(x => x.key === f.key ? { ...x, estado: 'pendiente', error: error.message } : x))
       return
     }
@@ -198,6 +202,9 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
     message.success(cambio > 0 ? `Cobrado ${f.nombre.trim() || 'pago'} · Cambio: ${fmt(cambio)}` : `Cobrado ${f.nombre.trim() || 'pago'}`)
     setFilas(prev => prev.filter(x => x.key !== f.key))
     await cargarPagos()
+    } finally {
+      cobrando.current.delete(f.key)
+    }
   }
 
   if (cargando) return null

@@ -43,15 +43,27 @@ export function CameraCapture({ title, onCapture, onClose }: Props) {
 
   useEffect(() => () => { if (shot) URL.revokeObjectURL(shot.url) }, [shot])
 
+  // Al "Repetir" el <video> se vuelve a montar: hay que reasignarle el stream que sigue vivo.
+  useEffect(() => {
+    if (!shot && videoRef.current && streamRef.current && videoRef.current.srcObject !== streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [shot])
+
   const take = () => {
     const v = videoRef.current
-    if (!v || !v.videoWidth) return
+    if (!v || !v.videoWidth) { setError('La cámara aún no está lista. Espera un momento e intenta de nuevo.'); return }
     const scale  = Math.min(1, MAX_WIDTH / v.videoWidth)
     const canvas = document.createElement('canvas')
     canvas.width  = Math.round(v.videoWidth * scale)
     canvas.height = Math.round(v.videoHeight * scale)
-    canvas.getContext('2d')?.drawImage(v, 0, 0, canvas.width, canvas.height)
-    canvas.toBlob(blob => { if (blob) setShot({ blob, url: URL.createObjectURL(blob) }) }, 'image/jpeg', 0.8)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) { setError('No se pudo procesar la foto en este dispositivo.'); return }
+    ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+    canvas.toBlob(blob => {
+      if (blob) setShot({ blob, url: URL.createObjectURL(blob) })
+      else setError('No se pudo tomar la foto. Intenta de nuevo.')
+    }, 'image/jpeg', 0.8)
   }
 
   const send = async () => {
@@ -84,7 +96,7 @@ export function CameraCapture({ title, onCapture, onClose }: Props) {
           </button>
           {!error && (shot ? (
             <>
-              <button onClick={() => setShot(null)} disabled={sending} style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>Repetir</button>
+              <button onClick={() => { setReady(false); setShot(null) }} disabled={sending} style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>Repetir</button>
               <button onClick={send} disabled={sending} style={{ ...btn, background: 'var(--w-olive)', color: '#fff', opacity: sending ? 0.6 : 1 }}>
                 {sending ? 'Enviando…' : 'Enviar'}
               </button>

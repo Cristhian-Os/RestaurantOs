@@ -41,8 +41,17 @@ Deno.serve(async (req) => {
 
     if (!title || !body) return reply({ error: 'title y body requeridos' }, 400)
 
-    const { data: callerProf } = await admin.from('profiles').select('restaurant_id').eq('id', user.id).maybeSingle()
-    if (!callerProf?.restaurant_id) return reply({ error: 'sin restaurante' }, 403)
+    const { data: callerProf } = await admin.from('profiles').select('restaurant_id, role, active').eq('id', user.id).maybeSingle()
+    if (!callerProf?.restaurant_id || !callerProf.active) return reply({ error: 'sin restaurante' }, 403)
+    // Solo el personal del restaurante envía avisos (un cliente o una cuenta sin rol no).
+    if (!['admin', 'cashier', 'waiter', 'kitchen'].includes(callerProf.role)) return reply({ error: 'sin permiso' }, 403)
+
+    // Texto acotado y enlace SOLO relativo: nadie puede mandar a todo el equipo un enlace a otro sitio (phishing).
+    const safeTitle = String(title).slice(0, 80)
+    const safeBody = String(body).slice(0, 200)
+    const safeUrl = typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') && url.length <= 200 ? url : '/'
+    const { data: okRate } = await admin.rpc('check_rate_limit', { p_key: `push:${user.id}`, p_max: 60, p_window_seconds: 60 })
+    if (okRate !== true) return reply({ error: 'Demasiados avisos seguidos' }, 429)
 
     const roleIds: string[] = []
     if (Array.isArray(roles) && roles.length > 0) {
@@ -64,7 +73,7 @@ Deno.serve(async (req) => {
     const ids = [...new Set([...roleIds, ...directIds])]
     if (ids.length === 0) return reply({ sent: 0, reason: 'sin destinatarios' })
 
-    return reply(await deliverPush(admin, ids, { title, body, url }, getVapid, 'send-push'))
+    return reply(await deliverPush(admin, ids, { title: safeTitle, body: safeBody, url: safeUrl }, getVapid, 'send-push'))
   } catch (e) {
     console.error('send-push', e)
     return reply({ error: 'No se pudo enviar la notificación' }, 500)

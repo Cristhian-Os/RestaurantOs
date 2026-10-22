@@ -3,7 +3,13 @@
  * (una por mesa + el QR general de barra). Lleva registro de cuáles ya se generaron.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Table, Button, Modal, Radio, InputNumber, Tag, message } from 'antd'
+import Table from 'antd/es/table'
+import Button from 'antd/es/button'
+import Modal from 'antd/es/modal'
+import Radio from 'antd/es/radio'
+import InputNumber from 'antd/es/input-number'
+import Tag from 'antd/es/tag'
+import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { buildQrPdf, loadLogo, type QrItem } from '../../lib/qrPdf'
 
@@ -15,7 +21,7 @@ export function QRPrintManager() {
   const [rows, setRows] = useState<Row[]>([])
   const [sel, setSel] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [biz, setBiz] = useState({ id: '', name: 'Mi restaurante', logo: null as string | null })
+  const [biz, setBiz] = useState({ id: '', name: 'Mi restaurante', logo: null as string | null, slug: '' })
   const [open, setOpen] = useState<string[] | null>(null) // keys a imprimir; null = modal cerrado
   const [orient, setOrient] = useState<'v' | 'h'>('v')
   const [dims, setDims] = useState({ w: 6, h: 8 })
@@ -25,20 +31,22 @@ export function QRPrintManager() {
   const load = useCallback(async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user?.id ?? '').single()
+    const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user?.id ?? '').maybeSingle()
     const rid = prof?.restaurant_id
     if (!rid) { setLoading(false); return }
-    const [{ data: rest }, { data: cfg }, { data: mesas }] = await Promise.all([
+    const [{ data: rest, error: restErr }, { data: cfg, error: cfgErr }, { data: mesas, error: mesasErr }] = await Promise.all([
       supabase.rpc('restaurante_publico', { p_id: rid }).maybeSingle<{ slug: string; name: string }>(),
       supabase.from('restaurant_config').select('display_name, logo_url, qr_general_generado_at').eq('restaurant_id', rid).maybeSingle(),
       supabase.from('mesas').select('id, numero, qr_generado_at').eq('activa', true).order('numero'),
     ])
-    const base = `${window.location.origin}/menu/${rest?.slug ?? ''}`
+    if (restErr || cfgErr || mesasErr) message.error('No se pudieron cargar los datos de los QR: ' + (restErr ?? cfgErr ?? mesasErr)?.message)
+    const slug = rest?.slug ?? ''
+    const base = `${window.location.origin}/menu/${slug}`
     const list: Row[] = [
       { key: BARRA, label: 'Barra', url: `${base}?origen=barra`, generado: !!cfg?.qr_general_generado_at },
       ...(mesas ?? []).map(m => ({ key: m.id, label: `Mesa ${m.numero}`, url: `${base}?mesa=${m.numero}`, generado: !!m.qr_generado_at })),
     ]
-    setBiz({ id: rid, name: cfg?.display_name || rest?.name || 'Mi restaurante', logo: cfg?.logo_url ?? null })
+    setBiz({ id: rid, name: cfg?.display_name || rest?.name || 'Mi restaurante', logo: cfg?.logo_url ?? null, slug })
     setRows(list)
     setSel(list.filter(r => !r.generado).map(r => r.key)) // por defecto solo lo nuevo
     setLoading(false)
@@ -68,6 +76,8 @@ export function QRPrintManager() {
 
   const download = async () => {
     if (!open || !valid) return
+    // Sin slug el enlace del QR quedaría roto (/menu/): no se imprime ni se marca como generado
+    if (!biz.slug) { message.error('Tu restaurante aún no tiene enlace público (slug). Contacta al soporte antes de imprimir los QR.'); return }
     setBusy(true)
     try {
       const list = items(open)
@@ -75,8 +85,16 @@ export function QRPrintManager() {
       doc.save(`qr-${list.length === 1 ? list[0].label.toLowerCase().replace(/\s+/g, '-') : 'mesas'}.pdf`)
       const now = new Date().toISOString()
       const mesaIds = open.filter(k => k !== BARRA)
-      if (mesaIds.length) await supabase.from('mesas').update({ qr_generado_at: now }).in('id', mesaIds)
-      if (open.includes(BARRA)) await supabase.from('restaurant_config').update({ qr_general_generado_at: now }).eq('restaurant_id', biz.id)
+      const regErrors: string[] = []
+      if (mesaIds.length) {
+        const { error } = await supabase.from('mesas').update({ qr_generado_at: now }).in('id', mesaIds)
+        if (error) regErrors.push(error.message)
+      }
+      if (open.includes(BARRA)) {
+        const { error } = await supabase.from('restaurant_config').update({ qr_general_generado_at: now }).eq('restaurant_id', biz.id)
+        if (error) regErrors.push(error.message)
+      }
+      if (regErrors.length) message.warning('El PDF se descargó, pero no se pudo marcar como generado: ' + regErrors[0])
       setOpen(null); setPreview(null)
       await load()
     } catch (e) {
@@ -88,8 +106,11 @@ export function QRPrintManager() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {!loading && !biz.slug && rows.length > 0 && (
+        <div style={{ color: 'crimson', fontSize: 13 }}>Tu restaurante aún no tiene enlace público (slug): los QR no se pueden generar todavía.</div>
+      )}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Button type="primary" disabled={!sel.length} onClick={() => setOpen(sel)}>Generar PDF ({sel.length})</Button>
+        <Button type="primary" disabled={!sel.length || !biz.slug} onClick={() => setOpen(sel)}>Generar PDF ({sel.length})</Button>
         <Button onClick={() => setSel(rows.filter(r => !r.generado).map(r => r.key))}>Solo nuevas ({nuevas})</Button>
         <Button onClick={() => setSel(rows.map(r => r.key))}>Todas</Button>
       </div>

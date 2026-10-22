@@ -5,12 +5,13 @@
  * reglas del corte (pedidos completados y pagados ese día en hora de Colombia; Rappi aparte,
  * no cuenta como venta; gastos del mismo día en hora de Colombia). Solo lee: no modifica nada.
  */
-import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
 import { GastosDesglose, type GastoDetalle } from './GastosDesglose'
+import { fmt, orderRef } from './shared'
 import { totalGastos } from '../../services/gastosResumen'
 import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
 import {
@@ -24,9 +25,7 @@ const S = {
   neoIn:    { boxShadow: 'var(--shadow-in)' },
 } as const
 
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 const hora = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }) : '—')
-const orderRef = (o: { id: string; order_number_today?: number | null }) => `#${o.order_number_today ?? o.id.slice(0, 8)}`
 
 const METODO: Record<string, { label: string; color: string }> = {
   efectivo:      { label: 'Efectivo',      color: '#059669' },
@@ -117,7 +116,11 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [gastos, setGastos]     = useState<GastoDetalle[]>([])
   const { etiquetas }           = useCategoriasGasto()
 
+  const reqRef = useRef(0)   // solo la última consulta pinta: si cambias de día rápido, una respuesta vieja no pisa la nueva
+
   const load = useCallback(async () => {
+    const req = ++reqRef.current
+    const vigente = () => req === reqRef.current
     setLoading(true)
     try {
       const { from, to } = dayBoundsBogota(date)
@@ -126,20 +129,30 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         .eq('status', 'completed').gte('paid_at', from).lt('paid_at', to)
         .order('paid_at', { ascending: false })
       if (error) throw error
+      if (!vigente()) return
       const list: SaleOrder[] = (data ?? []).map(o => ({ ...o, items: parseItems(o.items) }))
 
       // Pagos de cada pedido (cuentas divididas): el dinero se suma por lo que se pagó con cada método.
       if (list.length > 0) {
-        const { data: pagos } = await supabase.from('order_payments')
-          .select('order_id, comensal, payment_method, monto').is('anulado_at', null).in('order_id', list.map(o => o.id))
+        // En lotes de 100: un .in() con cientos de ids revienta el largo de la URL.
+        const orderIds = list.map(o => o.id)
+        const pagos: { order_id: unknown; comensal: unknown; payment_method: unknown; monto: unknown }[] = []
+        for (let i = 0; i < orderIds.length; i += 100) {
+          const { data: lote, error: pErr } = await supabase.from('order_payments')
+            .select('order_id, comensal, payment_method, monto').is('anulado_at', null).in('order_id', orderIds.slice(i, i + 100))
+          if (pErr) throw pErr
+          pagos.push(...(lote ?? []))
+        }
+        if (!vigente()) return
         const porPedido = new Map<string, { comensal: string | null; payment_method: string; monto: number }[]>()
-        for (const p of pagos ?? []) {
+        for (const p of pagos) {
           const arr = porPedido.get(p.order_id as string) ?? []
           arr.push({ comensal: p.comensal as string | null, payment_method: p.payment_method as string, monto: Number(p.monto) })
           porPedido.set(p.order_id as string, arr)
         }
         for (const o of list) o.pagos = porPedido.get(o.id)
       }
+      if (!vigente()) return
       setOrders(list)
       setOpenId(null)
 
@@ -147,19 +160,22 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       const { data: gd, error: gErr } = await supabase.from('gastos')
         .select('id, concepto, monto, categoria, created_at')
         .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false })
+      if (!vigente()) return
       if (gErr) { setGastos([]); message.warning('No se pudieron cargar los gastos del día') }
       else setGastos(((gd ?? []) as { id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]))
 
       // Quién tomó el pedido (solo personal; los pedidos del QR traen el usuario del cliente).
       const ids = [...new Set(list.map(o => o.user_id).filter((x): x is string => !!x))]
       if (ids.length > 0) {
-        const { data: profs } = await supabase.from('profiles').select('id, full_name, role').in('id', ids).in('role', ['waiter', 'cashier', 'admin'])
+        const profIds = ids.slice(0, 100)
+        const { data: profs } = await supabase.from('profiles').select('id, full_name, role').in('id', profIds).in('role', ['waiter', 'cashier', 'admin'])
+        if (!vigente()) return
         setStaff(Object.fromEntries((profs ?? []).filter(p => p.full_name).map(p => [p.id, p.full_name as string])))
       } else setStaff({})
     } catch (e) {
-      message.error('No se pudo cargar el historial: ' + (e instanceof Error ? e.message : 'error desconocido'))
+      if (vigente()) message.error('No se pudo cargar el historial: ' + (e instanceof Error ? e.message : 'error desconocido'))
     } finally {
-      setLoading(false)
+      if (vigente()) setLoading(false)
     }
   }, [date])
 

@@ -2,7 +2,7 @@
  * BrandingManager.tsx — Fase 4: personalización por restaurante
  * El admin edita nombre, eslogan, colores y logo. Se aplica al instante.
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
 
@@ -32,6 +32,23 @@ interface Config {
   cerrado_mensaje:      string | null
 }
 
+const IMAGE_MIMES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+// Devuelve el mensaje de error si el archivo no sirve, o null si es válido
+function checkImage(file: File): string | null {
+  if (!IMAGE_MIMES[file.type]) return 'Formato no permitido: usa JPG, PNG o WebP'
+  if (file.size > MAX_IMAGE_BYTES) return 'La imagen debe pesar 5 MB o menos'
+  return null
+}
+
+// Las redes sociales solo aceptan enlaces https:// (vacío = sin enlace)
+function isHttpsUrl(v: string | null | undefined): boolean {
+  const t = (v ?? '').trim()
+  if (!t) return true
+  try { return new URL(t).protocol === 'https:' } catch { return false }
+}
+
 const DEFAULT_COLOR = '#1D7A46'
 const CFG_EMPTY: Config = {
   display_name: '', slogan: '', color_primario: DEFAULT_COLOR, color_acento: '#C97A40', logo_url: null,
@@ -40,9 +57,10 @@ const CFG_EMPTY: Config = {
   cerrado_manual: false, cerrado_mensaje: '',
 }
 
-export default function BrandingManager() {
+export default function BrandingManager({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const [rid,     setRid]     = useState<string | null>(null)
   const [cfg,     setCfg]     = useState<Config>(CFG_EMPTY)
+  const [saved,   setSaved]   = useState<Config>(CFG_EMPTY)   // lo último cargado/guardado, para avisar de cambios sin guardar
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -58,7 +76,7 @@ export default function BrandingManager() {
       const { data } = await supabase.from('restaurant_config')
         .select('display_name, slogan, color_primario, color_acento, logo_url, promo_texto, promo_activo, whatsapp_numero, direccion, instagram_url, facebook_url, propina_sugerida_pct, portada_url, horario_activo, horario_apertura, horario_cierre, cerrado_manual, cerrado_mensaje')
         .maybeSingle()
-      if (data) setCfg({
+      if (data) { const loaded: Config = {
         display_name:   data.display_name ?? '',
         slogan:         data.slogan ?? '',
         color_primario: data.color_primario ?? DEFAULT_COLOR,
@@ -77,13 +95,15 @@ export default function BrandingManager() {
         horario_cierre:       data.horario_cierre ?? '21:00',
         cerrado_manual:       data.cerrado_manual ?? false,
         cerrado_mensaje:      data.cerrado_mensaje ?? '',
-      })
+      }; setCfg(loaded); setSaved(loaded) }
       setLoading(false)
     })()
   }, [])
 
   const save = useCallback(async () => {
     if (!rid) return
+    if (!isHttpsUrl(cfg.instagram_url)) { message.error('El enlace de Instagram debe empezar por https://'); return }
+    if (!isHttpsUrl(cfg.facebook_url))  { message.error('El enlace de Facebook debe empezar por https://'); return }
     setSaving(true)
     try {
       const nombre = cfg.display_name.trim() || 'Mi Restaurante'
@@ -108,6 +128,7 @@ export default function BrandingManager() {
         cerrado_mensaje:      cfg.cerrado_mensaje?.trim() || null,
       }, { onConflict: 'restaurant_id' })
       if (error) throw error
+      setSaved(cfg)
       applyBranding(cfg.color_primario)
       // Avisar a la app (encabezado, etc.) para que se actualice al instante
       window.dispatchEvent(new CustomEvent('branding-updated', { detail: { name: nombre, color: cfg.color_primario } }))
@@ -119,17 +140,21 @@ export default function BrandingManager() {
 
   const uploadLogo = useCallback(async (file: File) => {
     if (!rid) return
+    const invalid = checkImage(file)
+    if (invalid) { message.error(invalid); return }
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop() || 'png'
+      const ext = IMAGE_MIMES[file.type]
       const path = `${rid}/logo.${ext}`
       const { error: upErr } = await supabase.storage.from('branding').upload(path, file, { upsert: true, contentType: file.type })
       if (upErr) throw upErr
       const { data: pub } = supabase.storage.from('branding').getPublicUrl(path)
       const url = `${pub.publicUrl}?t=${Date.now()}`
-      const { error } = await supabase.from('restaurant_config').update({ logo_url: url }).eq('restaurant_id', rid)
+      const { data: rows, error } = await supabase.from('restaurant_config').update({ logo_url: url }).eq('restaurant_id', rid).select('restaurant_id')
       if (error) throw error
+      if (!rows || rows.length === 0) throw new Error('No se pudo guardar el logo: el restaurante aún no tiene configuración. Guarda la personalización primero.')
       setCfg(c => ({ ...c, logo_url: url }))
+      setSaved(c => ({ ...c, logo_url: url }))
       window.dispatchEvent(new CustomEvent('branding-updated', { detail: { logo: url } }))
       message.success('Logo actualizado')
     } catch (e) {
@@ -139,22 +164,30 @@ export default function BrandingManager() {
 
   const uploadPortada = useCallback(async (file: File) => {
     if (!rid) return
+    const invalid = checkImage(file)
+    if (invalid) { message.error(invalid); return }
     setUploadingPortada(true)
     try {
-      const ext = file.name.split('.').pop() || 'jpg'
-      const path = `${rid}/portada.${ext}`
-      const { error: upErr } = await supabase.storage.from('restaurant-assets').upload(path, file, { upsert: true, contentType: file.type })
+      const ext = IMAGE_MIMES[file.type]
+      // El 2º segmento del path es el restaurant_id (política del bucket); sin upsert: cada portada es un archivo nuevo.
+      const path = `restaurants/${rid}/portada-${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('restaurant-assets').upload(path, file, { contentType: file.type })
       if (upErr) throw upErr
       const { data: pub } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
-      const url = `${pub.publicUrl}?t=${Date.now()}`
-      const { error } = await supabase.from('restaurant_config').update({ portada_url: url }).eq('restaurant_id', rid)
+      const url = pub.publicUrl
+      const { data: rows, error } = await supabase.from('restaurant_config').update({ portada_url: url }).eq('restaurant_id', rid).select('restaurant_id')
       if (error) throw error
+      if (!rows || rows.length === 0) throw new Error('No se pudo guardar la portada: el restaurante aún no tiene configuración. Guarda la personalización primero.')
       setCfg(c => ({ ...c, portada_url: url }))
+      setSaved(c => ({ ...c, portada_url: url }))
       message.success('Portada actualizada')
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Error al subir la portada')
     } finally { setUploadingPortada(false) }
   }, [rid])
+
+  const dirty = useMemo(() => JSON.stringify(cfg) !== JSON.stringify(saved), [cfg, saved])
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
 
   if (loading) return <div style={{ padding: '2rem', color: 'var(--w-ink-mut)' }}>Cargando…</div>
 
@@ -180,7 +213,7 @@ export default function BrandingManager() {
           </div>
           <label className="w-press" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-ink)' }}>
             {uploading ? 'Subiendo…' : 'Subir logo'}
-            <input type="file" accept="image/*" hidden
+            <input type="file" accept="image/jpeg,image/png,image/webp" hidden
               onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
           </label>
         </div>
@@ -197,7 +230,7 @@ export default function BrandingManager() {
           </div>
           <label className="w-press" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-ink)' }}>
             {uploadingPortada ? 'Subiendo…' : 'Subir portada'}
-            <input type="file" accept="image/*" hidden
+            <input type="file" accept="image/jpeg,image/png,image/webp" hidden
               onChange={e => { const f = e.target.files?.[0]; if (f) uploadPortada(f) }} />
           </label>
         </div>

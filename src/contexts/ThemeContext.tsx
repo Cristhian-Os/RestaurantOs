@@ -5,7 +5,7 @@
  * - PublicMenu la lee en tiempo real via Realtime
  * - localStorage actúa como caché para carga instantánea
  */
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { supabase } from '../services/supabaseClient'
 import ConfigProvider from 'antd/es/config-provider'
 import antdTheme from 'antd/es/theme'
@@ -38,6 +38,9 @@ function applyTheme(t: Theme) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme,    setThemeState] = useState<Theme>('light')
   const [saving,   setSaving]     = useState(false)
+  // Tema vigente (para revertir si falla el guardado sin recrear setTheme)
+  const themeRef = useRef<Theme>('light')
+  themeRef.current = theme
 
   useEffect(() => {
     // 1. Carga instantánea desde localStorage
@@ -63,8 +66,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
       // 2. Fuente de verdad: Supabase (scopeado por RLS al restaurante del admin)
       supabase.from('restaurant_config')
-        .select('id, modules_enabled')
-        .single()
+        .select('modules_enabled')
+        .limit(1)
+        .maybeSingle()
         .then(({ data }) => {
           if (!data) return
           const modules = data.modules_enabled as Record<string, unknown> | null
@@ -101,21 +105,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setTheme = useCallback(async (t: Theme) => {
+    const previo = themeRef.current
     applyTheme(t)
     setThemeState(t)
     localStorage.setItem('ros_theme', t)
     setSaving(true)
     try {
-      const { data: cfg } = await supabase
-        .from('restaurant_config')
-        .select('id, modules_enabled')
-        .single()
-      if (cfg) {
-        const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
-        await supabase.from('restaurant_config')
-          .update({ modules_enabled: { ...modules, theme: t } })
-          .eq('id', cfg.id)
-      }
+      // Escritura atómica de la clave 'theme' en el servidor (sin leer-modificar-escribir todo el JSONB)
+      const { error } = await supabase.rpc('set_module_config', { p_key: 'theme', p_value: t })
+      if (error) throw error
+    } catch (e) {
+      console.error('No se pudo guardar el tema:', e)
+      // Revertir el tema local: la base de datos conserva el anterior
+      applyTheme(previo)
+      setThemeState(previo)
+      localStorage.setItem('ros_theme', previo)
     } finally {
       setSaving(false)
     }

@@ -4,7 +4,6 @@ import type {
   Receta,
   RecetaLine,
   ListaCompras,
-  ProductoDisponible,
   RecetaShortage,
 } from '../types/inventory'
 
@@ -63,26 +62,6 @@ export const inventoryService = {
     return data || []
   },
 
-  async addIngredienteToReceta(receta: Omit<Receta, 'id' | 'created_at'>): Promise<Receta> {
-    const { data, error } = await supabase
-      .from('recetas')
-      .insert([receta])
-      .select()
-      .single()
-
-    if (error) throw new Error(`Error adding ingrediente to receta: ${error.message}`)
-    return data
-  },
-
-  async removeIngredienteFromReceta(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('recetas')
-      .delete()
-      .eq('id', id)
-
-    if (error) throw new Error(`Error removing ingrediente from receta: ${error.message}`)
-  },
-
   // ─── Guardar receta manual (reemplaza todas las líneas del producto) ──
   // Flujo 100% manual: cada línea trae nombre libre, precio y cantidad.
   // Usa una RPC transaccional (delete + insert atómicos): si algo falla,
@@ -114,7 +93,7 @@ export const inventoryService = {
   // como cambio al agregar el plato — igual que un adicional.
   async getRecetaShortages(): Promise<RecetaShortage[]> {
     const [{ data: recetas, error }, ingredientes] = await Promise.all([
-      supabase.from('recetas').select('producto_id, ingrediente_id').not('ingrediente_id', 'is', null),
+      supabase.from('recetas').select('producto_id, ingrediente_id, cantidad_necesaria').not('ingrediente_id', 'is', null),
       inventoryService.getIngredientes(),
     ])
     if (error) throw new Error(`Error fetching recetas: ${error.message}`)
@@ -123,7 +102,8 @@ export const inventoryService = {
     const shortages: RecetaShortage[] = []
     for (const r of recetas || []) {
       const ing = porId.get(r.ingrediente_id)
-      if (!ing || Number(ing.stock_actual) > 0) continue
+      // Faltante = el stock no alcanza para una porción del plato
+      if (!ing || Number(ing.stock_actual) >= Number(r.cantidad_necesaria)) continue
       const sustituto = ing.sustituto_id ? porId.get(ing.sustituto_id) : null
       shortages.push({
         producto_id:        r.producto_id,
@@ -147,37 +127,17 @@ export const inventoryService = {
     return data || []
   },
 
-  // ─── Productos Disponibles ────────────────────────────────
-  async getProductosDisponibles(): Promise<ProductoDisponible[]> {
+  // ─── Platos para editar receta ────────────────────────────
+  // Todos los platos del menú (incluidos los agotados), menos los descontinuados:
+  // un plato agotado también necesita su receta.
+  async getPlatosParaReceta(): Promise<{ id: string; name: string }[]> {
     const { data, error } = await supabase
-      .from('vista_productos_disponibles')
-      .select('*')
+      .from('dishes')
+      .select('id, name')
+      .neq('availability_status', 'discontinued')
       .order('name', { ascending: true })
 
-    if (error) throw new Error(`Error fetching productos disponibles: ${error.message}`)
+    if (error) throw new Error(`Error fetching platos: ${error.message}`)
     return data || []
-  },
-
-  // ─── Cálculo de Costo de Receta ───────────────────────────
-  async calcularCostoReceta(dish_id: string): Promise<number> {
-    const { data, error } = await supabase
-      .rpc('calcular_costo_receta', { p_dish_id: dish_id })
-
-    if (error) throw new Error(`Error calculating recipe cost: ${error.message}`)
-    return data || 0
-  },
-
-  // ─── Registrar detalle de pedido (Trigger automático) ─────
-  async registrarDetallePedido(detalle: {
-    order_id: string
-    dish_id: string
-    cantidad: number
-    precio_unit: number
-  }): Promise<void> {
-    const { error } = await supabase
-      .from('detalles_pedidos')
-      .insert([detalle])
-
-    if (error) throw new Error(`Error registering order detail: ${error.message}`)
   },
 }

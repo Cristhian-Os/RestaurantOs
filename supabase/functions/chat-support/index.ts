@@ -10,11 +10,9 @@ const SYSTEM = `Eres "Resti", el asistente de soporte de RestaurantOS, un sistem
 
 Qué hace RestaurantOS: menú digital con código QR, toma de pedidos, control de mesas, inventario y recetas (descuenta ingredientes solo), panel de cocina en tiempo real, caja y corte de caja en Excel (con productos, cantidades y método de pago), métricas de ventas, y gestión del equipo (mesero, cocina, cajero).
 
-Planes (USD/mes): Basic $79 (elige tus mesas, menú QR, pedidos, inventario básico, recetas, corte en Excel, 1 admin, pagos en línea, soporte estándar), Normal $135 (todo Basic + mesas y equipo ilimitados, inventario avanzado, cocina en tiempo real, tareas, métricas, soporte prioritario), Premium $220 (todo Normal + multi-sucursal, personalización total de marca, soporte prioritario 24/7). Los pagos en línea para que tus clientes paguen por la app están incluidos en TODOS los planes. Todos incluyen 7 días de prueba gratis, sin tarjeta.
+Planes (USD/mes): Basic $79 (elige tus mesas, menú QR, pedidos, inventario básico, recetas, corte en Excel, 1 admin, pagos en línea, soporte estándar), Normal $135 (todo Basic + mesas y equipo ilimitados, inventario avanzado, cocina en tiempo real, tareas, métricas, soporte prioritario), Premium $220 (todo Normal + multi-sucursal, personalización total de marca, soporte prioritario 24/7). Los pagos en línea para que tus clientes paguen por la app están incluidos en TODOS los planes. Los planes se contratan hablando con nuestro equipo.
 
-Promoción de lanzamiento: los primeros 3 restaurantes obtienen Premium GRATIS de por vida (cupos ya ocupados).
-
-Cómo empezar: botón "Comienza gratis" o "Registra tu restaurante" en la página; se crea la cuenta en menos de un minuto y se obtiene un dominio propio y menú. También hay un botón "Ver demo" para probar sin registrarse.
+Cómo empezar: el registro público está cerrado; los planes se contratan con el equipo de RestaurantOS (se les escribe al correo de soporte o por los canales de contacto de la página) y ellos crean la cuenta del restaurante. También hay un botón "Ver demo" para probar sin registrarse.
 
 Pagos: la facturación es mensual. Si un pago se atrasa hay 7 días de gracia; si no se paga, se pierde el acceso y los datos se eliminan (esto está en los términos).
 
@@ -38,8 +36,12 @@ Deno.serve(async (req: Request) => {
     // una factura sorpresa sin que hubiera ni un cliente real detrás.
     const xff = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
     const ip = req.headers.get('cf-connecting-ip') ?? (xff || 'sin-ip')
+    // Falla cerrado: si el contador no responde, no se llama a Gemini.
     const { data: withinLimit } = await supabase.rpc('check_rate_limit', { p_key: `chat:${ip}`, p_max: 20, p_window_seconds: 600 })
-    if (withinLimit === false) return json({ reply: 'Has enviado muchos mensajes seguidos. Espera unos minutos e intenta de nuevo.' }, 429)
+    if (withinLimit !== true) return json({ reply: 'Has enviado muchos mensajes seguidos. Espera unos minutos e intenta de nuevo.' }, 429)
+    // Tope global diario: rotar IPs no debe poder generar una factura ilimitada.
+    const { data: withinGlobal } = await supabase.rpc('check_rate_limit', { p_key: 'chat:global', p_max: 3000, p_window_seconds: 86400 })
+    if (withinGlobal !== true) return json({ reply: 'El asistente está muy ocupado hoy. Escríbenos al correo de soporte y te ayudamos.' }, 429)
 
     const { data: secret } = await supabase
       .from('platform_secrets').select('value').eq('key', 'gemini_api_key').single()
@@ -54,14 +56,14 @@ Deno.serve(async (req: Request) => {
     if (contents.length === 0) return json({ reply: '¡Hola! Soy Resti 👋 ¿En qué te ayudo con RestaurantOS?' })
 
     const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: SYSTEM }] },
           contents,
-          generationConfig: { maxOutputTokens: 600, temperature: 0.4 },
+          generationConfig: { maxOutputTokens: 600, temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } },
         }),
       },
     )

@@ -5,13 +5,6 @@
  * textos cuando tengas testimonios reales de tus clientes.
  */
 
-/** Cupos de la promoción de lanzamiento (primeros N = Premium gratis).
- *  Bajado de 5 a 3 el 2026-09-26 — los 3 cupos ya están ocupados por
- *  restaurantes existentes, así que de aquí en adelante ningún restaurante
- *  nuevo la recibe automáticamente (nunca se activó de forma automática:
- *  siempre fue el dueño marcando is_promo=true a mano). */
-export const PROMO_SLOTS = 3
-
 /** WhatsApp de contacto para activar un restaurante (con indicativo, ej. +57 300 000 0000). Vacío = solo texto. */
 export const CONTACTO_WHATSAPP = '+57 304 538 8425'
 
@@ -51,8 +44,8 @@ export const FAQS: Faq[] = [
     a: 'No. RestaurantOS funciona desde el navegador de cualquier celular, tablet o computador. Solo entras con tu cuenta.',
   },
   {
-    q: '¿Cómo funciona la prueba gratis?',
-    a: 'Tienes 7 días para usar todas las funciones sin costo y sin tarjeta. Al terminar, eliges el plan que más te sirva.',
+    q: '¿Cómo empiezo a usar RestaurantOS?',
+    a: 'Solicita acceso y nuestro equipo activa tu restaurante contigo: dejamos listo tu menú, mesas y equipo, y te entregamos tu usuario de administrador.',
   },
   {
     q: '¿Puedo cambiar de plan o cancelar?',

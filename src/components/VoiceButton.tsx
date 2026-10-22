@@ -30,6 +30,7 @@ export function VoiceButton<T = Record<string, unknown>>({ kind, onResult, conte
   const [state, setState]     = useState<State>('idle')
   const [seconds, setSeconds] = useState(0)
   const recRef = useRef<Recorder | null>(null)
+  const startingRef = useRef(false)   // pidiendo permiso de micrófono: ignora toques repetidos
 
   useEffect(() => () => recRef.current?.cancel(), [])
 
@@ -60,14 +61,17 @@ export function VoiceButton<T = Record<string, unknown>>({ kind, onResult, conte
   }, [seconds, state])
 
   const toggle = async () => {
-    if (state === 'processing') return
+    if (state === 'processing' || startingRef.current) return
     if (state === 'recording') { await finish(); return }
+    startingRef.current = true
     try {
       recRef.current = await startRecording()
       setSeconds(0)
       setState('recording')
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'No se pudo grabar')
+    } finally {
+      startingRef.current = false
     }
   }
 

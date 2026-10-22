@@ -14,7 +14,10 @@ async function sha256Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
-function ref(): string { return `sub_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}` }
+// Referencia determinista por restaurante y día (payments.reference es único): un doble clic no cobra dos veces.
+function ref(restaurantId: string): string {
+  return `subnow_${restaurantId.replace(/-/g, '').slice(0, 12)}_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+}
 function apiBase(publicKey: string): string {
   return publicKey.includes('_prod_') ? 'https://production.wompi.co/v1' : 'https://sandbox.wompi.co/v1'
 }
@@ -27,14 +30,16 @@ Deno.serve(async (req) => {
 
   try {
     const { card_token, customer_email, charge_now = true } = await req.json()
-    if (!card_token || !customer_email) return json({ error: 'card_token y customer_email requeridos' }, 400)
+    if (typeof card_token !== 'string' || typeof customer_email !== 'string' || !/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(customer_email.trim())) {
+      return json({ error: 'card_token y customer_email válidos requeridos' }, 400)
+    }
 
     // Autenticar al admin del restaurante
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
     const { data: { user } } = await admin.auth.getUser(token)
     if (!user) return json({ error: 'no autenticado' }, 401)
-    const { data: prof } = await admin.from('profiles').select('restaurant_id, role').eq('id', user.id).maybeSingle()
-    if (!prof?.restaurant_id) return json({ error: 'sin restaurante' }, 403)
+    const { data: prof } = await admin.from('profiles').select('restaurant_id, role, active').eq('id', user.id).maybeSingle()
+    if (!prof?.restaurant_id || !prof.active) return json({ error: 'sin restaurante' }, 403)
     if (prof.role !== 'admin') return json({ error: 'solo el admin' }, 403)
     const restaurantId = prof.restaurant_id as string
 
@@ -62,7 +67,10 @@ Deno.serve(async (req) => {
     })
     const ps = await psResp.json()
     const paymentSourceId = ps?.data?.id
-    if (!paymentSourceId) return json({ error: 'no se pudo crear el método de pago', detail: ps }, 502)
+    if (!paymentSourceId) {
+      console.error('wompi-subscribe: payment_source rechazado', JSON.stringify(ps).slice(0, 500))
+      return json({ error: 'no se pudo crear el método de pago' }, 502)
+    }
 
     // Guardar en la suscripción
     await admin.from('subscriptions').update({
@@ -72,16 +80,24 @@ Deno.serve(async (req) => {
 
     // 3) Primer cobro inmediato (opcional)
     let firstCharge: any = null
-    if (charge_now) {
+    // No cobra si ya hay un pago aprobado/pendiente reciente o demasiados rechazos (suscripcion_puede_cobrar).
+    const { data: puedeCobrar } = charge_now
+      ? await admin.rpc('suscripcion_puede_cobrar', { p_restaurant_id: restaurantId })
+      : { data: false }
+    if (charge_now && puedeCobrar === true) {
       const { data: sub } = await admin.from('subscriptions').select('amount_in_cents').eq('restaurant_id', restaurantId).maybeSingle()
       const amount = sub?.amount_in_cents as number
       if (amount && amount >= 100) {
-        const reference = ref()
+        const reference = ref(restaurantId)
         const integrity = await sha256Hex(`${reference}${amount}COP${integritySecret}`)
-        await admin.from('payments').insert({
+        const { error: insErr } = await admin.from('payments').insert({
           restaurant_id: restaurantId, kind: 'subscription', reference,
           amount_in_cents: amount, currency: 'COP', status: 'PENDING', customer_email,
         })
+        if (insErr) {
+          // Referencia duplicada = ya se intentó hoy: se responde sin cobrar de nuevo.
+          return json({ ok: true, payment_source_id: paymentSourceId, first_charge: null, note: 'ya hay un cobro de hoy' })
+        }
         const txResp = await fetch(`${base}/transactions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${privateKey}` },
@@ -97,6 +113,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, payment_source_id: paymentSourceId, first_charge: firstCharge })
   } catch (e) {
-    return json({ error: String(e) }, 500)
+    console.error('wompi-subscribe', e)
+    return json({ error: 'No se pudo activar el cobro automático' }, 500)
   }
 })

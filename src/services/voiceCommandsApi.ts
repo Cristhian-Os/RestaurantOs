@@ -69,7 +69,7 @@ function expectRows(res: { data: unknown[] | null; error: { message: string } | 
   if (!res.data || res.data.length === 0) throw new Error(`${what}: no se pudo modificar (¿ya no existe o no tienes permiso?)`)
 }
 
-export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise<void> {
+export async function applyChange(c: Change, _role: VoiceRole = 'admin'): Promise<void> {
   const now = new Date().toISOString()
   switch (c.op) {
     case 'dish_price': {
@@ -83,18 +83,18 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
       return
     }
     case 'ingredient_stock': {
-      if (role === 'cashier') {
-        // El cajero no puede escribir `ingredientes` directo (RLS): usa la función que valida su rol.
-        const { error } = await supabase.rpc('ajustar_stock_ingrediente', { p_ingrediente_id: c.ingredientId, p_stock: c.stock })
-        if (error) throw new Error(error.message)
-        return
-      }
-      return expectRows(await supabase.from('ingredientes').update({ stock_actual: c.stock, updated_at: now }).eq('id', c.ingredientId).select('id'), 'Ingrediente')
+      // Función de la base (atómica, valida rol y restaurante): sirve para admin y cajero.
+      const { error } = await supabase.rpc('ajustar_stock_ingrediente', { p_ingrediente_id: c.ingredientId, p_stock: c.stock })
+      if (error) throw new Error(error.message)
+      return
     }
     case 'task_create': {
       const { error } = await supabase.from('tasks').insert({
         title: c.title, description: c.description || null, assigned_to: c.assignedTo, created_by: c.createdBy,
-        priority: c.priority, due_date: c.dueDate, status: 'pending',
+        priority: c.priority,
+        // Solo fecha = vence al final de ese día en hora de Bogotá (UTC-5); sin esto se tomaría como medianoche UTC
+        due_date: c.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(c.dueDate) ? `${c.dueDate}T23:59:00-05:00` : c.dueDate,
+        status: 'pending',
       })
       if (error) throw new Error(error.message)
       return

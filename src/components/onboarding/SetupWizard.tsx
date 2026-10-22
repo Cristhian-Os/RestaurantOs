@@ -244,6 +244,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
   const [resumen, setResumen] = useState<Record<string, number>>({})
   const [slug, setSlug] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const [marcaSinGuardar, setMarcaSinGuardar] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -395,8 +396,11 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
 
           {paso === 6 && (<>
             <Titulo t="Marca y datos del restaurante" s="Logo, colores, eslogan, portada, dirección, WhatsApp, horario y propina sugerida." />
-            <BrandingManager />
-            <div style={{ marginTop: '1rem' }}><button style={primary} onClick={() => siguiente(true)}>Continuar</button></div>
+            <BrandingManager onDirtyChange={setMarcaSinGuardar} />
+            <div style={{ marginTop: '1rem' }}><button style={primary} onClick={() => {
+              if (marcaSinGuardar && !window.confirm('Tienes cambios sin guardar en la marca. Si continúas se pierden. ¿Continuar de todos modos?')) return
+              siguiente(true)
+            }}>Continuar</button></div>
           </>)}
 
           {paso === 7 && (<>

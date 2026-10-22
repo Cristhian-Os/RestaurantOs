@@ -13,7 +13,7 @@ function clean(t: string): string {
   return t.replace(/\*\*(.*?)\*\*/g, '$1').replace(/^\s*[*-]\s+/gm, '• ')
 }
 
-const WELCOME: Msg = { role: 'assistant', text: '¡Hola! Soy Resti 👋 el asistente de RestaurantOS. ¿En qué te ayudo? Puedo contarte de los planes, la prueba gratis o cómo empezar.' }
+const WELCOME: Msg = { role: 'assistant', text: '¡Hola! Soy Resti 👋 el asistente de RestaurantOS. ¿En qué te ayudo? Puedo contarte de los planes o cómo empezar.' }
 
 export default function SupportChat() {
   const [open,    setOpen]    = useState(false)

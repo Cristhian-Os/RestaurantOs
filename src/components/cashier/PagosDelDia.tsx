@@ -11,6 +11,7 @@ import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
 import { cn } from '../../lib/cn'
+import { fmt } from './shared'
 
 type Metodo = 'efectivo' | 'transferencia' | 'tarjeta'
 
@@ -29,7 +30,6 @@ const S = {
 } as const
 
 const LABEL: Record<Metodo, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta' }
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 
 // Colombia no tiene horario de verano: -05:00 todo el año.
 export const ventanaHoy = () => {

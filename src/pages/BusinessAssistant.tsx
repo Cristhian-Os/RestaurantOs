@@ -64,6 +64,12 @@ export default function BusinessAssistant() {
           <h2 className="text-2xl font-bold text-neo-dark mb-4">Alertas de Food Cost</h2>
           {metrics.foodCost.isLoading ? (
             <Spin />
+          ) : metrics.foodCost.error ? (
+            <Alert
+              message="Error al cargar las alertas de food cost"
+              description={String(metrics.foodCost.error)}
+              type="error"
+            />
           ) : metrics.foodCost.data.length === 0 ? (
             <Alert message="Todos los márgenes están óptimos" type="success" />
           ) : (
@@ -85,6 +91,12 @@ export default function BusinessAssistant() {
           <h2 className="text-2xl font-bold text-neo-dark mb-4">Auditoría Anti-Fraude</h2>
           {metrics.fraud.isLoading ? (
             <Spin />
+          ) : metrics.fraud.error ? (
+            <Alert
+              message="Error al cargar la auditoría anti-fraude"
+              description={String(metrics.fraud.error)}
+              type="error"
+            />
           ) : metrics.fraud.data.length === 0 ? (
             <Alert message="Sin patrones sospechosos detectados" type="success" />
           ) : (
@@ -112,6 +124,12 @@ export default function BusinessAssistant() {
           <h2 className="text-2xl font-bold text-neo-dark mb-4">Predicción de Demanda</h2>
           {metrics.demand.isLoading ? (
             <Spin />
+          ) : metrics.demand.error ? (
+            <Alert
+              message="Error al cargar la predicción de demanda"
+              description={String(metrics.demand.error)}
+              type="error"
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {metrics.demand.data.map((pred) => (

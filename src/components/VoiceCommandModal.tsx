@@ -130,6 +130,8 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
         done.add(item.id)
       } catch (e) {
         failed.set(item.id, e instanceof Error ? e.message : 'No se pudo aplicar')
+        // Los siguientes cambios pueden depender de este (se calcularon en cadena): se detiene aquí.
+        break
       }
     }
     if (done.size > 0) onApplied()
@@ -145,7 +147,7 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
     try {
       setCtx(await loadCommandContext(role))
       setItems(remaining)
-      if (done.size > 0) message.warning(`${done.size} aplicados. Revisa los que quedaron.`)
+      if (done.size > 0) message.warning(`${done.size} aplicados. Se detuvo en el primer error; revisa los que quedaron.`)
       else message.error('No se pudo aplicar ningún cambio.')
     } catch {
       message.warning(`${done.size} aplicados. Cierra y vuelve a abrir para continuar.`)

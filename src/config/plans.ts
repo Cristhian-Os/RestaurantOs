@@ -23,9 +23,6 @@ export interface Plan {
   tableRange?: { min: number; max: number; default: number }
 }
 
-/** Días de prueba gratuita antes de requerir pago. */
-export const TRIAL_DAYS = 7
-
 export const PLANS: Plan[] = [
   {
     id:       'emprende',
