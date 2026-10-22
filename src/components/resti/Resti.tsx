@@ -4,20 +4,32 @@
  * Los cambios de datos pasan siempre por el modal de comandos de voz (antes → después + aprobación).
  * Nada corre en reposo: sin intervalos, sin listeners de scroll y sin micrófono mientras está guardado.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import { useRestiVoice } from '../../hooks/useRestiVoice'
 import { RestiSprite, RestiHat, type RestiPose } from './RestiSprite'
 import { isRestiTarget, type RestiBrainResponse } from '../../lib/resti/targets'
 import { parseBrainResponse } from '../../lib/resti/brain'
 import { intencionLocal } from '../../lib/resti/intents'
+import type { RestiEstado3D } from './rig/restiAnim.ts'
+
+// El personaje 3D (three.js) se descarga solo cuando se invoca a Resti; si WebGL falla se usan los sprites.
+const cargar3D = () => import('./RestiCharacter3D')
+const Resti3D = lazy(cargar3D)
 
 type Estado = 'HAT' | 'SUMMONING' | 'IDLE' | 'LISTENING' | 'THINKING' | 'WALKING' | 'POINTING' | 'SPEAKING'
 
-const W = 84
-const H = Math.round(W * 329 / 197)
+const W = 104   // caja del personaje: ancho suficiente para abrir los brazos al saludar y señalar
+const H = 164
+const SPRITE_W = 84
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const NO_ENTENDI: RestiBrainResponse = { speech: 'No te entendí bien. ¿Me lo dices de otra forma?', action: 'NONE' }
+
+/** Estado visual → postura 3D. El saludo solo ocurre al invocarlo. */
+const estado3D = (e: Estado, saludando: boolean): RestiEstado3D => {
+  if (e === 'SPEAKING' && saludando) return 'saludo'
+  return ({ HAT: 'reposo', SUMMONING: 'saludo', IDLE: 'reposo', LISTENING: 'escuchar', THINKING: 'pensar', WALKING: 'caminar', POINTING: 'senalar', SPEAKING: 'explicar' } as const)[e]
+}
 
 const esperar = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 const sinMovimiento = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -53,6 +65,10 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const [mirarDer, setMirarDer] = useState(false)
   const [habla, setHabla] = useState('')
+  const [dir, setDir] = useState(0)                      // -1 izquierda, 1 derecha: hacia dónde gira y señala
+  const [desplazando, setDesplazando] = useState(false)
+  const [saludando, setSaludando] = useState(false)
+  const [sin3D, setSin3D] = useState(false)               // WebGL no disponible: se usan los sprites
   const [texto, setTexto] = useState('')
   const voz = useRestiVoice()
   const ocupado = useRef(false)
@@ -65,17 +81,17 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     clearTimeout(timerHabla.current)
     setHabla(t); setEstado('SPEAKING')
     if (enVoz) voz.speak(t)
-    timerHabla.current = setTimeout(() => { setHabla(''); setEstado('IDLE'); setPose('wave') }, Math.min(7000, 2000 + t.length * 45))
+    timerHabla.current = setTimeout(() => { setHabla(''); setEstado('IDLE'); setPose('wave'); setSaludando(false) }, Math.min(7000, 2000 + t.length * 45))
   }, [voz])
 
   const guardar = useCallback(() => {
     clearTimeout(timerHabla.current)
     voz.stop(); voz.silenciar()
-    setHabla(''); setPos(null); setEstado('HAT')
+    setHabla(''); setPos(null); setEstado('HAT'); setDir(0); setDesplazando(false); setSaludando(false)
   }, [voz])
 
   const invocar = async () => {
-    setPos(casa()); setPose('wave'); setEstado('SUMMONING')
+    setPos(casa()); setPose('wave'); setEstado('SUMMONING'); setSaludando(true)
     await esperar(reducido ? 0 : 400)
     decir('Dime qué necesitas.', false)
   }
@@ -99,11 +115,13 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     const x = clamp(izq >= 8 ? izq : r.right + 8, 8, window.innerWidth - W - 8)
     const y = clamp(r.bottom - H, 8, window.innerHeight - H - 8)
     if (!reducido) {
-      setMirarDer(x > (pos?.x ?? casa().x))
+      const haciaDer = x > (pos?.x ?? casa().x)
+      setMirarDer(haciaDer); setDir(haciaDer ? 1 : -1); setDesplazando(true)
       ir('WALKING', 'walk'); setPos({ x, y })
       await esperar(650)
+      setDesplazando(false)
     }
-    setMirarDer(false)   // el brazo del sprite "click" ya apunta a la derecha
+    setMirarDer(false); setDir(izq >= 8 ? 1 : -1)   // se detiene a la izquierda del elemento → señala a la derecha, y al revés   // el brazo del sprite "click" ya apunta a la derecha
     ir('POINTING', 'click')
     el.style.outline = '3px solid var(--w-terra)'; el.style.outlineOffset = '3px'
     const resaltado = el
@@ -150,7 +168,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     return (
       <>
         <style>{CSS}</style>
-        <button type="button" onClick={invocar} aria-label="Abrir a Resti, tu chef asistente" title="Resti"
+        <button type="button" onClick={invocar} onPointerEnter={() => { void cargar3D() }} onFocus={() => { void cargar3D() }} aria-label="Abrir a Resti, tu chef asistente" title="Resti"
           className="resti-anim"
           style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 90, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer',
             border: '1px solid var(--w-line)', background: 'var(--w-surface)', boxShadow: 'var(--w-shadow-sm)',
@@ -181,7 +199,9 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
             </>
           )}
           <div className="resti-anim" style={{ animation: estado === 'SUMMONING' ? 'resti-emerge 400ms ease-out both' : undefined, transformOrigin: '50% 100%' }}>
-            <RestiSprite pose={pose} width={W} mirarDerecha={mirarDer} />
+            {sin3D
+              ? <div style={{ width: W, height: H, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}><RestiSprite pose={pose} width={SPRITE_W} mirarDerecha={mirarDer} /></div>
+              : <Suspense fallback={null}><Resti3D estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} width={W} height={H} onFallo={() => setSin3D(true)} /></Suspense>}
           </div>
         </div>
       )}

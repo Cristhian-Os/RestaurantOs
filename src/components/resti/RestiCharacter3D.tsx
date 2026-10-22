@@ -5,12 +5,10 @@
  * No gasta nada si la pestaña está oculta; en reposo baja a ~24 cuadros por segundo.
  */
 import { useEffect, useRef } from 'react'
-import {
-  WebGLRenderer, Scene, PerspectiveCamera, DirectionalLight, HemisphereLight, PMREMGenerator, SRGBColorSpace, ACESFilmicToneMapping,
-} from 'three'
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
-import { crearRig } from './rig/restiRig'
-import { crearAnimador, type RestiEstado3D } from './rig/restiAnim'
+import { WebGLRenderer, SRGBColorSpace, ACESFilmicToneMapping } from 'three'
+import { crearEscena } from './rig/escena.ts'
+import { crearRig } from './rig/restiRig.ts'
+import { crearAnimador, type RestiEstado3D } from './rig/restiAnim.ts'
 
 export type { RestiEstado3D }
 export interface RestiMetricas { cargaMs: number; fps: number; calidad: 'alta' | 'baja' }
@@ -52,16 +50,7 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
     renderer.toneMapping = ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
 
-    const scene = new Scene()
-    const pmrem = new PMREMGenerator(renderer)
-    const sala = new RoomEnvironment()
-    scene.environment = pmrem.fromScene(sala, 0.04).texture
-    scene.add(new HemisphereLight(0xffffff, 0x9a948c, 0.55))
-    const sol = new DirectionalLight(0xfff4e6, 1.5); sol.position.set(1.4, 2.6, 2.4); scene.add(sol)
-    const contra = new DirectionalLight(0xffb066, 0.9); contra.position.set(-2, 1.5, -2); scene.add(contra)   // luz cálida de contorno
-
-    const camara = new PerspectiveCamera(24, width / height, 0.1, 30)
-    camara.position.set(0, 1.6, 7.4); camara.lookAt(0, 1.25, 0)
+    const { scene, camara, dispose: liberarEscena } = crearEscena(renderer, width, height)
 
     const rig = crearRig(); scene.add(rig.raiz)
     const animador = crearAnimador(rig)
@@ -90,7 +79,7 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
     return () => {
       vivo = false; cancelAnimationFrame(raf)
       canvas.removeEventListener('webglcontextlost', alPerderContexto)
-      rig.dispose(); sala.dispose(); pmrem.dispose(); renderer.dispose()
+      rig.dispose(); liberarEscena(); renderer.dispose()
     }
   }, [width, height])
 
