@@ -12,14 +12,17 @@ interface Callbacks { onFrase(f: Frase): void; onInicioHabla(): void }
 export type Captura = CapturaConv & { nivel?: () => number }
 
 const PREROLL_MS = 320   // lo que se conserva antes de detectar la voz, para no cortar la primera sílaba
-const SENSIBILIDAD = { normal: { umbralMin: 0.012, factorRuido: 3, inicioMs: 100 }, baja: { umbralMin: 0.03, factorRuido: 5, inicioMs: 320 } }
+const SENSIBILIDAD = { normal: { umbralMin: 0.012, factorRuido: 3, inicioMs: 100, finMs: 800 }, baja: { umbralMin: 0.03, factorRuido: 5, inicioMs: 320 } }
 
 export async function iniciarCapturaVad(cb: Callbacks): Promise<Captura> {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error('microfono')
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
   const Ctx = window.AudioContext || (window as any).webkitAudioContext
-  const ctx: AudioContext = new Ctx()
-  const origen = ctx.createMediaStreamSource(stream)
+  // A 16 kHz directamente: el navegador remuestrea con filtro de calidad (mejor que promediar bloques a mano). Si no lo permite, se usa la frecuencia del equipo.
+  let ctx: AudioContext
+  try { ctx = new Ctx({ sampleRate: 16000 }) } catch { ctx = new Ctx() }
+  let origen: MediaStreamAudioSourceNode
+  try { origen = ctx.createMediaStreamSource(stream) } catch { void ctx.close(); ctx = new Ctx(); origen = ctx.createMediaStreamSource(stream) }   // Firefox no mezcla frecuencias distintas
   const mudo = ctx.createGain(); mudo.gain.value = 0; mudo.connect(ctx.destination)   // el nodo debe estar conectado para que el navegador lo procese
 
   const vad = crearVad({ bloqueMs: (1024 / ctx.sampleRate) * 1000, ...SENSIBILIDAD.normal })

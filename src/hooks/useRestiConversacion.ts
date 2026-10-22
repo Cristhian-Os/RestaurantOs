@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { crearConversacion, type EstadoConv } from '../lib/resti/voz/conversacion'
 import { iniciarCapturaVad, iniciarCapturaNavegador } from '../lib/resti/voz/captura'
 import { crearReproductor, hablarConNavegador, callarNavegador } from '../lib/resti/voz/reproductor'
-import { partirFrases } from '../lib/resti/voz/frases'
-import { vozDelServidorDisponible, transcribirAudio, sintetizarVoz } from '../lib/resti/voz/servicio'
+import { vozDelServidorDisponible, transcribirAudio, abrirVozEnFlujo } from '../lib/resti/voz/servicio'
 
 export type ModoVoz = 'servidor' | 'navegador'
 const ERRORES: Record<string, string> = {
@@ -49,16 +48,10 @@ export function useRestiConversacion(opts: { responder: (texto: string) => Promi
         const mi = ++tokenVoz.current
         if (modoRef.current === 'servidor') {
           try {
-            // La voz tarda varios segundos en generar el audio completo: se piden las frases a la vez y se reproducen en orden,
-            // así la primera se oye sin esperar a las demás.
-            const audios = partirFrases(texto).map(f => { const p = sintetizarVoz(f); p.catch(() => {}); return p })
-            for (const p of audios) {
-              const a = await p
-              if (mi !== tokenVoz.current) return   // la persona interrumpió mientras se generaba el audio
-              await reproductor.current!.reproducir(a.pcm, a.rate)
-              if (mi !== tokenVoz.current) return
-            }
-            return
+            // Streaming: Resti empieza a hablar ~1 s después, sin esperar a que se genere todo el audio.
+            const flujo = await abrirVozEnFlujo(texto)
+            if (mi !== tokenVoz.current) { flujo.cancelar(); return }   // la persona interrumpió mientras se abría
+            await reproductor.current!.reproducirFlujo(flujo); return
           } catch { if (mi !== tokenVoz.current) return /* sin voz del servidor: se usa la del navegador */ }
         }
         await hablarConNavegador(texto)
@@ -81,8 +74,21 @@ export function useRestiConversacion(opts: { responder: (texto: string) => Promi
     await c.iniciar()
   }, [asegurar])
 
+  /** Dice una frase suelta (p. ej. el saludo al invocarla), sin encender el micrófono. Debe llamarse dentro de un clic. */
+  const hablarSuelto = useCallback(async (texto: string) => {
+    const mi = ++tokenVoz.current
+    reproductor.current ??= crearReproductor(); reproductor.current.preparar()
+    try {
+      const flujo = await abrirVozEnFlujo(texto)
+      if (mi !== tokenVoz.current) { flujo.cancelar(); return }
+      await reproductor.current.reproducirFlujo(flujo); return
+    } catch { if (mi !== tokenVoz.current) return /* sin voz del servidor: la del navegador */ }
+    await hablarConNavegador(texto)
+  }, [])
+  const callar = useCallback(() => { tokenVoz.current++; reproductor.current?.detener(); callarNavegador() }, [])
+
   useEffect(() => () => { conv.current?.detener(); reproductor.current?.cerrar() }, [])
   const soportado = typeof navigator !== 'undefined' && (!!navigator.mediaDevices?.getUserMedia || !!(window as any).SpeechRecognition || !!(window as any).webkitSpeechRecognition)
 
-  return { estado, activa: estado !== 'apagado', usuarioHablando, modo, error, limpiarError: () => setError(null), alternar, detener: () => conv.current?.detener(), soportado }
+  return { estado, activa: estado !== 'apagado', usuarioHablando, modo, error, limpiarError: () => setError(null), alternar, detener: () => conv.current?.detener(), hablarSuelto, callar, soportado }
 }
