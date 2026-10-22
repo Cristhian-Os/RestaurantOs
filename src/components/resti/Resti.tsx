@@ -7,7 +7,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import { useRestiVoice } from '../../hooks/useRestiVoice'
-import { RestiSprite, RestiHat, type RestiPose } from './RestiSprite'
+import { RestiSprite, RestiHat } from './RestiSprite'
 import { isRestiTarget, type RestiBrainResponse } from '../../lib/resti/targets'
 import { parseBrainResponse } from '../../lib/resti/brain'
 import { intencionLocal } from '../../lib/resti/intents'
@@ -19,9 +19,8 @@ const Resti3D = lazy(cargar3D)
 
 type Estado = 'HAT' | 'SUMMONING' | 'IDLE' | 'LISTENING' | 'THINKING' | 'WALKING' | 'POINTING' | 'SPEAKING'
 
-const W = 104   // caja del personaje: ancho suficiente para abrir los brazos al saludar y señalar
-const H = 164
-const SPRITE_W = 84
+const W = 84   // caja del personaje (compacta: no tapa el panel); el 3D y los sprites comparten la misma proporción
+const H = 132
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const NO_ENTENDI: RestiBrainResponse = { speech: 'No te entendí bien. ¿Me lo dices de otra forma?', action: 'NONE' }
 
@@ -63,9 +62,7 @@ interface Props { onOpenVoiceCommands: () => void; onGoHome: () => void }
 
 export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   const [estado, setEstado] = useState<Estado>('HAT')
-  const [pose, setPose] = useState<RestiPose>('wave')
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
-  const [mirarDer, setMirarDer] = useState(false)
   const [habla, setHabla] = useState('')
   const [dir, setDir] = useState(0)                      // -1 izquierda, 1 derecha: hacia dónde gira y señala
   const [desplazando, setDesplazando] = useState(false)
@@ -77,13 +74,13 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   const timerHabla = useRef<ReturnType<typeof setTimeout>>()
   const reducido = sinMovimiento()
 
-  const ir = (e: Estado, p?: RestiPose) => { setEstado(e); if (p) setPose(p) }
+  const ir = (e: Estado) => setEstado(e)
 
   const decir = useCallback((t: string, enVoz: boolean) => {
     clearTimeout(timerHabla.current)
     setHabla(t); setEstado('SPEAKING')
     if (enVoz) voz.speak(t)
-    timerHabla.current = setTimeout(() => { setHabla(''); setEstado('IDLE'); setPose('wave'); setSaludando(false) }, Math.min(7000, 2000 + t.length * 45))
+    timerHabla.current = setTimeout(() => { setHabla(''); setEstado('IDLE'); setSaludando(false) }, Math.min(7000, 2000 + t.length * 45))
   }, [voz])
 
   const guardar = useCallback(() => {
@@ -93,7 +90,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   }, [voz])
 
   const invocar = async () => {
-    setPos(casa()); setPose('wave'); setEstado('SUMMONING'); setSaludando(true)
+    setPos(casa()); setEstado('SUMMONING'); setSaludando(true)
     await esperar(reducido ? 0 : 400)
     decir('Dime qué necesitas.', false)
   }
@@ -118,13 +115,13 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     const y = clamp(r.bottom - H, 8, window.innerHeight - H - 8)
     if (!reducido) {
       const haciaDer = x > (pos?.x ?? casa().x)
-      setMirarDer(haciaDer); setDir(haciaDer ? 1 : -1); setDesplazando(true)
-      ir('WALKING', 'walk'); setPos({ x, y })
+      setDir(haciaDer ? 1 : -1); setDesplazando(true)
+      ir('WALKING'); setPos({ x, y })
       await esperar(650)
       setDesplazando(false)
     }
-    setMirarDer(false); setDir(izq >= 8 ? 1 : -1)   // se detiene a la izquierda del elemento → señala a la derecha, y al revés   // el brazo del sprite "click" ya apunta a la derecha
-    ir('POINTING', 'click')
+    setDir(izq >= 8 ? 1 : -1)   // se detiene a la izquierda del elemento → señala a la derecha, y al revés
+    ir('POINTING')
     el.style.outline = '3px solid var(--w-terra)'; el.style.outlineOffset = '3px'
     const resaltado = el
     setTimeout(() => { resaltado.style.outline = ''; resaltado.style.outlineOffset = '' }, 1800)
@@ -147,7 +144,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     ocupado.current = true
     try {
       let r = intencionLocal(frase)
-      if (!r) { ir('THINKING', 'think'); r = await preguntarIA(frase) }
+      if (!r) { ir('THINKING'); r = await preguntarIA(frase) }
       await ejecutar(r, enVoz)
     } finally { ocupado.current = false }
   }, [ejecutar])
@@ -162,7 +159,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
 
   const escuchar = () => {
     if (voz.listening) { voz.stop(); return }
-    ir('LISTENING', 'think'); setHabla('Te escucho…')
+    ir('LISTENING'); setHabla('Te escucho…')
     voz.listen(t => { void atender(t, true) })
   }
 
@@ -202,7 +199,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
           )}
           <div className="resti-anim" style={{ animation: estado === 'SUMMONING' ? 'resti-emerge 400ms ease-out both' : undefined, transformOrigin: '50% 100%' }}>
             {sin3D
-              ? <div style={{ width: W, height: H, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}><RestiSprite pose={pose} width={SPRITE_W} mirarDerecha={mirarDer} /></div>
+              ? <div style={{ width: W, height: H, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}><RestiSprite estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} /></div>
               : <Suspense fallback={null}><Resti3D estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} height={H} onFallo={() => setSin3D(true)} /></Suspense>}
           </div>
         </div>

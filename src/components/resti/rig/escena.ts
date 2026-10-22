@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 
 /** Encuadra a un personaje de `altura` (unidades del mundo) con un margen, de cuerpo entero. */
 export function encuadrar(camara: PerspectiveCamera, altura: number) {
-  const dist = (altura * 1.25) / 2 / Math.tan((camara.fov * Math.PI) / 360)
+  const dist = (altura * 1.12) / 2 / Math.tan((camara.fov * Math.PI) / 360)
   camara.position.set(0, altura * 0.5 + 0.35, dist); camara.lookAt(0, altura * 0.5, 0)
 }
 

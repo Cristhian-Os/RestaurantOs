@@ -1,88 +1,64 @@
 /**
- * Resti: chef 2.5D sin rostro. Usa los sprites webp (public/assets/resti, lienzo 197×329, origen en los pies);
- * si alguno no carga, cae al SVG de respaldo para no dejar nunca una imagen rota.
+ * Resti sin 3D: capturas del MISMO modelo (public/assets/resti/sprites, ver spritesRuta.ts), nunca un dibujo distinto ni la imagen espejada
+ * (un espejo cambiaría de lado el emblema): hay una captura para cada dirección. Sirve cuando el equipo no puede mostrar el 3D
+ * y en pantallas sin personaje animado (guía del asistente de configuración).
+ * Si una imagen no carga, no se muestra nada: es preferible a mostrar un personaje con otro aspecto.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { rutaSprite, type LuzSprite } from './spritesRuta.ts'
+import type { RestiEstado3D } from './rig/restiAnim.ts'
 
+/** Nombres antiguos de las cuatro poses (los usan pantallas que no son del panel). */
 export type RestiPose = 'wave' | 'walk' | 'click' | 'think'
+const DE_POSE: Record<RestiPose, RestiEstado3D> = { wave: 'saludo', walk: 'caminar', click: 'senalar', think: 'pensar' }
 
-const SPRITE: Record<RestiPose, string> = {
-  wave: '/assets/resti/resti-pose-1-wave.webp',
-  walk: '/assets/resti/resti-pose-2-walk.webp',   // mira a la izquierda: scaleX(-1) para ir a la derecha
-  click: '/assets/resti/resti-pose-3-click.webp', // el brazo apunta a la derecha de la imagen
-  think: '/assets/resti/resti-pose-4-think.webp',
+interface Props {
+  estado?: RestiEstado3D
+  pose?: RestiPose
+  /** -1 izquierda, 1 derecha (solo cambia la imagen al caminar y señalar). */
+  direccion?: number
+  desplazando?: boolean
+  luz?: LuzSprite
+  width?: number
 }
-const HAT = '/assets/resti/resti-hat.webp'
 
-export function RestiSprite({ pose = 'wave', width = 84, mirarDerecha = false }: { pose?: RestiPose; width?: number; mirarDerecha?: boolean }) {
-  const [fallo, setFallo] = useState<Set<string>>(new Set())
-  if (fallo.has(pose)) return <RestiSpriteSvg pose={pose} width={width} mirarDerecha={mirarDerecha} />
+const CSS = '@keyframes resti-aparece{from{opacity:0}to{opacity:1}}@media (prefers-reduced-motion: reduce){.resti-fundido{animation:none!important}}'
+
+export function RestiSprite({ estado, pose = 'wave', direccion = 1, desplazando = false, luz = 'disponible', width = 84 }: Props) {
+  const e = estado ?? DE_POSE[pose]
+  const [cuadro, setCuadro] = useState(0)
+  const caminando = e === 'caminar' || desplazando
+  useEffect(() => {
+    if (!caminando || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const id = setInterval(() => setCuadro(c => c + 1), 230)   // alterna los dos cuadros de la zancada
+    return () => clearInterval(id)
+  }, [caminando])
+
+  const src = rutaSprite(e, direccion, luz, cuadro)
+  // Fundido corto al cambiar de estado (no al alternar los cuadros de la caminata): la imagen anterior queda debajo hasta que entra la nueva.
+  const previo = useRef({ src, estado: e }), [debajo, setDebajo] = useState<string | null>(null)
+  useEffect(() => {
+    if (previo.current.src === src) return
+    if (previo.current.estado !== e) { setDebajo(previo.current.src); const t = setTimeout(() => setDebajo(null), 200); previo.current = { src, estado: e }; return () => clearTimeout(t) }
+    previo.current = { src, estado: e }
+  }, [src, e])
+
+  const alto = Math.round(width * 328 / 208)
+  const img = (s: string, extra?: object) => <img src={s} alt="" width={width} height={alto} draggable={false} style={{ display: 'block', position: 'absolute', left: 0, top: 0, ...extra }} />
   return (
-    <img src={SPRITE[pose]} alt="Resti, tu chef asistente" width={width} height={Math.round(width * 329 / 197)} draggable={false}
-      onError={() => setFallo(s => new Set(s).add(pose))}
-      style={{ display: 'block', transformOrigin: '50% 100%', transform: mirarDerecha ? 'scaleX(-1)' : undefined }} />
+    <div role="img" aria-label="Resti, tu chef asistente" style={{ position: 'relative', width, height: alto }}>
+      <style>{CSS}</style>
+      {debajo && img(debajo)}
+      <img key={src} className={debajo ? 'resti-fundido' : undefined} src={src} alt="" width={width} height={alto} draggable={false}
+        style={{ display: 'block', position: 'absolute', left: 0, top: 0, animation: debajo ? 'resti-aparece 180ms ease-out both' : undefined }} />
+    </div>
   )
 }
 
-/** Solo el gorro: así vive Resti cuando está guardado. */
+/** Solo el gorro: así vive Resti cuando está guardado (el botón). */
+const HAT = '/assets/resti/resti-hat.webp'
 export function RestiHat({ size = 58 }: { size?: number }) {
   const [roto, setRoto] = useState(false)
-  if (roto) return <RestiHatSvg size={size} />
+  if (roto) return null
   return <img src={HAT} alt="" aria-hidden="true" width={size * 0.8} draggable={false} onError={() => setRoto(true)} style={{ display: 'block', height: 'auto' }} />
-}
-
-const BLANCO = '#FFFFFF', SOMBRA = '#E6DAC8', PIEL = '#F4E3CC', NARANJA = '#F26A1B', OSCURO = '#3A3A42'
-
-/** Brazo: cuelga del hombro (x,y) y gira `deg` grados (0 = hacia abajo, -90 = hacia la derecha de la imagen). */
-const Brazo = ({ x, y, deg }: { x: number; y: number; deg: number }) => (
-  <g transform={`rotate(${deg} ${x} ${y})`}>
-    <rect x={x - 11} y={y - 6} width={22} height={74} rx={11} fill={BLANCO} stroke={SOMBRA} strokeWidth={2} />
-    <circle cx={x} cy={y + 72} r={11} fill={PIEL} />
-  </g>
-)
-
-function RestiSpriteSvg({ pose = 'wave', width = 84, mirarDerecha = false }: { pose?: RestiPose; width?: number; mirarDerecha?: boolean }) {
-  const der = pose === 'wave' ? -160 : pose === 'click' ? -90 : pose === 'think' ? -148 : 14
-  const izq = pose === 'walk' ? -14 : -4
-  const paso = pose === 'walk' ? 8 : 0
-  return (
-    <svg viewBox="0 0 197 329" width={width} height={Math.round(width * 329 / 197)} role="img" aria-label="Resti, tu chef asistente"
-      style={{ display: 'block', transformOrigin: '50% 100%', transform: mirarDerecha ? 'scaleX(-1)' : undefined }}>
-      <ellipse cx={98} cy={322} rx={46} ry={6} fill="#000" opacity={0.12} />
-      {/* piernas y zapatos */}
-      <rect x={72 - paso} y={272} width={24} height={44} rx={10} fill={OSCURO} />
-      <rect x={102 + paso} y={272} width={24} height={44} rx={10} fill={OSCURO} />
-      <ellipse cx={80 - paso} cy={317} rx={17} ry={8} fill={NARANJA} />
-      <ellipse cx={118 + paso} cy={317} rx={17} ry={8} fill={NARANJA} />
-      {/* brazos detrás del cuerpo */}
-      <Brazo x={56} y={162} deg={izq} />
-      <Brazo x={142} y={162} deg={der} />
-      {/* chaqueta y delantal */}
-      <rect x={54} y={146} width={90} height={136} rx={24} fill={BLANCO} stroke={SOMBRA} strokeWidth={2} />
-      <path d="M70 232h58v40a10 10 0 0 1-10 10H80a10 10 0 0 1-10-10z" fill={NARANJA} />
-      {[176, 200].map(cy => <g key={cy}><circle cx={86} cy={cy} r={4} fill={NARANJA} /><circle cx={112} cy={cy} r={4} fill={NARANJA} /></g>)}
-      {/* cabeza sin rostro */}
-      <ellipse cx={99} cy={112} rx={35} ry={38} fill={PIEL} />
-      <path d="M72 100q27 -26 54 0" fill="none" stroke={SOMBRA} strokeWidth={2} opacity={0.6} />
-      {/* gorro */}
-      <circle cx={68} cy={52} r={26} fill={BLANCO} stroke={SOMBRA} strokeWidth={2} />
-      <circle cx={130} cy={52} r={26} fill={BLANCO} stroke={SOMBRA} strokeWidth={2} />
-      <circle cx={99} cy={38} r={32} fill={BLANCO} stroke={SOMBRA} strokeWidth={2} />
-      <rect x={66} y={62} width={66} height={38} rx={10} fill={BLANCO} stroke={SOMBRA} strokeWidth={2} />
-      <rect x={66} y={86} width={66} height={8} fill={NARANJA} />
-      {pose === 'think' && <g fill={NARANJA}><circle cx={150} cy={34} r={4} /><circle cx={162} cy={22} r={5} /><circle cx={178} cy={10} r={6} /></g>}
-    </svg>
-  )
-}
-
-function RestiHatSvg({ size = 58 }: { size?: number }) {
-  return (
-    <svg viewBox="30 4 140 100" width={size * 0.8} height={size * 0.8 * 100 / 140} aria-hidden="true" style={{ display: 'block' }}>
-      <circle cx={68} cy={52} r={26} fill={BLANCO} stroke={SOMBRA} strokeWidth={3} />
-      <circle cx={130} cy={52} r={26} fill={BLANCO} stroke={SOMBRA} strokeWidth={3} />
-      <circle cx={99} cy={38} r={32} fill={BLANCO} stroke={SOMBRA} strokeWidth={3} />
-      <rect x={66} y={62} width={66} height={38} rx={10} fill={BLANCO} stroke={SOMBRA} strokeWidth={3} />
-      <rect x={66} y={86} width={66} height={8} fill={NARANJA} />
-    </svg>
-  )
 }
