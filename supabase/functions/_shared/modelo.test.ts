@@ -34,6 +34,29 @@ const falso = (cuerpo: unknown, ok = true, status = 200): Fetch => async (url, i
   assert.ok(!url.includes('AIza-prueba')); assert.equal(init.headers['x-goog-api-key'], 'AIza-prueba')
   assert.deepEqual(c.contents.map((x: any) => x.role), ['user', 'model', 'user'])
 }
+// Herramientas (guardar_opinion, guardar_lead…): compatible y Gemini
+{
+  const herr = [{ name: 'guardar_opinion', description: 'Guarda la opinión', parameters: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: ['fallo', 'mejora'] }, detalle: { type: 'STRING' } }, required: ['tipo', 'detalle'] } }]
+  const f = falso({ choices: [{ message: { content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'guardar_opinion', arguments: '{"tipo":"fallo","detalle":"no carga"}' } }] } }], usage: { prompt_tokens: 5, completion_tokens: 3 } })
+  const r = await callModel({ proveedor: 'compatible', modelo: 'm', clave: 'k', urlBase: 'https://x.com' }, { sistema: 's', usuario: 'se cae la caja', herramientas: herr }, f)
+  const cuerpo = JSON.parse(capturas.at(-1)!.init.body)
+  assert.deepEqual(r.llamadas, [{ nombre: 'guardar_opinion', args: { tipo: 'fallo', detalle: 'no carga' } }]); assert.equal(r.texto, '')
+  assert.equal(cuerpo.tools[0].function.parameters.type, 'object', 'tipos en minúscula para el proveedor compatible')
+  assert.equal(cuerpo.tools[0].function.parameters.properties.tipo.type, 'string')
+  assert.deepEqual(cuerpo.tools[0].function.parameters.properties.tipo.enum, ['fallo', 'mejora'])
+  assert.equal(cuerpo.response_format, undefined, 'con herramientas no se fuerza JSON'); assert.equal(cuerpo.tool_choice, 'auto')
+  // argumentos que no son JSON: llamada con args vacíos (el validador de cada función la rechaza)
+  const mala = await callModel({ proveedor: 'compatible', modelo: 'm', clave: 'k', urlBase: 'https://x.com' }, { sistema: 's', usuario: 'u', herramientas: herr },
+    falso({ choices: [{ message: { tool_calls: [{ function: { name: 'guardar_opinion', arguments: '{roto' } }] } }] }))
+  assert.deepEqual(mala.llamadas, [{ nombre: 'guardar_opinion', args: {} }])
+  // Gemini: declaraciones tal cual y llamadas leídas de functionCall
+  const g = await callModel({ proveedor: 'gemini', modelo: 'g', clave: 'k' }, { sistema: 's', usuario: 'u', herramientas: herr },
+    falso({ candidates: [{ content: { parts: [{ functionCall: { name: 'guardar_opinion', args: { tipo: 'mejora', detalle: 'x' } } }] } }] }))
+  const cg = JSON.parse(capturas.at(-1)!.init.body)
+  assert.equal(cg.tools[0].functionDeclarations[0].parameters.type, 'OBJECT'); assert.equal(cg.generationConfig.responseMimeType, undefined)
+  assert.deepEqual(g.llamadas, [{ nombre: 'guardar_opinion', args: { tipo: 'mejora', detalle: 'x' } }])
+  assert.deepEqual((await callModel({ proveedor: 'compatible', modelo: 'm', clave: 'k', urlBase: 'https://x.com' }, { sistema: 's', usuario: 'u' }, falso({ choices: [{ message: { content: 'hola' } }] }))).llamadas, [])
+}
 // Errores: sin clave, respuesta no ok (el mensaje no filtra la clave ni el cuerpo), tiempo límite
 assert.throws(() => callModel({ proveedor: 'compatible', modelo: 'm', clave: '', urlBase: 'https://x.com' }, { sistema: 's', usuario: 'u' }, falso({})), /clave/)   // error síncrono: contrato que ya usa ai-report
 await assert.rejects(() => callModel({ proveedor: 'compatible', modelo: 'm', clave: 'sk-secreta', urlBase: 'https://x.com' }, { sistema: 's', usuario: 'u' }, falso({ error: 'sk-secreta' }, false, 429)),

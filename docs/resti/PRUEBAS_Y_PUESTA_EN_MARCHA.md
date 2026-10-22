@@ -15,6 +15,20 @@ Estado al 2026-10-22. Rama `claude/new-session-0vekub`. **Nada de esto está en 
 
 Producción (`RestaurantOs`) **no se tocó**.
 
+## Funciones de texto migradas al adaptador (en el repo; **no desplegadas** en ningún proyecto)
+
+`resti-brain`, `chat-support` (soporte, ventas y opiniones, con llamadas a herramientas), `menu-asistente` y `feedback-resumen` leen el proveedor de `platform_secrets`; `ai-report` ya lo hacía. **Mientras `ai_proveedor` no sea `compatible`, siguen usando Gemini como siempre**, así que desplegarlas no cambia el comportamiento hasta que se configure DeepSeek. `voice-parse` (comandos de voz) se queda en Gemini a propósito.
+Probado solo con respuestas simuladas (adaptador, incluidas las llamadas a herramientas en ambos formatos); falta probarlo contra DeepSeek con saldo.
+
+## Entorno web de prueba (pendiente: lo crea el dueño)
+
+La conexión de Vercel de esta sesión no tiene permiso para crear proyectos (403) ni para leer variables. Pasos manuales (3 minutos):
+1. Vercel → Add New → Project → importar `Cristhian-Os/RestaurantOs`; nombre `restaurantos-prueba`; framework Vite.
+2. Variables de entorno (todos los entornos): `VITE_SUPABASE_URL=https://qdhafwnwrvsqunnnecky.supabase.co` y `VITE_SUPABASE_ANON_KEY` = la clave *anon* del proyecto de **prueba** (Supabase → Project Settings → API).
+3. Settings → Git → Production Branch = `claude/new-session-0vekub` (o abrir la URL de vista previa de la rama).
+4. Entrar con `admin-a@prueba.test` (restablecer la clave en Supabase → Authentication → Users del proyecto de prueba).
+Ojo: el proyecto `restaurantos` ya crea una vista previa por cada push de la rama; **no se sabe contra qué base apuntan**, no las uses con cuentas reales.
+
 ## Qué se probó de verdad
 
 - **DeepSeek, desde el servidor**: la clave es válida (la lista de modelos respondió 200; modelos de la cuenta: `deepseek-flash`, `deepseek-v4-pro`). **Todas las llamadas de chat devuelven `402 Insufficient Balance`: la cuenta no tiene saldo.** El alias antiguo `deepseek-chat` ya no es el modelo recomendado.
