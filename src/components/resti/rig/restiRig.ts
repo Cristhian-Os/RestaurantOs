@@ -4,9 +4,10 @@
  * Convención: el personaje mira a +z, su derecha es -x, los pies están en y = 0.
  */
 import {
-  Group, Mesh, Object3D, Sprite, SpriteMaterial, CanvasTexture, AdditiveBlending, DoubleSide, MeshStandardMaterial, MeshPhysicalMaterial,
+  Group, Mesh, Object3D, Sprite, SpriteMaterial, CanvasTexture, NormalBlending, DoubleSide, MeshStandardMaterial, MeshPhysicalMaterial,
   CapsuleGeometry, SphereGeometry, CylinderGeometry, BoxGeometry, TorusGeometry, ExtrudeGeometry, Shape, Path, type BufferGeometry, type Material,
 } from 'three'
+import { crearCubiertos } from './cubiertos.ts'
 
 export const NARANJA = 0xff8a1a
 const BLANCO = 0xf1f1f3, SOMBRA = 0xd3d4da, GRIS = 0xb4b7be, OSCURO = 0x34353b, DORADO = 0xe9b866
@@ -28,15 +29,15 @@ export interface Rig {
   dispose: () => void
 }
 
-/** Halo suave aditivo (el resplandor naranja del emblema y del cuello de la referencia). */
-function halo(tinte: number, tam: number, recursos: { dispose: () => void }[]): Sprite | null {
+/** Halo suave (el resplandor naranja del emblema y del cuello de la referencia). Mezcla normal: sumar luz sobre una chaqueta blanca la quemaba a amarillo. */
+export function halo(tinte: number, tam: number, recursos: { dispose: () => void }[]): Sprite | null {
   if (typeof document === 'undefined') return null
   const c = document.createElement('canvas'); c.width = c.height = 64
   const g = c.getContext('2d'); if (!g) return null
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
-  grad.addColorStop(0, '#ffffff77'); grad.addColorStop(0.45, '#ffffff33'); grad.addColorStop(1, '#ffffff00')
+  grad.addColorStop(0, '#ffffffa0'); grad.addColorStop(0.5, '#ffffff30'); grad.addColorStop(1, '#ffffff00')
   g.fillStyle = grad; g.fillRect(0, 0, 64, 64)
-  const tex = new CanvasTexture(c), m = new SpriteMaterial({ map: tex, color: tinte, blending: AdditiveBlending, depthWrite: false, transparent: true })
+  const tex = new CanvasTexture(c), m = new SpriteMaterial({ map: tex, color: tinte, blending: NormalBlending, depthWrite: false, transparent: true })
   recursos.push(tex, m)
   const s = new Sprite(m); s.scale.set(tam, tam, 1); return s
 }
@@ -57,7 +58,7 @@ export function crearRig(): Rig {
   const brilloLuz = mat(new MeshStandardMaterial({ color: NARANJA, emissive: NARANJA, emissiveIntensity: 1.1, roughness: 0.4 }))
   const luzCuelloMat = mat(new MeshStandardMaterial({ color: NARANJA, emissive: NARANJA, emissiveIntensity: 1.1, roughness: 0.4 }))
   const iconoPower = mat(new MeshStandardMaterial({ color: 0xffe9c4, emissive: 0xffd9a0, emissiveIntensity: 0.7, roughness: 0.4 }))
-  const acero = mat(new MeshStandardMaterial({ color: 0xd9dbe0, roughness: 0.28, metalness: 0.7 }))
+  const acero = mat(new MeshStandardMaterial({ color: 0xd9dbe0, roughness: 0.28, metalness: 0.7 }))   // correas de las botas
 
   const j = {} as Record<Junta, Object3D>
   const junta = (nombre: Junta, padre: Object3D, x = 0, y = 0, z = 0) => {
@@ -92,14 +93,7 @@ export function crearRig(): Rig {
   malla(new BoxGeometry(0.005, 0.52, 0.005), sombra, columna, 0.045, 0.3, 0.191).rotation.z = 0.2                  // cierre cruzado
 
   // Cubiertos cruzados a la espalda (referencia: vista de espalda)
-  const espalda = new Group(); espalda.position.set(0, 0.3, -0.215); columna.add(espalda)
-  const tenedor = new Group(); tenedor.rotation.z = 0.62; espalda.add(tenedor)
-  malla(new CapsuleGeometry(0.015, 0.34, 4, 10), acero, tenedor, 0, -0.13, 0)
-  malla(new BoxGeometry(0.075, 0.07, 0.012), acero, tenedor, 0, 0.1, 0)
-  for (const x of [-0.028, -0.009, 0.009, 0.028]) malla(new BoxGeometry(0.01, 0.1, 0.012), acero, tenedor, x, 0.18, 0)
-  const cuchillo = new Group(); cuchillo.rotation.z = -0.62; espalda.add(cuchillo)
-  malla(new CapsuleGeometry(0.017, 0.2, 4, 10), acero, cuchillo, 0, -0.17, 0)
-  malla(new BoxGeometry(0.055, 0.27, 0.01), acero, cuchillo, 0.004, 0.09, 0)
+  const cubiertos = crearCubiertos(); recursos.push({ dispose: cubiertos.dispose }); cubiertos.grupo.position.set(0, 0.3, -0.215); columna.add(cubiertos.grupo)
 
   // Emblema: engranaje con icono de encendido, en el lado derecho del pecho del personaje (izquierda de la imagen)
   const emblema = new Group(); emblema.position.set(-0.105, 0.37, 0.188); columna.add(emblema)

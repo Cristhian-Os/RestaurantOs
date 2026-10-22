@@ -25,13 +25,13 @@ export const POSTURAS: Record<RestiEstado3D, Postura> = {
   caminar: { ...AMBOS_RELAJADOS, columna: [R(4), 0, 0] },
   saludo: { ...brazo('D', [-84, 14, -65], -66, [-29, -24]), ...RELAJADO_I, cabeza: [R(-3), R(-6), R(4)], columna: [0, 0, R(2)] },
   senalar: { ...brazo('I', [-83, -5, -2], -36, [-18, -5]), ...RELAJADO_D, cabeza: [R(-4), 0, 0], columna: [R(-2), 0, 0] },
-  pensar: { ...brazo('D', [-46, 41, 8], -88, [-43, 19]), ...brazo('I', [-40, -53, -15], -67, [-17, -22]), cabeza: [R(8), R(-10), R(-8)], columna: [R(3), 0, 0] },
-  escuchar: { ...brazo('D', [-90, 23, -30], -99, [-34, -7]), ...RELAJADO_I, cabeza: [R(2), R(-4), R(11)], columna: [0, 0, R(-2)] },
+  pensar: { ...brazo('D', [-64, 30, 15], -85, [-30, 20]), ...RELAJADO_I, cabeza: [R(8), R(-10), R(-8)], columna: [R(3), 0, 0] },
+  escuchar: { ...brazo('D', [-85, 21, -44], -101, [-39, -12]), ...RELAJADO_I, cabeza: [R(2), R(-4), R(11)], columna: [0, 0, R(-2)] },
   explicar: { ...brazo('D', [-38, 1, 3], -54, [-25, 1]), ...brazo('I', [-38, 0, -4], -52, [-27, -2]), cabeza: [R(-2), R(-5), 0], columna: [R(-2), 0, 0] },
-  ejecutar: { ...brazo('D', [-31, 13, 15], -55, [-35, 16]), ...brazo('I', [-19, -8, -11], -64, [-34, -3]), cabeza: [R(14), 0, 0], columna: [R(5), 0, 0] },
-  listo: { ...brazo('D', [-4, 27, 14], -85, [-51, 12]), ...RELAJADO_I, cabeza: [R(-8), 0, 0], columna: [R(-4), 0, 0] },
+  ejecutar: { ...brazo('D', [-27, 13, 0], -60, [-32, 7]), ...brazo('I', [-27, -11, 0], -60, [-31, -8]), cabeza: [R(14), 0, 0], columna: [R(5), 0, 0] },
+  listo: { ...brazo('D', [-21, 27, 3], -85, [-60, 12]), ...RELAJADO_I, cabeza: [R(-8), 0, 0], columna: [R(-4), 0, 0] },
   alerta: { ...brazo('D', [-87, 27, -58], -58, [-24, -19]), ...brazo('I', [-85, -27, 59], -58, [-26, 21]), cabeza: [R(-6), 0, 0], columna: [R(-3), 0, 0] },
-  seguro: { ...brazo('D', [29, 10, -19], -52, [-53, 30]), ...brazo('I', [34, -14, 18], -58, [-44, -11]), cabeza: [R(-4), 0, 0], columna: [R(-2), 0, 0] },
+  seguro: { ...brazo('D', [38, 11, -19], -59, [-51, 10]), ...brazo('I', [37, -12, 18], -57, [-53, -10]), cabeza: [R(-4), 0, 0], columna: [R(-2), 0, 0] },
 }
 
 /** Curvatura de los dedos (0 abiertos, 1 cerrados) por estado y mano: [meñique, anular, medio, índice, pulgar]. */
@@ -65,6 +65,8 @@ export interface EntradaAnim {
   direccion: number
   /** El personaje se está desplazando por la pantalla (activa el ciclo de caminata). */
   desplazando: boolean
+  /** Giro adicional del cuerpo en radianes (0 de frente, π de espaldas). */
+  orientacion?: number
 }
 
 export interface Animador {
@@ -83,7 +85,7 @@ export function crearAnimador(rig: Rig): Animador {
 
   return {
     quieto: () => energia < 0.002,
-    actualizar(dtBruto, t, { estado, direccion, desplazando }) {
+    actualizar(dtBruto, t, { estado, direccion, desplazando, orientacion = 0 }) {
       const dt = Math.min(dtBruto, 0.05)
       const objetivo = POSTURAS[estado]
       let e = 0
@@ -106,7 +108,8 @@ export function crearAnimador(rig: Rig): Animador {
 
       // Giro del cuerpo: hacia donde camina o señala; de frente en cualquier otro caso.
       const giro = (estado === 'caminar' || estado === 'senalar' || desplazando) ? direccion * R(estado === 'senalar' ? 38 : 62) : 0
-      yawVel += (giro - yaw) * 70 * dt; yawVel *= Math.exp(-11 * dt); yaw += yawVel * dt
+      const giroTotal = giro + orientacion
+      yawVel += (giroTotal - yaw) * 70 * dt; yawVel *= Math.exp(-11 * dt); yaw += yawVel * dt
       e += Math.abs(yawVel)
 
       // Pesos de las capas procedurales (suavizados: entran y salen sin cortes)

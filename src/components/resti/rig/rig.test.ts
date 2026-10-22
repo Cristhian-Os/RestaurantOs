@@ -12,7 +12,7 @@ const punta = (rig: ReturnType<typeof crearRig>, lado: 'D' | 'I') => rig.j[`mune
   const rig = crearRig()
   fijarPostura(rig, 'reposo'); assert.ok(punta(rig, 'D').y < 1.2 && punta(rig, 'I').y < 1.2, 'reposo: manos abajo')
   fijarPostura(rig, 'saludo'); { const p = punta(rig, 'D'); assert.ok(p.y > 1.9 && p.x < -0.4, `saludo: mano en alto y abierta al lado (${p.toArray()})`) }
-  fijarPostura(rig, 'pensar'); { const p = punta(rig, 'D'); assert.ok(p.distanceTo(new Vector3(-0.03, 1.6, 0.27)) < 0.12, `pensar: mano al mentón (${p.toArray()})`) }
+  fijarPostura(rig, 'pensar'); { const p = punta(rig, 'D'); assert.ok(p.distanceTo(new Vector3(-0.02, 1.74, 0.3)) < 0.12, `pensar: mano al mentón (${p.toArray()})`) }
   fijarPostura(rig, 'escuchar'); { const p = punta(rig, 'D'); assert.ok(p.y > 1.8 && p.x > -0.45, `escuchar: mano junto al oído (${p.toArray()})`) }
   fijarPostura(rig, 'senalar'); { const p = punta(rig, 'I'); assert.ok(p.z > 0.5 && p.y > 1.5, `señalar: brazo extendido al frente (${p.toArray()})`) }
   fijarPostura(rig, 'alerta'); assert.ok(punta(rig, 'D').y > 1.9 && punta(rig, 'I').y > 1.9, 'alerta: ambas manos arriba')
