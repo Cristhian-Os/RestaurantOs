@@ -90,8 +90,10 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
 
   const save = useCallback(async () => {
     if (!rid) return
-    const ig = cfg.instagram_url?.trim() ?? ''
-    const fb = cfg.facebook_url?.trim() ?? ''
+    // "instagram.com/x" (valores guardados antes) se completa con https:// en vez de bloquear todo el guardado.
+    const conEsquema = (u: string) => (u && !/^[a-z][a-z0-9+.-]*:/i.test(u) && /^[\w-]+(\.[\w-]+)+(\/|$)/.test(u) ? 'https://' + u : u)
+    const ig = conEsquema(cfg.instagram_url?.trim() ?? '')
+    const fb = conEsquema(cfg.facebook_url?.trim() ?? '')
     if (ig && !urlSegura(ig)) { message.error('El enlace de Instagram debe empezar por https://'); return }
     if (fb && !urlSegura(fb)) { message.error('El enlace de Facebook debe empezar por https://'); return }
     setSaving(true)

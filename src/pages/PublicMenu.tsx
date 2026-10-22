@@ -1114,6 +1114,7 @@ export default function PublicMenu() {
   const [logoUrl,       setLogoUrl]       = useState<string | null>(null)
   const [mascotaUrl,    setMascotaUrl]    = useState<string | null>(null)   // mascota del restaurante (imagen fija, opcional)
   const [menuCfg,       setMenuCfg]       = useState<MenuConfig>(() => parseMenuConfig(null))
+  const listasRef = useRef<ReturnType<typeof listasDesdeRpc>>([])   // últimas listas de opciones: el refresco de 20 s no las borra
   const [activeCat,     setActiveCat]     = useState<DishCategory | 'all'>('all')
   const [search,        setSearch]        = useState('')
   const [cart,          setCart]          = useState<CartItem[]>([])
@@ -1285,7 +1286,7 @@ export default function PublicMenu() {
       if (color) document.documentElement.style.setProperty('--w-terra', color)
       // Categorías (nombre y orden), sabores y lo que caja marcó como agotado
       const baseCfg = parseMenuConfig(cfg.modules_enabled)
-      setMenuCfg(baseCfg)
+      setMenuCfg(baseCfg.optionsV2 ? conListas(baseCfg, listasRef.current) : baseCfg)
       // Mascota (imagen fija, opcional): viene en la config pública si existe; si no, consulta aparte tolerante a fallos.
       if (typeof cfg.mascota_url === 'string') setMascotaUrl(urlSegura(cfg.mascota_url))
       else {
@@ -1295,7 +1296,7 @@ export default function PublicMenu() {
       // Listas de opciones del restaurante (solo si usa las opciones universales)
       if (baseCfg.optionsV2) {
         supabase.rpc('listas_opciones_publicas', { p_restaurant_id: restaurantId })
-          .then(({ data }) => setMenuCfg(conListas(baseCfg, listasDesdeRpc(data))))
+          .then(({ data }) => { listasRef.current = listasDesdeRpc(data); setMenuCfg(conListas(baseCfg, listasRef.current)) })
       }
     } catch {
       setMenuError('No pudimos actualizar el menú. Revisa tu conexión e intenta de nuevo.')

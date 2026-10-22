@@ -18,7 +18,13 @@ const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 
 /** Día calendario de Bogotá (YYYYMMDD). */
 const diaBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).replaceAll('-', '')
-const ref = (restaurantId: string) => `sub_${restaurantId}_${diaBogota()}`
+// sub_<restaurante>_<día>_<n>: n cuenta los intentos del día (un rechazo no impide reintentar hoy con otra tarjeta;
+// el tope de reintentos lo pone suscripcion_puede_cobrar y la carrera entre dos intentos la frena el UNIQUE de reference).
+const ref = async (db: any, restaurantId: string) => {
+  const base = `sub_${restaurantId}_${diaBogota()}`
+  const { count } = await db.from('payments').select('id', { count: 'exact', head: true }).like('reference', `${base}_%`)
+  return `${base}_${(count ?? 0) + 1}`
+}
 // sandbox vs producción según el prefijo de la llave pública
 function apiBase(publicKey: string): string {
   return publicKey.includes('_prod_') ? 'https://production.wompi.co/v1' : 'https://sandbox.wompi.co/v1'
@@ -63,7 +69,7 @@ Deno.serve(async (req) => {
 
     const results: any[] = []
     for (const s of eligible) {
-      const reference = ref(s.restaurant_id)
+      const reference = await ref(admin, s.restaurant_id)
       const amount = s.amount_in_cents as number
       if (!Number.isInteger(amount) || amount < 100) continue
 

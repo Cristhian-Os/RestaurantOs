@@ -7,7 +7,8 @@ import Signup        from './pages/Signup'
 import Legal         from './pages/Legal'
 import ResetPassword from './pages/ResetPassword'
 import { ThemeProvider } from './contexts/ThemeContext'
-import { limpiarSesionLocal, KEY_ULTIMO_USUARIO } from './services/sessionCleanup'
+import Modal from 'antd/es/modal'
+import { limpiarSesionLocal, contarPendientesLocales, KEY_ULTIMO_USUARIO } from './services/sessionCleanup'
 import type { Session } from '@supabase/supabase-js'
 
 // Dashboard (y todo lo que solo usa el admin: mesas, menú, marca, suscripción,
@@ -105,6 +106,16 @@ export default function App() {
   }, [])
 
   const handleLogout = useCallback(async () => {
+    const pendientes = await contarPendientesLocales()
+    if (pendientes > 0) {
+      const salir = await new Promise<boolean>(resolve => Modal.confirm({
+        title: 'Hay trabajo sin enviar',
+        content: `Este dispositivo tiene ${pendientes} pedido(s), cobro(s) o factura(s) que aún no llegaron al servidor. Si cierras sesión ahora se perderán. Conéctate a internet y espera a que se envíen.`,
+        okText: 'Cerrar sesión y perderlos', okButtonProps: { danger: true }, cancelText: 'Volver',
+        onOk: () => resolve(true), onCancel: () => resolve(false),
+      }))
+      if (!salir) return
+    }
     try { await limpiarSesionLocal() } catch { /* no impedir el cierre de sesión */ }
     await supabase.auth.signOut()
     // signOut dispara onAuthStateChange con session=null → setSession automático

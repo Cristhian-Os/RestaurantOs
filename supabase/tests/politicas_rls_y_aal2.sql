@@ -6,7 +6,7 @@ DECLARE r text := ''; ra uuid := gen_random_uuid(); rb uuid := gen_random_uuid()
   us uuid := gen_random_uuid(); ua uuid := gen_random_uuid(); ub uuid := gen_random_uuid(); uc uuid := gen_random_uuid();
   uw uuid := gen_random_uuid(); uk uuid := gen_random_uuid(); uw2 uuid := gen_random_uuid(); uxs uuid := gen_random_uuid();
   S1 text; S2 text; CA text; CB text; CC text; CW text; CK text; CW2 text; CXS text;
-  n int; v text; t1 uuid; t2 uuid; t3 uuid; tb uuid; g_hoy uuid; g_viejo uuid; corte uuid; rep_b uuid; rep_a uuid;
+  n int; v text; t1 uuid; t2 uuid; t3 uuid; tb uuid; g_hoy uuid; g_viejo uuid; g_propio uuid; corte uuid; rep_b uuid; rep_a uuid;
   dish_b uuid; dish_a uuid; ord_a uuid; ord_b uuid; ing_a uuid; ing_b uuid; cd uuid; stock_antes numeric; stock_despues numeric;
   fecha_bog date := (now() AT TIME ZONE 'America/Bogota')::date; j json;
 BEGIN
@@ -93,6 +93,11 @@ BEGIN
   BEGIN UPDATE gastos SET created_at = now() - interval '20 days', restaurant_id = rb WHERE id = g_viejo;
     r := r||'18) S-06 cajero mueve gasto a otro restaurante: FALLA'||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'18) S-06 cajero mueve gasto a otro restaurante rechazado: OK'||E'\n'; END;
+  -- El cajero sigue reembolsando por RPC (SECURITY DEFINER) un gasto "propio" del dia con corte
+  RESET ROLE; INSERT INTO gastos (concepto, monto, restaurant_id, fuente, pagado_por_nombre) VALUES ('Gasto propio de hoy', 800, ra, 'propio', 'Angela') RETURNING id INTO g_propio;
+  PERFORM set_config('request.jwt.claims', CC, true); SET LOCAL ROLE authenticated;
+  BEGIN PERFORM reembolsar_gasto(g_propio, 'transferencia'); r := r||'18b) S-06 cajero reembolsa un gasto propio por RPC en un dia con corte: OK'||E'\n';
+  EXCEPTION WHEN OTHERS THEN r := r||'18b) S-06 cajero reembolsa por RPC: FALLA '||sqlerrm||E'\n'; END;
   -- Cortes
   BEGIN UPDATE cortes_caja SET total_efectivo = 1 WHERE id = corte; GET DIAGNOSTICS n = ROW_COUNT;
     r := r||'19) S-06 cajero reescribe totales del corte: FALLA ('||n||')'||E'\n';

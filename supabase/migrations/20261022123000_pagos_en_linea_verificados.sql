@@ -159,12 +159,45 @@ REVOKE ALL ON public.restaurant_payment_config_status FROM PUBLIC, anon, authent
 GRANT SELECT ON public.restaurant_payment_config_status TO authenticated, service_role;
 
 REVOKE SELECT ON public.restaurant_payment_config FROM anon, authenticated;
-REVOKE INSERT, UPDATE ON public.restaurant_payment_config FROM anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.restaurant_payment_config FROM anon, authenticated;
 GRANT SELECT (restaurant_id, provider, enabled, wompi_public_key, updated_at) ON public.restaurant_payment_config TO authenticated;
-GRANT INSERT (restaurant_id, provider, enabled, wompi_public_key, wompi_private_key, wompi_events_secret, wompi_integrity_secret)
-  ON public.restaurant_payment_config TO authenticated;
-GRANT UPDATE (provider, enabled, wompi_public_key, wompi_private_key, wompi_events_secret, wompi_integrity_secret)
-  ON public.restaurant_payment_config TO authenticated;
+
+-- Un upsert por columnas exigiria SELECT sobre las columnas secretas (EXCLUDED), asi que el guardado va por RPC:
+-- solo el admin del restaurante; un secreto vacio/NULL conserva el ya guardado.
+CREATE OR REPLACE FUNCTION public.guardar_config_pagos(
+  p_enabled boolean, p_public_key text DEFAULT NULL, p_private_key text DEFAULT NULL,
+  p_events_secret text DEFAULT NULL, p_integrity_secret text DEFAULT NULL)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE v_rid uuid := public.current_restaurant_id();
+BEGIN
+  IF public.get_user_role() IS DISTINCT FROM 'admin' OR v_rid IS NULL THEN
+    RAISE EXCEPTION 'Solo el administrador puede configurar los pagos';
+  END IF;
+  IF length(COALESCE(p_public_key,'')) > 200 OR length(COALESCE(p_private_key,'')) > 200
+     OR length(COALESCE(p_events_secret,'')) > 200 OR length(COALESCE(p_integrity_secret,'')) > 200 THEN
+    RAISE EXCEPTION 'Una de las llaves es demasiado larga';
+  END IF;
+  INSERT INTO public.restaurant_payment_config AS c
+    (restaurant_id, provider, enabled, wompi_public_key, wompi_private_key, wompi_events_secret, wompi_integrity_secret)
+  VALUES (v_rid, 'wompi', COALESCE(p_enabled, false), NULLIF(btrim(p_public_key), ''), NULLIF(btrim(p_private_key), ''),
+          NULLIF(btrim(p_events_secret), ''), NULLIF(btrim(p_integrity_secret), ''))
+  ON CONFLICT (restaurant_id) DO UPDATE SET
+    provider = 'wompi',
+    enabled = COALESCE(p_enabled, false),
+    wompi_public_key = NULLIF(btrim(p_public_key), ''),
+    wompi_private_key = COALESCE(NULLIF(btrim(p_private_key), ''), c.wompi_private_key),
+    wompi_events_secret = COALESCE(NULLIF(btrim(p_events_secret), ''), c.wompi_events_secret),
+    wompi_integrity_secret = COALESCE(NULLIF(btrim(p_integrity_secret), ''), c.wompi_integrity_secret),
+    updated_at = now();
+  RETURN jsonb_build_object('status', 'ok');
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.guardar_config_pagos(boolean, text, text, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.guardar_config_pagos(boolean, text, text, text, text) TO authenticated, service_role;
 
 -- 5) Ciclo de vida de suscripciones: no borra ni reactiva a ciegas ------------------------------------------------------
 --    * El paso 4 reactivaba CUALQUIER restaurante inactivo con suscripcion vigente, incluso uno suspendido por la

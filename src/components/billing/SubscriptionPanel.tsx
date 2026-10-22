@@ -132,17 +132,13 @@ export default function SubscriptionPanel() {
       // Los 3 secretos solo se incluyen si el admin realmente escribió un valor
       // nuevo — así nunca se sobreescribe lo ya guardado con un campo vacío
       // (los inputs empiezan vacíos a propósito, ver comentario en el estado).
-      const payload: Record<string, unknown> = {
-        restaurant_id: rid,
-        provider: 'wompi',
-        enabled: cfg.enabled,
-        wompi_public_key: cfg.wompi_public_key?.trim() || null,
-      }
-      if (cfg.wompi_private_key.trim())      payload.wompi_private_key = cfg.wompi_private_key.trim()
-      if (cfg.wompi_events_secret.trim())    payload.wompi_events_secret = cfg.wompi_events_secret.trim()
-      if (cfg.wompi_integrity_secret.trim()) payload.wompi_integrity_secret = cfg.wompi_integrity_secret.trim()
-
-      const { error } = await supabase.from('restaurant_payment_config').upsert(payload, { onConflict: 'restaurant_id' })
+      const { error } = await supabase.rpc('guardar_config_pagos', {
+        p_enabled: cfg.enabled,
+        p_public_key: cfg.wompi_public_key?.trim() || null,
+        p_private_key: cfg.wompi_private_key.trim() || null,
+        p_events_secret: cfg.wompi_events_secret.trim() || null,
+        p_integrity_secret: cfg.wompi_integrity_secret.trim() || null,
+      })
       if (error) throw error
       message.success('Configuración de pagos guardada')
       setCfg(c => ({ ...c, wompi_private_key: '', wompi_events_secret: '', wompi_integrity_secret: '' }))

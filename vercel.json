@@ -27,7 +27,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://ifypeslrcdebvdqglywt.supabase.co; media-src 'self' data: blob:; connect-src 'self' blob: https://ifypeslrcdebvdqglywt.supabase.co wss://ifypeslrcdebvdqglywt.supabase.co; frame-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://checkout.wompi.co; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://ifypeslrcdebvdqglywt.supabase.co; media-src 'self' data: blob:; connect-src 'self' blob: https://ifypeslrcdebvdqglywt.supabase.co wss://ifypeslrcdebvdqglywt.supabase.co; frame-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src blob:; base-uri 'self'; form-action 'self' https://checkout.wompi.co; frame-ancestors 'none'"
         }
       ]
     },
@@ -52,7 +52,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://ifypeslrcdebvdqglywt.supabase.co; media-src 'self' data: blob:; connect-src 'self' blob: https://ifypeslrcdebvdqglywt.supabase.co wss://ifypeslrcdebvdqglywt.supabase.co; frame-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://checkout.wompi.co; frame-ancestors 'self'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://ifypeslrcdebvdqglywt.supabase.co; media-src 'self' data: blob:; connect-src 'self' blob: https://ifypeslrcdebvdqglywt.supabase.co wss://ifypeslrcdebvdqglywt.supabase.co; frame-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src blob:; base-uri 'self'; form-action 'self' https://checkout.wompi.co; frame-ancestors 'self'"
         }
       ]
     },

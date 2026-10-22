@@ -155,9 +155,14 @@ export const offlineService = {
       const { data: rid, error: ridErr } = await supabase.rpc('current_restaurant_id')
       if (ridErr || !rid) return { synced, conflicts }
 
-      const offlineOrders = (await leerTodos())
-        .filter(o => o.sync_status === 'pending')
-        .filter(o => o.user_id === userId && (!o.restaurant_id || o.restaurant_id === rid))
+      const pendientes = (await leerTodos()).filter(o => o.sync_status === 'pending' && o.user_id === userId)
+      // Un pedido sellado con otro restaurante no se puede enviar con esta sesión: queda a la vista como conflicto.
+      for (const o of pendientes.filter(o => o.restaurant_id && o.restaurant_id !== rid)) {
+        await idbPut({ ...o, sync_status: 'conflict', conflict_reason: 'Se creó para otro restaurante; inicia sesión en ese restaurante para enviarlo' })
+        avisar()
+      }
+      const offlineOrders = pendientes
+        .filter(o => !o.restaurant_id || o.restaurant_id === rid)
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
 
       for (const order of offlineOrders) {

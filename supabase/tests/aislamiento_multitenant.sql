@@ -22,7 +22,7 @@ DECLARE
   actors jsonb; ctls jsonb; ac jsonb; ct jsonb;
   rels jsonb := '[]'; rel jsonb; relname text; relk text; tc text; pkc text;
   pkcol jsonb := '{}'; pktype jsonb := '{}'; inscols jsonb := '{}'; seedrow jsonb := '{}'; seedpk jsonb := '{}'; seederr jsonb := '{}';
-  rec record; cl record; fn record;
+  rec record; cl record; fn record; rowj2 jsonb; o_esc text[];
   -- siembra
   pass int; tn int; attempt int; tag text; rid uuid; uid_ uuid; key text; cols text; vals text; val text; sqltxt text; rowj jsonb;
   fkrel text; fkcol text; lit text; isrich boolean; has_rid_ref boolean; bt oid; btname text; typt "char"; mk text;
@@ -36,17 +36,17 @@ DECLARE
   cand jsonb; candl text[]; variants int; vr int; argmap jsonb; tabs_b jsonb; ctl_ok boolean; ctl_err text; res jsonb;
   b_before text; b_after text; snap_sql text; outt text; stripped text; leak boolean; hasbobj boolean; changed boolean;
   nf_total int := 0; nf_tested int := 0; nf_wl int := 0; nf_unc int := 0; wl_pub text[]; wl_cap text[];
-  fl_ok int; fl_inc text[]; fl_avi text[]; fl_fal text[]; fl_cap text[]; arr text; t0 text;
+  fl_ok int; fl_inc text[]; fl_avi text[]; fl_fal text[]; fl_cap text[]; fl_heur text[]; fl_noctl text[]; fn_inc text[]; fn_heur text[]; fn_anyctl boolean; fn_ctlerr text; arr text; t0 text;
   b_ids text[]; stem text; j int; nm text; ty text; permden boolean;
   v_sec int; vinv boolean;
   bk text; bkok boolean; objname text; pol_n int; ass boolean;
-  lines text[]; ln text; n_ok int := 0; n_fail int := 0; n_aviso int := 0;
+  leaky text := ''; lines text[]; ln text; n_ok int := 0; n_fail int := 0; n_aviso int := 0;
 BEGIN
   ---------------------------------------------------------------------------------------------------------------
   -- 0. Preparacion: restaurantes, usuarios, perfiles
   ---------------------------------------------------------------------------------------------------------------
   INSERT INTO restaurants (id, name, slug, email_domain) VALUES
-    (ra,'seedA_Restaurante','aisl-a','aisl-a.test'),(rb,'seedB_Restaurante','aisl-b','aisl-b.test');
+    (ra,'seeda_restaurante','aisl-a','aisl-a.test'),(rb,'seedb_restaurante','aisl-b','aisl-b.test');
   INSERT INTO auth.users (id, aud, role, email) VALUES
     (ua,'authenticated','authenticated','admin@aisl-a.test'),(uc,'authenticated','authenticated','cajero@aisl-a.test'),
     (uw,'authenticated','authenticated','mesero@aisl-a.test'),(uk,'authenticated','authenticated','cocina@aisl-a.test'),
@@ -139,12 +139,12 @@ BEGIN
   END LOOP;
 
   FOR pass IN 1..6 LOOP
-    FOR rel IN SELECT value FROM jsonb_array_elements(rels) WHERE value->>'k' IN ('T','C') AND value->>'n' NOT IN ('restaurants','profiles') LOOP
+    FOR rel IN SELECT value FROM jsonb_array_elements(rels) WHERE value->>'k' IN ('T','C','G') AND value->>'n' NOT IN ('restaurants','profiles') LOOP
       relname := rel->>'n'; tc := rel->>'tc'; pkc := rel->>'pk';
-      FOR tn IN 1..2 LOOP
-        tag := CASE tn WHEN 1 THEN 'A' ELSE 'B' END; key := relname||'|'||tag;
+      FOR tn IN 1..CASE WHEN rel->>'k' = 'G' THEN 1 ELSE 2 END LOOP
+        tag := CASE WHEN rel->>'k' = 'G' THEN 'G' WHEN tn = 1 THEN 'A' ELSE 'B' END; key := relname||'|'||tag;
         CONTINUE WHEN seedrow ? key;
-        rid := CASE tn WHEN 1 THEN ra ELSE rb END; uid_ := CASE tn WHEN 1 THEN ua ELSE ub END;
+        rid := CASE WHEN tag = 'B' THEN rb ELSE ra END; uid_ := CASE WHEN tag = 'B' THEN ub ELSE ua END;
         PERFORM set_config('request.jwt.claims', jsonb_build_object('role','authenticated','sub',uid_,'aal','aal1')::text, true);
         -- (a) quiza un trigger ya creo la fila del restaurante (p. ej. restaurant_config): adoptarla
         rowj := NULL;
@@ -153,9 +153,9 @@ BEGIN
             EXECUTE format('SELECT to_jsonb(t) FROM public.%I t WHERE restaurant_id = %L LIMIT 1', relname, rid) INTO rowj;
           EXCEPTION WHEN OTHERS THEN rowj := NULL; END;
         END IF;
-        -- (b) insertarla: intento 1 = rico (marcadores en textos), 2 = minimo, 3 = minimo con json como arreglo
+        -- (b) insertarla: intento 1 = rico (marcadores en textos), 2 = minimo, 3 = minimo con json como arreglo, 4 = ademas columnas con default que tienen CHECK, 5 = textos en MAYUSCULAS alfanumericas (CHECK con regex)
         attempt := 0;
-        WHILE rowj IS NULL AND attempt < 3 LOOP
+        WHILE rowj IS NULL AND attempt < 5 LOOP
           attempt := attempt + 1; isrich := (attempt = 1); cols := ''; vals := '';
           FOR cl IN
             SELECT a.attname::text AS an, a.attnum, a.atttypid, a.atttypmod, a.attnotnull, a.atthasdef,
@@ -182,19 +182,21 @@ BEGIN
               END IF;
               IF val IS NULL THEN CONTINUE; END IF;
             ELSE
-              CONTINUE WHEN cl.atthasdef;
+              CONTINUE WHEN cl.atthasdef AND NOT (attempt = 4 AND cl.inchk);
               bt := cl.atttypid; SELECT typtype, typname::text, typbasetype INTO typt, btname, bt FROM pg_type WHERE oid = cl.atttypid;
               IF typt = 'd' THEN SELECT typname::text INTO btname FROM pg_type WHERE oid = bt; typt := 'b'; END IF;
               lit := NULL;
               IF cl.inchk THEN
                 SELECT substring(string_agg(pg_get_constraintdef(k.oid), ' ') from '''([^'']+)''') INTO lit
-                  FROM pg_constraint k WHERE k.conrelid=('public.'||quote_ident(relname))::regclass AND k.contype='c' AND cl.attnum = ANY (k.conkey);
+                  FROM pg_constraint k WHERE k.conrelid=('public.'||quote_ident(relname))::regclass AND k.contype='c' AND cl.attnum = ANY (k.conkey)
+                  AND pg_get_constraintdef(k.oid) !~ '( ~ |<> ALL|<> ''|NOT )' AND pg_get_constraintdef(k.oid) ~ '(= ANY|= ''|IN \()';
               END IF;
               IF typt = 'e' THEN SELECT enumlabel::text INTO lit FROM pg_enum WHERE enumtypid = cl.atttypid ORDER BY enumsortorder LIMIT 1; END IF;
               IF btname IN ('text','varchar','bpchar','citext','name') THEN
                 IF lit IS NULL THEN
                   IF cl.attnotnull OR (isrich AND NOT cl.inchk) THEN
-                    lit := 'seed'||tag||'_'||cl.an||'_'||substr(md5(random()::text),1,6);
+                    lit := 'seed'||lower(tag)||'_'||cl.an||'_'||substr(md5(random()::text),1,6);
+                    IF attempt = 5 THEN lit := upper('seed'||lower(tag)||substr(md5(random()::text),1,8)); END IF;
                     IF cl.atttypmod > 4 THEN lit := left(lit, cl.atttypmod-4); END IF;
                   END IF;
                 END IF;
@@ -209,10 +211,10 @@ BEGIN
               ELSIF btname IN ('timestamp','timestamptz') THEN val := 'now()';
               ELSIF btname IN ('time','timetz') THEN val := quote_literal('12:00');
               ELSIF btname = 'interval' THEN val := quote_literal('1 hour');
-              ELSIF btname IN ('jsonb','json') THEN val := quote_literal(CASE WHEN attempt = 3 OR cl.an ~ '(items|lineas|lista|list|tags)' THEN '[]' ELSE '{}' END);
+              ELSIF btname IN ('jsonb','json') THEN val := quote_literal(CASE WHEN attempt >= 3 OR cl.an ~ '(items|lineas|lista|list|tags)' THEN '[]' ELSE '{}' END);
               ELSIF btname = 'bytea' THEN val := quote_literal('\x00');
               ELSIF btname = 'inet' THEN val := quote_literal('127.0.0.1');
-              ELSIF left(btname,1) = '_' THEN val := quote_literal('{}');
+              ELSIF left(btname,1) = '_' THEN val := quote_literal(CASE WHEN btname IN ('_text','_varchar') THEN '{seed'||lower(tag)||'_x}' ELSE '{}' END);
               ELSE CONTINUE; END IF;
               val := val || '::' || format_type(cl.atttypid, cl.atttypmod);
             END IF;
@@ -241,10 +243,31 @@ BEGIN
     IF seedrow ? ('dishes|'||tag) THEN
       BEGIN
         EXECUTE format('INSERT INTO public.dishes (%s) SELECT %s FROM jsonb_populate_record(NULL::public.dishes, %L::jsonb)', inscols->>'dishes', inscols->>'dishes',
-          (seedrow->('dishes|'||tag)) || jsonb_build_object('id',gen_random_uuid(),'available',false,'name','seed'||tag||'_plato_no_disponible'));
+          (seedrow->('dishes|'||tag)) || jsonb_build_object('id',gen_random_uuid(),'available',false,'name','seed'||lower(tag)||'_plato_no_disponible'));
       EXCEPTION WHEN OTHERS THEN r := r || 'INFO: no se pudo sembrar plato no disponible de '||tag||': '||left(SQLERRM,100)||E'\n'; END;
     END IF;
   END LOOP;
+
+  -- Datos mas realistas (para que las funciones de pedidos/caja lleguen a la parte de autorizacion y no mueran en validaciones):
+  -- pedidos con un item real, B ademas con pedidos en cocina y listos, y stock suficiente.
+  FOR tn IN 1..2 LOOP
+    tag := CASE tn WHEN 1 THEN 'A' ELSE 'B' END;
+    IF seedrow ? ('orders|'||tag) AND seedrow ? ('dishes|'||tag) THEN
+      BEGIN
+        EXECUTE format('UPDATE public.orders SET items=%L::jsonb, total=10, status=''pending'' WHERE id=%L', jsonb_build_array(jsonb_build_object('id',seedpk->>('dishes|'||tag),'name','seed'||lower(tag)||'_plato','price',10,'quantity',1))::text, seedpk->>('orders|'||tag));
+        IF tag = 'B' THEN
+          FOREACH x IN ARRAY ARRAY['cooking','ready'] LOOP
+            EXECUTE format('SELECT to_jsonb(o) FROM public.orders o WHERE id=%L', seedpk->>'orders|B') INTO rowj;
+            rowj := rowj || jsonb_build_object('id',gen_random_uuid(),'status',x,'order_number_today',NULL,'receipt_number',NULL,'idempotency_key',NULL);
+            EXECUTE format('INSERT INTO public.orders (%s) SELECT %s FROM jsonb_populate_record(NULL::public.orders, %L::jsonb) RETURNING id::text', inscols->>'orders', inscols->>'orders', rowj::text) INTO lit;
+            seedpk := seedpk || jsonb_build_object('orders#'||x||'|B', lit);
+          END LOOP;
+        END IF;
+      EXCEPTION WHEN OTHERS THEN r := r || 'INFO: no se pudo enriquecer pedidos de '||tag||': '||left(SQLERRM,100)||E'\n'; END;
+    END IF;
+  END LOOP;
+  BEGIN UPDATE public.ingredientes SET stock_actual = 1000 WHERE restaurant_id IN (ra, rb);
+  EXCEPTION WHEN OTHERS THEN NULL; END;
 
   -- Cobertura
   SELECT count(*) INTO nrel_seed FROM jsonb_array_elements(rels) e WHERE e->>'k' IN ('T','C');
@@ -257,7 +280,7 @@ BEGIN
   r := r || n||') cobertura de siembra: sembradas '||nrel_ok||' de '||nrel_seed||' tablas con datos de A y B (restaurant_id o hijas por FK): '||
        CASE WHEN nrel_ok = nrel_seed THEN 'OK' ELSE 'FALLA (la prueba no cubre todas las tablas)' END||E'\n';
   IF skipped <> '' THEN r := r || 'AVISO: tablas NO sembradas (saltadas): '||skipped||E'\n'; END IF;
-  SELECT string_agg(e->>'n', ', ') INTO x FROM jsonb_array_elements(rels) e WHERE e->>'k' = 'G';
+  SELECT string_agg(e->>'n'||CASE WHEN seedrow ? ((e->>'n')||'|G') THEN '' ELSE ' (sin sembrar: '||coalesce(left(seederr->>((e->>'n')||'|G'),70),'?')||')' END, ', ') INTO x FROM jsonb_array_elements(rels) e WHERE e->>'k' = 'G';
   r := r || 'INFO: tablas globales (sin restaurant_id ni FK a un restaurante; se revisan solo por marcadores): '||coalesce(x,'ninguna')||E'\n';
   SELECT string_agg(e->>'n', ', ') INTO x FROM jsonb_array_elements(rels) e WHERE e->>'k' IN ('V','O');
   r := r || 'INFO: vistas de public: '||coalesce(x,'ninguna')||E'\n';
@@ -369,7 +392,7 @@ BEGIN
           EXECUTE format('SELECT coalesce(string_agg(q::text, E''\n''),'''') FROM (SELECT * FROM public.%I LIMIT 300) q', relname) INTO txt;
           RESET ROLE;
           FOREACH x IN ARRAY fbs LOOP
-            IF position('seed'||CASE WHEN x = ra::text THEN 'A' ELSE 'B' END||'_' in txt) > 0 THEN
+            IF position('seed'||CASE WHEN x = ra::text THEN 'a' ELSE 'b' END||'_' in txt) > 0 THEN
               o_scan := array_append(o_scan, relname||' (contiene datos sembrados de '||CASE WHEN x = ra::text THEN 'A' ELSE 'B' END||')');
               EXIT;
             END IF;
@@ -389,20 +412,98 @@ BEGIN
         IF coalesce(array_length(lst,1),0) = 0 THEN
           r := r || n||') '||x||': '||xx||' sobre filas '||CASE WHEN x IN ('admin A','cashier A','waiter A','kitchen A') THEN 'de B' ELSE 'de A y B' END||' ('||nrel||' relaciones): OK'||E'\n';
         ELSE
-          FOREACH ln IN ARRAY lst LOOP
-            r := r || n||') '||x||': '||xx||' alcanza filas ajenas en '||ln||': FALLA'||E'\n'; n := n + 1;
-          END LOOP;
-          n := n - 1;
+          r := r || n||') '||x||': '||xx||' alcanza filas ajenas en '||array_length(lst,1)||' relaciones: '||left(array_to_string(lst, ', '),900)||': FALLA'||E'\n';
+          IF x <> 'super_admin SIN aal2' AND left(xx,3) IN ('SEL','MAR') THEN FOREACH ln IN ARRAY lst LOOP leaky := leaky||'|'||split_part(ln,' ',1)||'|'; END LOOP; END IF;
         END IF;
       END;
     END LOOP;
     IF coalesce(array_length(i_ins,1),0) > 0 THEN
-      r := r || 'AVISO: '||x||': INSERT de fila ajena rechazado por constraint (no por RLS), no concluyente: '||array_to_string(i_ins, '; ')||E'\n';
+      r := r || 'AVISO: '||x||': INSERT de fila ajena rechazado por constraint (no por RLS), no concluyente: '||left(array_to_string(i_ins, '; '),500)||E'\n';
     END IF;
     IF coalesce(array_length(i_other,1),0) > 0 THEN
       r := r || 'AVISO: '||x||': errores inesperados (no son permiso denegado): '||left(array_to_string(i_other, '; '), 700)||E'\n';
     END IF;
+
+    -- (E) Escalada sobre el propio perfil: nadie puede cambiarse role / restaurant_id / active (se mide el ESTADO final, no el error)
+    IF (ac->'claims') ? 'sub' THEN
+      o_esc := '{}'; uid_ := (ac->'claims'->>'sub')::uuid;
+      FOREACH xx IN ARRAY ARRAY['role=super_admin','role=admin','restaurant_id=B','active=true'] LOOP
+        SELECT to_jsonb(p) INTO rowj FROM public.profiles p WHERE p.id = uid_;
+        CONTINUE WHEN (xx = 'role=super_admin' AND rowj->>'role' = 'super_admin') OR (xx = 'role=admin' AND rowj->>'role' = 'admin')
+                   OR (xx = 'active=true' AND rowj->>'active' = 'true');
+        sqltxt := CASE xx WHEN 'role=super_admin' THEN 'UPDATE public.profiles SET role = ''super_admin'' WHERE id = auth.uid()'
+                          WHEN 'role=admin' THEN 'UPDATE public.profiles SET role = ''admin'' WHERE id = auth.uid()'
+                          WHEN 'restaurant_id=B' THEN format('UPDATE public.profiles SET restaurant_id = %L WHERE id = auth.uid()', rb)
+                          ELSE 'UPDATE public.profiles SET active = true WHERE id = auth.uid()' END;
+        changed := false;
+        BEGIN
+          EXECUTE format('SET LOCAL ROLE %I', ac->>'db');
+          EXECUTE sqltxt;
+          RESET ROLE;
+          SELECT to_jsonb(p) INTO rowj2 FROM public.profiles p WHERE p.id = uid_;
+          changed := (rowj2->>split_part(xx,'=',1)) IS DISTINCT FROM (rowj->>split_part(xx,'=',1));
+          RAISE EXCEPTION 'undo' USING ERRCODE = 'P9999';
+        EXCEPTION WHEN OTHERS THEN RESET ROLE; END;
+        IF changed THEN o_esc := array_append(o_esc, xx); END IF;
+      END LOOP;
+      n := n + 1;
+      IF coalesce(array_length(o_esc,1),0) = 0 THEN r := r || n||') '||x||': no puede escalar su propio perfil (role / restaurant_id / active): OK'||E'\n';
+      ELSE r := r || n||') '||x||': SE ESCALA el propio perfil con UPDATE directo ('||array_to_string(o_esc, ', ')||'): FALLA'||E'\n'; END IF;
+    END IF;
+    -- (F) Integridad de pedidos: el personal no reescribe total / items / paid_at por UPDATE directo (solo avanza el estado)
+    IF (ac->>'k') IN ('admin A','cashier A','waiter A','kitchen A') AND seedpk ? 'orders|A' THEN
+      o_esc := '{}';
+      FOREACH xx IN ARRAY ARRAY['total','items','paid_at'] LOOP
+        EXECUTE format('SELECT to_jsonb(o) FROM public.orders o WHERE o.id = %L', seedpk->>'orders|A') INTO rowj;
+        sqltxt := CASE xx WHEN 'total' THEN 'total = 0' WHEN 'items' THEN 'items = ''[]''::jsonb' ELSE 'paid_at = now()' END;
+        changed := false;
+        BEGIN
+          EXECUTE format('SET LOCAL ROLE %I', ac->>'db');
+          EXECUTE format('UPDATE public.orders SET %s WHERE id = %L', sqltxt, seedpk->>'orders|A');
+          RESET ROLE;
+          EXECUTE format('SELECT to_jsonb(o) FROM public.orders o WHERE o.id = %L', seedpk->>'orders|A') INTO rowj2;
+          changed := (rowj2->>xx) IS DISTINCT FROM (rowj->>xx);
+          RAISE EXCEPTION 'undo' USING ERRCODE = 'P9999';
+        EXCEPTION WHEN OTHERS THEN RESET ROLE; END;
+        IF changed THEN o_esc := array_append(o_esc, xx); END IF;
+      END LOOP;
+      n := n + 1;
+      IF coalesce(array_length(o_esc,1),0) = 0 THEN r := r || n||') '||x||': no puede reescribir total/items/paid_at de un pedido con UPDATE directo: OK'||E'\n';
+      ELSE r := r || n||') '||x||': REESCRIBE pedidos con UPDATE directo ('||array_to_string(o_esc, ', ')||'): FALLA'||E'\n'; END IF;
+    END IF;
+    -- (G) Datos de cobro / suscripcion (JSON del proveedor de pagos): el personal que no es admin no los lee ni de su propio restaurante
+    IF (ac->>'k') IN ('cashier A','waiter A','kitchen A') THEN
+      o_esc := '{}';
+      FOREACH xx IN ARRAY ARRAY['payments','subscriptions','restaurant_payment_config'] LOOP
+        CONTINUE WHEN NOT (rels @> jsonb_build_array(jsonb_build_object('n',xx)) OR EXISTS (SELECT 1 FROM jsonb_array_elements(rels) e WHERE e->>'n' = xx));
+        BEGIN
+          EXECUTE format('SET LOCAL ROLE %I', ac->>'db');
+          EXECUTE format('SELECT count(*) FROM public.%I WHERE restaurant_id = %L', xx, ra) INTO cnt;
+          RESET ROLE;
+          IF cnt > 0 THEN o_esc := array_append(o_esc, xx||' ('||cnt||')'); END IF;
+        EXCEPTION WHEN OTHERS THEN RESET ROLE; END;
+      END LOOP;
+      n := n + 1;
+      IF coalesce(array_length(o_esc,1),0) = 0 THEN r := r || n||') '||x||': no lee pagos / suscripcion / config de pagos de su restaurante (solo admin): OK'||E'\n';
+      ELSE r := r || n||') '||x||': LEE datos de cobro reservados al admin: '||array_to_string(o_esc, ', ')||': FALLA'||E'\n'; END IF;
+    END IF;
   END LOOP;
+
+  ---------------------------------------------------------------------------------------------------------------
+  -- 3b. Privilegios de tabla peligrosos (saltan o debilitan RLS)
+  ---------------------------------------------------------------------------------------------------------------
+  SELECT string_agg(c.relname||'('||g.rol||')', ', ' ORDER BY c.relname) INTO x
+    FROM pg_class c CROSS JOIN (VALUES ('anon'),('authenticated')) g(rol)
+    WHERE c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND has_table_privilege(g.rol, c.oid, 'TRUNCATE');
+  n := n + 1;
+  r := r || n||') ni anon ni authenticated tienen TRUNCATE en tablas de public (TRUNCATE salta RLS y vacia todos los restaurantes): '||
+       CASE WHEN x IS NULL THEN 'OK' ELSE 'FALLA ('||left(x,600)||')' END||E'\n';
+  SELECT string_agg(c.relname, ', ' ORDER BY c.relname) INTO x
+    FROM pg_class c WHERE c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p','v','m')
+     AND (has_table_privilege('anon', c.oid, 'INSERT') OR has_table_privilege('anon', c.oid, 'UPDATE') OR has_table_privilege('anon', c.oid, 'DELETE'));
+  n := n + 1;
+  r := r || n||') anon no tiene privilegios INSERT/UPDATE/DELETE sobre ninguna tabla/vista de public (el menu publico solo usa RPC): '||
+       CASE WHEN x IS NULL THEN 'OK' ELSE 'FALLA ('||left(x,600)||'; hoy solo la RLS lo frena)' END||E'\n';
 
   ---------------------------------------------------------------------------------------------------------------
   -- 4. Vistas: security_invoker o filtro (la fuga real ya se midio arriba por SELECT/marcadores)
@@ -418,8 +519,12 @@ BEGIN
     ELSIF wl_all ? rec.nm THEN r := r || n||') vista '||rec.nm||' no es security_invoker pero esta en la lista blanca (solo id, slug, name): OK'||E'\n';
     ELSE
       -- definer: debe filtrar. Se acepta solo si NINGUN actor vio datos de B (revisado arriba); si no, el FALLA ya salio en SELECT/MARCADORES.
-      r := r || n||') vista '||rec.nm||' NO es security_invoker y es legible por '||CASE WHEN rec.an THEN 'anon' ELSE 'authenticated' END||
-           ': FALLA (corre con los permisos del dueno de la vista; debe ser security_invoker o estar en la lista blanca)'||E'\n';
+      IF position('|'||rec.nm||'|' in leaky) > 0 THEN
+        r := r || n||') vista '||rec.nm||' NO es security_invoker, es legible por '||CASE WHEN rec.an THEN 'anon' ELSE 'authenticated' END||' y MUESTRA filas de otro restaurante: FALLA'||E'\n';
+      ELSE
+        r := r || n||') vista '||rec.nm||' no es security_invoker pero filtra: ningun actor (salvo super_admin) vio filas ajenas: OK'||E'\n';
+        r := r || 'AVISO: vista '||rec.nm||' corre con los permisos de su dueno; mejor convertirla en security_invoker para que dependa de RLS'||E'\n';
+      END IF;
     END IF;
   END LOOP;
 
@@ -432,13 +537,14 @@ BEGIN
     IF rec.kk LIKE '%|B' AND rec.vv IS NOT NULL THEN tabs_b := tabs_b || jsonb_build_object(split_part(rec.kk,'|',1), rec.vv); END IF;
   END LOOP;
   -- tabla -> id de B se usa como "uuid de objeto"; tokens y slug de B
-  argmap := '{"p_order_id":["orders"],"p_dish_id":["dishes"],"p_producto_id":["dishes"],"p_employee_id":["profiles"],"p_user_id":["profiles"],
+  argmap := '{"p_order_id":["orders","orders#ready","orders#cooking"],"p_dish_id":["dishes"],"p_producto_id":["dishes"],"p_employee_id":["profiles"],"p_user_id":["profiles"],
    "p_payment_id":["payments","order_payments"],"p_pago_id":["order_payments","payments"],"p_restaurant_id":["restaurants"],"p_restaurant":["restaurants"],
    "p_mesa_id":["mesas"],"p_task_id":["tasks"],"p_comment_id":["comentarios_platos"],"p_parent_id":["comentarios_platos"],
    "p_ingrediente_id":["ingredientes"],"p_gasto_id":["gastos"],"p_schedule_id":["employee_schedules"],"p_checkin_id":["shift_checkins"],
    "p_vendedor":["vendedores","profiles"],"p_id":["restaurants","comisiones","feedback_items","prospectos","leads","liquidaciones","vendedores","profiles","tasks","dishes","orders"]}'::jsonb;
   -- ids de B (para detectar fugas): todas las pk sembradas de B + restaurante + usuarios de B
   b_ids := ARRAY(SELECT je2.value FROM jsonb_each_text(tabs_b) je2);
+  tabs_b := tabs_b || jsonb_build_object('profiles', ubw::text);  -- los ids de empleado apuntan al mesero de B (el admin de B puede actuar sobre el)
   b_ids := b_ids || ARRAY[rb::text, ub::text, ubc::text, ubw::text, ubk::text];
   -- huella de B: hash de todas las filas de B en todas las tablas con datos de B
   snap_sql := 'SELECT md5(coalesce(string_agg(h, ''|'' ORDER BY h), '''')) FROM (' ||
@@ -484,7 +590,7 @@ BEGIN
       r := r || 'no cubierto automaticamente: '||fn.nm||'('||fn.idargs||') -> '||rtrim(why,'; ')||E'\n';
       CONTINUE;
     END IF;
-    nf_tested := nf_tested + 1;
+    nf_tested := nf_tested + 1; fn_inc := '{}'; fn_heur := '{}'; fn_anyctl := false; fn_ctlerr := NULL;
     -- resultados por variante, resumidos por funcion y actor
     FOR vr IN 1..variants LOOP
       argtxt := ''; hasbobj := false; stripped := '';
@@ -502,11 +608,11 @@ BEGIN
           val := quote_literal(CASE
             WHEN nm ~ 'email' THEN 'zz@aisl-x.test' WHEN nm ~ 'password|clave' THEN 'Clave12345x' WHEN nm = 'p_slug' THEN 'aisl-b'
             WHEN nm IN ('p_role') THEN 'waiter' WHEN nm ~ 'metodo|payment_method|medio' THEN 'efectivo' WHEN nm = 'p_status' THEN 'cooking'
-            WHEN nm = 'p_tipo_pedido' THEN 'mesa' WHEN nm IN ('p_plan') THEN 'pro' WHEN nm ~ 'motivo|notas|notes|texto|comentario|resumen' THEN 'prueba de aislamiento'
+            WHEN nm = 'p_tipo_pedido' THEN 'LOCAL' WHEN nm IN ('p_plan') THEN 'pro' WHEN nm ~ 'motivo|notas|notes|texto|comentario|resumen' THEN 'prueba de aislamiento'
             WHEN nm = 'p_token' THEN coalesce(seedrow->'kitchen_tv_tokens|B'->>'token', 'x') ELSE 'Prueba' END);
         ELSIF ty IN ('integer','bigint','smallint') THEN
           val := CASE WHEN nm = 'p_item_index' THEN '0' WHEN nm = 'p_rating' THEN '5' WHEN nm ~ 'dias|semanas|limite' THEN '7' ELSE '1' END;
-        ELSIF ty = 'numeric' THEN val := '5';
+        ELSIF ty = 'numeric' THEN val := CASE WHEN nm ~ 'recibido|paid' THEN '1000' WHEN nm ~ 'propina' THEN '0' ELSE '5' END;
         ELSIF ty = 'boolean' THEN val := 'false';
         ELSIF ty = 'date' THEN val := 'current_date';
         ELSIF ty = 'timestamp with time zone' THEN val := 'now()';
@@ -546,32 +652,52 @@ BEGIN
         IF err IS NOT NULL AND ctl_err IS NULL AND NOT (ct ? 'forbid') THEN ctl_err := err; END IF;
       END LOOP;
       -- (c) veredicto por actor
+      IF ctl_ok THEN fn_anyctl := true; ELSIF fn_ctlerr IS NULL THEN fn_ctlerr := ctl_err; END IF;
       FOR ac IN SELECT value FROM jsonb_array_elements(actors) LOOP
         x := ac->>'k'; err := res->x->>'err'; st := res->x->>'st'; outt := res->x->>'out'; changed := (res->x->>'changed')::boolean;
         -- el anon "control" y el anon "actor" comparten nombre: el actor se evalua con su propia ejecucion (la ultima gana en res)
         IF changed THEN
-          IF x = 'anon' AND fn.nm = ANY (wl_cap) THEN fl_cap := array_append(fl_cap, x||'/'||fn.nm);
-          ELSE fl_fal := array_append(fl_fal, x||' / '||fn.nm||'('||fn.idargs||') [variante '||vr||']: CAMBIA datos de B'); END IF;
+          IF fn.nm = ANY (wl_cap) THEN fl_cap := array_append(fl_cap, x||' / '||fn.nm||' (cambia)');
+          ELSE fl_fal := array_append(fl_fal, x||'|CAMBIA datos de B|'||fn.nm||'('||fn.idargs||')'); END IF;
           CONTINUE;
         END IF;
         IF err IS NULL THEN
           -- fuga: textos sembrados de B o ids de B que no se pasaron como argumento
-          leak := position('seedB_' in outt) > 0 OR (position('seedA_' in outt) > 0 AND (ac->'forbid') @> to_jsonb(ra));
+          leak := position('seedb_' in outt) > 0 OR (position('seeda_' in outt) > 0 AND (ac->'forbid') @> to_jsonb(ra));
           FOREACH lit IN ARRAY b_ids LOOP
             IF position(lit in argtxt) = 0 AND position(lit in outt) > 0 THEN leak := true; END IF;
           END LOOP;
           IF leak THEN
-            IF x = 'anon' AND fn.nm = ANY (wl_cap) THEN fl_cap := array_append(fl_cap, x||'/'||fn.nm);
-            ELSE fl_fal := array_append(fl_fal, x||' / '||fn.nm||'('||fn.idargs||') [variante '||vr||']: DEVUELVE datos de B'); END IF;
+            IF fn.nm = ANY (wl_cap) THEN fl_cap := array_append(fl_cap, x||' / '||fn.nm||' (lee)');
+            ELSE fl_fal := array_append(fl_fal, x||'|DEVUELVE datos de un restaurante prohibido|'||fn.nm||'('||fn.idargs||')'); END IF;
           ELSIF hasbobj AND coalesce(outt,'') NOT IN ('','null','{}','[]') THEN
-            IF x = 'anon' AND fn.nm = ANY (wl_cap) THEN fl_cap := array_append(fl_cap, x||'/'||fn.nm);
-            ELSE fl_avi := array_append(fl_avi, x||' / '||fn.nm||' [v'||vr||']'); END IF;
+            -- Respondio sin error con un id de B. Es fuga solo si la respuesta se DISTINGUE de la que da por un id inexistente.
+            ph_out := NULL; ph_err := NULL;
+            BEGIN
+              RESET ROLE;
+              PERFORM set_config('request.jwt.claims', (ac->'claims')::text, true);
+              EXECUTE format('SET LOCAL ROLE %I', ac->>'db');
+              EXECUTE phsql INTO ph_out;
+              RESET ROLE;
+              RAISE EXCEPTION 'undo' USING ERRCODE = 'P9999';
+            EXCEPTION WHEN OTHERS THEN RESET ROLE; IF SQLSTATE <> 'P9999' THEN ph_err := SQLERRM; END IF; END;
+            IF ph_err IS NULL AND regexp_replace(regexp_replace(coalesce(ph_out,''),'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}','<u>','g'),'[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9:.]+([+-][0-9:]+|Z)?','<t>','g')
+               = regexp_replace(regexp_replace(coalesce(outt,''),'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}','<u>','g'),'[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9:.]+([+-][0-9:]+|Z)?','<t>','g') THEN
+              NULL;  -- indistinguible de un id inexistente: no filtra nada
+            ELSIF fn.nm = ANY (wl_cap) THEN fl_cap := array_append(fl_cap, x||' / '||fn.nm||' (responde)');
+            ELSE fl_fal := array_append(fl_fal, x||'|RESPONDE distinto que ante un id inexistente (dato de B o id de B aceptado)|'||fn.nm||'('||fn.idargs||') -> '||left(regexp_replace(outt,'\s+',' ','g'),50)); END IF;
           END IF;
         ELSIF st = '42501' OR ctl_ok THEN NULL;  -- rechazada: por permiso o con control positivo valido
-        ELSE fl_inc := array_append(fl_inc, x||' / '||fn.nm||' ('||left(err,50)||')');
+        ELSIF err ~* '(no autorizado|no encontrad|no pertenece|permiso|solo (el )?admin|se requiere|acceso denegado|not authorized|permission denied|verifica tu c|inactiv)' THEN
+          fn_heur := array_append(fn_heur, fn.nm);  -- rechazo por mensaje de autorizacion (heuristico, sin control positivo)
+        ELSE fn_inc := array_append(fn_inc, x||' / '||fn.nm||' ('||left(err,50)||')');
         END IF;
       END LOOP;
     END LOOP;
+    IF NOT fn_anyctl THEN
+      fl_inc := fl_inc || fn_inc; fl_heur := fl_heur || fn_heur;
+      fl_noctl := array_append(fl_noctl, fn.nm||' ['||left(coalesce(fn_ctlerr,'?'),70)||']');
+    END IF;
   END LOOP;
   -- informe de funciones
   n := n + 1;
@@ -581,14 +707,23 @@ BEGIN
   IF coalesce(array_length(fl_fal,1),0) = 0 THEN
     n := n + 1; r := r || n||') ninguna funcion SECURITY DEFINER probada devuelve ni cambia datos de B para ningun actor: OK'||E'\n';
   ELSE
-    FOREACH ln IN ARRAY fl_fal LOOP n := n + 1; r := r || n||') funcion '||ln||': FALLA'||E'\n'; END LOOP;
+    FOR rec IN SELECT split_part(v,'|',1) AS actor, split_part(v,'|',2) AS kind, string_agg(DISTINCT split_part(v,'|',3), ', ') AS fns, count(DISTINCT split_part(v,'|',3)) AS nfn
+               FROM unnest(fl_fal) v GROUP BY 1,2 ORDER BY 1,2 LOOP
+      n := n + 1; r := r || n||') funciones SECURITY DEFINER desde '||rec.actor||' con ids de B ('||rec.nfn||'): '||rec.kind||' mediante '||left(rec.fns,900)||': FALLA'||E'\n';
+    END LOOP;
+  END IF;
+  IF coalesce(array_length(fl_heur,1),0) > 0 THEN
+    r := r || 'INFO: rechazos aceptados por el texto del error (mensaje de autorizacion), sin control positivo: '||left((SELECT string_agg(DISTINCT v, ', ') FROM unnest(fl_heur) v),1200)||E'\n';
   END IF;
   IF coalesce(array_length(fl_cap,1),0) > 0 THEN
-    r := r || 'AVISO: capacidad por uuid de pedido (anon con el id del pedido de B lee/edita/cancela; aceptado solo si el uuid es el secreto del comensal): '||
+    r := r || 'AVISO: capacidad por uuid de pedido (QUIEN TENGA el uuid de un pedido de B lo consulta/edita/cancela, sea anon o personal de A; aceptado solo mientras el uuid sea el secreto del comensal): '||
          (SELECT string_agg(DISTINCT v, ', ') FROM unnest(fl_cap) v)||E'\n';
   END IF;
   IF coalesce(array_length(fl_avi,1),0) > 0 THEN
     r := r || 'AVISO: respondieron SIN error con un id de B (sin datos ni cambios detectables; revisar a mano): '||left((SELECT string_agg(DISTINCT v, ', ') FROM unnest(fl_avi) v),1500)||E'\n';
+  END IF;
+  IF coalesce(array_length(fl_noctl,1),0) > 0 THEN
+    r := r || 'INFO: funciones SIN control positivo (ni el dueno de B, ni super_admin aal2, ni anon logran ejecutarlas con los argumentos generados; primer error): '||left((SELECT string_agg(DISTINCT v, '; ') FROM unnest(fl_noctl) v),4000)||E'\n';
   END IF;
   IF coalesce(array_length(fl_inc,1),0) > 0 THEN
     r := r || 'AVISO: rechazadas pero NO concluyente (ni el dueno de B ni el super_admin aal2 ni anon logran ejecutarlas con los argumentos generados; el rechazo puede ser solo validacion): '||

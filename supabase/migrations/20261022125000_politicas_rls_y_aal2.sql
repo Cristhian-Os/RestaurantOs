@@ -13,7 +13,7 @@
 --            cortes_caja : cajero lee; solo puede guardar el conteo (denominaciones) del corte reciente (trigger por columnas);
 --                          no inserta (el corte lo hace hacer_corte_caja) ni borra. Admin conserva todo.
 --            gastos      : cajero lee, registra, y corrige/borra solo gastos de dias SIN corte (el trigger gastos_dia_cerrado
---                          ya frenaba el DELETE; ahora tambien el UPDATE y el alta retroactiva en un dia cerrado).
+--                          ya frenaba el DELETE; ahora tambien el UPDATE -trigger nuevo, mismo mensaje- y el alta retroactiva en un dia cerrado).
 --            bases_caja  : cajero solo lee; la base se registra con registrar_base_caja (RPC). Admin conserva todo.
 --            gasto_items : cajero solo lee (las altas las hace registrar_compra_proveedor, SECURITY DEFINER).
 --  * S-07  tasks: el empleado ya no puede cambiar restaurante, datos de la tarea ni marcarla "completed" sin evidencia
@@ -105,12 +105,33 @@ CREATE POLICY "gastos: admin edita" ON public.gastos FOR UPDATE
   USING ((( SELECT get_user_role()) = 'admin' AND restaurant_id = ( SELECT current_restaurant_id())) OR ( SELECT is_super_admin()))
   WITH CHECK ((( SELECT get_user_role()) = 'admin' AND restaurant_id = ( SELECT current_restaurant_id())) OR ( SELECT is_super_admin()));
 CREATE POLICY "gastos: cajero corrige los de dias sin corte" ON public.gastos FOR UPDATE
-  USING (( SELECT get_user_role()) = 'cashier' AND restaurant_id = ( SELECT current_restaurant_id()) AND NOT ( SELECT _mi_dia_con_corte(created_at)))
-  WITH CHECK (( SELECT get_user_role()) = 'cashier' AND restaurant_id = ( SELECT current_restaurant_id()) AND NOT ( SELECT _mi_dia_con_corte(created_at)));
+  USING (( SELECT get_user_role()) = 'cashier' AND restaurant_id = ( SELECT current_restaurant_id()))
+  WITH CHECK (( SELECT get_user_role()) = 'cashier' AND restaurant_id = ( SELECT current_restaurant_id()));
 CREATE POLICY "gastos: admin borra" ON public.gastos FOR DELETE
   USING ((( SELECT get_user_role()) = 'admin' AND restaurant_id = ( SELECT current_restaurant_id())) OR ( SELECT is_super_admin()));
 CREATE POLICY "gastos: cajero borra los de dias sin corte" ON public.gastos FOR DELETE
-  USING (( SELECT get_user_role()) = 'cashier' AND restaurant_id = ( SELECT current_restaurant_id()) AND NOT ( SELECT _mi_dia_con_corte(created_at)));
+  USING (( SELECT get_user_role()) = 'cashier' AND restaurant_id = ( SELECT current_restaurant_id()));
+-- La politica del cajero deja pasar la fila y el TRIGGER decide el dia (mensaje claro en pantalla en vez de "0 filas"):
+-- DELETE ya lo frenaba gastos_dia_cerrado (migracion anterior); aqui se agrega el UPDATE con la misma regla.
+-- Solo aplica a llamadas directas de la API (rol authenticated): reembolsar_gasto y otras funciones SECURITY DEFINER no pasan por aqui.
+CREATE OR REPLACE FUNCTION public.gastos_cajero_dia_cerrado_upd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF current_user IN ('authenticated', 'anon') AND public.get_user_role() = 'cashier'
+     AND (public._mi_dia_con_corte(OLD.created_at) OR public._mi_dia_con_corte(NEW.created_at)) THEN
+    RAISE EXCEPTION 'Ese día ya tiene corte de caja. Pídele al administrador que ajuste el gasto.';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.gastos_cajero_dia_cerrado_upd() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.gastos_cajero_dia_cerrado_upd() TO service_role;
+DROP TRIGGER IF EXISTS gastos_cajero_dia_cerrado_upd ON public.gastos;
+CREATE TRIGGER gastos_cajero_dia_cerrado_upd BEFORE UPDATE ON public.gastos
+  FOR EACH ROW EXECUTE FUNCTION public.gastos_cajero_dia_cerrado_upd();
 
 -- 2c) bases_caja: el cajero la registra por registrar_base_caja (RPC); aqui solo lee.
 DROP POLICY IF EXISTS "Admin y cajero gestionan bases de caja" ON public.bases_caja;

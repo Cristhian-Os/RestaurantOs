@@ -15,7 +15,13 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 const diaBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).replaceAll('-', '')
-const ref = (restaurantId: string) => `sub_${restaurantId}_${diaBogota()}`
+// sub_<restaurante>_<día>_<n>: n cuenta los intentos del día (un rechazo no impide reintentar hoy con otra tarjeta;
+// el tope de reintentos lo pone suscripcion_puede_cobrar y la carrera entre dos intentos la frena el UNIQUE de reference).
+const ref = async (db: any, restaurantId: string) => {
+  const base = `sub_${restaurantId}_${diaBogota()}`
+  const { count } = await db.from('payments').select('id', { count: 'exact', head: true }).like('reference', `${base}_%`)
+  return `${base}_${(count ?? 0) + 1}`
+}
 const CARD_TOKEN = /^tok_[A-Za-z0-9_]{6,120}$/
 function apiBase(publicKey: string): string {
   return publicKey.includes('_prod_') ? 'https://production.wompi.co/v1' : 'https://sandbox.wompi.co/v1'
@@ -90,7 +96,7 @@ Deno.serve(async (req) => {
         if (ePuede) console.error('wompi-subscribe suscripcion_puede_cobrar:', ePuede.message)
         if (ePuede || puede !== true) cobro = 'omitido'
         else {
-          const reference = ref(restaurantId)
+          const reference = await ref(admin, restaurantId)
           const integrity = await sha256Hex(`${reference}${amount}COP${integritySecret}`)
           const { data: d } = await admin.rpc('desglose_cobro', { p_total_cop: amount / 100 })
           const { error: eIns } = await admin.from('payments').insert({

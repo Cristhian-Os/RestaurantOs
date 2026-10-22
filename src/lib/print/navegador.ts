@@ -10,8 +10,8 @@ const ESPERA_CONFIRMAR_MS = 45_000    // tras abrir el diálogo, tiempo máximo 
 
 /**
  * Imprime con la impresora que el equipo tenga instalada (diálogo del navegador).
- * Rechaza si la vista no carga a tiempo, si falla al abrir el diálogo o si el navegador no confirma el final
- * (evento `afterprint`): sin esa confirmación NO se da por impreso. Nunca se queda colgada.
+ * Rechaza si la vista no carga a tiempo o si falla al abrir el diálogo. Si el diálogo se abrió pero el navegador
+ * no emite `afterprint`, se da por impreso pasado un tiempo (mejor que duplicar la comanda). Nunca se queda colgada.
  */
 export function imprimirEnNavegador(m: Modelo): Promise<void> {
   return new Promise((ok, mal) => {
@@ -39,7 +39,9 @@ export function imprimirEnNavegador(m: Modelo): Promise<void> {
         if (!w) throw new Error('No se pudo abrir la impresión')
         w.addEventListener('afterprint', alTerminar)
         window.addEventListener('afterprint', alTerminar)
-        tConfirmar = setTimeout(() => cerrar(new Error('El navegador no confirmó la impresión')), ESPERA_CONFIRMAR_MS)
+        // Safari/iOS no emiten `afterprint` desde un iframe oculto: si el diálogo se abrió sin error se da por impreso
+        // (reintentar imprimiría la comanda dos veces). Los fallos de carga/apertura sí rechazan.
+        tConfirmar = setTimeout(() => cerrar(), ESPERA_CONFIRMAR_MS)
         w.focus(); w.print()
       } catch (e) { cerrar(e instanceof Error ? e : new Error('No se pudo imprimir')) }
     }

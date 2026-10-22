@@ -20,6 +20,7 @@ DROP POLICY IF EXISTS "gasto_items: admin y cajero leen" ON public.gasto_items;
 DROP POLICY IF EXISTS "gasto_items: admin gestiona" ON public.gasto_items;
 DROP TRIGGER IF EXISTS cortes_caja_cajero_solo_conteo ON public.cortes_caja;
 DROP TRIGGER IF EXISTS tasks_empleado_solo_estado ON public.tasks;
+DROP TRIGGER IF EXISTS gastos_cajero_dia_cerrado_upd ON public.gastos;
 
 -- 2) Politicas originales
 DROP POLICY IF EXISTS "Admin and cashier cortes" ON public.cortes_caja;
@@ -92,4 +93,5 @@ END; $function$
 -- 4) Objetos nuevos fuera
 DROP FUNCTION IF EXISTS public.cortes_caja_cajero_solo_conteo();
 DROP FUNCTION IF EXISTS public.tasks_empleado_solo_estado();
+DROP FUNCTION IF EXISTS public.gastos_cajero_dia_cerrado_upd();
 DROP FUNCTION IF EXISTS public._mi_dia_con_corte(timestamptz);
