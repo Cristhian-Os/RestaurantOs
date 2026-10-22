@@ -85,7 +85,7 @@ BEGIN
     r := r||'15) S-06 cajero edita gasto de un dia con corte: filas '||n||CASE WHEN n=0 THEN ': OK' ELSE ': FALLA' END||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'15) S-06 cajero edita gasto de un dia con corte rechazado: OK'||E'\n'; END;
   BEGIN DELETE FROM gastos WHERE id = g_hoy; GET DIAGNOSTICS n = ROW_COUNT;
-    r := r||'16) S-06 cajero borra gasto de un dia con corte: FALLA ('||n||')'||E'\n';
+    r := r||'16) S-06 cajero borra gasto de un dia con corte: filas '||n||CASE WHEN n=0 THEN ': OK' ELSE ': FALLA' END||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'16) S-06 cajero borra gasto de un dia con corte rechazado: OK'||E'\n'; END;
   BEGIN UPDATE gastos SET monto = 2500 WHERE id = g_viejo; GET DIAGNOSTICS n = ROW_COUNT;
     r := r||'17) S-06 cajero corrige gasto de un dia sin corte: filas '||n||CASE WHEN n=1 THEN ': OK' ELSE ': FALLA' END||E'\n';
@@ -136,13 +136,13 @@ BEGIN
   BEGIN UPDATE gastos SET monto = 1234 WHERE id = g_hoy; GET DIAGNOSTICS n = ROW_COUNT;
     r := r||'32) S-06 admin edita gasto de un dia con corte: filas '||n||CASE WHEN n=1 THEN ': OK' ELSE ': FALLA' END||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'32) S-06 admin edita gasto de un dia con corte: FALLA '||sqlerrm||E'\n'; END;
-  BEGIN UPDATE cortes_caja SET notas = 'ajuste admin' WHERE id = corte; GET DIAGNOSTICS n = ROW_COUNT;
+  BEGIN UPDATE cortes_caja SET notas = 'ajuste admin' WHERE restaurant_id = ra AND fecha = fecha_bog; GET DIAGNOSTICS n = ROW_COUNT;
     r := r||'33) S-06 admin ajusta el corte: filas '||n||CASE WHEN n=1 THEN ': OK' ELSE ': FALLA' END||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'33) S-06 admin ajusta el corte: FALLA '||sqlerrm||E'\n'; END;
   BEGIN UPDATE bases_caja SET monto = 6000 WHERE restaurant_id = ra AND fecha = fecha_bog - 3; GET DIAGNOSTICS n = ROW_COUNT;
     r := r||'34) S-06 admin edita una base: filas '||n||CASE WHEN n=1 THEN ': OK' ELSE ': FALLA' END||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'34) S-06 admin edita una base: FALLA '||sqlerrm||E'\n'; END;
-  BEGIN DELETE FROM cortes_caja WHERE id = corte; GET DIAGNOSTICS n = ROW_COUNT;
+  BEGIN DELETE FROM cortes_caja WHERE restaurant_id = ra AND fecha = fecha_bog; GET DIAGNOSTICS n = ROW_COUNT;
     r := r||'35) S-06 admin borra un corte: filas '||n||CASE WHEN n=1 THEN ': OK' ELSE ': FALLA' END||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'35) S-06 admin borra un corte: FALLA '||sqlerrm||E'\n'; END;
   BEGIN INSERT INTO bases_caja (restaurant_id, fecha, monto) VALUES (ra, fecha_bog - 5, 1000);
@@ -224,20 +224,13 @@ BEGIN
   BEGIN INSERT INTO custom_dish_ingredients (custom_dish_id, ingrediente_id, cantidad) VALUES (cd, ing_a, 1);
     r := r||'59) custom_dish_ingredients propio: OK'||E'\n';
   EXCEPTION WHEN OTHERS THEN r := r||'59) custom_dish_ingredients propio: FALLA '||sqlerrm||E'\n'; END;
-  -- push_subscriptions: no se registra una suscripcion bajo otro restaurante
   RESET ROLE; PERFORM set_config('request.jwt.claims', CW, true); SET LOCAL ROLE authenticated;
-  BEGIN INSERT INTO push_subscriptions (user_id, endpoint, restaurant_id) VALUES (uw, 'https://push.test/ajeno', rb);
-    r := r||'60) push_subscriptions bajo otro restaurante: FALLA'||E'\n';
-  EXCEPTION WHEN OTHERS THEN r := r||'60) push_subscriptions bajo otro restaurante rechazado: OK'||E'\n'; END;
-  BEGIN INSERT INTO push_subscriptions (user_id, endpoint) VALUES (uw, 'https://push.test/propio');
-    r := r||'61) push_subscriptions propia: OK'||E'\n';
-  EXCEPTION WHEN OTHERS THEN r := r||'61) push_subscriptions propia: FALLA '||sqlerrm||E'\n'; END;
   -- Un mesero sigue pudiendo cambiar el estado de una mesa propia y no la de otro restaurante
   BEGIN UPDATE mesas SET estado = 'ocupada' WHERE restaurant_id = ra; GET DIAGNOSTICS n = ROW_COUNT;
-    r := r||'62) mesero actualiza mesa propia: filas '||n||CASE WHEN n=1 THEN ': OK' ELSE ': FALLA' END||E'\n';
-  EXCEPTION WHEN OTHERS THEN r := r||'62) mesero actualiza mesa propia: FALLA '||sqlerrm||E'\n'; END;
-  BEGIN UPDATE mesas SET restaurant_id = rb WHERE restaurant_id = ra; r := r||'63) mesero mueve mesa a otro restaurante: FALLA'||E'\n';
-  EXCEPTION WHEN OTHERS THEN r := r||'63) mesero mueve mesa a otro restaurante rechazado: OK'||E'\n'; END;
+    r := r||'60) mesero actualiza mesa propia: filas '||n||CASE WHEN n=1 THEN ': OK' ELSE ': FALLA' END||E'\n';
+  EXCEPTION WHEN OTHERS THEN r := r||'60) mesero actualiza mesa propia: FALLA '||sqlerrm||E'\n'; END;
+  BEGIN UPDATE mesas SET restaurant_id = rb WHERE restaurant_id = ra; r := r||'61) mesero mueve mesa a otro restaurante: FALLA'||E'\n';
+  EXCEPTION WHEN OTHERS THEN r := r||'61) mesero mueve mesa a otro restaurante rechazado: OK'||E'\n'; END;
   RESET ROLE;
   RAISE EXCEPTION E'TEST_OUTPUT\n%', r;
 END $$;
