@@ -24,7 +24,8 @@ export type EventoVad = 'inicio' | 'fin' | null
 
 export function crearVad(o: OpcionesVad) {
   let umbralMin = o.umbralMin ?? 0.012, factor = o.factorRuido ?? 3, inicioMs = o.inicioMs ?? 100
-  const finMs = o.finMs ?? 700, maxFraseMs = o.maxFraseMs ?? 20_000
+  const finMs = o.finMs ?? 700, maxFraseMs = o.maxFraseMs ?? 15_000
+  let pico = 0   // nivel típico de la voz en la frase actual: el fin se mide contra él, no solo contra el ruido de fondo (en un lugar ruidoso el silencio nunca baja del ruido)
   let ruido = 0.004, hablando = false, conVoz = 0, enSilencio = 0, duracion = 0, vozTotal = 0, calibrando = o.calibracionMs ?? 500
 
   return {
@@ -36,17 +37,24 @@ export function crearVad(o: OpcionesVad) {
         const alfa = energia > umbral ? 0.002 : 0.03
         ruido = Math.max(0.0015, ruido * (1 - alfa) + energia * alfa)
         // Acumulador con fuga: el habla real tiene huecos entre sílabas, así que un hueco resta la mitad en vez de reiniciar la cuenta.
-        if (energia > umbral) { conVoz += o.bloqueMs; if (conVoz >= inicioMs) { hablando = true; enSilencio = 0; duracion = conVoz; vozTotal = conVoz; return 'inicio' } }
+        if (energia > umbral) { conVoz += o.bloqueMs; if (conVoz >= inicioMs) { hablando = true; enSilencio = 0; duracion = conVoz; vozTotal = conVoz; pico = energia; return 'inicio' } }
         else conVoz = Math.max(0, conVoz - o.bloqueMs * 0.5)
         return null
       }
       duracion += o.bloqueMs
-      if (energia > umbral * 0.6) { enSilencio = 0; vozTotal += o.bloqueMs } else enSilencio += o.bloqueMs   // histéresis: seguir "hablando" cuesta menos que empezar
-      if (enSilencio >= finMs || duracion >= maxFraseMs) { hablando = false; conVoz = 0; enSilencio = 0; return 'fin' }
+      // Es silencio lo que cae por debajo de la histéresis (60 % del umbral) Y de una fracción de la voz de esta frase: así el fin se detecta aunque haya ruido de fondo.
+      const umbralFin = Math.max(umbral * 0.6, pico * 0.22)
+      if (energia > umbral) pico = pico * 0.9 + energia * 0.1
+      if (energia > umbralFin) { enSilencio = 0; vozTotal += o.bloqueMs } else enSilencio += o.bloqueMs
+      // Tras una frase larga basta una pausa más corta para entender que terminó; en una corta se espera un poco más (puede seguir).
+      const espera = vozTotal > 1200 ? Math.max(500, finMs - 150) : finMs
+      if (enSilencio >= espera || duracion >= maxFraseMs) { hablando = false; conVoz = 0; enSilencio = 0; return 'fin' }
       return null
     },
     /** Cambia la sensibilidad en caliente (p. ej. más exigente mientras Resti habla, para no oírse a sí misma). */
     ajustar(n: { umbralMin?: number; factorRuido?: number; inicioMs?: number }) { umbralMin = n.umbralMin ?? umbralMin; factor = n.factorRuido ?? factor; inicioMs = n.inicioMs ?? inicioMs },
+    /** Fin manual (p. ej. la persona toca el micrófono mientras habla): cierra la frase ya, sin esperar el silencio. */
+    forzarFin(): EventoVad { if (!hablando) return null; hablando = false; conVoz = 0; enSilencio = 0; return 'fin' },
     reiniciar() { hablando = false; conVoz = 0; enSilencio = 0; duracion = 0; vozTotal = 0 },
     calibrando: () => calibrando > 0,
     hablando: () => hablando,

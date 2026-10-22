@@ -20,6 +20,7 @@ const ERRORES: Record<string, string> = {
 export function useRestiConversacion(opts: { responder: (texto: string) => Promise<string>; alTexto?: (rol: 'user' | 'assistant', texto: string) => void }) {
   const [estado, setEstado] = useState<EstadoConv>('apagado')
   const [usuarioHablando, setUsuarioHablando] = useState(false)
+  const usuarioHablandoRef = useRef(false); usuarioHablandoRef.current = usuarioHablando
   const [modo, setModo] = useState<ModoVoz | null>(null)
   const [error, setError] = useState<string | null>(null)
   const modoRef = useRef<ModoVoz | null>(null)
@@ -67,7 +68,8 @@ export function useRestiConversacion(opts: { responder: (texto: string) => Promi
   /** Enciende o apaga la conversación. Debe llamarse desde un clic (los navegadores solo dejan sonar y grabar tras un gesto). */
   const alternar = useCallback(async () => {
     const c = asegurar()
-    if (c.estado() !== 'apagado') { c.detener(); return }
+    // Si la persona está hablando, tocar el micrófono significa «ya terminé»: se manda lo dicho. Fuera de eso, apaga la conversación.
+    if (c.estado() !== 'apagado') { if (usuarioHablandoRef.current) { c.terminarFrase(); return } c.detener(); return }
     setError(null)
     reproductor.current!.preparar()
     if (modoRef.current === null) { const ok = await vozDelServidorDisponible(); modoRef.current = ok ? 'servidor' : 'navegador'; setModo(modoRef.current) }

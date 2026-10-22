@@ -6,7 +6,7 @@ export type EstadoConv = 'apagado' | 'iniciando' | 'escuchando' | 'transcribiend
 /** Lo que entrega la captura: audio WAV (se transcribe en el servidor) o texto ya reconocido (reconocimiento del navegador). */
 export interface Frase { wav?: string; texto?: string }
 
-export interface CapturaConv { detener(): void; sensibilidad?(modo: 'normal' | 'baja'): void }
+export interface CapturaConv { detener(): void; sensibilidad?(modo: 'normal' | 'baja'): void; /** Cierra ya la frase que se está diciendo (la persona avisa que terminó). */ terminarFrase?(): void }
 export interface DepsConv {
   iniciarCaptura(cb: { onFrase(f: Frase): void; onInicioHabla(): void }): Promise<CapturaConv>
   transcribir(wav: string): Promise<string>
@@ -65,6 +65,8 @@ export function crearConversacion(d: DepsConv) {
 
   return {
     estado: () => estado,
+    /** La persona avisa que terminó de hablar (toca el micrófono): se cierra la frase sin esperar el silencio. */
+    terminarFrase: () => captura?.terminarFrase?.(),
     async iniciar() {
       if (actual() !== 'apagado') return
       ir('iniciando')

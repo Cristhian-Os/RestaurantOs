@@ -27,6 +27,12 @@ export async function iniciarCapturaVad(cb: Callbacks): Promise<Captura> {
 
   const vad = crearVad({ bloqueMs: (1024 / ctx.sampleRate) * 1000, ...SENSIBILIDAD.normal })
   let preroll: Float32Array[] = [], frase: Float32Array[] = [], ultimo = 0, vivo = true
+  const cerrar = () => {
+    const voz = vad.vozMs(); const total = frase.reduce((n, b) => n + b.length, 0), todo = new Float32Array(total); let o = 0
+    for (const b of frase) { todo.set(b, o); o += b.length }
+    frase = []
+    if (voz >= 250) cb.onFrase({ wav: aWavBase64(bajarMuestreo(todo, ctx.sampleRate, 16000), 16000) })   // un ruido corto no es una frase
+  }
   const bloque = (f: Float32Array) => {
     if (!vivo) return
     const e = rms(f); ultimo = e
@@ -34,12 +40,7 @@ export async function iniciarCapturaVad(cb: Callbacks): Promise<Captura> {
     if (ev === 'inicio') { frase = [...preroll, f]; preroll = []; cb.onInicioHabla(); return }
     if (vad.hablando() || ev === 'fin') {
       frase.push(f)
-      if (ev === 'fin') {
-        const voz = vad.vozMs(); const total = frase.reduce((n, b) => n + b.length, 0), todo = new Float32Array(total); let o = 0
-        for (const b of frase) { todo.set(b, o); o += b.length }
-        frase = []
-        if (voz >= 250) cb.onFrase({ wav: aWavBase64(bajarMuestreo(todo, ctx.sampleRate, 16000), 16000) })   // un ruido corto no es una frase
-      }
+      if (ev === 'fin') cerrar()
       return
     }
     preroll.push(f); while (preroll.length * 1024 / ctx.sampleRate * 1000 > PREROLL_MS) preroll.shift()
@@ -59,6 +60,7 @@ export async function iniciarCapturaVad(cb: Callbacks): Promise<Captura> {
 
   return {
     nivel: () => ultimo,
+    terminarFrase: () => { if (vad.forzarFin() === 'fin') cerrar() },
     sensibilidad: m => vad.ajustar(SENSIBILIDAD[m]),
     detener() {
       vivo = false

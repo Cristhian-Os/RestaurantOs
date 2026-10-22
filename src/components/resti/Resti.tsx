@@ -12,6 +12,10 @@ import { RestiSprite, RestiHat } from './RestiSprite'
 import { isRestiTarget, type RestiBrainResponse } from '../../lib/resti/targets'
 import { parseBrainResponse } from '../../lib/resti/brain'
 import { intencionLocal } from '../../lib/resti/intents'
+import { esOrdenDeCambio, esConfirmacion, esCancelacion, resumenParaDecir, resumenAplicado } from '../../lib/resti/agente'
+import { loadCommandContext, applyChange } from '../../services/voiceCommandsApi'
+import { buildProposals, toPromptContext, type Proposal, type RawAction } from '../../services/voiceCommands'
+import { parseVoiceText } from '../../services/voiceService'
 import { EVENTO_ABRIR_OPINION, EVENTO_OPINION_GUARDADA, type AtajoOpinion } from '../feedback/OpinionSection'
 import type { RestiEstado3D } from './rig/restiAnim.ts'
 
@@ -41,7 +45,8 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(ma
 const movil = () => window.innerWidth < 768
 /** Distancia del borde de abajo: en el celular hay una barra de pestañas fija (Nueva orden, Mesas…) que Resti no debe tapar. */
 const abajo = () => (movil() ? 76 : 16)
-const casa = () => ({ x: window.innerWidth - W - 12, y: window.innerHeight - H - abajo() - 66 })
+const ALTO_TARJETA = 200   // lo que sube Resti cuando la tarjeta del cambio propuesto ocupa el lugar de la barra
+const casa = (extra = 0) => ({ x: window.innerWidth - W - 12, y: window.innerHeight - H - abajo() - 66 - extra })
 const buscar = (id: string) => document.querySelector<HTMLElement>(`[data-resti-target="${id}"]`)
 
 const CSS = `
@@ -85,9 +90,9 @@ async function conversarOpinion(mensajes: MsgOpinion[]): Promise<{ reply: string
   } catch { return { reply: 'No pude conectar ahora. Intenta de nuevo en un momento.', saved: false } }
 }
 
-interface Props { onOpenVoiceCommands: (textoDicho?: string) => void; onGoHome: () => void }
+interface Props { onOpenVoiceCommands: (textoDicho?: string) => void; onGoHome: () => void; userId: string; role: 'admin' | 'cashier'; onApplied: () => void }
 
-export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
+export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onApplied }: Props) {
   const [estado, setEstado] = useState<Estado>('HAT')
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const [habla, setHabla] = useState('')
@@ -97,6 +102,10 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
   const [gorro, setGorro] = useState<'sube' | 'sale' | null>(null)   // el gorro se eleva y se desvanece en la luz mientras sale Resti
   const [luz, setLuz] = useState(false)
   const invocando = useRef(false)
+  const propsRef = useRef({ userId, role, onApplied, onOpenVoiceCommands }); propsRef.current = { userId, role, onApplied, onOpenVoiceCommands }
+  // Cambio que Resti preparó y espera tu confirmación (tocando Aplicar o diciendo «sí»). Nada se escribe sin ella.
+  const propuesta = useRef<{ proposals: Proposal[]; dicho: string } | null>(null)
+  const [tarjeta, setTarjeta] = useState<{ proposals: Proposal[]; dicho: string; aplicando?: boolean } | null>(null)
   const [saliendo, setSaliendo] = useState(false)         // animación de vuelta al gorro (no desaparece de golpe)
   const [listo3D, setListo3D] = useState(false)          // el 3D ya dibujó su primer cuadro (hasta entonces se ve la captura del mismo modelo)
   const [sin3D, setSin3D] = useState(false)               // el equipo no puede con el 3D: se usan los sprites
@@ -207,6 +216,39 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     return true
   }, [decir, onGoHome, reducido, aplicarEstadoConv])
 
+  const descartar = useCallback(() => { propuesta.current = null; setTarjeta(null) }, [])
+
+  /** Agente: entiende la orden de cambio, la prepara con las mismas reglas del modal de comandos y espera la confirmación. */
+  const proponer = useCallback(async (dicho: string): Promise<RestiBrainResponse> => {
+    const abrirEditor = (speech: string): RestiBrainResponse => ({ speech, action: 'OPEN_VOICE_COMMANDS' })
+    try {
+      const { role: rol, userId: uid } = propsRef.current
+      const ctx = await loadCommandContext(rol)
+      const r = await parseVoiceText<{ transcript: string; actions: RawAction[] }>('command', dicho, toPromptContext(ctx))
+      const proposals = buildProposals(r.actions ?? [], ctx, uid, rol)
+      if (proposals.length === 0) return abrirEditor('No entendí qué cambiar. Te abro el editor para que lo escribas.')
+      if (!proposals.some(p => p.change)) return abrirEditor(`${proposals[0].problem ?? 'No pude preparar ese cambio'}. Te abro el editor.`)
+      const nueva = { proposals, dicho }
+      propuesta.current = nueva; setTarjeta(nueva)
+      setTimeout(() => { if (propuesta.current === nueva) descartar() }, 90_000)   // si nadie confirma, se descarta
+      return { speech: resumenParaDecir(proposals), action: 'NONE' }
+    } catch { return abrirEditor('No pude preparar el cambio. Te abro el editor.') }
+  }, [descartar])
+
+  const aplicar = useCallback(async (): Promise<RestiBrainResponse> => {
+    const p = propuesta.current
+    if (!p) return { speech: 'No tengo ningún cambio pendiente.', action: 'NONE' }
+    setTarjeta(t => t && { ...t, aplicando: true })
+    let hechos = 0; const fallos: string[] = []
+    for (const x of p.proposals) {   // en orden: las propuestas se calcularon suponiendo ese orden
+      if (!x.change) continue
+      try { await applyChange(x.change, propsRef.current.role); hechos++ } catch (e) { fallos.push(e instanceof Error ? e.message : 'no se pudo aplicar') }
+    }
+    propuesta.current = null; setTarjeta(null)
+    if (hechos > 0) propsRef.current.onApplied()
+    return { speech: resumenAplicado(hechos, fallos), action: 'NONE' }
+  }, [])
+
   const ejecutar = useCallback(async (r: RestiBrainResponse, dicho: string) => {
     if (r.action === 'WALK_AND_POINT' && r.targetId) { await walkToAndClick(r.targetId, r.speech, true); return }
     decir(r.speech)
@@ -225,12 +267,19 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
       if (saved) window.dispatchEvent(new CustomEvent(EVENTO_OPINION_GUARDADA))
       return { speech: reply, action: 'NONE' }
     }
-    let r = intencionLocal(frase)
+    // Un cambio preparado espera tu respuesta: «sí» lo aplica, «no» lo descarta; otra cosa lo descarta y se atiende lo nuevo.
+    if (propuesta.current) {
+      if (esConfirmacion(frase)) { if (!convRef.current.activa) ir('THINKING'); const r = await aplicar(); recordar('user', frase); recordar('assistant', r.speech); return r }
+      if (esCancelacion(frase)) { descartar(); return { speech: 'Listo, no hice ningún cambio.', action: 'NONE' } }
+      descartar()
+    }
+    let r: RestiBrainResponse | null = esOrdenDeCambio(frase) ? { speech: '', action: 'OPEN_VOICE_COMMANDS' } : intencionLocal(frase)   // las órdenes de cambio no pasan por el cerebro: más rápido
     if (!r) { if (!convRef.current.activa) ir('THINKING'); r = await preguntarIA(frase, historial.current) }
+    if (r.action === 'OPEN_VOICE_COMMANDS') { if (!convRef.current.activa) ir('THINKING'); r = await proponer(frase) }
     recordar('user', frase); recordar('assistant', r.speech)
     if (r.action === 'START_FEEDBACK') opinion.current = [{ role: 'user', text: frase }, { role: 'assistant', text: r.speech }]
     return r
-  }, [])
+  }, [aplicar, descartar, proponer])
 
   // En conversación: Resti ejecuta la parte visual por su cuenta y devuelve lo que va a decir (el audio lo reproduce la conversación).
   responderRef.current = async t => { const r = await obtenerRespuesta(t); void ejecutar(r, t); return r.speech }
@@ -268,8 +317,17 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     return () => window.removeEventListener(EVENTO_ABRIR_OPINION, alAbrir)
   }, [decir])
 
-  const etiquetaMic = conv.estado === 'apagado' ? 'Hablar con Resti' : 'Terminar la conversación'
+  const etiquetaMic = conv.estado === 'apagado' ? 'Hablar con Resti' : conv.usuarioHablando ? 'Ya terminé: enviar lo que dije' : 'Terminar la conversación'
   const placeholder = ({ apagado: 'Pregúntale a Resti…', iniciando: 'Activando el micrófono…', escuchando: 'Te escucho…', transcribiendo: 'Pensando…', pensando: 'Pensando…', hablando: 'Háblale para interrumpir' } as const)[conv.estado]
+
+  const habiaTarjeta = useRef(false)
+  useEffect(() => {
+    const hay = !!tarjeta
+    if (hay === habiaTarjeta.current) return
+    const antes = casa(habiaTarjeta.current ? ALTO_TARJETA : 0), ahora = casa(hay ? ALTO_TARJETA : 0)
+    habiaTarjeta.current = hay
+    setPos(p => (p && Math.abs(p.y - antes.y) < 8 && Math.abs(p.x - antes.x) < 8 ? ahora : p))   // solo si está en su lugar; si caminó a otro sitio, no se mueve
+  }, [tarjeta])
 
   const bajoGorro = movil() ? 84 : 20   // el gorro vive aquí (en el celular, por encima de la barra de pestañas)
   const luzEl = luz && !reducido && (
@@ -348,7 +406,40 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
         </div>
       )}
 
-      <form onSubmit={e => { e.preventDefault(); const t = texto; setTexto(''); void atender(t) }}
+      {tarjeta && (
+        <div role="dialog" aria-label="Cambio que Resti propone"
+          style={{ position: 'fixed', bottom: abajo(), zIndex: 97, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 10, padding: 14,
+            ...(mov ? { left: 12, right: 12 } : { right: 16, width: 360 }),
+            background: 'var(--w-surface)', color: 'var(--w-ink)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', boxShadow: '0 14px 36px rgba(0,0,0,.3)',
+            fontFamily: 'var(--w-sans)', animation: 'resti-globo 220ms ease-out both' }}>
+          <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--w-terra)' }}>Resti propone</p>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 132, overflowY: 'auto' }}>
+            {tarjeta.proposals.map(p => (
+              <li key={p.index} style={{ padding: '0.5rem 0.7rem', borderRadius: '0.8rem', background: 'var(--w-bg)', border: `1px solid ${p.problem ? 'var(--w-wine, #b0341d)' : 'var(--w-line)'}` }}>
+                <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{p.title}</div>
+                {p.detail && <div style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)', marginTop: 2 }}>{p.detail}</div>}
+                {p.problem && <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-wine, #b0341d)', marginTop: 2 }}>{p.problem}</div>}
+              </li>
+            ))}
+          </ul>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => { descartar(); decir('Listo, no hice ningún cambio.') }} disabled={tarjeta.aplicando}
+              style={{ flex: 1, minHeight: 44, border: 'none', borderRadius: '0.9rem', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', background: 'var(--w-bg)', color: 'var(--w-ink-soft, var(--w-ink))' }}>Cancelar</button>
+            <button type="button" disabled={tarjeta.aplicando}
+              onClick={() => { void aplicar().then(r => { decir(r.speech); if (!convRef.current.activa) void convRef.current.hablarSuelto(r.speech) }) }}
+              style={{ flex: 2, minHeight: 44, border: 'none', borderRadius: '0.9rem', cursor: tarjeta.aplicando ? 'wait' : 'pointer', fontWeight: 800, fontFamily: 'inherit', background: 'var(--w-terra)', color: '#fff', opacity: tarjeta.aplicando ? 0.7 : 1 }}>
+              {tarjeta.aplicando ? 'Aplicando…' : 'Aplicar'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: '0.72rem', color: 'var(--w-ink-mut)' }}>
+            <span>También puedes decir «sí» o «cancela».</span>
+            <button type="button" onClick={() => { const d = tarjeta.dicho; descartar(); propsRef.current.onOpenVoiceCommands(d) }}
+              style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'underline', fontFamily: 'inherit', fontSize: 'inherit' }}>Revisar en el editor</button>
+          </div>
+        </div>
+      )}
+
+      {!tarjeta && (      <form onSubmit={e => { e.preventDefault(); const t = texto; setTexto(''); void atender(t) }}
         style={{ position: 'fixed', bottom: abajo(), zIndex: 96, display: 'flex', gap: 8, alignItems: 'center', padding: 6, boxSizing: 'border-box',
           ...(mov ? { left: 12, right: 12 } : { right: 16 }),
           background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '999px', boxShadow: 'var(--w-shadow-sm)',
@@ -359,7 +450,9 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
             style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, display: 'grid', placeItems: 'center', lineHeight: 0,
               background: 'var(--w-terra)', color: '#fff', opacity: conv.activa ? 1 : 0.92,
               animation: conv.activa && conv.estado === 'escuchando' ? 'resti-pulso 1.6s ease-in-out infinite' : undefined }}>
-            {conv.activa
+            {conv.activa && conv.usuarioHablando
+              ? <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+              : conv.activa
               ? <svg viewBox="0 0 24 24" width={20} height={20} fill="currentColor" aria-hidden><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
               : <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0013 0M12 18v3" />
@@ -374,6 +467,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
           <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
       </form>
+      )}
     </>
   )
 }
