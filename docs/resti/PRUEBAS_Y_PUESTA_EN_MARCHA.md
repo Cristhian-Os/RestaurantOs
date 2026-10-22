@@ -7,7 +7,7 @@ Estado al 2026-10-22. Rama `claude/new-session-0vekub`. **Nada de esto está en 
 | Pieza | Estado |
 |---|---|
 | `resti-brain` v3 (cerebro: adaptador de IA + memoria de 6 turnos) | desplegada |
-| `resti-voz` v1 (Gemini oye y habla) | desplegada, **sin clave de Gemini** → el cliente usa la voz del navegador |
+| `resti-voz` v2 (Gemini oye y habla) | desplegada, con `gemini_api_key` cargada. Modelos: oír `gemini-3.5-flash-lite` → `gemini-3.6-flash`; hablar `gemini-3.8-flash-tts` → `gemini-3.1-flash-tts-preview` (respaldo automático) |
 | `platform_secrets`: `ai_proveedor=compatible`, `ai_url_base=https://api.deepseek.com`, `ai_modelo=deepseek-flash`, `ai_api_key` | cargado |
 | Resti encendido (`resti_agent`) | solo para "Prueba A" (admin `admin-a@prueba.test`) |
 | `pg_net` (esquema `extensions`) | instalado en el proyecto de prueba para poder llamar funciones desde SQL |
@@ -40,11 +40,12 @@ Ojo: el proyecto `restaurantos` ya crea una vista previa por cada push de la ram
 ## Qué NO se ha probado (no declares éxito sin esto)
 
 1. **Respuesta real de DeepSeek en Resti**: bloqueada por el saldo.
-2. **Voz real de Gemini** (transcribir y hablar): falta `gemini_api_key` en el proyecto de prueba. Los nombres de los modelos de voz (`gemini-2.5-flash`, `gemini-2.5-flash-preview-tts`) son los que conozco; se pueden cambiar sin código con `voz_modelo_stt`, `voz_modelo_tts` y `voz_nombre` en `platform_secrets`. Google indica que los modelos 2.5 se restringen para proyectos nuevos.
+2. **Voz de Gemini de punta a punta en la app**: la clave y los modelos se probaron directo contra Google (la clave nueva recibe 404 con `gemini-2.5-flash`; el TTS leía en voz alta la instrucción de tono, ya quitada; `gemini-3.8-flash-tts` devuelve WAV, ya soportado). Falta oírla en el navegador con el front de prueba. Modelos configurables sin código: `voz_modelo_stt`, `voz_modelo_tts` (lista separada por comas) y `voz_nombre`. **Producción (`voice-parse` y otras) sigue usando `gemini-2.5-flash`: con claves nuevas daría 404; hay que migrarlo antes de depender de él.**
 3. **Resti dentro de la app real** con sesión de administrador (hace falta un despliegue del front apuntando a la base de prueba).
 4. **FPS y fluidez en dispositivos reales**: todo se midió con renderizado por software.
 5. **Navegadores**: Safari/iOS y Firefox (el reconocimiento de voz del navegador no existe en Firefox; la voz de Gemini sí funciona allí).
-6. **Latencia de la conversación**: estimada en 3–4 s por turno (oír ≈ 1 s + pensar ≈ 1 s + hablar ≈ 1,5 s). Sin streaming no es instantánea.
+6. **Latencia**: medida, el audio no se transmite (el streaming no devolvió audio en la prueba); cada frase tarda ≈ 2–4 s en generarse. Por eso el cliente parte la respuesta en frases, las pide a la vez y las reproduce en orden. Espera ≈ 5–7 s por turno.
+7. **Landing pública**: pendiente (ver abajo).
 
 ## Configuración (`platform_secrets`)
 
@@ -71,3 +72,8 @@ Volver a Gemini para el cerebro: borrar `ai_proveedor` (o ponerlo distinto de `c
 - La clave de DeepSeek se pegó en una conversación: **conviene rotarla** en el panel de DeepSeek cuando termine esta fase de pruebas y poner un límite de gasto.
 - El audio y el texto no se guardan ni se registran; los errores solo registran el mensaje. Topes por usuario: cerebro 20/10 min y 80/día; voz 40/10 min y 400/día.
 - Resti no cambia datos por sí mismo: abre el modal de comandos con lo que dijiste y **tú apruebas** cada cambio.
+
+## Pendiente acordado
+
+- Resti con las funciones del chatbot de soporte: el cerebro ya incluye el conocimiento de la app y la captura de ideas; falta decidir si absorbe también el modo opinión.
+- Resti en la landing con habilidades de venta (planes, demo, captar contacto con `guardar_lead`): reutiliza `chat-support` modo landing. Sin voz del servidor para visitantes anónimos (costo/abuso): texto + voz del navegador.
