@@ -1,9 +1,10 @@
 /** Cambios del menú, pedidos y equipo que propone Resti: la IA interpreta la orden (función resti-acciones) y aquí se cargan los datos reales para armar el antes → después. */
 import { supabase } from './supabaseClient'
 import type { AccionMenu, PlatoMenu, CategoriaMenu, SaboresMenu } from '../lib/resti/menuCambios'
+import type { AccionOp, DatosOp } from '../lib/resti/operacionesCambios'
 import type { AccionPedido, AccionEquipo, PedidoFila, PersonaFila } from '../lib/resti/pedidosEquipoCambios'
 
-export type Ambito = 'menu' | 'pedidos' | 'equipo'
+export type Ambito = 'menu' | 'pedidos' | 'equipo' | 'operaciones'
 
 export async function interpretar<T>(ambito: Ambito, text: string): Promise<T[]> {
   const { data, error } = await supabase.functions.invoke('resti-acciones', { body: { ambito, text } })
@@ -40,4 +41,23 @@ export async function cargarEquipo(): Promise<{ gente: PersonaFila[]; nombreRest
   ])
   if (p.error) throw new Error('No pude cargar el equipo.')
   return { gente: (p.data ?? []) as PersonaFila[], nombreRestaurante: (c.data as { display_name?: string } | null)?.display_name ?? null }
+}
+
+export const interpretarOperaciones = (text: string) => interpretar<AccionOp>('operaciones', text)
+
+/** Datos reales de gastos, proveedores, equipo, tareas, ingredientes y mesas para armar el «antes → después» de las operaciones. */
+export async function cargarDatosOp(): Promise<DatosOp> {
+  const [g, pv, eq, t, ing, m] = await Promise.all([
+    supabase.from('gastos').select('id, concepto, monto, categoria, created_at').order('created_at', { ascending: false }).limit(80),
+    supabase.from('proveedores').select('id, nombre').order('nombre'),
+    supabase.from('profiles').select('id, full_name, role, phone, active').order('full_name').limit(100),
+    supabase.from('tasks').select('id, title, status, priority').order('created_at', { ascending: false }).limit(80),
+    supabase.from('ingredientes').select('id, nombre, unidad_medida, costo_unitario, stock_minimo').order('nombre'),
+    supabase.from('mesas').select('id, numero, capacidad').eq('activa', true).order('numero'),
+  ])
+  if ([g, pv, eq, t, ing, m].some(r => r.error)) throw new Error('No pude cargar los datos del restaurante.')
+  return {
+    gastos: (g.data ?? []).map(x => ({ ...x, monto: Number(x.monto) })), proveedores: pv.data ?? [], equipo: eq.data ?? [], tareas: t.data ?? [],
+    ingredientes: (ing.data ?? []).map(x => ({ ...x, costo_unitario: Number(x.costo_unitario) })), mesas: m.data ?? [],
+  } as DatosOp
 }
