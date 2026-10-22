@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
           system_instruction: { parts: [{ text: SYSTEM(String(cfg?.display_name ?? 'tu restaurante'), JSON.stringify(metricas ?? 'sin datos disponibles')) }] },
           contents: [{ role: 'user', parts: [{ text }] }],
           generationConfig: {
-            maxOutputTokens: 250, temperature: 0.3, responseMimeType: 'application/json',
+            maxOutputTokens: 350, temperature: 0.3, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 },
             responseSchema: { type: 'OBJECT', properties: {
               speech: { type: 'STRING' }, action: { type: 'STRING', enum: [...ACCIONES] }, targetId: { type: 'STRING', enum: [...TARGETS] },
               sugerencia: { type: 'OBJECT', properties: { summary: { type: 'STRING' }, category: { type: 'STRING', enum: [...MODULOS] } }, required: ['summary', 'category'] },

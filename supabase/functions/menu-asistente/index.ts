@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           system_instruction: { parts: [{ text: SYSTEM(String(cfg?.display_name ?? rest.name), JSON.stringify(carta), agotadosDeConfig(cfg?.modules_enabled)) }] },
           contents: [{ role: 'user', parts: [{ text: pregunta }] }],
-          generationConfig: { maxOutputTokens: 300, temperature: 0.2, responseMimeType: 'application/json', responseSchema: RESPUESTA_SCHEMA },
+          generationConfig: { maxOutputTokens: 400, temperature: 0.2, responseMimeType: 'application/json', responseSchema: RESPUESTA_SCHEMA, thinkingConfig: { thinkingBudget: 0 } },   // sin "pensamiento" extra: no se come el límite y no corta el JSON
         }),
       })
     } catch { return json({ respuesta: SIN_SERVICIO, tema: 'carta' }) } finally { clearTimeout(t) }
