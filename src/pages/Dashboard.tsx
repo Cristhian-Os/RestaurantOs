@@ -712,7 +712,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
       {restiOn && profile!.role === 'admin'
         // Resti no aparece en caja, cocina, mesero (nueva orden), pagos ni en el panel de plataforma.
-        ? (['cashier', 'kitchen', 'orders', 'billing', 'platform'].includes(activeNav) ? null : <Resti onOpenVoiceCommands={t => { setVoiceCmdTexto(t); setVoiceCmdOpen(true) }} onGoHome={() => setActiveNav('dashboard')} />)
+        ? (['cashier', 'kitchen', 'orders', 'billing', 'platform'].includes(activeNav) ? null : <Resti userId={profile!.id} role="admin" onApplied={() => { void queryClient.invalidateQueries(); setRefreshKey(k => k + 1) }} onOpenVoiceCommands={t => { setVoiceCmdTexto(t); setVoiceCmdOpen(true) }} onGoHome={() => setActiveNav('dashboard')} />)
         : <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />}
       {(profile?.role === 'admin' || profile?.role === 'cashier') && !(restiOn && profile.role === 'admin') && (
         <VoiceCommandFab onClick={() => { setVoiceCmdTexto(undefined); setVoiceCmdOpen(true) }} />

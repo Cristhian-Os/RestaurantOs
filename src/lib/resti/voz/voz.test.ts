@@ -117,4 +117,16 @@ function montar(over: Partial<DepsConv> = {}) {
   const t = montar({ responder: async () => { await esperar(50); return 'tarde' } }); await t.conv.iniciar(); t.cb().onFrase({ texto: 'x' }); await esperar(10); t.conv.detener(); await esperar(100)
   assert.deepEqual(t.dicho, []); assert.equal(t.conv.estado(), 'apagado')
 }
+// VAD: el fin de frase se mide también contra la voz de la propia frase (un zumbido más fuerte que el silencio de calibración no lo deja colgado)
+{
+  const v = crearVad({ bloqueMs: 20, calibracionMs: 200 })
+  const alimentar = (e: number, ms: number) => { let r: string | null = null; for (let t = 0; t < ms; t += 20) { const x = v.procesar(e); if (x) r = x } return r }
+  alimentar(0.03, 200)                      // calibra con ruido de fondo suave
+  assert.equal(alimentar(0.5, 1600), 'inicio')   // habla fuerte
+  assert.equal(alimentar(0.06, 1400), 'fin', 'con un zumbido de 0,06 (más que el 60 % del umbral) igual termina la frase')
+  const w = crearVad({ bloqueMs: 20, calibracionMs: 100 })
+  for (let t = 0; t < 100; t += 20) w.procesar(0.005)
+  let ini = null as string | null; for (let t = 0; t < 400; t += 20) ini = w.procesar(0.4) ?? ini
+  assert.equal(ini, 'inicio'); assert.equal(w.forzarFin(), 'fin', 'fin manual mientras habla'); assert.equal(w.forzarFin(), null, 'ya no está hablando')
+}
 console.log('voz.test OK (pcm, vad, conversación)')
