@@ -39,7 +39,8 @@ export default function SubscriptionBanner({ onNavigate }: { onNavigate?: (v: Na
     bg = 'rgba(201,160,64,0.14)'; color = '#8a6d3b'
   } else if (info.status === 'past_due') {
     const d = daysLeft(info.grace_ends_at)
-    text = `Pago pendiente. Tienes ${Math.max(d ?? 0, 0)} día${d === 1 ? '' : 's'} de gracia antes de perder acceso. Ponte al día para no interrumpir tu servicio.`
+    const dias = Math.max(d ?? 0, 0)
+    text = `Pago pendiente. Tienes ${dias} día${dias === 1 ? '' : 's'} de gracia antes de perder acceso. Ponte al día para no interrumpir tu servicio.`
     bg = 'rgba(176,52,29,0.12)'; color = '#B0341D'
   } else { // canceled
     text = 'Tu acceso está suspendido por falta de pago. Reactiva tu plan para recuperar tu restaurante (tus datos se conservan 30 días).'

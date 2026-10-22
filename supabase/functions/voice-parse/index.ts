@@ -4,6 +4,7 @@
 // el frontend muestra el resultado para que la persona lo revise y lo guarde
 // con sus propios permisos (RLS normal).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { permitido, registrarUsoIA, topeGlobal } from '../_shared/guardas.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -158,9 +159,32 @@ let modeloVivo = 0
 const GEMINI_URL = (modelo: string) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`
 const MAX_WAIT_MS = 25_000 // lo máximo que esperamos si Gemini pide reintentar (límite por minuto)
 
+/** Gemini "piensa" de más por defecto; para extraer datos de un dictado no hace falta. Si un modelo rechaza thinkingBudget (400) se apaga en esta instancia y se repite. */
+let usarThinkingBudget = true
+
+/**
+ * Recorta el contexto por LISTAS (no cortando el texto JSON a la mitad, que lo dejaba inválido): mientras exceda `max` caracteres
+ * se quitan elementos del final de la lista más pesada. Los valores sueltos (fecha, día de la semana) se conservan.
+ */
+function recortarContexto(context: unknown, max: number): string {
+  if (!context || typeof context !== 'object' || Array.isArray(context)) return '{}'
+  const c: Record<string, unknown> = { ...(context as Record<string, unknown>) }
+  const tam = (v: unknown) => JSON.stringify(v).length
+  let total = tam(c)
+  while (total > max) {
+    let mayor = '', peso = 0
+    for (const [k, v] of Object.entries(c)) if (Array.isArray(v) && v.length > 0) { const t = tam(v); if (t > peso) { peso = t; mayor = k } }
+    if (!mayor) return '{}'   // nada más que recortar (texto suelto enorme): sin contexto antes que contexto roto
+    const lista = c[mayor] as unknown[]
+    c[mayor] = lista.slice(0, Math.floor(lista.length * 0.85))   // quita ~15 % de la lista más pesada
+    total = tam(c)
+  }
+  return JSON.stringify(c)
+}
+
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-interface GeminiReply { status: number; data: { error?: { details?: { retryDelay?: string }[] }; candidates?: { content?: { parts?: { text?: string }[] } }[] } }
+interface GeminiReply { status: number; data: { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number }; error?: { details?: { retryDelay?: string }[] }; candidates?: { content?: { parts?: { text?: string }[] } }[] } }
 
 async function callGemini(key: string, body: unknown): Promise<GeminiReply> {
   let ultima: GeminiReply = { status: 0, data: {} }
@@ -201,11 +225,15 @@ async function askGemini(key: string, text: string, input: { audio: { mimeType: 
       { text: withSchema ? text : `${text}\nResponde SOLO con un JSON que cumpla exactamente este esquema (tipos OpenAPI de Gemini): ${JSON.stringify(schema)}` },
       media,
     ] }],
-    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', ...(withSchema ? { responseSchema: schema } : {}) },
+    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', ...(withSchema ? { responseSchema: schema } : {}), ...(usarThinkingBudget ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
   })
 
   let withSchema = true
   let reply = await callGemini(key, build(withSchema))
+  if (reply.status === 400 && usarThinkingBudget) {
+    usarThinkingBudget = false   // el modelo no acepta thinkingBudget: se repite sin él (antes de culpar al esquema)
+    reply = await callGemini(key, build(withSchema))
+  }
   if (reply.status === 400) {
     console.error('Gemini rechazó el esquema, reintento sin esquema', JSON.stringify(reply.data).slice(0, 500))
     withSchema = false
@@ -253,18 +281,19 @@ Deno.serve(async (req: Request) => {
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
     const { data: { user } } = await supabase.auth.getUser(token)
     if (!user) return json({ error: 'no autenticado' }, 401)
-    const { data: prof } = await supabase.from('profiles').select('role, restaurant_id').eq('id', user.id).maybeSingle()
-    if (!prof?.restaurant_id || !cfg.roles.includes(prof.role)) return json({ error: 'Sin permiso para este dictado' }, 403)
+    const { data: prof } = await supabase.from('profiles').select('role, restaurant_id, active').eq('id', user.id).maybeSingle()
+    if (!prof?.restaurant_id || prof.active === false || !cfg.roles.includes(prof.role)) return json({ error: 'Sin permiso para este dictado' }, 403)
 
-    // Cada llamada cuesta dinero: máx 30 dictados por usuario cada 10 min.
-    const { data: ok } = await supabase.rpc('check_rate_limit', { p_key: `voice:${user.id}`, p_max: 30, p_window_seconds: 600 })
-    if (ok === false) return json({ error: 'Muchos dictados seguidos. Espera unos minutos.' }, 429)
+    // Cada llamada cuesta dinero (límites que FALLAN CERRADO: solo `true` deja pasar): por usuario, por restaurante y global del día.
+    if (!(await permitido(supabase, `voice:${user.id}`, 30, 600))
+      || !(await permitido(supabase, `voiced:${prof.restaurant_id}`, 1500, 86400))
+      || !(await topeGlobal(supabase, 'voice-parse'))) return json({ error: 'Muchos dictados seguidos. Espera unos minutos.' }, 429)
 
     const { data: secret } = await supabase.from('platform_secrets').select('value').eq('key', 'gemini_api_key').single()
     if (!secret?.value) return json({ error: 'Config faltante' }, 500)
 
     // Los comandos llevan menú + inventario + equipo + mesas, así que necesitan más espacio.
-    const ctx = JSON.stringify(context).slice(0, kind === 'command' ? 20000 : 8000)
+    const ctx = recortarContexto(context, kind === 'command' ? 20000 : 8000)
     const reply = await askGemini(
       secret.value,
       `${cfg.prompt}\nSi en vez de un audio recibes un texto escrito, ese texto es lo que se dijo: devuélvelo igual en "transcript".\nResponde solo con el JSON pedido. No inventes datos que no se dijeron.\ncontext: ${ctx}`,
@@ -290,6 +319,11 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'No pude procesar el audio. Intenta de nuevo.' }, 502)
     }
     const data = reply.data
+    await registrarUsoIA(supabase, prof.restaurant_id as string, `voice_${kind}`, {
+      proveedor: 'gemini', modelo: MODELOS[modeloVivo] ?? 'gemini',
+      tokensEntrada: Number(data?.usageMetadata?.promptTokenCount) || 0,
+      tokensSalida: (Number(data?.usageMetadata?.candidatesTokenCount) || 0) + (Number(data?.usageMetadata?.thoughtsTokenCount) || 0),
+    })
     const text = (data?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('')
     try {
       return json({ result: JSON.parse(text) })

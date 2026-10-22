@@ -40,6 +40,7 @@ export function IngredientesManager() {
   const [compraFor, setCompraFor] = useState<Ingrediente | null>(null)
   const [compraCantidad, setCompraCantidad] = useState('')
   const [compraPrecio, setCompraPrecio] = useState('')
+  const [compraProveedor, setCompraProveedor] = useState('')
   const [editFor, setEditFor] = useState<Ingrediente | null>(null)
   const [editStock, setEditStock] = useState('')
   const [editMinimo, setEditMinimo] = useState('')
@@ -75,15 +76,14 @@ export function IngredientesManager() {
       if (!compraFor) throw new Error('Sin ingrediente')
       const cantidad = parseFloat(compraCantidad)
       const precio = parseFloat(compraPrecio)
-      return inventoryService.updateIngrediente(compraFor.id, {
-        stock_actual: Number(compraFor.stock_actual) + cantidad,
-        costo_unitario: precio,
-      })
+      // La suma del stock la hace la base con el valor vigente (no el de la caché)
+      return inventoryService.registrarCompra(compraFor, cantidad, precio, compraProveedor)
     },
     onSuccess: () => {
       message.success('Compra registrada')
-      setCompraFor(null); setCompraCantidad(''); setCompraPrecio('')
+      setCompraFor(null); setCompraCantidad(''); setCompraPrecio(''); setCompraProveedor('')
       invalidate()
+      queryClient.invalidateQueries({ queryKey: ['shopping_list'] })
     },
     onError: (e) => message.error(e instanceof Error ? e.message : 'Error al registrar la compra'),
   })
@@ -92,11 +92,16 @@ export function IngredientesManager() {
   const editMutation = useMutation({
     mutationFn: () => {
       if (!editFor) throw new Error('Sin ingrediente')
-      return inventoryService.updateIngrediente(editFor.id, {
-        stock_actual: parseFloat(editStock),
-        stock_minimo: parseFloat(editMinimo),
-        costo_unitario: parseFloat(editCosto),
-      })
+      return (async () => {
+        const stock = parseFloat(editStock)
+        const minimo = parseFloat(editMinimo)
+        const costo = parseFloat(editCosto)
+        // El stock se fija por la función de la base; mínimo y costo solo si cambiaron
+        if (stock !== Number(editFor.stock_actual)) await inventoryService.ajustarStock(editFor.id, stock)
+        if (minimo !== Number(editFor.stock_minimo) || costo !== Number(editFor.costo_unitario)) {
+          await inventoryService.updateIngrediente(editFor.id, { stock_minimo: minimo, costo_unitario: costo })
+        }
+      })()
     },
     onSuccess: () => {
       message.success('Ingrediente actualizado')
@@ -109,7 +114,7 @@ export function IngredientesManager() {
 
   const eliminarMutation = useMutation({
     mutationFn: (id: string) => inventoryService.deleteIngrediente(id),
-    onSuccess: () => { message.success('Ingrediente eliminado'); invalidate() },
+    onSuccess: () => { message.success('Ingrediente eliminado'); invalidate(); queryClient.invalidateQueries({ queryKey: ['shopping_list'] }) },
     onError: (e) => message.error(e instanceof Error ? e.message : 'Error al eliminar'),
   })
 
@@ -140,6 +145,7 @@ export function IngredientesManager() {
     setCompraFor(ing)
     setCompraCantidad('')
     setCompraPrecio(String(ing.costo_unitario))
+    setCompraProveedor('')
   }
 
   const ingredientes = ingredientesQuery.data ?? []
@@ -250,7 +256,7 @@ export function IngredientesManager() {
                     style={{ padding: '0.4rem 0.75rem', borderRadius: '0.5rem', border: 'none', background: 'var(--bg)', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', marginRight: '0.5rem', boxShadow: 'var(--shadow-out-sm)' }}>
                     Editar
                   </button>
-                  <button onClick={() => { if (window.confirm(`¿Eliminar ${ing.nombre}?`)) eliminarMutation.mutate(ing.id) }}
+                  <button onClick={() => { if (window.confirm(`¿Eliminar ${ing.nombre}? También se quitará de las recetas que lo usan.`)) eliminarMutation.mutate(ing.id) }}
                     style={{ padding: '0.4rem 0.6rem', borderRadius: '0.5rem', border: 'none', background: 'rgba(239,68,68,0.12)', color: '#DC2626', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>
                     Eliminar
                   </button>
@@ -308,6 +314,10 @@ export function IngredientesManager() {
               <div>
                 <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Precio unitario pagado</label>
                 <input type="number" min={0} value={compraPrecio} onChange={e => setCompraPrecio(e.target.value)} style={inputBase} placeholder="0" />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Proveedor (opcional)</label>
+                <input value={compraProveedor} onChange={e => setCompraProveedor(e.target.value)} style={inputBase} placeholder="Ej: Plaza minorista" maxLength={120} />
               </div>
               {compraValida && (
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0 }}>

@@ -47,25 +47,28 @@ interface DishCardProps {
   categoryIcon?: ReactNode
   /** Color hexadecimal de la categoría (para gradientes). */
   categoryColor?: string
+  /** Si viene, el plato no se puede pedir desde aquí (p. ej. tiene tamaños u opciones que este pedido no cobra bien): se muestra el motivo. */
+  soloMesero?: string
 }
 
 // ─── Componente ───────────────────────────────────────────────
-export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, categoryLabel, categoryIcon, categoryColor }) => {
+export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, categoryLabel, categoryIcon, categoryColor, soloMesero }) => {
   const [justAdded, setJustAdded] = useState(false)
   const cat = CATEGORY_CONFIG[dish.category as keyof typeof CATEGORY_CONFIG]
   const icon = categoryIcon ?? <CategoryIcon category={dish.category} size={40} />
   const label = categoryLabel ?? cat?.label ?? dish.category
   const color = cat?.color ?? 'bg-gray-100 text-gray-600'
+  const puede = dish.available && !soloMesero
   const badgeColor = categoryColor || '#FF5722'
 
   const handleAdd = useCallback(() => {
-    if (!dish.available) return
+    if (!dish.available || soloMesero) return
     onAdd(dish)
     setJustAdded(true)
     // Feedback visual durante 600ms
     const timer = setTimeout(() => setJustAdded(false), 600)
     return () => clearTimeout(timer)
-  }, [dish, onAdd])
+  }, [dish, onAdd, soloMesero])
 
   // Glass color: usa categoryColor si existe, sino fallback al gris por defecto
   const glassColor = categoryColor
@@ -135,6 +138,8 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
           {dish.description}
         </p>
 
+        {soloMesero && <p className="m-0 text-[0.6875rem] font-semibold text-[#B0341D]">{soloMesero}</p>}
+
         {dish.tags && dish.tags.length > 0 && (
           <div className="flex gap-1 flex-wrap mt-0.5">
             {dish.tags.map(tag => (
@@ -161,22 +166,22 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
 
         {/* motion.button con efecto spring al presionar (touch-friendly) */}
         <motion.button
-          whileTap={dish.available ? { scale: 0.92, transition: springFast } : {}}
+          whileTap={puede ? { scale: 0.92, transition: springFast } : {}}
           onClick={handleAdd}
-          disabled={!dish.available}
+          disabled={!puede}
           aria-label={`Agregar ${dish.name} al pedido`}
           className={[
             'min-w-[44px] min-h-[44px] px-4 rounded-2xl text-xs font-bold',
             'flex items-center justify-center gap-1.5',
             'transition-colors duration-200',
-            dish.available
+            puede
               ? justAdded
                 ? 'bg-emerald-500 text-white'
                 : 'bg-[#FF5722] text-white hover:bg-[#E64A19]'
               : 'bg-[#CDD0DC] text-[#9CA3AF] cursor-not-allowed',
           ].join(' ')}
           style={
-            dish.available
+            puede
               ? justAdded
                 ? { boxShadow: '4px 4px 12px rgba(16,185,129,0.35)' }
                 : S.coral
@@ -193,7 +198,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
               >
                 ✓ Listo
               </motion.span>
-            ) : dish.available ? (
+            ) : puede ? (
               <motion.span
                 key="add"
                 initial={{ opacity: 0, scale: 0.7 }}
@@ -203,7 +208,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
                 + Agregar
               </motion.span>
             ) : (
-              <motion.span key="unavail">No disp.</motion.span>
+              <motion.span key="unavail">{soloMesero ? 'Pídelo al mesero' : 'No disp.'}</motion.span>
             )}
           </AnimatePresence>
         </motion.button>

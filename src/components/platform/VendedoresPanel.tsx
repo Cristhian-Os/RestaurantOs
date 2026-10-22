@@ -38,20 +38,25 @@ export function VendedoresPanel() {
     const [v, s] = await Promise.all([supabase.rpc('plataforma_vendedores_listar'), supabase.rpc('plataforma_settings_listar')])
     if (v.error) { setError(v.error.message); return }
     setLista((v.data as Vendedor[]) ?? [])
+    if (s.error) { setMsg('No se pudieron cargar las condiciones generales: ' + s.error.message); return }
     setAjustes((s.data as Ajuste[]) ?? [])
   }, [])
   useEffect(() => { cargar() }, [cargar])
 
   const guardarAjuste = async (a: Ajuste) => {
-    const nuevo = Number(editAjuste[a.clave])
-    if (!Number.isFinite(nuevo)) return
+    const crudo = (editAjuste[a.clave] ?? '').trim().replace(',', '.')
+    // Un campo vacío no es 0: no se guarda nada
+    if (crudo === '') { setMsg('Escribe un valor para esta condición'); return }
+    const nuevo = Number(crudo)
+    if (!Number.isFinite(nuevo) || nuevo < 0) { setMsg('El valor debe ser un número mayor o igual a 0'); return }
+    if (/pct|porcentaje|%/i.test(a.clave + ' ' + (a.descripcion ?? '')) && nuevo > 100) { setMsg('Un porcentaje va entre 0 y 100'); return }
     const { error: e } = await supabase.rpc('plataforma_settings_guardar', { p_clave: a.clave, p_valor: nuevo, p_motivo: motivoAjuste })
     if (e) { setMsg(e.message); return }
     setEditAjuste(x => { const c = { ...x }; delete c[a.clave]; return c }); setMotivoAjuste(''); setMsg('Condición guardada'); cargar()
   }
   const copiar = (v: Vendedor) => {
     const url = `${window.location.origin}/registro?v=${v.codigo}`
-    navigator.clipboard?.writeText(url); setMsg(`Enlace copiado: ${url}`)
+    navigator.clipboard?.writeText(url).then(() => setMsg(`Enlace copiado: ${url}`)).catch(() => setMsg(`No se pudo copiar. Enlace: ${url}`))
   }
   const verContrato = (v: Vendedor) => v.contrato_ruta && abrirPrivado('contratos-vendedores', v.contrato_ruta).catch(e => setMsg((e as Error).message))
 
@@ -143,7 +148,15 @@ function FormularioVendedor({ id, orig, onClose, onHecho }: { id: string | null;
     if (f.nombre.trim().length < 2) { setMsg('Escribe el nombre'); return }
     if (!/^[A-Za-z0-9][A-Za-z0-9-]{1,23}$/.test(f.codigo.trim())) { setMsg('El código usa letras, números y guiones (ejemplo ANA-24)'); return }
     if (!id && (!archivo || !f.contrato_version.trim() || !f.firmado_at)) { setMsg('Sin contrato firmado no se puede crear: adjunta el PDF, la versión y la fecha de firma'); return }
-    const terminos = f.condiciones ? { bono_meses: Number(f.bono_meses), recurrente_pct: Number(f.recurrente_pct), recurrente_meses: Number(f.recurrente_meses) } : null
+    if (f.condiciones) {
+      const campos: [string, string, number][] = [['Meses de bono', f.bono_meses, 120], ['% recurrente', f.recurrente_pct, 100], ['Meses de recurrente', f.recurrente_meses, 120]]
+      for (const [nom, val, max] of campos) {
+        const t = val.trim().replace(',', '.')
+        const n = Number(t)
+        if (t === '' || !Number.isFinite(n) || n < 0 || n > max) { setMsg(`${nom}: escribe un número entre 0 y ${max} (no puede quedar vacío)`); return }
+      }
+    }
+    const terminos = f.condiciones ? { bono_meses: Number(f.bono_meses.replace(',', '.')), recurrente_pct: Number(f.recurrente_pct.replace(',', '.')), recurrente_meses: Number(f.recurrente_meses.replace(',', '.')) } : null
     setBusy(true)
     try {
       const datos: Record<string, unknown> = {
@@ -264,7 +277,8 @@ function Prospectos({ v, onClose }: { v: Vendedor; onClose: () => void }) {
   const [contacto, setContacto] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const cargar = useCallback(async () => {
-    const { data } = await supabase.rpc('plataforma_prospectos_listar', { p_vendedor: v.id })
+    const { data, error } = await supabase.rpc('plataforma_prospectos_listar', { p_vendedor: v.id })
+    if (error) { setMsg('No se pudieron cargar los prospectos: ' + error.message); return }
     setLista((data as Prospecto[]) ?? [])
   }, [v.id])
   useEffect(() => { cargar() }, [cargar])

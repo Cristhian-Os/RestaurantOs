@@ -7,6 +7,7 @@ import Signup        from './pages/Signup'
 import Legal         from './pages/Legal'
 import ResetPassword from './pages/ResetPassword'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { limpiarSesionLocal, KEY_ULTIMO_USUARIO } from './services/sessionCleanup'
 import type { Session } from '@supabase/supabase-js'
 
 // Dashboard (y todo lo que solo usa el admin: mesas, menú, marca, suscripción,
@@ -70,10 +71,20 @@ export default function App() {
     // nunca interrumpe un render en curso → elimina el error #300.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, s) => {
-        startTransition(() => {
-          setSession(s)
-          setReady(true)
-        })
+        // Cambió el usuario en este navegador: limpiar caché/colas del anterior ANTES de mostrar al nuevo.
+        const nuevo = s?.user?.id ?? null
+        let previo: string | null = null
+        try { previo = localStorage.getItem(KEY_ULTIMO_USUARIO) } catch { /* sin almacenamiento */ }
+        const cambio = !!nuevo && !!previo && previo !== nuevo
+        const aplicar = () => {
+          if (nuevo) { try { localStorage.setItem(KEY_ULTIMO_USUARIO, nuevo) } catch { /* nada */ } }
+          startTransition(() => {
+            setSession(s)
+            setReady(true)
+          })
+        }
+        if (cambio) limpiarSesionLocal().catch(() => {}).finally(aplicar)
+        else aplicar()
       }
     )
 
@@ -94,6 +105,7 @@ export default function App() {
   }, [])
 
   const handleLogout = useCallback(async () => {
+    try { await limpiarSesionLocal() } catch { /* no impedir el cierre de sesión */ }
     await supabase.auth.signOut()
     // signOut dispara onAuthStateChange con session=null → setSession automático
   }, [])
@@ -109,6 +121,6 @@ export default function App() {
   // Sin sesión: rutas públicas de marketing / auth
   if (IS_REGISTER)    return <ThemeProvider><Signup /></ThemeProvider>
   // En la PWA instalada, la raíz va directo a login (sin landing de marketing)
-  if (IS_LOGIN || IS_STANDALONE) return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
+  if (IS_LOGIN || IS_STANDALONE) return <ThemeProvider><Login onLogin={() => { /* onAuthStateChange maneja el login */ }} /></ThemeProvider>
   return <ThemeProvider><Landing /></ThemeProvider>
 }

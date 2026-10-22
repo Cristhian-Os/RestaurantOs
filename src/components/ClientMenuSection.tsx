@@ -2,7 +2,7 @@
  * ClientMenuSection.tsx — v3 (con platos custom)
  * Menú digital real con datos de la BD + carrito + self-ordering + custom dishes
  */
-import { useState, useCallback, useMemo, memo, useEffect } from 'react'
+import { useState, useCallback, useMemo, memo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }        from '../services/supabaseClient'
 import { DishCard }        from './DishCard'
@@ -33,6 +33,15 @@ interface CategoryMeta {
   color?: string
 }
 
+const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
+
+/**
+ * crear_orden_con_custom solo cobra el precio base del plato: no suma tamaños, opciones ni toppings.
+ * Esos platos no se piden desde aquí (se bloquean con aviso) para no cobrar de menos ni de más.
+ */
+const AVISO_COMPLEJO = 'Tiene tamaños, opciones o toppings: pídelo al mesero.'
+const esComplejo = (d: Dish) => !!d.has_sizes || (d.sizes?.length ?? 0) > 0 || (d.options?.length ?? 0) > 0 || (d.toppings?.length ?? 0) > 0
+
 const S = {
   neoOut:  { boxShadow: 'var(--shadow-out)' },
   neoIn:   { boxShadow: 'var(--shadow-in)' },
@@ -50,23 +59,32 @@ export const ClientMenuSection = memo(() => {
   const [submitting,        setSubmitting]   = useState(false)
   const [submitted,         setSubmitted]    = useState(false)
   const [showCustomBuilder, setShowCustom]   = useState(false)
+  const enviandoRef = useRef(false)
   const [catMeta, setCatMeta] = useState<Record<string, CategoryMeta>>({})
 
   // Cargar menú real desde Supabase
   useEffect(() => {
+    let vivo = true
     supabase
       .from('dishes')
       .select('*')
       .eq('available', true)
       .neq('availability_status', 'discontinued')
       .order('sort_order').order('name')
-      .then(({ data }) => { setDishes(data || []); setLoading(false) })
+      .then(({ data, error }) => {
+        if (!vivo) return
+        if (error) message.error('No pudimos cargar el menú. Intenta de nuevo en un momento.')
+        setDishes(data || []); setLoading(false)
+      })
+    return () => { vivo = false }
   }, [])
 
   // Cargar categorías personalizadas del negocio (evita etiquetas en blanco / crash)
   useEffect(() => {
-    supabase.from('restaurant_config').select('modules_enabled').single()
-      .then(({ data }) => {
+    let vivo = true
+    supabase.from('restaurant_config').select('modules_enabled').maybeSingle()
+      .then(({ data, error }) => {
+        if (!vivo || error) return   // sin categorías personalizadas se usan las de siempre
         const mods = data?.modules_enabled as { categories?: { value: string; label: string; emoji?: string; color?: string }[] } | null
         const cats = mods?.categories
         if (Array.isArray(cats)) {
@@ -75,6 +93,7 @@ export const ClientMenuSection = memo(() => {
           setCatMeta(map)
         }
       })
+    return () => { vivo = false }
   }, [])
 
   const catLabel = useCallback((c: string) => catMeta[c]?.label ?? CATEGORY_LABELS[c] ?? c, [catMeta])
@@ -100,6 +119,7 @@ export const ClientMenuSection = memo(() => {
   const totalPrice = cart.reduce((s, i) => s + i.dish.price * i.quantity, 0)
 
   const handleAdd = useCallback((dish: Dish) => {
+    if (esComplejo(dish) && !dish.id.startsWith('custom-')) { message.warning(`${dish.name}: ${AVISO_COMPLEJO}`); return }
     setCart(prev => {
       const ex = prev.find(i => i.dish.id === dish.id)
       return ex
@@ -151,8 +171,10 @@ export const ClientMenuSection = memo(() => {
 
   // Self-ordering: el cliente envía su propio pedido (con soporte para platos custom)
   const handleOrder = useCallback(async () => {
-    if (cart.length === 0) return
-    if (!tableNum.trim()) { message.warning('Ingresa tu número de mesa'); return }
+    if (cart.length === 0 || enviandoRef.current) return
+    const mesa = Number(tableNum)
+    if (!tableNum.trim() || !Number.isInteger(mesa) || mesa < 1) { message.warning('Ingresa tu número de mesa'); return }
+    enviandoRef.current = true   // candado síncrono: un doble toque no envía el pedido dos veces
     setSubmitting(true)
     try {
       // Separar el carrito en items normales (del catálogo) y platos custom
@@ -181,7 +203,7 @@ export const ClientMenuSection = memo(() => {
         p_items_normales: itemsNormales,
         p_platos_custom:  platosCustom,
         p_tipo_pedido:    'LOCAL',
-        p_table_num:      parseInt(tableNum),
+        p_table_num:      mesa,
         p_mesa_id:        null,
         p_notes:          null,
       })
@@ -193,9 +215,10 @@ export const ClientMenuSection = memo(() => {
       console.error('Error al enviar pedido:', e)
       message.error(`Error al enviar pedido: ${(e as Error).message || 'Llama al mesero.'}`)
     } finally {
+      enviandoRef.current = false
       setSubmitting(false)
     }
-  }, [cart, tableNum])
+  }, [cart, tableNum, catMeta])
 
   if (submitted) return (
     <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
@@ -226,7 +249,7 @@ export const ClientMenuSection = memo(() => {
               <span className="text-xs text-[#9CA3AF]">Carrito</span>
               <span className="text-sm font-bold text-[#FF5722]">{totalItems}</span>
               <span className="text-xs text-[#6B7280]">·</span>
-              <span className="text-sm font-bold text-[#2D3561]">${totalPrice.toFixed(2)}</span>
+              <span className="text-sm font-bold text-[#2D3561]">{cop(totalPrice)}</span>
             </div>
           )}
         </div>
@@ -325,7 +348,7 @@ export const ClientMenuSection = memo(() => {
         <ScrollRevealList stagger={0.06} className="grid grid-cols-2 gap-4">
           {filteredDishes.map(dish => (
             <ScrollRevealItem key={dish.id}>
-              <DishCard dish={dish} onAdd={handleAdd} quantity={getQuantity(dish.id)}
+              <DishCard dish={dish} onAdd={handleAdd} soloMesero={esComplejo(dish) ? AVISO_COMPLEJO : undefined} quantity={getQuantity(dish.id)}
                 categoryLabel={catLabel(dish.category)} categoryIcon={catIcon(dish.category)}
                 categoryColor={catMeta[dish.category]?.color} />
             </ScrollRevealItem>
@@ -361,7 +384,7 @@ export const ClientMenuSection = memo(() => {
 
               <div className="flex items-center justify-between pt-3 mt-1">
                 <span className="text-sm font-bold text-[#2D3561]">Total</span>
-                <span className="text-xl font-bold text-[#FF5722]">${totalPrice.toFixed(2)}</span>
+                <span className="text-xl font-bold text-[#FF5722]">{cop(totalPrice)}</span>
               </div>
 
               {/* Número de mesa para self-ordering */}

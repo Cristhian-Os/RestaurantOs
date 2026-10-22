@@ -75,6 +75,19 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose, textoInici
   const [busyGroup, setBusyGroup]   = useState<number | null>(null)
   const [applying, setApplying]     = useState(false)
   const seq = useRef(1)
+  const aplicandoRef = useRef(false)   // candado síncrono contra doble toque en «Aplicar»
+  const cajaRef = useRef<HTMLDivElement>(null)
+  const alCerrarRef = useRef(onClose); alCerrarRef.current = onClose
+  const ocupadoRef = useRef(false); ocupadoRef.current = applying
+
+  // Accesibilidad: el foco entra al diálogo, Escape lo cierra (salvo mientras aplica) y el foco vuelve a donde estaba.
+  useEffect(() => {
+    const previo = document.activeElement as HTMLElement | null
+    cajaRef.current?.focus()
+    const alTecla = (e: KeyboardEvent) => { if (e.key === 'Escape' && !ocupadoRef.current) alCerrarRef.current() }
+    window.addEventListener('keydown', alTecla)
+    return () => { window.removeEventListener('keydown', alTecla); if (previo && document.contains(previo)) previo.focus?.() }
+  }, [])
 
   const proposals = useMemo(
     () => (ctx ? buildProposals(items.map(i => i.action), ctx, userId, role) : []),
@@ -126,7 +139,8 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose, textoInici
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const apply = async () => {
-    if (applicable === 0 || applying) return
+    if (applicable === 0 || applying || aplicandoRef.current) return
+    aplicandoRef.current = true
     setApplying(true)
     const done = new Set<number>()
     const failed = new Map<number, string>()
@@ -145,7 +159,7 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose, textoInici
 
     const remaining = items.filter(i => !done.has(i.id)).map(i => ({ ...i, error: failed.get(i.id) }))
     if (remaining.length === 0) {
-      setApplying(false)
+      aplicandoRef.current = false; setApplying(false)
       message.success(`${done.size} ${done.size === 1 ? 'cambio aplicado' : 'cambios aplicados'}`)
       onClose()
       return
@@ -160,16 +174,16 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose, textoInici
       message.warning(`${done.size} aplicados. Cierra y vuelve a abrir para continuar.`)
       onClose()
     } finally {
-      setApplying(false)
+      aplicandoRef.current = false; setApplying(false)
     }
   }
 
   return createPortal(
     <div onClick={() => !applying && onClose()} className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4">
-      <div onClick={e => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-xl flex-col gap-3 overflow-y-auto rounded-3xl border border-[var(--w-line)] bg-[var(--w-bg)] p-4">
+      <div ref={cajaRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="voice-cmd-titulo" onClick={e => e.stopPropagation()}
+        className="outline-none flex max-h-[90vh] w-full max-w-xl flex-col gap-3 overflow-y-auto rounded-3xl border border-[var(--w-line)] bg-[var(--w-bg)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="m-0 text-lg font-bold text-[var(--w-ink)]">Comando de voz</h3>
+          <h3 id="voice-cmd-titulo" className="m-0 text-lg font-bold text-[var(--w-ink)]">Comando de voz</h3>
           <button type="button" onClick={escribir} disabled={applying || busyGroup !== null}
             className="cursor-pointer border-none bg-transparent p-0 text-xs font-semibold text-[var(--w-terra)] underline disabled:opacity-50">
             Escribir en vez de hablar

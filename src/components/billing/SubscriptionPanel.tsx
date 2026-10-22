@@ -4,7 +4,7 @@
  * El admin ve el estado de su suscripción, paga/renueva su plan y (Premium)
  * activa los pagos en línea para sus comensales con sus propias llaves Wompi.
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
 import { formatCOP, formatCentsCOP, openWompiCheckout, type SubStatus } from '../../config/billing'
@@ -58,17 +58,25 @@ export default function SubscriptionPanel() {
   const [loading, setLoading] = useState(true)
   const [paying,  setPaying]  = useState(false)
   const [savingCfg, setSavingCfg] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const lockPagar = useRef(false)
+  const lockCfg = useRef(false)
 
-  useEffect(() => {
-    (async () => {
+  const cargar = useCallback(async () => {
+    setLoading(true); setLoadError(null)
+    try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
-      const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).single()
-      setRid(prof?.restaurant_id ?? null)
+      const { data: prof, error: profErr } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).single()
+      if (profErr) throw new Error(profErr.message)
+      const restaurantId = (prof?.restaurant_id as string | null) ?? null
+      setRid(restaurantId)
+      if (!restaurantId) throw new Error('Tu cuenta no tiene un restaurante asignado')
 
-      const { data: s } = await supabase.from('subscriptions')
+      const { data: s, error: subErr } = await supabase.from('subscriptions')
         .select('plan, ciclo, status, amount_in_cents, is_promo, trial_ends_at, current_period_end, grace_ends_at, wompi_payment_source_id')
-        .maybeSingle()
+        .eq('restaurant_id', restaurantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (subErr) throw new Error('No se pudo leer la suscripción: ' + subErr.message)
       if (s) {
         setSub(s as Sub)
         if (['emprende', 'pro', 'premium'].includes(s.plan)) setSel(s.plan as PlanId)
@@ -76,24 +84,35 @@ export default function SubscriptionPanel() {
       }
 
       // Solo booleanos "ya configurado" — nunca los secretos reales de vuelta al navegador.
-      const { data: st } = await supabase.from('restaurant_payment_config_status')
+      const { data: st, error: stErr } = await supabase.from('restaurant_payment_config_status')
         .select('enabled, wompi_public_key, has_private_key, has_events_secret, has_integrity_secret')
-        .maybeSingle()
+        .eq('restaurant_id', restaurantId).limit(1).maybeSingle()
+      if (stErr) throw new Error('No se pudo leer la configuración de pagos: ' + stErr.message)
       if (st) {
         setStatus(st as PayStatus)
         setCfg(c => ({ ...c, enabled: st.enabled ?? false, wompi_public_key: st.wompi_public_key ?? '' }))
       }
-      setLoading(false)
-    })()
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'No se pudo cargar la suscripción')
+    } finally { setLoading(false) }
   }, [])
 
+  useEffect(() => { void cargar() }, [cargar])
+
   const pagar = useCallback(async () => {
+    if (lockPagar.current) return
+    lockPagar.current = true
     setPaying(true)
     try {
       // El servidor fija el plan y calcula el monto (base + IVA); el navegador solo dice qué eligió.
+      // wompi-init cobra el monto guardado en la suscripción, así que el plan se fija antes de pagar;
+      // pero solo si cambió (renovar el mismo plan no vuelve a tocarlo).
       if (!sel) { message.info('Elige un plan para continuar'); return }
-      const { error: planErr } = await supabase.rpc('elegir_plan', { p_plan: sel, p_ciclo: ciclo })
-      if (planErr) throw new Error(planErr.message)
+      if (!sub || sub.plan !== sel || sub.ciclo !== ciclo) {
+        const { error: planErr } = await supabase.rpc('elegir_plan', { p_plan: sel, p_ciclo: ciclo })
+        if (planErr) throw new Error(planErr.message)
+        await cargar()
+      }
       const { data, error } = await supabase.functions.invoke('wompi-init', {
         body: { kind: 'subscription', redirect_url: window.location.origin },
       })
@@ -102,11 +121,12 @@ export default function SubscriptionPanel() {
       openWompiCheckout(data)
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'No se pudo iniciar el pago')
-    } finally { setPaying(false) }
-  }, [sel, ciclo])
+    } finally { lockPagar.current = false; setPaying(false) }
+  }, [sel, ciclo, sub, cargar])
 
   const guardarCfg = useCallback(async () => {
-    if (!rid) return
+    if (!rid || lockCfg.current) return
+    lockCfg.current = true
     setSavingCfg(true)
     try {
       // Los 3 secretos solo se incluyen si el admin realmente escribió un valor
@@ -126,13 +146,14 @@ export default function SubscriptionPanel() {
       if (error) throw error
       message.success('Configuración de pagos guardada')
       setCfg(c => ({ ...c, wompi_private_key: '', wompi_events_secret: '', wompi_integrity_secret: '' }))
-      const { data: st } = await supabase.from('restaurant_payment_config_status')
+      const { data: st, error: stErr } = await supabase.from('restaurant_payment_config_status')
         .select('enabled, wompi_public_key, has_private_key, has_events_secret, has_integrity_secret')
-        .maybeSingle()
-      if (st) setStatus(st as PayStatus)
+        .eq('restaurant_id', rid).limit(1).maybeSingle()
+      if (stErr) message.warning('Se guardó, pero no se pudo releer el estado: ' + stErr.message)
+      else if (st) setStatus(st as PayStatus)
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Error al guardar')
-    } finally { setSavingCfg(false) }
+    } finally { lockCfg.current = false; setSavingCfg(false) }
   }, [rid, cfg])
 
   if (loading) return <div style={{ padding: '2rem', color: 'var(--w-ink-mut)' }}>Cargando…</div>
@@ -140,7 +161,8 @@ export default function SubscriptionPanel() {
   const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.5rem' }
   const label: React.CSSProperties = { display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--w-ink-soft)', marginBottom: '0.4rem' }
   const inputBox: React.CSSProperties = { width: '100%', padding: '0.7rem 0.9rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }
-  const st = sub ? STATUS_META[sub.status] : STATUS_META.trialing
+  // Sin datos (error de carga) no se inventa «Por activar»: se muestra «Sin datos».
+  const st = sub ? STATUS_META[sub.status] : { label: loadError ? 'Sin datos' : 'Por activar', color: '#6b6b6b', bg: 'rgba(0,0,0,0.06)' }
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans)' }}>
@@ -148,6 +170,13 @@ export default function SubscriptionPanel() {
         <h2 className="ed-display" style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0, color: 'var(--w-ink)' }}>Suscripción</h2>
         <p style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', margin: '0.25rem 0 0' }}>Tu plan, tus pagos y la facturación de tu restaurante.</p>
       </div>
+
+      {loadError && (
+        <div role="alert" style={{ padding: '0.8rem 1rem', borderRadius: '0.75rem', background: 'rgba(176,52,29,0.10)', color: '#B0341D', fontSize: '0.85rem', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <span>{loadError}</span>
+          <button onClick={() => void cargar()} style={{ padding: '0.4rem 0.9rem', borderRadius: '0.6rem', border: 'none', background: '#B0341D', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Reintentar</button>
+        </div>
+      )}
 
       {/* Estado del plan */}
       <div style={card}>
@@ -237,7 +266,7 @@ export default function SubscriptionPanel() {
           ] as const).map(([k, txt, has]) => (
             <div key={k}>
               <label style={label}>{txt}</label>
-              <input value={cfg[k]} onChange={e => setCfg(c => ({ ...c, [k]: e.target.value }))} style={inputBox}
+              <input type="password" autoComplete="new-password" value={cfg[k]} onChange={e => setCfg(c => ({ ...c, [k]: e.target.value }))} style={inputBox}
                 placeholder={has ? '•••• ya configurado — déjalo vacío para no cambiarlo' : 'pega aquí tu llave/secreto de Wompi'} />
             </div>
           ))}

@@ -4,7 +4,7 @@
  * - Meseros también ven alertas de pedido listo
  * - Admin puede cambiar estado de mesa
  */
-import { useState, useEffect, useCallback, memo } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
@@ -66,7 +66,7 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelado',
 }
 
-export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => void }>(({ profile }) => {
+export const TableMap = memo<{ profile: Profile }>(({ profile }) => {
   const [mesas,        setMesas]       = useState<Mesa[]>([])
   const [activeOrders, setActiveOrders]= useState<ActiveOrder[]>([])
   const [readyOrders,  setReadyOrders] = useState<Set<string>>(new Set())
@@ -83,6 +83,9 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
   const [editCapacidad,setEditCapacidad] = useState('')
   const [savingEdit,   setSavingEdit]  = useState(false)
   const isAdmin = profile.role === 'admin'
+  // Último estado conocido de cada pedido: el aviso «Mesa lista» solo sale al PASAR a listo, no en cada cambio posterior (pago, entrega…).
+  const estadoPrevio = useRef(new Map<string, string>())
+  const escribiendo = useRef(false)   // candado síncrono para crear/editar mesas
 
   const fetchData = useCallback(async () => {
     const [mr, or] = await Promise.all([
@@ -98,6 +101,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
         items: (() => { try { return JSON.parse(typeof o.items === 'string' ? o.items : JSON.stringify(o.items)) } catch { return [] } })()
       }))
       setActiveOrders(orders)
+      estadoPrevio.current = new Map(orders.map(o => [o.id as string, o.status as string]))
       // Detectar pedidos listos para alerta
       const readySet = new Set(orders.filter(o => o.status === 'ready').map(o => o.mesa_id))
       setReadyOrders(readySet as Set<string>)
@@ -116,10 +120,12 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
       ch = supabase.channel('tablemap-v2')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas', filter: `restaurant_id=eq.${rid}` }, fetchData)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${rid}` }, (payload) => {
+          // Alerta al mesero cuando un pedido pasa a "ready" (solo en la transición)
+          const newRow = payload.new as { id?: string; status?: string; table_num?: number }
+          const antes = newRow?.id ? estadoPrevio.current.get(newRow.id) : undefined
+          if (newRow?.id && newRow.status) estadoPrevio.current.set(newRow.id, newRow.status)
           fetchData()
-          // Alerta al mesero cuando un pedido pasa a "ready"
-          const newRow = payload.new as { status?: string; table_num?: number }
-          if (newRow?.status === 'ready') {
+          if (newRow?.status === 'ready' && antes !== 'ready') {
             const mesa = newRow?.table_num
             message.open({
               type: 'success',
@@ -150,10 +156,13 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
     const capacidad = parseInt(newCapacidad, 10)
     if (!numero || numero < 1 || numero > 100) { message.error('Número de mesa inválido (1-100)'); return }
     if (!capacidad || capacidad < 1) { message.error('Capacidad inválida'); return }
+    if (escribiendo.current) return
+    escribiendo.current = true
     setSavingMesa(true)
     const { data, error } = await supabase.from('mesas')
       .insert({ numero, capacidad, zona: newZona.trim() || 'principal', estado: 'libre', activa: true })
       .select().single()
+    escribiendo.current = false
     setSavingMesa(false)
     if (error) { message.error(error.code === '23505' ? `Ya existe la mesa ${numero}` : 'Error: ' + error.message); return }
     setMesas(prev => [...prev, data as Mesa].sort((a, b) => a.numero - b.numero))
@@ -181,9 +190,12 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
     if (!zonaTrim) { message.error('La zona no puede estar vacía'); return }
     if (numero === mesa.numero && capacidad === mesa.capacidad && zonaTrim === mesa.zona) return
 
+    if (escribiendo.current) return
+    escribiendo.current = true
     setSavingEdit(true)
     const { error } = await supabase.from('mesas')
       .update({ numero, capacidad, zona: zonaTrim }).eq('id', mesa.id)
+    escribiendo.current = false
     setSavingEdit(false)
     if (error) { message.error(error.code === '23505' ? `Ya existe la mesa ${numero}` : 'Error: ' + error.message); return }
     setMesas(prev => prev.map(m => m.id === mesa.id ? { ...m, numero, capacidad, zona: zonaTrim } : m).sort((a, b) => a.numero - b.numero))
@@ -201,7 +213,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
 
   const zonas = ['all', ...Array.from(new Set(mesas.map(m => m.zona)))]
   const filtered = zona === 'all' ? mesas : mesas.filter(m => m.zona === zona)
-  const selectedOrder = selected ? activeOrders.find(o => o.mesa_id === selected.id) : null
+  const selectedOrders = selected ? activeOrders.filter(o => o.mesa_id === selected.id) : []
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
@@ -280,7 +292,8 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '0.75rem' }}>
         {filtered.map(mesa => {
           const cfg = ESTADO_CONFIG[mesa.estado]
-          const order = activeOrders.find(o => o.mesa_id === mesa.id)
+          const ordenesMesa = activeOrders.filter(o => o.mesa_id === mesa.id)
+          const totalMesa = ordenesMesa.reduce((s, o) => s + Number(o.total), 0)
           const isReady = readyOrders.has(mesa.id)
           const isSelected = selected?.id === mesa.id
           return (
@@ -310,9 +323,9 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
               <p style={{ fontSize: '0.625rem', color: cfg.text, fontWeight: 700, margin: 0 }}>
                 {cfg.label}
               </p>
-              {order && (
+              {ordenesMesa.length > 0 && (
                 <p style={{ fontSize: '0.6rem', color: 'var(--text-muted)', margin: 0 }}>
-                  ${order.total.toLocaleString('es')}
+                  ${totalMesa.toLocaleString('es')}{ordenesMesa.length > 1 ? ` · ${ordenesMesa.length} pedidos` : ''}
                 </p>
               )}
             </motion.button>
@@ -349,8 +362,8 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
             </div>
 
             {/* Pedido activo */}
-            {selectedOrder ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+            {selectedOrders.length > 0 ? selectedOrders.map(selectedOrder => (
+              <div key={selectedOrder.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', marginBottom: '1rem' }}>
                 {/* Info general del pedido */}
                 <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: '1rem', padding: '0.875rem 1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', ...S.neoIn }}>
                   <div>
@@ -403,7 +416,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
                   </div>
                 )}
               </div>
-            ) : (
+            )) : (
               <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--text-muted)' }}>
                 <p style={{ fontSize: '1.5rem', margin: 0 }}></p>
                 <p style={{ fontWeight: 600, margin: '0.5rem 0 0' }}>Sin pedido activo</p>

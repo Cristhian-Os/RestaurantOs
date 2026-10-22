@@ -28,17 +28,9 @@ interface Props {
   direccion?: number
   desplazando?: boolean
   luz?: RestiLuz
-  /** Giro adicional del cuerpo (0 de frente, π de espaldas). */
-  orientacion?: number
-  /** Dónde está el modelo GLB (por defecto el de la app). */
-  modeloUrl?: string
-  /** El GLB ya en memoria (base64), en lugar de descargarlo: para páginas donde no se pueden servir archivos .glb. */
-  modeloBase64?: string
   width: number
   height: number
   onFallo: (motivo: MotivoFallo) => void
-  /** Ignora la detección de equipo sin GPU y el vigilante de rendimiento (pruebas y capturas con renderizado por software). */
-  forzar3D?: boolean
   onListo?: (m: RestiMetricas) => void
 }
 
@@ -48,20 +40,25 @@ const equipoModesto = () => {
   return (n.hardwareConcurrency ?? 8) <= 4 || (n.deviceMemory ?? 8) <= 2
 }
 
-export default function RestiCharacter3D({ estado, direccion = 0, desplazando = false, luz = 'marca', orientacion = 0, modeloUrl = MODELO_URL, modeloBase64, width, height, onFallo, onListo, forzar3D = false }: Props) {
-  const lienzo = useRef<HTMLCanvasElement>(null)
-  const entrada = useRef({ estado, direccion, desplazando, luz, orientacion })
-  entrada.current = { estado, direccion, desplazando, luz, orientacion }
+export default function RestiCharacter3D({ estado, direccion = 0, desplazando = false, luz = 'marca', width, height, onFallo, onListo }: Props) {
+  const contenedor = useRef<HTMLDivElement>(null)
+  const entrada = useRef({ estado, direccion, desplazando, luz })
+  entrada.current = { estado, direccion, desplazando, luz }
   const cb = useRef({ onFallo, onListo }); cb.current = { onFallo, onListo }
 
   useEffect(() => {
-    const canvas = lienzo.current
-    if (!canvas) return
+    const host = contenedor.current
+    if (!host) return
+    // Un lienzo nuevo por intento: tras forceContextLoss() el contexto de un lienzo ya no sirve para volver a crear WebGL.
+    const canvas = document.createElement('canvas')
+    canvas.width = width; canvas.height = height; canvas.setAttribute('aria-hidden', 'true')
+    canvas.style.cssText = `display:block;width:${width}px;height:${height}px;pointer-events:none`
+    host.appendChild(canvas)
     const inicio = performance.now()
     const baja = equipoModesto()
     // Conexión lenta o ahorro de datos: ni se intenta descargar el modelo (2 MB) ni la librería 3D ya cargada se usa.
     const red = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
-    if (!forzar3D && (red?.saveData || /(^|-)2g$/.test(red?.effectiveType ?? ''))) { cb.current.onFallo('red-lenta'); return }
+    if ((red?.saveData || /(^|-)2g$/.test(red?.effectiveType ?? ''))) { cb.current.onFallo('red-lenta'); return }
     let renderer: WebGLRenderer
     try {
       renderer = new WebGLRenderer({ canvas, alpha: true, antialias: !baja, powerPreference: 'low-power' })
@@ -69,7 +66,7 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
     // Renderizado por software (sin GPU real): iría a ~1 cuadro por segundo; mejor los sprites.
     const gl = renderer.getContext(), info = gl.getExtension('WEBGL_debug_renderer_info')
     const nombreGpu = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : ''
-    if (!forzar3D && /swiftshader|llvmpipe|software|microsoft basic render/i.test(nombreGpu)) { renderer.dispose(); cb.current.onFallo('sin-gpu'); return }
+    if (/swiftshader|llvmpipe|software|microsoft basic render/i.test(nombreGpu)) { renderer.forceContextLoss(); renderer.dispose(); cb.current.onFallo('sin-gpu'); return }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, baja ? 1 : 2))
     renderer.setSize(width, height, false)
     renderer.outputColorSpace = SRGBColorSpace
@@ -83,10 +80,7 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
     const animador = crearAnimador(rig)
     let modelo: ReturnType<typeof prepararModelo> | null = null, vivo = true
     const cargador = new GLTFLoader()
-    const archivo = modeloBase64
-      ? (() => { const b = atob(modeloBase64), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return cargador.parseAsync(u.buffer, '') })()
-      : cargador.loadAsync(modeloUrl)
-    archivo.then(gltf => {
+    cargador.loadAsync(MODELO_URL).then(gltf => {
       if (!vivo) return
       gltf.scene.traverse(o => { if ((o as Mesh).isMesh) o.frustumCulled = false })   // la malla se deforma con los huesos: su caja de reposo no sirve
       modelo = prepararModelo(gltf.scene)
@@ -95,12 +89,12 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
     const limiteCarga = setTimeout(() => { if (vivo && !modelo) cb.current.onFallo('modelo') }, 20_000)   // red muy lenta o archivo colgado
     const colorActual = new Color(COLOR_LUZ.marca), colorMeta = new Color()
 
-    let raf = 0, anterior = performance.now(), ultimoDibujo = 0, t = 0
+    let perdido = false, raf = 0, anterior = performance.now(), ultimoDibujo = 0, t = 0
     let cuadros = 0, desdeFps = anterior, fps = 0, avisado = false, lentos = 0
     const bucle = (ahora: number) => {
       if (!vivo) return
       raf = requestAnimationFrame(bucle)
-      if (document.hidden) { anterior = ahora; return }
+      if (document.hidden || perdido) { anterior = ahora; return }   // pestaña oculta o contexto WebGL perdido: no se dibuja
       const dt = (ahora - anterior) / 1000
       if (!modelo) return   // aún cargando: no se dibuja nada (nunca un aspecto distinto mientras tanto)
       if (animador.quieto() && ahora - ultimoDibujo < 41) return   // reposo: ~24 cuadros por segundo
@@ -114,19 +108,30 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
       aplicarPostura(modelo, rig, e.estado, dt)
       renderer.render(scene, camara)
       // Vigilante: si mientras se mueve va por debajo de ~12 cuadros por segundo de forma sostenida, se pasa a los sprites.
-      if (!forzar3D && !animador.quieto()) { lentos = dt > 0.085 ? lentos + 1 : Math.max(0, lentos - 1); if (lentos > 45) { vivo = false; cb.current.onFallo('lento'); return } }
+      if (!animador.quieto()) { lentos = dt > 0.085 ? lentos + 1 : Math.max(0, lentos - 1); if (lentos > 45) { vivo = false; cb.current.onFallo('lento'); return } }
       cuadros++
       if (ahora - desdeFps >= 1000) { fps = Math.round((cuadros * 1000) / (ahora - desdeFps)); cuadros = 0; desdeFps = ahora }
       if (!avisado) { avisado = true; cb.current.onListo?.({ cargaMs: Math.round(performance.now() - inicio), fps, calidad: baja ? 'baja' : 'alta' }) }
     }
     raf = requestAnimationFrame(bucle)
 
-    const alPerderContexto = (ev: Event) => { ev.preventDefault(); cb.current.onFallo('contexto-perdido') }
+    // El navegador puede quitar el contexto WebGL (poca memoria, cambio de GPU). Si lo devuelve pronto (three.js se restablece solo), se sigue en 3D;
+    // si no, se usan los sprites un rato y Resti vuelve a intentar el 3D más tarde (no se queda en sprites para siempre).
+    let esperaRestaurar: ReturnType<typeof setTimeout> | undefined
+    const alPerderContexto = (ev: Event) => {
+      ev.preventDefault(); perdido = true
+      clearTimeout(esperaRestaurar)
+      esperaRestaurar = setTimeout(() => { if (vivo && perdido) cb.current.onFallo('contexto-perdido') }, 3000)
+    }
+    const alRestaurarContexto = () => { perdido = false; clearTimeout(esperaRestaurar); anterior = performance.now() }
     canvas.addEventListener('webglcontextlost', alPerderContexto)
+    canvas.addEventListener('webglcontextrestored', alRestaurarContexto)
 
     return () => {
       vivo = false; cancelAnimationFrame(raf); clearTimeout(limiteCarga)
+      clearTimeout(esperaRestaurar)
       canvas.removeEventListener('webglcontextlost', alPerderContexto)
+      canvas.removeEventListener('webglcontextrestored', alRestaurarContexto)
       if (modelo) {
         modelo.dispose()
         modelo.raiz.traverse(o => {
@@ -135,10 +140,12 @@ export default function RestiCharacter3D({ estado, direccion = 0, desplazando = 
           for (const mat of ([] as Material[]).concat(m.material)) { for (const v of Object.values(mat)) if (v && (v as Texture).isTexture) (v as Texture).dispose(); mat.dispose() }
         })
       }
-      rig.dispose(); liberarEscena(); renderer.dispose()
+      rig.dispose(); liberarEscena()
+      renderer.forceContextLoss()   // suelta ya el contexto WebGL: los navegadores admiten pocos a la vez y dispose() solo no lo libera
+      renderer.dispose()
+      canvas.remove()
     }
-  }, [width, height, modeloUrl, modeloBase64, forzar3D])
+  }, [width, height])
 
-  return <canvas ref={lienzo} width={width} height={height} role="img" aria-label="Resti, tu chef asistente"
-    style={{ display: 'block', width, height, pointerEvents: 'none' }} />
+  return <div ref={contenedor} role="img" aria-label="Resti, tu chef asistente" style={{ width, height, pointerEvents: 'none' }} />
 }

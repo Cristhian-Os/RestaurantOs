@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
+import { validarImagen } from '../../lib/imagenSubida'
 
 const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }
 
@@ -20,17 +21,19 @@ export function MascotaUploader() {
   }, [])
 
   const guardar = async (nueva: string | null) => {
-    const { error } = await supabase.from('restaurant_config').update({ mascota_url: nueva }).eq('restaurant_id', rid)
+    const { data, error } = await supabase.from('restaurant_config').update({ mascota_url: nueva }).eq('restaurant_id', rid).select('restaurant_id')
     if (error) throw error
+    if (!data || data.length === 0) throw new Error('No se pudo guardar la mascota (¿no tienes permiso?)')
     setUrl(nueva)
   }
 
   const subir = async (file: File) => {
     if (!rid) return
-    if (!file.type.startsWith('image/') || file.size > 3 * 1024 * 1024) { message.error('Sube una imagen de menos de 3 MB'); return }
+    const v = validarImagen(file, 3 * 1024 * 1024)
+    if ('error' in v) { message.error(v.error); return }
     setSubiendo(true)
     try {
-      const path = `${rid}/mascota.${(file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'png'}`
+      const path = `${rid}/mascota.${v.ext}`
       const { error: upErr } = await supabase.storage.from('restaurant-assets').upload(path, file, { upsert: true, contentType: file.type })
       if (upErr) throw upErr
       const { data: pub } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
@@ -50,7 +53,7 @@ export function MascotaUploader() {
         </div>
         <label className="w-press" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-ink)' }}>
           {subiendo ? 'Subiendo…' : 'Subir mascota'}
-          <input type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void subir(f); e.target.value = '' }} />
+          <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void subir(f); e.target.value = '' }} />
         </label>
         {url && <button type="button" onClick={() => void guardar(null).catch(() => message.error('No se pudo quitar'))}
           style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-wine)' }}>Quitar</button>}

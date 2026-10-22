@@ -3,7 +3,7 @@
  * nombre, teléfono y qué producto provee. La ven caja y admin; solo el admin la edita
  * (lo exige también la base de datos).
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { VoiceButton } from '../VoiceButton'
@@ -62,11 +62,12 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
   const [editId, setEditId]   = useState<string | null>(null)
   const [edit, setEdit]       = useState<Form>(EMPTY)
   const [saving, setSaving]   = useState(false)
+  const ocupado = useRef(false)   // candado síncrono contra doble clic
 
   const fetchList = useCallback(async () => {
     const { data, error } = await supabase.from('proveedores').select('id, nombre, telefono, email, producto, notas').order('nombre')
     if (error) message.error('Error: ' + error.message)
-    setList(data ?? [])
+    else setList(data ?? [])   // si falla, se conserva la lista anterior (no se muestra «no hay proveedores»)
     setLoading(false)
   }, [])
 
@@ -74,8 +75,11 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
 
   const agregar = async () => {
     if (!nuevo.nombre.trim()) { message.error('Escribe el nombre del proveedor'); return }
+    if (ocupado.current) return
+    ocupado.current = true
     setSaving(true)
     const { error } = await supabase.from('proveedores').insert(toRow(nuevo))
+    ocupado.current = false
     setSaving(false)
     if (error) { message.error('Error: ' + error.message); return }
     setNuevo(EMPTY)
@@ -85,8 +89,11 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
 
   const guardar = async () => {
     if (!editId || !edit.nombre.trim()) { message.error('El nombre no puede quedar vacío'); return }
+    if (ocupado.current) return
+    ocupado.current = true
     setSaving(true)
     const { error } = await supabase.from('proveedores').update(toRow(edit)).eq('id', editId)
+    ocupado.current = false
     setSaving(false)
     if (error) { message.error('Error: ' + error.message); return }
     setEditId(null)
@@ -96,8 +103,14 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
 
   const eliminar = async (p: Proveedor) => {
     if (!window.confirm(`¿Eliminar a ${p.nombre} de la lista de proveedores?`)) return
-    const { error } = await supabase.from('proveedores').delete().eq('id', p.id)
+    if (ocupado.current) return
+    ocupado.current = true
+    setSaving(true)
+    const { data, error } = await supabase.from('proveedores').delete().eq('id', p.id).select('id')
+    ocupado.current = false
+    setSaving(false)
     if (error) { message.error('Error: ' + error.message); return }
+    if (!data || data.length === 0) { message.error('No se pudo eliminar (sin permiso o ya no existe).'); fetchList(); return }
     setList(prev => prev.filter(x => x.id !== p.id))
   }
 
@@ -150,7 +163,7 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
                   {canEdit && <>
                   <button onClick={() => { setEditId(p.id); setEdit({ nombre: p.nombre, telefono: p.telefono ?? '', email: p.email ?? '', producto: p.producto ?? '', notas: p.notas ?? '' }) }}
                     style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>Editar</button>
-                  <button onClick={() => eliminar(p)} style={{ ...btn, background: 'var(--w-wine)', color: '#fff' }}>Eliminar</button>
+                  <button onClick={() => eliminar(p)} disabled={saving} style={{ ...btn, background: 'var(--w-wine)', color: '#fff', opacity: saving ? 0.7 : 1 }}>Eliminar</button>
                   </>}
                 </div>
               )}

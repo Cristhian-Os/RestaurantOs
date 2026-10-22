@@ -49,8 +49,8 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
 
   // ─── Productos disponibles (para elegir a cuál editar receta) ─
   const productosQuery = useQuery({
-    queryKey: ['productos_disponibles'],
-    queryFn: () => inventoryService.getProductosDisponibles(),
+    queryKey: ['platos_para_receta'],
+    queryFn: () => inventoryService.getPlatosParaReceta(),
     staleTime: 1000 * 60 * 5,
     enabled: isModalVisible && !propProductId,
   })
@@ -90,10 +90,19 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
     }
   }, [recetaQuery.data, productId])
 
+  // Costo de una línea: si está vinculada a un ingrediente manda el costo vivo del inventario
+  const costoDe = useCallback((l: RecetaLine) => {
+    if (l.ingrediente_id) {
+      const ing = ingredientesOpts.find(i => i.id === l.ingrediente_id)
+      if (ing) return Number(ing.costo_unitario) || 0
+    }
+    return Number(l.costo_unitario) || 0
+  }, [ingredientesOpts])
+
   // ─── Total en vivo ────────────────────────────────────────
   const total = useMemo(
-    () => lines.reduce((s, l) => s + (Number(l.costo_unitario) || 0) * (Number(l.cantidad_necesaria) || 0), 0),
-    [lines],
+    () => lines.reduce((s, l) => s + costoDe(l) * (Number(l.cantidad_necesaria) || 0), 0),
+    [lines, costoDe],
   )
   const validLines = useMemo(
     () => lines.filter(l => l.nombre.trim() !== '' && l.cantidad_necesaria > 0).length,
@@ -107,7 +116,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
       const ing = matchName(l.nombre, ingredientesOpts, i => i.nombre)
       return {
         nombre: ing?.nombre ?? l.nombre,
-        costo_unitario: ing ? Number(ing.costo_unitario) || 0 : 0,
+        costo_unitario: 0,
         cantidad_necesaria: Number(l.cantidad) || 0,
         unidad: ing?.unidad_medida ?? l.unidad ?? '',
         ingrediente_id: ing?.id ?? null,
@@ -160,11 +169,18 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
 
   // ─── Guardar ──────────────────────────────────────────────
   const saveMutation = useMutation({
-    mutationFn: () => inventoryService.saveRecetaLines(productId, lines),
+    mutationFn: () => {
+      // La unidad de una línea vinculada es siempre la del ingrediente
+      const fijadas = lines.map(l => {
+        const ing = l.ingrediente_id ? ingredientesOpts.find(i => i.id === l.ingrediente_id) : null
+        return ing ? { ...l, unidad: ing.unidad_medida } : l
+      })
+      return inventoryService.saveRecetaLines(productId, fijadas)
+    },
     onSuccess: () => {
       message.success('Receta guardada')
       queryClient.invalidateQueries({ queryKey: ['receta', productId] })
-      queryClient.invalidateQueries({ queryKey: ['productos_disponibles'] })
+      queryClient.invalidateQueries({ queryKey: ['platos_para_receta'] })
     },
     onError: (error) => message.error(`Error: ${error instanceof Error ? error.message : 'Desconocido'}`),
   })
@@ -258,7 +274,8 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                 {/* Filas editables */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                   {lines.map((line, idx) => {
-                    const subtotal = (Number(line.costo_unitario) || 0) * (Number(line.cantidad_necesaria) || 0)
+                    const vinculada = !!line.ingrediente_id
+                    const subtotal = costoDe(line) * (Number(line.cantidad_necesaria) || 0)
                     return (
                       <div key={idx} className="recipe-row" style={{
                         display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem',
@@ -273,7 +290,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                               ...l,
                               ingrediente_id: e.target.value || null,
                               nombre: ing?.nombre ?? l.nombre,
-                              costo_unitario: ing ? Number(ing.costo_unitario) : l.costo_unitario,
+                              costo_unitario: ing ? 0 : l.costo_unitario,
                               unidad: ing?.unidad_medida ?? l.unidad,
                             } : l))
                           }}
@@ -297,10 +314,12 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                         {/* Precio unitario */}
                         <input
                           type="number" min={0} step={50} inputMode="decimal"
-                          value={line.costo_unitario === 0 ? '' : line.costo_unitario}
+                          value={vinculada ? (costoDe(line) || '') : (line.costo_unitario === 0 ? '' : line.costo_unitario)}
                           onChange={e => updateLine(idx, 'costo_unitario', parseFloat(e.target.value) || 0)}
                           placeholder="Precio"
-                          style={{ ...inputBase, flex: 1.4, minWidth: 90, textAlign: 'right' }}
+                          disabled={vinculada}
+                          title={vinculada ? 'Costo vivo del inventario: se cambia en Ingredientes' : undefined}
+                          style={{ ...inputBase, flex: 1.4, minWidth: 90, textAlign: 'right', opacity: vinculada ? 0.7 : 1 }}
                         />
                         {/* Cantidad */}
                         <input
@@ -310,6 +329,9 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                           placeholder="Cant."
                           style={{ ...inputBase, flex: 1.2, minWidth: 76, textAlign: 'right' }}
                         />
+                        {vinculada && (
+                          <span title="La unidad la define el ingrediente del inventario" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: 40 }}>{line.unidad}</span>
+                        )}
                         {/* Subtotal (vivo) */}
                         <span style={{ flex: 1.4, minWidth: 80, textAlign: 'right', fontWeight: 700, color: 'var(--accent)', fontSize: '0.9375rem' }}>
                           {fmtCOP(subtotal)}
@@ -317,6 +339,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                         {/* Calculadora: compré X por $Y → precio unitario */}
                         <button
                           onClick={() => toggleCalc(idx)}
+                          disabled={vinculada}
                           title="¿Compraste al por mayor? Calcula el precio por unidad"
                           style={{
                             width: 32, height: 32, flexShrink: 0, borderRadius: '0.5rem', cursor: 'pointer', fontSize: '1rem', lineHeight: 1,
@@ -353,6 +376,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                             <input
                               type="text"
                               value={line.unidad ?? ''}
+                              disabled={vinculada}
                               onChange={e => updateLine(idx, 'unidad', e.target.value)}
                               placeholder="litros, kg, unid."
                               style={{ ...inputBase, width: 110 }}
@@ -394,9 +418,18 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                   </p>
                   <Button
                     type="primary"
-                    onClick={() => saveMutation.mutate()}
+                    onClick={() => {
+                      // Receta vacía permitida (quita la receta), pero se confirma
+                      if (validLines === 0) {
+                        Modal.confirm({
+                          title: '¿Guardar receta vacía?',
+                          content: 'Este plato quedará sin receta y dejará de descontar inventario.',
+                          okText: 'Sí, guardar', cancelText: 'Cancelar',
+                          onOk: () => saveMutation.mutateAsync().catch(() => undefined),
+                        })
+                      } else saveMutation.mutate()
+                    }}
                     loading={saveMutation.isPending}
-                    disabled={validLines === 0}
                   >
                     Guardar receta
                   </Button>

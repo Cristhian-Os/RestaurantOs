@@ -3,7 +3,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
-const NUEVE = ['card-ventas-hoy', 'card-pendientes', 'card-en-cocina', 'card-listas', 'card-completadas', 'card-mesas-activas', 'tab-nueva-orden', 'tab-mesas', 'btn-notificaciones']
+const OCHO = ['card-ventas-hoy', 'card-pendientes', 'card-en-cocina', 'card-listas', 'card-completadas', 'card-mesas-activas', 'tab-nueva-orden', 'tab-mesas']
 const CARPETAS_PROHIBIDAS = ['components/cashier/', 'components/billing/', 'components/orders/', 'components/platform/']
 const PALABRAS = /cobrar|cancelar|eliminar|delete|pay|submit|save|confirm/i
 
@@ -22,7 +22,7 @@ function etiquetaEn(texto, pos) {
 }
 
 /** Revisa un archivo. `ruta` con "/" como separador. */
-export function revisar(ruta, texto, permitidos = NUEVE) {
+export function revisar(ruta, texto, permitidos = OCHO) {
   const errores = [], hallados = []
   if (!texto.includes('data-resti-target')) return { errores, hallados }
   const lineas = texto.split('\n')
@@ -80,8 +80,8 @@ if (import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}` || proce
   const fuente = readFileSync('src/lib/resti/targets.ts', 'utf8')
   const lista = [...(fuente.match(/RESTI_TARGETS\s*=\s*\[([\s\S]*?)\]\s*as const/)?.[1] ?? '').matchAll(/'([^']+)'/g)].map(m => m[1])
   const errores = []
-  for (const id of lista) if (!NUEVE.includes(id)) errores.push(`RESTI_TARGETS tiene un id fuera de los nueve: ${id}`)
-  for (const id of NUEVE) if (!lista.includes(id)) errores.push(`RESTI_TARGETS no tiene el id: ${id}`)
+  for (const id of lista) if (!OCHO.includes(id)) errores.push(`RESTI_TARGETS tiene un id fuera de los ocho: ${id}`)
+  for (const id of OCHO) if (!lista.includes(id)) errores.push(`RESTI_TARGETS no tiene el id: ${id}`)
   const hallados = []
   for (const f of archivos('src')) {
     const r = revisar(relative('.', f).split(sep).join('/'), readFileSync(f, 'utf8'), lista)
@@ -89,7 +89,7 @@ if (import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}` || proce
   }
   console.log(`data-resti-target en el repo (${hallados.length}):`)
   for (const h of hallados) console.log(`  ${h.ruta}:${h.linea}  ${h.id}  ${h.resumen}`)
-  const sinUsar = NUEVE.filter(id => !hallados.some(h => h.id === id))
+  const sinUsar = OCHO.filter(id => !hallados.some(h => h.id === id))
   if (sinUsar.length) console.log(`Sin elemento en el panel (no es error): ${sinUsar.join(', ')}`)
   if (errores.length) { console.error('\ncheck:resti FALLÓ:\n' + errores.map(e => '  ' + e).join('\n')); process.exit(1) }
   console.log('check:resti OK')

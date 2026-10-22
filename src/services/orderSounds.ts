@@ -39,15 +39,19 @@ function getCtx(): AudioContext | null {
 }
 
 // Llamar SIEMPRE dentro de un toque/clic del usuario.
+let silencioEnviado = false
 export function unlockAudio() {
   const c = getCtx()
   if (!c) return
   if (c.state !== 'running') c.resume().then(notify).catch(() => {})
-  // iOS: un buffer mudo dentro del gesto termina de "despertar" la salida de audio
-  const b = c.createBufferSource()
-  b.buffer = c.createBuffer(1, 1, 22050)
-  b.connect(c.destination)
-  b.start(0)
+  // iOS: un buffer mudo dentro del gesto termina de "despertar" la salida de audio (una sola vez, no en cada toque)
+  if (!silencioEnviado) {
+    silencioEnviado = true
+    const b = c.createBufferSource()
+    b.buffer = c.createBuffer(1, 1, 22050)
+    b.connect(c.destination)
+    b.start(0)
+  }
   notify()
 }
 

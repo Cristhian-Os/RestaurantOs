@@ -136,8 +136,9 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
 
       // Pagos de cada pedido (cuentas divididas): el dinero se suma por lo que se pagó con cada método.
       if (list.length > 0) {
-        const { data: pagos } = await supabase.from('order_payments')
+        const { data: pagos, error: pagosErr } = await supabase.from('order_payments')
           .select('order_id, comensal, payment_method, monto').is('anulado_at', null).in('order_id', list.map(o => o.id))
+        if (pagosErr) throw pagosErr   // sin los pagos los totales por método saldrían mal: mejor avisar que mostrar cifras falsas
         const porPedido = new Map<string, { comensal: string | null; payment_method: string; monto: number }[]>()
         for (const p of pagos ?? []) {
           const arr = porPedido.get(p.order_id as string) ?? []

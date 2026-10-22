@@ -55,11 +55,8 @@ export function crearVad(o: OpcionesVad) {
     ajustar(n: { umbralMin?: number; factorRuido?: number; inicioMs?: number }) { umbralMin = n.umbralMin ?? umbralMin; factor = n.factorRuido ?? factor; inicioMs = n.inicioMs ?? inicioMs },
     /** Fin manual (p. ej. la persona toca el micrófono mientras habla): cierra la frase ya, sin esperar el silencio. */
     forzarFin(): EventoVad { if (!hablando) return null; hablando = false; conVoz = 0; enSilencio = 0; return 'fin' },
-    reiniciar() { hablando = false; conVoz = 0; enSilencio = 0; duracion = 0; vozTotal = 0 },
-    calibrando: () => calibrando > 0,
     hablando: () => hablando,
     /** Milisegundos con voz en la frase actual (para descartar ruidos cortos). */
     vozMs: () => vozTotal,
-    ruido: () => ruido,
   }
 }

@@ -14,6 +14,8 @@ const EMPRESA = {
   nombre: 'RestaurantOS',
   correo: 'soporte@restaurantos.com',
 }
+// Fecha de vigencia de los textos: actualizar a mano cuando cambien los Términos o la Política
+const ULTIMA_ACTUALIZACION = '22 de octubre de 2026'
 const GRACE_DAYS = 7
 const PURGE_DAYS = 30
 
@@ -109,7 +111,7 @@ export default function Legal() {
 
         <h1 className="ed-display" style={{ fontSize: 'clamp(2rem, 5vw, 2.75rem)', fontWeight: 600, margin: '0 0 0.5rem' }}>{title}</h1>
         <p className="ed-body" style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', marginBottom: '2.5rem' }}>
-          Última actualización: {new Date().toLocaleDateString('es', { year: 'numeric', month: 'long', day: 'numeric' })}
+          Última actualización: {ULTIMA_ACTUALIZACION}
         </p>
 
         {secs.map(s => (

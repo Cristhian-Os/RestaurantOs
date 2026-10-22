@@ -265,7 +265,16 @@ export function selIsValidV2(groups: OptionGroupV2[], listas: ListMap, sel: Item
 export function extrasV2(groups: OptionGroupV2[], listas: ListMap, sel: ItemSel): number {
   return groups.reduce((sum, g) => {
     const items = itemsDeGrupo(g, listas)
-    return sum + elegidos(sel, g.id).reduce((s, label) => s + (Number(items.find(x => x.label === label)?.precio_extra) || 0), 0)
+    return sum + elegidos(sel, g.id).reduce((s, label) => {
+      const it = items.find(x => x.label === label)
+      let extra = Number(it?.precio_extra) || 0
+      // Sub-elecciones (ej. sabores de «Con helado»): también suman su precio_extra, como en el servidor
+      if (it?.sub) {
+        const subItems = listas[it.sub.lista] ?? []
+        extra += elegidos(sel, subKey(g.id, label)).reduce((t, sl) => t + (Number(subItems.find(x => x.label === sl)?.precio_extra) || 0), 0)
+      }
+      return s + extra
+    }, 0)
   }, 0)
 }
 

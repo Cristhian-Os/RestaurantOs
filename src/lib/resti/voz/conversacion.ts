@@ -16,15 +16,16 @@ export interface DepsConv {
   /** Corta de inmediato el audio que está sonando. */
   silenciar(): void
   onEstado(e: EstadoConv): void
-  onError?(codigo: 'microfono' | 'transcripcion' | 'cerebro' | 'voz'): void
+  onError?(codigo: 'microfono' | 'transcripcion' | 'limite' | 'cerebro' | 'voz'): void
   onTexto?(rol: 'user' | 'assistant', texto: string): void
 }
 
 export const MSG_NO_ENTENDI = 'No te escuché bien. ¿Me lo repites?'
+export const MSG_LIMITE = 'Llegamos al límite de voz por ahora. Puedes escribirme.'
 export const MSG_ERROR = 'Ahora mismo no puedo ayudarte. Intenta en un momento.'
 
 export function crearConversacion(d: DepsConv) {
-  let estado = 'apagado' as EstadoConv, turno = 0, captura: CapturaConv | null = null, pendiente: Frase | null = null
+  let estado = 'apagado' as EstadoConv, turno = 0, intento = 0, captura: CapturaConv | null = null, pendiente: Frase | null = null
   const ir = (e: EstadoConv) => {
     if (e === estado) return
     estado = e; d.onEstado(e)
@@ -39,7 +40,7 @@ export function crearConversacion(d: DepsConv) {
     let texto = f.texto?.trim() ?? ''
     if (!texto && f.wav) {
       ir('transcribiendo')
-      try { texto = (await d.transcribir(f.wav)).trim() } catch { d.onError?.('transcripcion'); if (vigente()) { await decir(MSG_NO_ENTENDI, mi) } return fin(mi) }
+      try { texto = (await d.transcribir(f.wav)).trim() } catch (e) { const limite = e instanceof Error && e.message === 'limite'; d.onError?.(limite ? 'limite' : 'transcripcion'); if (vigente()) { await decir(limite ? MSG_LIMITE : MSG_NO_ENTENDI, mi) } return fin(mi) }
       if (!vigente()) return
     }
     if (!texto) return fin(mi)   // ruido o silencio: no se responde
@@ -69,17 +70,24 @@ export function crearConversacion(d: DepsConv) {
     terminarFrase: () => captura?.terminarFrase?.(),
     async iniciar() {
       if (actual() !== 'apagado') return
+      const mio = ++intento   // si se apaga (o se reinicia) mientras se espera el permiso del micrófono, esta captura ya no sirve
       ir('iniciando')
+      let nueva: CapturaConv
       try {
-        captura = await d.iniciarCaptura({
+        nueva = await d.iniciarCaptura({
           onFrase: f => { if (estado === 'apagado') return; if (ocupado()) { pendiente = f; return } void procesar(f) },
           onInicioHabla: () => { if (estado === 'hablando') { turno++; d.silenciar(); ir('escuchando') } },   // interrupción
         })
-      } catch { d.onError?.('microfono'); estado = 'apagado'; d.onEstado('apagado'); return }
+      } catch {
+        if (mio !== intento || actual() === 'apagado') return   // ya lo apagaron: nada que avisar
+        d.onError?.('microfono'); estado = 'apagado'; d.onEstado('apagado'); return
+      }
+      if (mio !== intento || actual() === 'apagado') { try { nueva.detener() } catch { /* ya estaba detenido */ } return }   // lo apagaron durante el permiso: se suelta el micrófono
+      captura = nueva
       if (actual() === 'iniciando') ir('escuchando')
     },
     detener() {
-      turno++; pendiente = null; d.silenciar()
+      turno++; intento++; pendiente = null; d.silenciar()
       try { captura?.detener() } catch { /* ya estaba detenido */ }
       captura = null; ir('apagado')
     },

@@ -36,6 +36,7 @@ export function PagosVendedores() {
     const [d, l] = await Promise.all([supabase.rpc('plataforma_deuda_vendedores'), supabase.rpc('plataforma_liquidaciones_listar')])
     if (d.error) { setError(d.error.message); return }
     setDeuda((d.data as Deuda[]) ?? [])
+    if (l.error) { setMsg('No se pudieron cargar las liquidaciones: ' + l.error.message); return }
     setLiqs((l.data as Liq[]) ?? [])
   }, [])
   useEffect(() => { cargar() }, [cargar])

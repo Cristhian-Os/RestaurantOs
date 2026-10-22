@@ -5,13 +5,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import message from 'antd/es/message'
+import AntModal from 'antd/es/modal'
 import { supabase } from '../../services/supabaseClient'
 import { formatCOP } from '../../config/billing'
 import { hoyBogota } from '../../services/menuOptions'
 import type { Profile } from '../../types'
 import {
   MAX_FOTOS, comprimirFoto, crearProveedorRapido, editarFactura, eliminarFactura, enlacesFotos, exportarExcel,
-  guardarFactura, listarFacturas, nombresDeUsuarios, pendientes, sincronizarPendientes,
+  guardarFactura, listarFacturas, nombresDeUsuarios, parseMontoCOP, pendientes, sincronizarPendientes,
   type Factura, type FacturaPendiente,
 } from '../../services/facturas'
 
@@ -45,23 +46,27 @@ function Modal({ children, onClose, ancho = '34rem' }: { children: React.ReactNo
   )
 }
 
-function SelectorProveedor({ valor, onChange, proveedores, onCreado }: {
-  valor: string; onChange: (id: string) => void; proveedores: Proveedor[]; onCreado: (p: Proveedor) => void
+function SelectorProveedor({ valor, onChange, proveedores, onCreado, puedeCrear }: {
+  valor: string; onChange: (id: string) => void; proveedores: Proveedor[]; onCreado: (p: Proveedor) => void; puedeCrear: boolean
 }) {
   const [creando, setCreando] = useState(false)
   const [nombre, setNombre] = useState('')
+  const [guardandoProv, setGuardandoProv] = useState(false)
+  const lockProv = useRef(false)
   const crear = async () => {
-    if (!nombre.trim()) return
+    if (!nombre.trim() || lockProv.current) return
+    lockProv.current = true; setGuardandoProv(true)
     try {
       const p = await crearProveedorRapido(nombre)
       onCreado(p); onChange(p.id); setCreando(false); setNombre('')
     } catch (e) { message.error((e as Error).message) }
+    finally { lockProv.current = false; setGuardandoProv(false) }
   }
   if (creando) {
     return (
       <div style={{ display: 'flex', gap: '0.375rem' }}>
         <input style={input} value={nombre} maxLength={120} placeholder="Nombre del proveedor nuevo" onChange={e => setNombre(e.target.value)} />
-        <button type="button" style={primario} onClick={crear}>Crear</button>
+        <button type="button" style={primario} disabled={guardandoProv} onClick={crear}>{guardandoProv ? 'Creando…' : 'Crear'}</button>
         <button type="button" style={suave} onClick={() => setCreando(false)}>×</button>
       </div>
     )
@@ -72,15 +77,16 @@ function SelectorProveedor({ valor, onChange, proveedores, onCreado }: {
         <option value="">Sin proveedor</option>
         {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
       </select>
-      <button type="button" style={suave} onClick={() => setCreando(true)}>+ Nuevo</button>
+      {/* Solo el administrador crea proveedores (la base rechaza a los demás roles) */}
+      {puedeCrear && <button type="button" style={suave} onClick={() => setCreando(true)}>+ Nuevo</button>}
     </div>
   )
 }
 
 // ─── Subir una factura ───────────────────────────────────────────────────────
 
-function SubirFactura({ rid, proveedores, onProveedor, onClose, onHecho }: {
-  rid: string; proveedores: Proveedor[]; onProveedor: (p: Proveedor) => void; onClose: () => void; onHecho: () => void
+function SubirFactura({ rid, esAdmin, proveedores, onProveedor, onClose, onHecho }: {
+  rid: string; esAdmin: boolean; proveedores: Proveedor[]; onProveedor: (p: Proveedor) => void; onClose: () => void; onHecho: () => void
 }) {
   const [fotos, setFotos] = useState<{ blob: Blob; url: string }[]>([])
   const [fecha, setFecha] = useState(hoyBogota())
@@ -112,11 +118,14 @@ function SubirFactura({ rid, proveedores, onProveedor, onClose, onHecho }: {
     setProcesando(false)
   }
 
+  const lockGuardar = useRef(false)
   const guardar = async () => {
-    const valor = Number(monto.replace(/[^\d.]/g, ''))
+    if (lockGuardar.current) return
+    const valor = parseMontoCOP(monto)   // «85.000» = 85000 (punto = miles)
     if (fotos.length === 0) { message.error('Agrega al menos una foto'); return }
     if (!monto.trim() || !Number.isFinite(valor) || valor < 0) { message.error('Escribe el monto total de la factura'); return }
     if (gasto && valor <= 0) { message.error('Para registrar el gasto el monto debe ser mayor a cero'); return }
+    lockGuardar.current = true
     setGuardando(true)
     try {
       const r = await guardarFactura(rid, {
@@ -127,6 +136,7 @@ function SubirFactura({ rid, proveedores, onProveedor, onClose, onHecho }: {
       else message.warning('Sin internet: la factura quedó en este dispositivo y se subirá sola al volver la señal')
       onHecho(); onClose()
     } catch (e) { message.error('No se pudo guardar: ' + (e as Error).message) }
+    lockGuardar.current = false
     setGuardando(false)
   }
 
@@ -156,9 +166,9 @@ function SubirFactura({ rid, proveedores, onProveedor, onClose, onHecho }: {
       <div style={{ display: 'grid', gap: '0.625rem', marginTop: '0.5rem' }}>
         <div><span style={label}>Fecha</span><input style={input} type="date" value={fecha} max={hoyBogota()} onChange={e => setFecha(e.target.value)} /></div>
         <div><span style={label}>Proveedor</span>
-          <SelectorProveedor valor={proveedorId} onChange={setProveedorId} proveedores={proveedores} onCreado={onProveedor} /></div>
+          <SelectorProveedor valor={proveedorId} onChange={setProveedorId} proveedores={proveedores} onCreado={onProveedor} puedeCrear={esAdmin} /></div>
         <div><span style={label}>Monto total (COP)</span>
-          <input style={input} inputMode="numeric" value={monto} placeholder="Ej: 85000" onChange={e => setMonto(e.target.value)} /></div>
+          <input style={input} inputMode="decimal" value={monto} placeholder="Ej: 85.000" onChange={e => setMonto(e.target.value)} /></div>
         <div><span style={label}>Nota (opcional)</span>
           <input style={input} value={nota} maxLength={500} placeholder="Ej: compra de frutas de la semana" onChange={e => setNota(e.target.value)} /></div>
         <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.875rem' }}>
@@ -190,23 +200,36 @@ function DetalleFactura({ f, esAdmin, proveedores, onProveedor, enlaces, quien, 
   const [monto, setMonto] = useState(String(f.monto))
   const [nota, setNota] = useState(f.nota ?? '')
   const [ocupado, setOcupado] = useState(false)
+  const lockDetalle = useRef(false)
 
   const guardar = async () => {
-    const valor = Number(monto.replace(/[^\d.]/g, ''))
+    if (lockDetalle.current) return
+    const valor = parseMontoCOP(monto)
     if (!Number.isFinite(valor) || valor < 0) { message.error('Monto inválido'); return }
+    lockDetalle.current = true
     setOcupado(true)
     try {
       await editarFactura({ id: f.id, fecha, proveedorId: proveedorId || null, monto: valor, nota })
       message.success('Factura actualizada'); onCambio(); onClose()
     } catch (e) { message.error((e as Error).message) }
+    lockDetalle.current = false
     setOcupado(false)
   }
-  const borrar = async () => {
-    if (!window.confirm('¿Eliminar esta factura y sus fotos? No se puede deshacer. El gasto de caja, si lo hubo, se conserva.')) return
-    setOcupado(true)
-    try { await eliminarFactura(f); message.success('Factura eliminada'); onCambio(); onClose() }
-    catch (e) { message.error((e as Error).message) }
-    setOcupado(false)
+  const borrar = () => {
+    AntModal.confirm({
+      title: '¿Eliminar esta factura y sus fotos?',
+      content: 'No se puede deshacer. El gasto de caja, si lo hubo, se conserva.',
+      okText: 'Sí, eliminar', cancelText: 'No', okButtonProps: { danger: true },
+      onOk: async () => {
+        if (lockDetalle.current) return
+        lockDetalle.current = true
+        setOcupado(true)
+        try { await eliminarFactura(f); message.success('Factura eliminada'); onCambio(); onClose() }
+        catch (e) { message.error((e as Error).message) }
+        lockDetalle.current = false
+        setOcupado(false)
+      },
+    })
   }
 
   return (
@@ -241,8 +264,8 @@ function DetalleFactura({ f, esAdmin, proveedores, onProveedor, enlaces, quien, 
         <div style={{ display: 'grid', gap: '0.625rem', marginTop: '1rem' }}>
           <div><span style={label}>Fecha</span><input style={input} type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
           <div><span style={label}>Proveedor</span>
-            <SelectorProveedor valor={proveedorId} onChange={setProveedorId} proveedores={proveedores} onCreado={onProveedor} /></div>
-          <div><span style={label}>Monto total (COP)</span><input style={input} inputMode="numeric" value={monto} onChange={e => setMonto(e.target.value)} /></div>
+            <SelectorProveedor valor={proveedorId} onChange={setProveedorId} proveedores={proveedores} onCreado={onProveedor} puedeCrear={esAdmin} /></div>
+          <div><span style={label}>Monto total (COP)</span><input style={input} inputMode="decimal" value={monto} onChange={e => setMonto(e.target.value)} /></div>
           <div><span style={label}>Nota</span><input style={input} value={nota} maxLength={500} onChange={e => setNota(e.target.value)} /></div>
           {f.gasto_id && <p style={{ fontSize: '0.75rem', margin: 0 }}>Esta factura tiene un gasto de caja: el cambio de monto y proveedor también se aplica al gasto.</p>}
           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
@@ -277,8 +300,14 @@ export function Facturas({ profile }: { profile: Profile }) {
 
   useEffect(() => {
     supabase.from('profiles').select('restaurant_id').eq('id', profile.id).maybeSingle()
-      .then(({ data }) => setRid((data?.restaurant_id as string | null) ?? null))
-    supabase.from('proveedores').select('id, nombre').order('nombre').then(({ data }) => setProveedores((data ?? []) as Proveedor[]))
+      .then(({ data, error }) => {
+        if (error) { message.error('No pude leer tu restaurante: ' + error.message); return }
+        setRid((data?.restaurant_id as string | null) ?? null)
+      })
+    supabase.from('proveedores').select('id, nombre').order('nombre').then(({ data, error }) => {
+      if (error) { message.error('No pude cargar los proveedores: ' + error.message); return }
+      setProveedores((data ?? []) as Proveedor[])
+    })
   }, [profile.id])
 
   const cargar = useCallback(async () => {
@@ -388,7 +417,7 @@ export function Facturas({ profile }: { profile: Profile }) {
         </div>
       )}
 
-      {subir && rid && <SubirFactura rid={rid} proveedores={proveedores} onProveedor={sumarProveedor} onClose={() => setSubir(false)} onHecho={cargar} />}
+      {subir && rid && <SubirFactura rid={rid} esAdmin={esAdmin} proveedores={proveedores} onProveedor={sumarProveedor} onClose={() => setSubir(false)} onHecho={cargar} />}
       {abierta && <DetalleFactura f={abierta} esAdmin={esAdmin} proveedores={proveedores} onProveedor={sumarProveedor} enlaces={enlaces}
         quien={abierta.registrado_por ? nombres[abierta.registrado_por] ?? '' : ''} onClose={() => setAbierta(null)} onCambio={cargar} />}
     </div>

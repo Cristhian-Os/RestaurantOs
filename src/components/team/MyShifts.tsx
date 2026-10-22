@@ -47,19 +47,21 @@ export const MyShifts = memo(({ profile }: { profile: Profile }) => {
   const today = hoyBogota()
 
   const fetchShifts = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error: shErr } = await supabase
       .from('employee_schedules')
       .select('id, work_date, shift_start, shift_end, notes')
       .eq('employee_id', profile.id)
       .gte('work_date', hoyBogota())
       .order('work_date', { ascending: true })
       .order('shift_start', { ascending: true })
+    if (shErr) { message.error('No se pudieron cargar tus turnos: ' + shErr.message); setLoading(false); return }
     setShifts(data ?? [])
     const ids = (data ?? []).map(s => s.id)
     if (ids.length) {
-      const { data: cks } = await supabase.from('shift_checkins')
+      const { data: cks, error: ckErr } = await supabase.from('shift_checkins')
         .select('schedule_id, status, review_note').in('schedule_id', ids)
-      setCheckins(Object.fromEntries((cks ?? []).map((c: Checkin) => [c.schedule_id, c])))
+      if (ckErr) message.error('No se pudo cargar el estado de tus llegadas: ' + ckErr.message)
+      else setCheckins(Object.fromEntries((cks ?? []).map((c: Checkin) => [c.schedule_id, c])))
     }
     setLoading(false)
   }, [profile.id])
@@ -82,10 +84,21 @@ export const MyShifts = memo(({ profile }: { profile: Profile }) => {
   // Foto en vivo → bucket privado → registrar_llegada (valida turno y día en el servidor).
   const sendArrival = async (shift: Shift, photo: Blob) => {
     const path = `${profile.id}/${shift.work_date}-${crypto.randomUUID()}.jpg`
-    const { error: upErr } = await supabase.storage.from('shift-checkins').upload(path, photo, { contentType: 'image/jpeg' })
-    if (upErr) { message.error('No se pudo subir la foto: ' + upErr.message); return }
-    const { error } = await supabase.rpc('registrar_llegada', { p_schedule_id: shift.id, p_photo_path: path })
-    if (error) { message.error(error.message); return }
+    try {
+      const { error: upErr } = await supabase.storage.from('shift-checkins').upload(path, photo, { contentType: 'image/jpeg' })
+      if (upErr) { message.error('No se pudo subir la foto: ' + upErr.message); return }
+      const { error } = await supabase.rpc('registrar_llegada', { p_schedule_id: shift.id, p_photo_path: path })
+      if (error) {
+        // La llegada no quedó registrada: no dejar la foto huérfana
+        await supabase.storage.from('shift-checkins').remove([path]).catch(() => undefined)
+        message.error(error.message)
+        return
+      }
+    } catch (e) {
+      await supabase.storage.from('shift-checkins').remove([path]).catch(() => undefined)
+      message.error('No se pudo registrar la llegada: ' + (e instanceof Error ? e.message : 'error de conexión'))
+      return
+    }
     setCapturing(null)
     message.success('Llegada enviada. Espera la aprobación del administrador.')
     pushNotificationService.notify(['admin'], 'Llegada al turno', `${profile.full_name ?? 'Un empleado'} registró su llegada`, '/')

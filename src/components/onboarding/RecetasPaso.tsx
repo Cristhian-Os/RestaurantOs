@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
+import { numEsCO, limpiarTxt } from './numeros'
 
 interface Plato { id: string; name: string; price: number }
 interface Ing { id: string; nombre: string; unidad_medida: string; costo_unitario: number }
@@ -19,10 +20,10 @@ const FACTOR: Record<string, Record<string, number>> = {
   kg: { kg: 1, gramo: 0.001 }, gramo: { gramo: 1, kg: 1000 }, litro: { litro: 1, ml: 0.001 }, ml: { ml: 1, litro: 1000 }, pieza: { pieza: 1 }, paquete: { paquete: 1 },
 }
 const UNIDADES = ['kg', 'gramo', 'litro', 'ml', 'pieza', 'paquete']
-const num = (s: string) => Number(String(s).replace(/\s/g, '').replace(',', '.'))
+const num = numEsCO
 const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 // Todo lo que viene de un archivo es texto: nunca se interpreta como fórmula.
-const limpiar = (v: unknown) => String(v ?? '').trim().replace(/^[=+@]+/, '')
+const limpiar = limpiarTxt
 
 const btn: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', borderRadius: '0.75rem', padding: '0.7rem 1.1rem', minHeight: '2.75rem' }
 const primary: React.CSSProperties = { ...btn, background: 'var(--w-terra)', color: '#fff' }
@@ -115,7 +116,9 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
     const encabezado = (m[0] ?? []).map(c => String(c ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim())
     const tiene = encabezado.includes('plato')
     const idx = (k: string, def: number) => (tiene ? encabezado.indexOf(k) : def)
-    return (tiene ? m.slice(1) : m).slice(0, 500).map(r => ({ plato: limpiar(r[idx('plato', 0)]), ingrediente: limpiar(r[idx('ingrediente', 1)]), cantidad: limpiar(r[idx('cantidad', 2)]), unidad: limpiar(r[idx('unidad', 3)]) }))
+    const datos = tiene ? m.slice(1) : m
+    if (datos.length > 500) message.warning(`El archivo tiene ${datos.length} filas: solo se cargaron las primeras 500. Súbelo en partes para el resto.`)
+    return datos.slice(0, 500).map(r => ({ plato: limpiar(r[idx('plato', 0)]), ingrediente: limpiar(r[idx('ingrediente', 1)]), cantidad: limpiar(r[idx('cantidad', 2)]), unidad: limpiar(r[idx('unidad', 3)]) }))
       .filter(f => f.plato || f.ingrediente)
   }
   const importar = async (filas: ReturnType<typeof filasDeMatriz>) => {

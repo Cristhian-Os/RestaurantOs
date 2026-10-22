@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Spin from 'antd/es/spin'
 import Alert from 'antd/es/alert'
@@ -21,8 +21,8 @@ const CUADRANTE: Record<Cuadrante, { titulo: string; texto: string }> = {
   sin_receta:    { titulo: 'SIN RECETA', texto: 'No se puede calcular su margen porque no tiene receta cargada.' },
 }
 
-function Cargando({ q, children }: { q: { isLoading: boolean; error: unknown }; children: React.ReactNode }) {
-  if (q.isLoading) return <Spin />
+function Cargando({ q, children }: { q: { isLoading: boolean; isPending: boolean; error: unknown }; children: React.ReactNode }) {
+  if (q.isLoading || (q.isPending && !q.error)) return <Spin />
   if (q.error) return <Alert type="error" message="No se pudo cargar" description={q.error instanceof Error ? q.error.message : String(q.error)} />
   return <>{children}</>
 }
@@ -32,12 +32,17 @@ export default function BusinessAssistant() {
   const qc = useQueryClient()
   const [umbrales, setUmbrales] = useState<Umbrales>(UMBRALES_INICIALES)
   const [guardando, setGuardando] = useState(false)
+  const lock = useRef(false)
 
-  useEffect(() => { void analyticsService.cargarUmbrales().then(setUmbrales) }, [])
+  useEffect(() => { analyticsService.cargarUmbrales().then(setUmbrales).catch(() => message.error('No se pudieron cargar los umbrales guardados')) }, [])
 
   const guardar = async () => {
+    if (lock.current) return
+    if (Object.values(umbrales).some(v => !Number.isFinite(v))) { message.error('Completa todos los umbrales con un número'); return }
+    lock.current = true
     setGuardando(true)
     const err = await analyticsService.guardarUmbrales(umbrales)
+    lock.current = false
     setGuardando(false)
     if (err) { message.error('No se pudo guardar: ' + err); return }
     message.success('Umbrales guardados')
@@ -46,7 +51,7 @@ export default function BusinessAssistant() {
   const campo = (k: keyof Umbrales, etiqueta: string) => (
     <label className="text-xs text-neo-mid flex flex-col gap-1">
       {etiqueta}
-      <input type="number" inputMode="numeric" value={umbrales[k]} onChange={e => setUmbrales(u => ({ ...u, [k]: Number(e.target.value) }))}
+      <input type="number" inputMode="numeric" value={Number.isNaN(umbrales[k]) ? '' : umbrales[k]} onChange={e => setUmbrales(u => ({ ...u, [k]: e.target.value === '' ? NaN : Number(e.target.value) }))}
         className="rounded-xl px-3 py-2 bg-neo-base text-neo-dark w-full" style={{ minHeight: 44 }} />
     </label>
   )

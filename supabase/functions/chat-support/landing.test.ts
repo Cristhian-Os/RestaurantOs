@@ -27,6 +27,11 @@ for (const s of ['Tenemos prueba gratis de 7 días.', 'Te lo damos gratis el pri
 for (const s of ['El plan Pro cuesta $199.000 al mes.', 'Premium vale $325.000 al mes.', 'Son 200000 pesos mensuales.', 'Cuesta 200 mil pesos.', 'Sale en 150 mil al mes.', 'Esencial cuesta $160.000 y Pro $250.000.'])
   assert.equal(filtrarRespuesta(s, planes).filtrada, true, s)
 assert.equal(filtrarRespuesta('Tenemos más de 5 mil clientes felices.', planes).filtrada, false)   // "mil" sin precio no es un precio
+// Frases evasivas y cifras con letras
+for (const s of ['Te lo dejo a la mitad de precio.', 'Cero costo el primer mes.', 'Puedes hacer una prueba sin compromiso.', 'Vale 20 dólares.', 'Cuesta ciento sesenta mil pesos.', 'Son quince mil al mes.', 'Te regalamos la instalación.', 'Cuesta 30 USD.', 'Un diez por ciento menos.'])
+  assert.equal(filtrarRespuesta(s, planes).filtrada, true, s)
+ok('Comprueba que tu menú esté completo antes de abrir.')
+ok('Tu equipo tiene treinta días de garantía sobre el primer pago.')
 
 // Leads: nombre y WhatsApp obligatorios; se normaliza y se acota
 const l = validarLead({ nombre: ' Ana  <b>Pérez</b> ', whatsapp: '300 111 2222', restaurante: 'Heladería Ana', mesas: 12, interes: 'pro', resumen: 'x'.repeat(2000) })

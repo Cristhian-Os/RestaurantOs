@@ -4,7 +4,7 @@
  * que ya deja una sesión de recuperación activa; solo falta pedir la nueva contraseña
  * y llamar a supabase.auth.updateUser.
  */
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
 
@@ -40,11 +40,13 @@ export default function ResetPassword() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
   const [done,     setDone]     = useState(false)
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (redirectTimer.current) clearTimeout(redirectTimer.current) }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (password.length < 6)   { setError('La contraseña debe tener al menos 6 caracteres'); return }
+    if (password.length < 8)   { setError('La contraseña debe tener al menos 8 caracteres'); return }
     if (password !== confirm)  { setError('Las contraseñas no coinciden'); return }
     setLoading(true)
     try {
@@ -60,7 +62,7 @@ export default function ResetPassword() {
       }
       setDone(true)
       await supabase.auth.signOut()
-      setTimeout(() => { window.location.href = '/login' }, 2200)
+      redirectTimer.current = setTimeout(() => { window.location.href = '/login' }, 2200)
     } catch {
       setError('Error de conexión. Verifica tu internet')
       setLoading(false)

@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
+import { hashIp, ipDe, permitido, registrarUsoIA, topeGlobal } from '../_shared/guardas.ts'
 import { armarCarta, agotadosDeConfig, cerrarRespuesta, validarPregunta, mesaValida, sesionValida, diaBogota, SYSTEM, FUERA_DE_TEMA, LIMITE_MESA, SIN_SERVICIO } from './carta.ts'
 
 // Asistente de la carta del menú QR (público, sin sesión). La carta sale de la base en el momento de la pregunta;
@@ -8,11 +9,6 @@ const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-
-async function sha256Hex(input: string): Promise<string> {
-  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
-  return Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
 Deno.serve(async (req: Request) => {
@@ -33,16 +29,16 @@ Deno.serve(async (req: Request) => {
     if (!rest?.id) return json({ respuesta: SIN_SERVICIO, tema: 'carta' }, 404)
 
     // Límites de costo (solo contadores, sin guardar texto): por IP, por sesión, por mesa y día, y por restaurante y día.
-    const xff = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
-    const ipHash = (await sha256Hex((req.headers.get('cf-connecting-ip') ?? (xff || 'sin-ip')) + Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))).slice(0, 16)
+    const ipHash = await hashIp(ipDe(req))   // sal propia (IP_HASH_SALT), no la service key
     const dia = diaBogota(), mesa = mesaValida(body?.mesa)
     for (const [key, max, secs] of [
       [`ma:ip:${ipHash}`, 20, 600], [`ma:s:${sesionValida(body?.sesion) ?? ipHash}`, 25, 3600],
       [`ma:m:${rest.id}:${mesa}:${dia}`, 20, 86400], [`ma:r:${rest.id}:${dia}`, 400, 86400],
     ] as const) {
-      const { data: ok } = await admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs })
-      if (ok === false) return json({ respuesta: LIMITE_MESA, tema: 'carta', limite: true })
+      if (!(await permitido(admin, key, max, secs))) return json({ respuesta: LIMITE_MESA, tema: 'carta', limite: true })   // falla cerrado
     }
+    // Tope GLOBAL diario de la función (techo de costo del servicio público).
+    if (!(await topeGlobal(admin, 'menu-asistente'))) return json({ respuesta: LIMITE_MESA, tema: 'carta', limite: true })
 
     // La carta de AHORA: platos a la venta con su estado real, lo agotado por caja y los ingredientes registrados.
     const [{ data: platos }, { data: cfgRest }, { data: recetas }, { data: ings }] = await Promise.all([
@@ -69,6 +65,7 @@ Deno.serve(async (req: Request) => {
         sistema: SYSTEM(String(cfgRest?.display_name ?? rest.name), JSON.stringify(carta), agotadosDeConfig(cfgRest?.modules_enabled)) + FORMATO,
         usuario: pregunta, maxTokens: 400, temperatura: 0.2, timeoutMs: 9000,
       }, fetch as unknown as Fetch)
+      await registrarUsoIA(admin, rest.id, 'menu_asistente', resp)
       const t = resp.texto
       try { salida = JSON.parse(t) } catch { const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) { try { salida = JSON.parse(t.slice(a, b + 1)) } catch { /* no era JSON */ } } }
     } catch (e) { console.error('proveedor de IA:', e instanceof Error ? e.message : 'error'); return json({ respuesta: SIN_SERVICIO, tema: 'carta' }) }

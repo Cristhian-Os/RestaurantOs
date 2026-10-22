@@ -44,20 +44,35 @@ export function datosCierre(c: Record<string, unknown>, contado: number | null):
   }
 }
 
-export interface TrabajoComanda { orderId: string; desde: number; hasta: number; modo: 'nueva' | 'adicion' }
+export interface TrabajoComanda { orderId: string; desde: number; hasta: number; modo: 'nueva' | 'adicion' | 'cambio'; indices?: number[] }
+
+/** Huella de lo que se imprime de un plato (cantidad, opciones, notas, cancelado). Si cambia, la cocina debe enterarse. */
+export const firmaItem = (i: ItemPedido): string =>
+  [i.id ?? '', i.name, i.quantity, i.notes ?? '', i.size ?? '', (i.toppings ?? []).join(','), i.cancelled ? 1 : 0].join('|')
 
 /**
- * Qué comandas faltan por imprimir. `hechos` = cuántos platos de cada pedido ya salieron en comanda (el pedido solo crece:
+ * Qué comandas faltan por imprimir. `hechos` = cuántos platos de cada pedido ya salieron en comanda (el pedido crece:
  * lo nuevo es una ADICIÓN). Un pedido que nunca imprimió y es anterior a que se encendiera la estación se ignora
  * (no se reimprime todo el tablero al abrir): para esos está el botón manual.
+ * `firmas` = huella de cada plato tal como se imprimió: si un plato ya impreso se editó o se canceló, sale una comanda de CAMBIO.
  */
-export function planearComandas(ordenes: { id: string; created_at: string; items: unknown }[], hechos: Map<string, number>, inicioMs: number): TrabajoComanda[] {
+export function planearComandas(
+  ordenes: { id: string; created_at: string; items: unknown }[], hechos: Map<string, number>, inicioMs: number,
+  firmas: Map<string, string[]> = new Map(),
+): TrabajoComanda[] {
   const out: TrabajoComanda[] = []
   for (const o of ordenes) {
     const hecho = hechos.get(o.id) ?? 0
     if (hecho === 0 && Date.parse(o.created_at) < inicioMs - 60_000) continue
-    const total = parseItems(o.items).length
+    const items = parseItems(o.items)
+    const total = items.length
     if (total > hecho) out.push({ orderId: o.id, desde: hecho, hasta: total, modo: hecho === 0 ? 'nueva' : 'adicion' })
+    const impresas = firmas.get(o.id)
+    if (hecho > 0 && impresas) {
+      const indices: number[] = []
+      for (let i = 0; i < Math.min(hecho, total, impresas.length); i++) if (impresas[i] && impresas[i] !== firmaItem(items[i])) indices.push(i)
+      if (indices.length > 0) out.push({ orderId: o.id, desde: 0, hasta: total, modo: 'cambio', indices })
+    }
   }
   return out
 }

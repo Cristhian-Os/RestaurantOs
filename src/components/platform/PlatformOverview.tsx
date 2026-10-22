@@ -49,7 +49,6 @@ interface ChatLog {
   restaurant_id: string | null
   user_message:  string
   bot_reply:     string
-  ip:            string | null
 }
 
 const fmtDate = (s: string | null) =>
@@ -75,14 +74,18 @@ export const PlatformOverview = memo(() => {
   const [seg,      setSeg]      = useState<Record<string, Seguimiento>>({})
   const [filtro,   setFiltro]   = useState({ q: '', estado: '', semaforo: '', origen: '' })
   const [fichaId,  setFichaId]  = useState<string | null>(null)
-  const cargarSeguimiento = () => supabase.rpc('plataforma_restaurantes').then(({ data }) => {
+  const cargarSeguimiento = () => supabase.rpc('plataforma_restaurantes').then(({ data, error: e }) => {
+    if (e) { setAviso('No se pudo cargar el seguimiento de restaurantes: ' + e.message); return }
     const m: Record<string, Seguimiento> = {}
     for (const r of (data as Seguimiento[] | null) ?? []) m[r.id] = r
     setSeg(m)
   })
   const recargar = () => {
     cargarSeguimiento()
-    return supabase.rpc('get_platform_overview').then(({ data }) => setRestaurants((data as RestaurantRow[]) ?? []))
+    return supabase.rpc('get_platform_overview').then(({ data, error: e }) => {
+      if (e) { setAviso('No se pudo actualizar la lista de restaurantes: ' + e.message); return }
+      setRestaurants((data as RestaurantRow[]) ?? [])
+    })
   }
   const clave = () => {
     const abc = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
@@ -130,7 +133,8 @@ export const PlatformOverview = memo(() => {
       if (error) { setError(error.message); return }
       setRestaurants((data as RestaurantRow[]) ?? [])
     })
-    supabase.from('platform_chat_logs').select('*')
+    // Sin la IP del visitante: dato personal que esta pantalla no necesita
+    supabase.from('platform_chat_logs').select('id, created_at, restaurant_id, user_message, bot_reply')
       .order('created_at', { ascending: false }).limit(50)
       .then(({ data, error }) => {
         if (error) { setError(prev => prev ?? error.message); return }
@@ -280,7 +284,7 @@ export const PlatformOverview = memo(() => {
             {logs.map(l => (
               <div key={l.id} style={{ borderRadius: '1rem', padding: '0.875rem 1.25rem', backgroundColor: bg, ...S.in }}>
                 <div style={{ fontSize: '0.6875rem', color: txtSec, marginBottom: '0.375rem' }}>
-                  {new Date(l.created_at).toLocaleString('es-CO')} {l.ip ? `· ${l.ip}` : ''}
+                  {new Date(l.created_at).toLocaleString('es-CO')}
                 </div>
                 <div style={{ fontSize: '0.875rem', color: txt, marginBottom: '0.25rem' }}>
                   <strong>Usuario:</strong> {l.user_message}

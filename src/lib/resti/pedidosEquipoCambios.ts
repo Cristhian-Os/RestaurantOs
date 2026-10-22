@@ -49,7 +49,7 @@ export function proponerCambiosPedidos(acciones: AccionPedido[], pedidos: Pedido
 export function proponerCambiosEquipo(acciones: AccionEquipo[], gente: PersonaFila[], nombreActual: string | null): Propuesta[] {
   const estado = new Map(gente.map(p => [p.id, p.active !== false]))
   return acciones.map((a, index): Propuesta => {
-    if (a.type === 'biz_name') return { index, title: 'Nombre del restaurante', detail: `«${nombreActual ?? '—'}» → «${a.value}»`, change: { op: 'biz_name', name: a.value } }
+    if (a.type === 'biz_name') return { index, title: 'Nombre del restaurante', detail: `«${nombreActual ?? '—'}» → «${a.value}»`, change: { op: 'biz_name', name: a.value }, riesgo: 'alto' }
     const n = norm(a.nombre)
     const cand = gente.filter(p => p.full_name && (norm(p.full_name) === n || norm(p.full_name).includes(n) || n.includes(norm(p.full_name))))
     if (cand.length === 0) return { index, title: `${a.active ? 'Activar' : 'Desactivar'} a ${a.nombre}`, detail: '', change: null, problem: `No encontré a «${a.nombre}» en el equipo.` }

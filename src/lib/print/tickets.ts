@@ -55,7 +55,7 @@ function lineasConPrecio(items: ItemPedido[]): Linea[] {
 const subtotalDe = (items: ItemPedido[]) => activos(items).reduce((s, i) => s + i.price * i.quantity, 0)
 
 // ── Comanda: a cocina, barra o estación. Sin precios. ──
-export type ModoComanda = 'nueva' | 'adicion' | 'reimpresion' | 'anulado'
+export type ModoComanda = 'nueva' | 'adicion' | 'reimpresion' | 'anulado' | 'cambio'
 export interface DatosComanda { pedido: Pedido; estacion?: string; modo?: ModoComanda; items?: ItemPedido[] }
 
 export function comanda(d: DatosComanda, ancho: Ancho): Modelo {
@@ -65,15 +65,17 @@ export function comanda(d: DatosComanda, ancho: Ancho): Modelo {
   if (modo === 'adicion') l.push({ k: 'titulo', texto: 'ADICIÓN' })
   if (modo === 'reimpresion') l.push({ k: 'titulo', texto: 'REIMPRESIÓN' })
   if (modo === 'anulado') l.push({ k: 'titulo', texto: 'ANULADO' })
+  if (modo === 'cambio') l.push({ k: 'titulo', texto: 'CAMBIO' })   // plato editado o cancelado después de salir la comanda
   l.push({ k: 'centro', texto: `COMANDA${d.estacion ? ' · ' + d.estacion.toUpperCase() : ''}`, negrita: true })
   l.push({ k: 'fila', izq: d.pedido.numero ? `Pedido #${d.pedido.numero}` : 'Pedido', der: soloHora(d.pedido.creado) })
   l.push({ k: 'texto', texto: donde(d.pedido), grande: true })
   if (d.pedido.cliente) l.push({ k: 'texto', texto: `Cliente: ${d.pedido.cliente}` })
   if (d.pedido.mesero) l.push({ k: 'texto', texto: `Atiende: ${d.pedido.mesero}` })
   l.push({ k: 'sep' })
-  const lista = modo === 'anulado' ? items : activos(items)
+  const lista = modo === 'anulado' || modo === 'cambio' ? items : activos(items)
   for (const it of lista) {
-    l.push({ k: 'texto', texto: `${modo === 'anulado' ? 'ANULADO ' : ''}${it.quantity} x ${it.name}`, grande: true })
+    const anulado = modo === 'anulado' || (modo === 'cambio' && it.cancelled === true)
+    l.push({ k: 'texto', texto: `${anulado ? 'ANULADO ' : ''}${it.quantity} x ${it.name}`, grande: true })
     for (const det of detalleItem(it)) l.push({ k: 'texto', texto: det, sangria: 3, negrita: true })
     if (it.comensal) l.push({ k: 'texto', texto: `Para: ${it.comensal}`, sangria: 3 })
   }

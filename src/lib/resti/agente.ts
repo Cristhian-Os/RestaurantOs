@@ -45,12 +45,36 @@ function esOperacion(t: string): boolean {
   return false
 }
 
-/** Confirmación REFORZADA para cambios delicados (cancelar un pedido, desactivar a alguien): no basta un «sí» suelto; hay que decir de qué se trata. */
-export const esConfirmacionReforzada = (frase: string) => esConfirmacion(frase) && /\b(cancel\w*|desactiv\w*|elimin\w*|quit\w*|borr\w*|confirm\w*|anul\w*)\b/.test(norm(frase))
+/** Palabras que pueden formar parte de una confirmación corta. Cualquier otra palabra ("pero", "cambia", "precio"…) hace que NO cuente como confirmación. */
+const PALABRAS_SI = new Set(['si', 'sii', 'siii', 'dale', 'de', 'una', 'aplicalo', 'aplicalos', 'aplica', 'aplicar', 'confirmo', 'confirma', 'confirmado', 'confirmalo', 'confirmala', 'hazlo', 'hagale', 'listo', 'ok', 'okay', 'vale', 'claro', 'por', 'favor', 'porfa', 'correcto', 'exacto', 'eso', 'es', 'ya', 'que', 'perfecto', 'bueno', 'adelante', 'gracias'])
+const AFIRMA = /\b(si|sii+|dale|de una|aplicalos?|aplica|aplicar|confirmo|confirma|confirmado|confirmalo|confirmala|hazlo|hagale|listo|ok|okay|vale|claro|correcto|exacto|eso es|perfecto|adelante)\b/
 
-/** "sí, aplícalo" cuando hay un cambio esperando confirmación. Solo el comienzo de la frase, para no confundirlo con otra cosa. */
-export const esConfirmacion = (frase: string) => /^(si|sii+|dale|de una|aplicalo|aplicalos|aplica|confirmo|confirma|confirmado|hazlo|hagale|listo|ok|okay|claro|por favor|correcto|exacto|eso es)\b/.test(norm(frase))
-export const esCancelacion = (frase: string) => /^(no|nop|cancela\w*|dejalo|olvidalo|ahora no|mejor no|para|detente|alto)\b/.test(norm(frase))
+/**
+ * Cancelación: cualquier frase que lleve «no», «cancela…», «déjalo», «olvídalo», «mejor», «espera», «para»… (en cualquier lugar, no solo al inicio).
+ * Se evalúa ANTES que la confirmación: «claro que no» o «sí, pero no» jamás cuentan como un sí.
+ */
+export const esCancelacion = (frase: string) => /\b(no|nop|nope|nunca|jamas|tampoco|cancela\w*|dejalo|dejala|olvidalo|olvidala|mejor|espera|esperate|para|detente|alto|nada)\b/.test(norm(frase))
+
+/**
+ * «sí, aplícalo» cuando hay un cambio esperando confirmación. Solo frases CORTAS y completas (hasta 4 palabras, todas de confirmación, sin «no»):
+ * «sí», «dale», «claro que sí». Una frase larga («sí pero cambia el precio») no confirma nada: se descarta el cambio y se atiende lo nuevo.
+ */
+export function esConfirmacion(frase: string): boolean {
+  const t = norm(frase), palabras = t.split(' ').filter(Boolean)
+  if (palabras.length === 0 || palabras.length > 4) return false
+  if (esCancelacion(frase)) return false
+  return palabras.every(w => PALABRAS_SI.has(w)) && AFIRMA.test(t)
+}
+
+/**
+ * Confirmación REFORZADA para cambios delicados (cancelar un pedido, quitar un plato, desactivar a alguien, crear accesos, cambiar precios o el nombre del negocio):
+ * no basta un «sí» suelto; hay que decir la frase exacta («sí, confírmalo», «sí, cancélalo», «sí, desactívalo»…) o tocar Aplicar.
+ */
+export const esConfirmacionReforzada = (frase: string) =>
+  /^(si|dale|ok|okay|claro|hazlo|confirmo) (confirmalo|confirmala|cancelalo|cancelala|desactivalo|desactivala|eliminalo|eliminala|quitalo|quitala|borralo|borrala)$/.test(norm(frase))
+
+/** Qué debe decir la persona para confirmar por voz un cambio delicado (se muestra en la tarjeta). */
+export const FRASE_REFORZADA = 'sí, confírmalo'
 
 export interface PropuestaCorta { title: string; detail: string; change: unknown | null; problem?: string }
 
@@ -73,4 +97,13 @@ export function resumenAplicado(hechos: number, fallos: string[]): string {
   if (fallos.length === 0) return hechos === 1 ? 'Listo, ya lo apliqué.' : `Listo, apliqué los ${hechos} cambios.`
   if (hechos === 0) return `No pude aplicarlo: ${fallos[0]}`
   return `Apliqué ${hechos}, pero uno falló: ${fallos[0]}`
+}
+
+/** Lote que se aplicó a medias: qué quedó hecho y qué falló (con el motivo), para decirlo y mostrarlo claro. */
+export interface InformeLote { hechos: string[]; fallos: { titulo: string; motivo: string }[] }
+export function resumenLote(inf: InformeLote): string {
+  const total = inf.hechos.length + inf.fallos.length
+  if (inf.fallos.length === 0) return resumenAplicado(inf.hechos.length, [])
+  if (inf.hechos.length === 0) return `No pude aplicarlo: ${inf.fallos[0].motivo}`
+  return `Apliqué ${inf.hechos.length} de ${total}. No pude aplicar «${inf.fallos[0].titulo}»${inf.fallos.length > 1 ? ` ni ${inf.fallos.length - 1} más` : ''}. Los detalles están en pantalla.`
 }

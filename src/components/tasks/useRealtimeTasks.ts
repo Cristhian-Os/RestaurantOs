@@ -16,11 +16,16 @@ interface Return {
   tasks:   Task[]
   loading: boolean
   refetch: () => void
+  hasMore: boolean      // quizá hay más tareas que las cargadas
+  loadMore: () => void  // carga otra página
 }
+
+const PAGE = 100
 
 export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
   const [tasks,   setTasks]   = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [limit,   setLimit]   = useState(PAGE)
   const isMounted = useRef(true)
 
   const fetchTasks = useCallback(async () => {
@@ -32,7 +37,7 @@ export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
           evidence:task_evidence(id, photo_url, storage_path, notes, submitted_at, uploaded_by)
         `)
         .order('created_at', { ascending: false })
-        .limit(100)
+        .limit(limit)
 
       // Filtro por usuario si no es admin
       if (!isAdmin && userId) {
@@ -47,7 +52,7 @@ export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
     } finally {
       if (isMounted.current) setLoading(false)
     }
-  }, [userId, isAdmin])
+  }, [userId, isAdmin, limit])
 
   useEffect(() => {
     isMounted.current = true
@@ -77,5 +82,6 @@ export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
     }
   }, [fetchTasks, isAdmin, userId])
 
-  return { tasks, loading, refetch: fetchTasks }
+  const loadMore = useCallback(() => setLimit(l => l + PAGE), [])
+  return { tasks, loading, refetch: fetchTasks, hasMore: tasks.length >= limit, loadMore }
 }

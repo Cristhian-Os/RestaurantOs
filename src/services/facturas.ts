@@ -32,6 +32,20 @@ export interface NuevaFactura {
 
 export interface FacturaPendiente extends NuevaFactura { restaurantId: string; error?: string }
 
+/**
+ * Lee un monto escrito a la colombiana: «85.000» → 85000, «1.250.000» → 1250000, «85.000,50» → 85000.5, «$ 85000» → 85000.
+ * El punto es separador de miles (un punto seguido de exactamente 3 dígitos); la coma es el decimal. Devuelve NaN si no es un número.
+ */
+export function parseMontoCOP(texto: string): number {
+  const t = String(texto ?? '').replace(/[\s$]|COP/gi, '')
+  if (t === '') return NaN
+  let limpio: string
+  if (t.includes(',')) limpio = t.replace(/\./g, '').replace(',', '.')           // 1.250.000,50 → 1250000.50
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) limpio = t.replace(/\./g, '')          // 85.000 / 1.250.000 → miles
+  else limpio = t                                                                // 85000 o 85.5
+  return /^\d+(\.\d+)?$/.test(limpio) ? Number(limpio) : NaN
+}
+
 export const MAX_FOTOS = 10
 const MAX_LADO_PX = 1600
 const MAX_BYTES = 5 * 1024 * 1024
@@ -110,6 +124,7 @@ async function conStore<T>(modo: IDBTransactionMode, f: (s: IDBObjectStore) => I
     const req = f(tx.objectStore(STORE))
     tx.oncomplete = () => { db.close(); resolve(req.result) }
     tx.onerror = () => { db.close(); reject(tx.error) }
+    tx.onabort = () => { db.close(); reject(tx.error) }
   })
 }
 

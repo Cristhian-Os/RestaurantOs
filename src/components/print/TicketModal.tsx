@@ -28,11 +28,14 @@ export function TicketModal({ tipo, orderId, preparado, automatico, onClose }: P
     return () => { vivo = false }
   }, [tipo, orderId, preparado])
 
+  const ocupadoRef = useRef(false)   // candado síncrono: un doble toque no abre dos diálogos de impresión
   const imprimir = useCallback(async (t: TicketListo) => {
+    if (ocupadoRef.current) return
+    ocupadoRef.current = true
     setImprimiendo(true); setFalloImpresion(null)
     try { await imprimirEnNavegador(t.modelo); void registrarImpresion(tipo, orderId ?? null, 'impreso') }
     catch (e) { const m = e instanceof Error ? e.message : 'error'; setFalloImpresion(m); void registrarImpresion(tipo, orderId ?? null, 'error', m) }
-    finally { setImprimiendo(false) }
+    finally { ocupadoRef.current = false; setImprimiendo(false) }
   }, [tipo, orderId])
 
   useEffect(() => { if (automatico && ticket && !yaAutomatico.current) { yaAutomatico.current = true; void imprimir(ticket) } }, [automatico, ticket, imprimir])

@@ -33,4 +33,9 @@ assert.equal(ambitoDe('marca como completada la tarea limpiar nevera'), 'operaci
 assert.equal(ambitoDe('crea el ingrediente mora en kilos'), 'operaciones'); assert.equal(ambitoDe('cambia el costo de la fresa a 8500'), 'operaciones'); assert.equal(ambitoDe('le quedan 3 kilos de fresa, actualiza el inventario del ingrediente'), 'comando')
 assert.equal(ambitoDe('agrega la mesa 13 con capacidad para 6'), 'operaciones'); assert.equal(ambitoDe('quita la mesa 13'), 'operaciones'); assert.equal(ambitoDe('pon la mesa 3 como ocupada'), 'comando')
 assert.ok(esOrdenDeCambio('corrige el gasto del gas, eran 60 mil')); assert.ok(esOrdenDeCambio('agrega la mesa 13 con capacidad para 6')); assert.ok(esOrdenDeCambio('marca como completada la tarea limpiar nevera'))
+// Confirmación por voz (A1): solo frases cortas y completas; cualquier «no»/«cancela» cancela y se evalúa antes
+for (const f of ['claro que no', 'sí pero no', 'sí, pero cambia el precio de la pizza', 'dale, mejor no', 'si claro que si lo apliquemos ya', 'no sé', 'cancela']) assert.equal(esConfirmacion(f), false, f)
+for (const f of ['claro que no', 'sí pero no', 'dale, mejor no', 'no creo', 'sí, cancélalo']) assert.equal(esCancelacion(f), true, f)
+assert.equal(esConfirmacion('sí, confírmalo'), true)
+assert.equal(esConfirmacionReforzada('sí, confírmalo'), true); assert.equal(esConfirmacionReforzada('sí, confírmalo pero no'), false); assert.equal(esConfirmacionReforzada('sí, cancela el pedido de la mesa 4'), false)
 console.log('agente.test OK')

@@ -1,6 +1,6 @@
 // Prueba del mapeo de datos. Correr con:  node src/lib/print/mapeo.test.ts
 import assert from 'node:assert/strict'
-import { datosCierre, pagosDesdeFilas, parseItems, pedidoDesdeFila, planearComandas, type FilaPedido } from './mapeo.ts'
+import { datosCierre, firmaItem, pagosDesdeFilas, parseItems, pedidoDesdeFila, planearComandas, type FilaPedido } from './mapeo.ts'
 import { buildTicket } from './tickets.ts'
 import { aTexto } from './modelo.ts'
 
@@ -42,6 +42,17 @@ const plan = planearComandas([
   { id: 'igual', created_at: hace(600), items: dos }, { id: 'viejo', created_at: hace(3600), items: dos },
 ], new Map([['crecio', 2], ['igual', 2]]), ahora)
 assert.deepEqual(plan, [{ orderId: 'nuevo', desde: 0, hasta: 2, modo: 'nueva' }, { orderId: 'crecio', desde: 2, hasta: 3, modo: 'adicion' }])
+
+// 5b) Editar o cancelar un plato ya impreso genera una comanda de CAMBIO (solo ese plato); sin cambios no sale nada
+const impresos = parseItems(dos).map(firmaItem)
+const editado = [{ name: 'A' }, { name: 'B', quantity: 3 }], cancelado = [{ name: 'A' }, { name: 'B', cancelled: true }]
+const firmas = new Map([['e', impresos], ['c', impresos], ['s', impresos]])
+const cambios = planearComandas([
+  { id: 'e', created_at: hace(600), items: editado }, { id: 'c', created_at: hace(600), items: cancelado }, { id: 's', created_at: hace(600), items: dos },
+], new Map([['e', 2], ['c', 2], ['s', 2]]), ahora, firmas)
+assert.deepEqual(cambios, [{ orderId: 'e', desde: 0, hasta: 2, modo: 'cambio', indices: [1] }, { orderId: 'c', desde: 0, hasta: 2, modo: 'cambio', indices: [1] }])
+const txtCambio = aTexto(buildTicket('comanda', { pedido: p, modo: 'cambio', items: [parseItems(cancelado)[1]] }, 58)).join('\n')
+assert.ok(txtCambio.includes('CAMBIO') && txtCambio.includes('ANULADO'), 'la comanda de cambio marca el plato cancelado')
 
 // 6) Cierre de caja: mismas cifras del corte, y el conteo físico marca la diferencia
 const corte = { fecha: '2026-10-21', total_efectivo: '100000', total_transferencia: 50000, total_tarjeta: null, total_general: 150000, total_ordenes: 12, total_propinas: 5000,

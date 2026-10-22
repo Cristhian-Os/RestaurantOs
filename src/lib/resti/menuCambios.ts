@@ -24,7 +24,7 @@ export type CambioMenu =
   | { op: 'dish_patch'; dishId: string; patch: Record<string, unknown> }
   | { op: 'dish_insert'; row: Record<string, unknown> }
   | { op: 'flavors_set'; clave: 'helado_flavors' | 'jugo_flavors'; lista: string[] }
-export interface PropuestaMenu { index: number; title: string; detail: string; change: CambioMenu | null; problem?: string }
+export interface PropuestaMenu { index: number; title: string; detail: string; change: CambioMenu | null; problem?: string; riesgo?: 'alto' }
 
 export const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
 const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
@@ -79,9 +79,10 @@ export function proponerCambiosMenu(acciones: AccionMenu[], platos: PlatoMenu[],
     if (!plato) return mala(index, `Plato «${a.dish}»`, `No encontré el plato «${a.dish}» en la carta.`)
     const p = copia.get(plato.id)!
     const acumular = (patch: Record<string, unknown>) => { Object.assign(p, patch); parches.set(p.id, { ...(parches.get(p.id) ?? {}), ...patch }) }
-    const salida = (title: string, detail: string, patch: Record<string, unknown>): PropuestaMenu => {
+    // riesgo 'alto' (quitar un plato o cambiar un precio): en voz no basta un «sí» suelto; hay que tocar Aplicar o decir la frase exacta.
+    const salida = (title: string, detail: string, patch: Record<string, unknown>, riesgo?: 'alto'): PropuestaMenu => {
       acumular(patch)
-      return { index, title: `${p.name} · ${title}`, detail, change: { op: 'dish_patch', dishId: p.id, patch: { ...parches.get(p.id)! } } }
+      return { index, title: `${p.name} · ${title}`, detail, change: { op: 'dish_patch', dishId: p.id, patch: { ...parches.get(p.id)! } }, ...(riesgo ? { riesgo } : {}) }
     }
     const opciones = Array.isArray(p.options) ? p.options : []
     const dificil = () => opciones.some(o => o?.v === 2) ? 'Este plato usa las opciones nuevas: cámbialas desde Menú → editar plato.'
@@ -92,12 +93,12 @@ export function proponerCambiosMenu(acciones: AccionMenu[], platos: PlatoMenu[],
         const lista = [...(p.toppings ?? [])]
         const i = lista.findIndex(t => norm(t.nombre) === norm(a.topping))
         if (a.op === 'add') {
-          if (i >= 0) return salida('Toppings', `«${lista[i].nombre}» ya estaba: ${cop(lista[i].precio)} → ${cop(a.price ?? 0)}`, { toppings: lista.map((t, k) => k === i ? { ...t, precio: a.price ?? 0 } : t) })
+          if (i >= 0) return salida('Toppings', `«${lista[i].nombre}» ya estaba: ${cop(lista[i].precio)} → ${cop(a.price ?? 0)}`, { toppings: lista.map((t, k) => k === i ? { ...t, precio: a.price ?? 0 } : t) }, (a.price ?? 0) !== lista[i].precio ? 'alto' : undefined)
           return salida('Toppings', `Agregar «${a.topping}» (${a.price ? '+' + cop(a.price) : 'gratis'})`, { toppings: [...lista, { nombre: a.topping, precio: a.price ?? 0 }] })
         }
         if (i < 0) return mala(index, `${p.name} · Toppings`, `«${p.name}» no tiene el topping «${a.topping}».`)
         if (a.op === 'remove') return salida('Toppings', `Quitar «${lista[i].nombre}»`, { toppings: lista.filter((_, k) => k !== i) })
-        return salida('Toppings', `«${lista[i].nombre}»: ${cop(lista[i].precio)} → ${cop(a.price ?? 0)}`, { toppings: lista.map((t, k) => k === i ? { ...t, precio: a.price ?? 0 } : t) })
+        return salida('Toppings', `«${lista[i].nombre}»: ${cop(lista[i].precio)} → ${cop(a.price ?? 0)}`, { toppings: lista.map((t, k) => k === i ? { ...t, precio: a.price ?? 0 } : t) }, 'alto')
       }
       case 'scoops': case 'juice': {
         const tipo = a.type === 'scoops' ? 'helado' : 'jugo', etiqueta = tipo === 'helado' ? 'Bolas de helado' : 'Sabores de jugo'
@@ -119,7 +120,7 @@ export function proponerCambiosMenu(acciones: AccionMenu[], platos: PlatoMenu[],
         const nuevas = a.op === 'add' ? [...lista, { nombre: a.size, precio: a.price ?? 0 }] : a.op === 'remove' ? lista.filter((_, k) => k !== i) : lista.map((s, k) => k === i ? { ...s, precio: a.price ?? 0 } : s)
         const detail = a.op === 'add' ? `Agregar «${a.size}» (${cop(a.price ?? 0)})` : a.op === 'remove' ? `Quitar «${lista[i].nombre}»` : `«${lista[i].nombre}»: ${cop(lista[i].precio)} → ${cop(a.price ?? 0)}`
         // Como en el editor del menú: con tamaños el precio base es el menor; sin ninguno, el plato deja de venderse por tamaños.
-        return salida('Tamaños', detail, { sizes: nuevas, has_sizes: nuevas.length > 0, ...(nuevas.length > 0 ? { price: Math.min(...nuevas.map(s => s.precio)) } : {}) })
+        return salida('Tamaños', detail, { sizes: nuevas, has_sizes: nuevas.length > 0, ...(nuevas.length > 0 ? { price: Math.min(...nuevas.map(s => s.precio)) } : {}) }, a.op === 'price' ? 'alto' : undefined)
       }
       case 'text': {
         if (a.field === 'description') return salida('Descripción', `«${cortar(p.description ?? '—')}» → «${cortar(a.value)}»`, { description: a.value })
@@ -133,7 +134,7 @@ export function proponerCambiosMenu(acciones: AccionMenu[], platos: PlatoMenu[],
         const antes = categorias.find(c => c.value === p.category)
         return salida('Categoría', `${antes?.label ?? p.category ?? '—'} → ${cat.label ?? cat.value}`, { category: cat.value })
       }
-      case 'remove': return salida('Quitar de la carta', 'Se quita de la carta (queda guardado como descontinuado).', { available: false, availability_status: 'discontinued' })
+      case 'remove': return salida('Quitar de la carta', 'Se quita de la carta (queda guardado como descontinuado).', { available: false, availability_status: 'discontinued' }, 'alto')
     }
   })
 }

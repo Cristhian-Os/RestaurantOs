@@ -10,7 +10,7 @@ export const EVENTO_ABRIR_OPINION = 'ros:abrir-opinion'
 export const EVENTO_OPINION_GUARDADA = 'ros:opinion-guardada'
 export type AtajoOpinion = 'fallo' | 'mejora' | 'personalizacion'
 
-interface Item { id: string; numero: number; tipo: string; titulo: string; estado: string; urgencia: string; created_at: string; cierre_visto_at: string | null }
+interface Item { id: string; numero: number; tipo: string; titulo: string; estado: string; created_at: string; cierre_visto_at: string | null }
 
 const ESTADO: Record<string, string> = {
   nuevo: 'Recibida', revisado: 'En revisión', planeado: 'Planeada', en_progreso: 'En construcción', hecho: '¡Lista!', descartado: 'No por ahora',
@@ -29,9 +29,13 @@ export function OpinionSection() {
   const [error, setError] = useState<string | null>(null)
   const [recien, setRecien] = useState<Set<string>>(new Set())
 
-  const cargar = useCallback(() => {
+  const cargar = useCallback(async () => {
+    // «Mis sugerencias»: solo las del usuario (el admin también puede leer las de todo el restaurante)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
     supabase.from('feedback_items')
-      .select('id, numero, tipo, titulo, estado, urgencia, created_at, cierre_visto_at')
+      .select('id, numero, tipo, titulo, estado, created_at, cierre_visto_at')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false }).limit(50)
       .then(({ data, error: e }) => {
         if (e) { setError(e.message); return }

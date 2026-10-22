@@ -72,7 +72,7 @@ export async function descargarCorteExcel(opts: {
 }) {
   const XLSX = await import('xlsx')
   const { restauranteNombre, totales, productos, gastos = [], denominaciones = [], pagos = [], etiquetas } = opts
-  const fecha = totales.fecha ?? new Date().toISOString().slice(0, 10)
+  const fecha = totales.fecha ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 
   const n = (v: unknown) => Number(v ?? 0)
   const totalUnidades  = productos.reduce((s, p) => s + n(p.cantidad), 0)

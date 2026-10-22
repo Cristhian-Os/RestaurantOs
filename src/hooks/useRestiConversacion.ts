@@ -8,6 +8,7 @@ export type ModoVoz = 'servidor' | 'navegador'
 const ERRORES: Record<string, string> = {
   microfono: 'Permite el micrófono en tu navegador para hablar conmigo.',
   transcripcion: 'No pude oírte bien. Puedes escribirme.',
+  limite: 'Llegamos al límite de uso de la voz por ahora. Puedes escribirme.',
   cerebro: 'Ahora mismo no puedo ayudarte. Intenta en un momento.',
 }
 

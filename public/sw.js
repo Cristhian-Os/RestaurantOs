@@ -1,5 +1,5 @@
-// RestaurantOS Service Worker v22 — offline real (cachea la app)
-const CACHE = 'ros-v22'
+// RestaurantOS Service Worker v23 — offline real (cachea la app)
+const CACHE = 'ros-v23'
 const OFFLINE_URL = '/index.html'
 
 // Install: cachear el HTML de entrada
@@ -70,7 +70,10 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       fetch(request)
         .then(res => {
-          if (res.ok) {
+          // Solo la app (SPA) alimenta la entrada /index.html; páginas estáticas como
+          // /kitchen-tv.html NO deben sobrescribirla.
+          const esPaginaEstatica = url.pathname.endsWith('.html') && url.pathname !== '/index.html'
+          if (res.ok && !esPaginaEstatica) {
             const clone = res.clone()
             caches.open(CACHE).then(c => c.put(OFFLINE_URL, clone))
           }
@@ -131,7 +134,13 @@ self.addEventListener('push', (e) => {
 // Click en la notificación → enfocar/abrir la app en la ruta indicada
 self.addEventListener('notificationclick', (e) => {
   e.notification.close()
-  const url = (e.notification.data && e.notification.data.url) || '/'
+  // Solo URLs del mismo origen (el payload del push no es de confianza)
+  let url = '/'
+  try {
+    const raw = (e.notification.data && e.notification.data.url) || '/'
+    const u = new URL(raw, self.location.origin)
+    if (u.origin === self.location.origin) url = u.pathname + u.search + u.hash
+  } catch (_) { url = '/' }
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const client of list) {

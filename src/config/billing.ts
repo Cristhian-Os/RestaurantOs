@@ -4,14 +4,8 @@
  * Cobramos en PESOS COLOMBIANOS (COP). Wompi trabaja con "amount_in_cents"
  * (centavos): un peso son 100 centavos. Ej: $200.000 COP = 20.000.000 centavos.
  *
- * Precios confirmados por el dueño 2026-09-26: USD $79/$135/$220 al mes,
- * convertidos a COP con la misma tasa (~4.000 COP/USD) que ya usaba este
- * archivo. Si la tasa real cambia, ajusta solo estos 3 valores.
  */
-/** Los precios de los planes ya NO viven aquí: están en la tabla `planes` (ver usePlanes.ts). */
-
-/** Convierte pesos COP a centavos (lo que espera Wompi). */
-export const copToCents = (cop: number): number => Math.round(cop * 100)
+/** Los precios de los planes NO viven aquí: están en la tabla `planes` (ver usePlanes.ts). */
 
 /** Formatea un monto en COP para mostrar. Ej: 200000 → "$200.000". */
 export function formatCOP(cop: number): string {
@@ -54,8 +48,3 @@ export function openWompiCheckout(p: WompiCheckoutParams): void {
 
 /** Estados posibles de una suscripción (reflejan la tabla subscriptions). */
 export type SubStatus = 'trialing' | 'active' | 'past_due' | 'canceled'
-
-/** ¿El restaurante puede usar la app? (`trialing` solo queda en filas antiguas: ningún restaurante nuevo nace así; la mora sigue con acceso). */
-export function hasAccess(status: SubStatus | null | undefined): boolean {
-  return status === 'trialing' || status === 'active' || status === 'past_due'
-}

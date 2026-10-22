@@ -65,10 +65,12 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
 
   // Detectar si ya está instalada como PWA
   useEffect(() => {
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true
-    if (isStandalone) setIsInstalled(true)
+    try {
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true
+      if (isStandalone) setIsInstalled(true)
+    } catch { /* navegador sin matchMedia: se asume no instalada */ }
   }, [])
 
   // Capturar el evento beforeinstallprompt
@@ -80,14 +82,20 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
     window.addEventListener('beforeinstallprompt', handler)
 
     // Detectar instalación completada
-    window.addEventListener('appinstalled', () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const onInstalled = () => {
       setIsInstalled(true)
       setDeferredPrompt(null)
       setInstalled(true)
-      setTimeout(() => setShowModal(false), 2000)
-    })
+      timer = setTimeout(() => setShowModal(false), 2000)
+    }
+    window.addEventListener('appinstalled', onInstalled)
 
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      window.removeEventListener('appinstalled', onInstalled)
+      if (timer) clearTimeout(timer)
+    }
   }, [])
 
   // Generar QR cuando se abre el modal
@@ -113,6 +121,9 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
           setInstalled(true)
           setTimeout(() => setShowModal(false), 1500)
         }
+      } catch (e) {
+        console.error('[InstallPWA] no se pudo instalar', e)
+        setShowModal(true)   // plan B: instrucciones manuales y QR
       } finally {
         setInstalling(false)
         setDeferredPrompt(null)

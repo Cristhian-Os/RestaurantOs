@@ -20,7 +20,7 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
     supabase.from('ingredientes').select('id, nombre, unidad_medida, stock_actual, costo_unitario').order('nombre'),
     // Empleados solo se necesitan para tareas y turnos, que son del admin.
     role === 'admin'
-      ? supabase.from('profiles').select('id, full_name').in('role', ['waiter', 'kitchen', 'cashier']).order('full_name')
+      ? supabase.from('profiles').select('id, full_name').in('role', ['waiter', 'kitchen', 'cashier']).eq('active', true).order('full_name')
       : Promise.resolve({ data: [] as { id: string; full_name: string | null }[], error: null }),
     supabase.from('mesas').select('id, numero, capacidad, estado').eq('activa', true).order('numero'),
     // Recetas actuales: solo el admin las edita por voz.
@@ -41,7 +41,7 @@ export async function loadCommandContext(role: VoiceRole = 'admin'): Promise<Com
     })),
     ingredients: (ingredients.data ?? []).map(i => ({ id: i.id, nombre: i.nombre, unidad_medida: i.unidad_medida, stock_actual: Number(i.stock_actual), costo_unitario: Number(i.costo_unitario) || 0 })),
     recipes:     groupRecipes((recetas.data ?? []) as RecetaRow[], new Map((ingredients.data ?? []).map(i => [i.id, i.nombre as string]))),
-    employees:   (employees.data ?? []).filter(e => e.full_name).map(e => ({ id: e.id, full_name: e.full_name as string })),
+    employees:   (employees.data ?? []).filter(e => e.full_name && !/^(\[Cuenta eliminada\]|Empleado eliminado)$/i.test(e.full_name)).map(e => ({ id: e.id, full_name: e.full_name as string })),
     suppliers:   (suppliers.data ?? []).filter(x => x.nombre).map(x => ({
       id: x.id, nombre: x.nombre as string, telefono: x.telefono ?? null, email: x.email ?? null, producto: x.producto ?? null, notas: x.notas ?? null,
     })),
@@ -121,8 +121,12 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
       if (error) throw new Error(error.message)
       return
     }
-    case 'staff_active':
-      return expectRows(await supabase.from('profiles').update({ active: c.active }).eq('id', c.profileId).neq('role', 'admin').select('id'), 'Empleado')
+    case 'staff_active': {
+      // El cambio de estado va por RPC (banea/reactiva la cuenta y cierra sesiones); profiles.active ya no se escribe directo.
+      const { error } = await supabase.rpc('set_employee_active', { p_employee_id: c.profileId, p_active: c.active })
+      if (error) throw new Error(error.message)
+      return
+    }
     case 'expense_patch':
       return expectRows(await supabase.from('gastos').update(c.patch).eq('id', c.gastoId).select('id'), 'Gasto')
     case 'expense_delete':

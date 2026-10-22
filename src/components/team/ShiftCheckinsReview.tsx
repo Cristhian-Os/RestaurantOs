@@ -31,23 +31,25 @@ export const ShiftCheckinsReview = memo(() => {
   const [busy, setBusy]         = useState<string | null>(null)
 
   const fetchPending = useCallback(async () => {
-    const { data: cks } = await supabase.from('shift_checkins')
+    const { data: cks, error: ckErr } = await supabase.from('shift_checkins')
       .select('id, schedule_id, employee_id, photo_path, checked_in_at')
       .eq('status', 'pending').order('checked_in_at', { ascending: true })
+    if (ckErr) { message.error('No se pudieron cargar las llegadas: ' + ckErr.message); return }
     const list: Checkin[] = cks ?? []
     if (list.length === 0) { setRows([]); return }
 
-    const [{ data: profs }, { data: scheds }] = await Promise.all([
+    const [{ data: profs, error: pErr }, { data: scheds, error: sErr }, { data: urls, error: uErr }] = await Promise.all([
       supabase.from('profiles').select('id, full_name').in('id', list.map(c => c.employee_id)),
       supabase.from('employee_schedules').select('id, shift_start, shift_end').in('id', list.map(c => c.schedule_id)),
+      // Un solo pedido para todas las fotos
+      supabase.storage.from('shift-checkins').createSignedUrls(list.map(c => c.photo_path), 3600),
     ])
+    if (pErr || sErr || uErr) message.error('Algunos datos de las llegadas no se pudieron cargar')
+    const foto = new Map<string, string>((urls ?? []).filter(u => u.signedUrl && u.path).map(u => [u.path as string, u.signedUrl]))
     const name  = new Map<string, string>((profs ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? 'Empleado']))
     const shift = new Map<string, string>((scheds ?? []).map((s: { id: string; shift_start: string; shift_end: string }) => [s.id, `${hhmm(s.shift_start)} – ${hhmm(s.shift_end)}`]))
 
-    setRows(await Promise.all(list.map(async c => {
-      const { data } = await supabase.storage.from('shift-checkins').createSignedUrl(c.photo_path, 3600)
-      return { ...c, name: name.get(c.employee_id) ?? 'Empleado', shift: shift.get(c.schedule_id) ?? '', photo: data?.signedUrl ?? null }
-    })))
+    setRows(list.map(c => ({ ...c, name: name.get(c.employee_id) ?? 'Empleado', shift: shift.get(c.schedule_id) ?? '', photo: foto.get(c.photo_path) ?? null })))
   }, [])
 
   useEffect(() => {
@@ -83,7 +85,7 @@ export const ShiftCheckinsReview = memo(() => {
       {rows.map(r => (
         <div key={r.id} style={{ display: 'flex', gap: '0.875rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
           {r.photo
-            ? <img src={r.photo} alt={`Llegada de ${r.name}`} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: '0.875rem', transform: 'scaleX(-1)' }} />
+            ? <img src={r.photo} alt={`Llegada de ${r.name}`} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: '0.875rem' }} />
             : <div style={{ width: 120, height: 120, borderRadius: '0.875rem', background: 'var(--w-bg)' }} />}
           <div style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
             <p style={{ margin: 0, fontWeight: 700, fontFamily: 'var(--w-sans)' }}>{r.name}</p>

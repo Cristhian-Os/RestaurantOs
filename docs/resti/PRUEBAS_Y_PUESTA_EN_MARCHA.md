@@ -1,6 +1,6 @@
 # Resti: pruebas y puesta en marcha
 
-Estado al 2026-10-22. Rama `claude/new-session-0vekub`. **Nada de esto está en producción.**
+Estado al 2026-10-22. Rama `claude/new-session-0vekub`. **Las funciones de Resti ya están desplegadas en producción** (`RestaurantOs`; ver «Estado de producción» al final). Lo que sigue pendiente: `voice-parse` (no desplegada), el front con las correcciones de esta auditoría y encender Resti por restaurante. Las secciones siguientes describen el proyecto de prueba `restaurantos-prueba`, que fue donde se probó primero.
 
 ## Qué hay desplegado (solo en el proyecto de prueba `restaurantos-prueba`)
 
@@ -13,9 +13,9 @@ Estado al 2026-10-22. Rama `claude/new-session-0vekub`. **Nada de esto está en 
 | `pg_net` (esquema `extensions`) | instalado en el proyecto de prueba para poder llamar funciones desde SQL |
 | `ai-diag` | retirada: ahora responde 410 |
 
-Producción (`RestaurantOs`) **no se tocó**.
+En esta etapa producción (`RestaurantOs`) no se había tocado; después se desplegó (ver «Estado de producción»).
 
-## Funciones de texto migradas al adaptador (en el repo; **no desplegadas** en ningún proyecto)
+## Funciones de texto migradas al adaptador (desplegadas en producción el 2026-10-22, salvo `voice-parse`)
 
 `resti-brain`, `chat-support` (soporte, ventas y opiniones, con llamadas a herramientas), `menu-asistente` y `feedback-resumen` leen el proveedor de `platform_secrets`; `ai-report` ya lo hacía. **Mientras `ai_proveedor` no sea `compatible`, siguen usando Gemini como siempre**, así que desplegarlas no cambia el comportamiento hasta que se configure DeepSeek. `voice-parse` (comandos de voz) se queda en Gemini a propósito.
 Probado solo con respuestas simuladas (adaptador, incluidas las llamadas a herramientas en ambos formatos); falta probarlo contra DeepSeek con saldo.
@@ -58,7 +58,7 @@ Ojo: el proyecto `restaurantos` ya crea una vista previa por cada push de la ram
 
 Volver a Gemini para el cerebro: borrar `ai_proveedor` (o ponerlo distinto de `compatible`). No hace falta redesplegar.
 
-## Para llevarlo a producción (cuando lo apruebes)
+## Para llevarlo a producción (hecho en lo que toca a funciones; queda el front y encender Resti)
 
 1. Copia manual de la base (`Backups-RestaurantOS`), como siempre.
 2. Cargar `ai_*` en `platform_secrets` de producción (DeepSeek con saldo) y confirmar que ya existe `gemini_api_key`.
@@ -73,7 +73,7 @@ Volver a Gemini para el cerebro: borrar `ai_proveedor` (o ponerlo distinto de `c
 - El audio y el texto no se guardan ni se registran; los errores solo registran el mensaje. Topes por usuario: cerebro 20/10 min y 80/día; voz 40/10 min y 400/día.
 - Resti no cambia datos por sí mismo: abre el modal de comandos con lo que dijiste y **tú apruebas** cada cambio.
 
-## Resti absorbe el chatbot y vive en la landing (en el repo; **no desplegado** en ningún proyecto)
+## Resti absorbe el chatbot y vive en la landing (funciones desplegadas en producción; front en el PR #6)
 
 - **Panel (administrador con Resti encendido):** Resti hace lo del chatbot de soporte (el cerebro lleva el conocimiento de la app) y lo de opinión: con `START_FEEDBACK` abre un hilo que usa `chat-support` modo opinión (mismas reglas, topes y tabla `feedback_items`); los botones "Opinión y sugerencias" ahora abren a Resti. Cancela con "cancelar" / "ya no". El personal (cajero, mesero, cocina) sigue con el chat de opinión de siempre porque Resti es solo del administrador.
 - **Landing:** el botón del chat es Resti (capturas del mismo modelo, no 3D, para no cargar three.js a visitantes). Habla con `chat-support` modo landing (ventas, planes desde la base, `guardar_lead`). Voz solo del navegador: "Activar voz" lee las respuestas y el micrófono dicta con el reconocimiento del navegador (si no existe, no aparece). Sin Gemini para visitantes anónimos.
@@ -85,7 +85,7 @@ Volver a Gemini para el cerebro: borrar `ai_proveedor` (o ponerlo distinto de `c
 - La clave de `voice-parse` ya no va en la URL sino en la cabecera `x-goog-api-key`.
 - No hay claves en el código: siguen en `platform_secrets` (`gemini_api_key`, `ai_*`). Nada que migrar en la base.
 - **Antes de desplegar a producción** comprueba que la clave de producción acepta los modelos 3.x (si no, el respaldo cae a 2.5 y sigue funcionando mientras Google no lo retire): `curl -s -o /dev/null -w "%{http_code}" -H "x-goog-api-key: $CLAVE" -H 'Content-Type: application/json' -d '{"contents":[{"parts":[{"text":"hola"}]}]}' https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent` debe dar 200.
-- Funciones a desplegar en producción para esto: `resti-brain`, `resti-voz`, `chat-support`, `menu-asistente`, `feedback-resumen`, `ai-report`, `voice-parse` (las que importan `_shared/modelo.ts` necesitan ese archivo incluido).
+- Funciones de esto en producción: `resti-brain`, `resti-voz`, `chat-support`, `menu-asistente`, `feedback-resumen` y `ai-report` ya están desplegadas; falta `voice-parse` (las que importan `_shared/modelo.ts` necesitan ese archivo incluido).
 
 ## Estado de producción (2026-10-22, tras la copia manual)
 
@@ -94,3 +94,4 @@ Desplegadas en `RestaurantOs` (versión del adaptador con respaldo de modelos de
 - **No desplegada: `voice-parse`** (sigue con `gemini-2.5-flash`, que hoy funciona con la clave de producción). El cambio del repo se despliega con la CLI: `npx supabase functions deploy voice-parse --project-ref ifypeslrcdebvdqglywt` desde la rama.
 - Quedaron 2 filas de prueba en `platform_chat_logs` (mensajes "Tengo una heladería con 12 mesas…" y "Dame el plan gratis…"); el borrado desde aquí dio timeout.
 - Front: PR #6; Resti sigue apagado por restaurante (`modules_enabled.resti_agent`).
+- Auditoría 2026-10-22: el despliegue de producción no coincide con el repo en `resti-brain` (v7 con una línea anómala en `cargarProveedor`) y `voice-parse` (v14 con la llave en la URL). Hay que volver a desplegar desde el repo. El objetivo `btn-notificaciones` se quitó de la lista blanca del front (no existe en la interfaz); la copia del servidor (`supabase/functions/resti-brain/brain.ts`) debe quitarlo también.

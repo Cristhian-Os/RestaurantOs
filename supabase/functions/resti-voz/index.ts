@@ -3,6 +3,13 @@ import {
   validarPeticion, pedidoTranscribir, leerTranscripcion, pedidoHablar, leerAudio, crearLectorSse, vocabulario,
   MODELOS_STT_POR_DEFECTO, MODELOS_TTS_POR_DEFECTO, VOZ_POR_DEFECTO, listaModelos, esReintentable,
 } from './voz.ts'
+import { permitido, registrarUsoIA, restiActivo, topeGlobal } from '../_shared/guardas.ts'
+
+/** Uso de Gemini (voz) tal como lo informa la respuesta; el costo es una estimación con los precios de texto (el audio puede costar distinto). */
+const usoVoz = (modelo: string, d: unknown) => {
+  const u = (d as { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } } | null)?.usageMetadata
+  return { proveedor: 'gemini', modelo, tokensEntrada: Number(u?.promptTokenCount) || 0, tokensSalida: Number(u?.candidatesTokenCount) || 0 }
+}
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -86,7 +93,9 @@ Deno.serve(async (req: Request) => {
     const { data: { user } } = await admin.auth.getUser(auth.replace('Bearer ', ''))
     if (!user) return json({ error: 'sin_sesion' }, 401)
     const { data: prof } = await admin.from('profiles').select('role, active, restaurant_id').eq('id', user.id).maybeSingle()
-    if (!prof || prof.active === false || prof.role !== 'admin') return json({ error: 'sin_permiso' }, 403)
+    if (!prof || prof.active === false || prof.role !== 'admin' || !prof.restaurant_id) return json({ error: 'sin_permiso' }, 403)
+    // Interruptor de Resti comprobado en el servidor (apagado por defecto).
+    if (!(await restiActivo(admin, prof.restaurant_id as string))) return json({ error: 'resti_apagado' }, 403)
 
     const { data: filas } = await admin.from('platform_secrets').select('key, value').in('key', ['gemini_api_key', 'voz_modelo_stt', 'voz_modelo_tts', 'voz_nombre'])
     const s: Record<string, string> = Object.fromEntries((filas ?? []).map((f: { key: string; value: string }) => [f.key, f.value]))
@@ -95,10 +104,11 @@ Deno.serve(async (req: Request) => {
     if (peticion.accion === 'estado') return json({ stt: true, tts: true })
 
     // Topes por usuario (costo): ráfaga y día, aparte de los del cerebro.
-    for (const [key, max, secs] of [[`rv:${user.id}`, 80, 600], [`rvd:${user.id}`, 600, 86400]] as const) {
-      const { data: ok } = await admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs })
-      if (ok === false) return json({ error: 'limite' }, 429)
+    // Falla cerrado: solo `true` deja pasar. Además, tope por restaurante y global del día.
+    for (const [key, max, secs] of [[`rv:${user.id}`, 80, 600], [`rvd:${user.id}`, 600, 86400], [`rvr:${prof.restaurant_id}`, 3000, 86400]] as const) {
+      if (!(await permitido(admin, key, max, secs))) return json({ error: 'limite' }, 429)
     }
+    if (!(await topeGlobal(admin, 'resti-voz'))) return json({ error: 'limite' }, 429)
 
     if (peticion.accion === 'hablar_stream') {
       const flujo = await vozEnFlujo(listaModelos(s.voz_modelo_tts, MODELOS_TTS_POR_DEFECTO), clave, pedidoHablar(peticion.texto, s.voz_nombre || VOZ_POR_DEFECTO), 25_000)
@@ -122,10 +132,12 @@ Deno.serve(async (req: Request) => {
       }
       const r = await conRespaldo(listaModelos(s.voz_modelo_stt, MODELOS_STT_POR_DEFECTO), clave, pedidoTranscribir(peticion.audio, vocab), 10_000)
       if (!r.ok) { console.error('stt', r.status); return json({ error: 'proveedor' }, 502) }
+      await registrarUsoIA(admin, prof.restaurant_id as string, 'resti_voz_stt', usoVoz('voz-stt', r.data))
       return json({ texto: leerTranscripcion(r.data) })
     }
     const r = await conRespaldo(listaModelos(s.voz_modelo_tts, MODELOS_TTS_POR_DEFECTO), clave, pedidoHablar(peticion.texto, s.voz_nombre || VOZ_POR_DEFECTO), 14_000)
     if (!r.ok) { console.error('tts', r.status); return json({ error: 'proveedor' }, 502) }
+    await registrarUsoIA(admin, prof.restaurant_id as string, 'resti_voz_tts', usoVoz('voz-tts', r.data))
     const audio = leerAudio(r.data)
     return audio ? json(audio) : json({ error: 'sin_audio' }, 502)
   } catch (e) {

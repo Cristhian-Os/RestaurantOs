@@ -5,7 +5,7 @@
  *  • Anular un pago: solo admin, con motivo; el pedido vuelve a "falta por cobrar".
  * Después del corte del día nada se edita: el servidor lo rechaza y aquí se muestra el aviso.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
@@ -52,6 +52,7 @@ export function PagosDelDia({ esAdmin, onClose, onChanged }: Props) {
   const [cargando, setCargando] = useState(true)
   const [soloTransf, setSoloTransf] = useState(false)
   const [ocupado, setOcupado] = useState<string | null>(null)
+  const bloqueo = useRef(false)   // candado síncrono: una acción de pago a la vez
 
   const cargar = useCallback(async () => {
     const { desde, hasta } = ventanaHoy()
@@ -59,16 +60,19 @@ export function PagosDelDia({ esAdmin, onClose, onChanged }: Props) {
       .select('id, comensal, payment_method, monto, propina, referencia, transferencia_verificada, paid_at, anulado_at, anulado_motivo, metodo_original, corregido_motivo, orders!inner(order_number_today, table_num, tipo_pedido, customer_name, status)')
       .gte('paid_at', desde).lt('paid_at', hasta).order('paid_at')
     if (error) message.error('No se pudieron leer los pagos: ' + error.message)
-    setPagos(((data ?? []) as unknown as PagoDia[]).filter(p => p.orders?.status !== 'cancelled'))
+    else setPagos(((data ?? []) as unknown as PagoDia[]).filter(p => p.orders?.status !== 'cancelled'))   // si falla, se conserva la lista anterior
     setCargando(false)
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
 
   const accion = async (id: string, fn: () => PromiseLike<{ error: { message: string } | null }>, ok: string) => {
+    if (bloqueo.current) return
+    bloqueo.current = true
     setOcupado(id)
-    const { error } = await fn()
-    setOcupado(null)
+    let error: { message: string } | null = null
+    try { ({ error } = await fn()) } catch (e) { error = { message: e instanceof Error ? e.message : 'Error' } }
+    finally { bloqueo.current = false; setOcupado(null) }
     if (error) { message.error(error.message); return }
     message.success(ok)
     await cargar()

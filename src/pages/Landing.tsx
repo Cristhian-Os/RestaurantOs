@@ -2,10 +2,10 @@
  * Landing.tsx — Web de presentación de RestaurantOS
  * ───────────────────────────────────────────────────────────────
  * "Warm Editorial + Liquid Glass". Muy interactiva: parallax en el
- * hero (useScroll), reveals al hacer scroll (ScrollReveal) y un
- * selector de mesas en el plan Emprende.
+ * hero (useScroll) y reveals al hacer scroll (ScrollReveal).
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { message } from 'antd'
 import { motion, useScroll, useTransform, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from '../components/ScrollReveal'
 import { PLANS, type PlanTexto } from '../config/plans'
@@ -18,8 +18,13 @@ const go = (path: string) => { window.location.href = path }
 
 // Entra a la cuenta demo (datos de ejemplo, aislada por restaurante)
 const enterDemo = async () => {
-  await supabase.auth.signInWithPassword({ email: 'demo@demo.com', password: 'demo1234' })
-  // onAuthStateChange en App detecta la sesión y renderiza el Dashboard
+  try {
+    const { error } = await supabase.auth.signInWithPassword({ email: 'demo@demo.com', password: 'demo1234' })
+    if (error) throw error
+    // onAuthStateChange en App detecta la sesión y renderiza el Dashboard
+  } catch {
+    message.error('No pudimos abrir la demo en este momento. Intenta de nuevo en unos minutos.')
+  }
 }
 
 /* ── Ícono de check ── */
@@ -101,7 +106,7 @@ function Hero() {
 
 /* ═══════════════════ CÓMO FUNCIONA ═══════════════════ */
 const STEPS = [
-  { n: '01', t: 'Regístrate', d: 'Crea tu restaurante en menos de un minuto. Te damos tu propio dominio y menú.' },
+  { n: '01', t: 'Escríbenos y te activamos', d: 'Solicita acceso y activamos tu restaurante contigo. Te dejamos tu menú y tu código QR listos.' },
   { n: '02', t: 'Configura tu menú', d: 'Sube tus platos, precios y arma tu carta. Genera el QR para tus mesas.' },
   { n: '03', t: 'Empieza a vender', d: 'Recibe pedidos, controla la cocina y haz tu corte de caja en Excel.' },
 ]
@@ -171,6 +176,9 @@ const fmtCOP = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 
 function PlanCard({ plan, db }: { plan: PlanTexto; db: PlanDB | null }) {
   const accent = plan.featured ? 'var(--w-terra)' : 'var(--w-ink)'
+  // Meses que realmente se pagan en el plan anual, calculado de los precios (no escrito a mano)
+  const ratio = db && db.mensual.base_cop > 0 ? db.anual.base_cop / db.mensual.base_cop : 0
+  const mesesAnual = ratio > 0 && ratio < 12 ? (Math.round(ratio * 10) / 10).toLocaleString('es-CO') : null
 
   return (
     <div className="lg" style={{
@@ -199,13 +207,13 @@ function PlanCard({ plan, db }: { plan: PlanTexto; db: PlanDB | null }) {
         </div>
         {db && (
           <p className="ed-body" style={{ fontSize: '0.8rem', color: 'var(--w-ink-mut)', margin: '0.4rem 0 0' }}>
-            {fmtCOP(db.mensual.total_cop)} al mes con IVA incluido. Plan anual: {fmtCOP(db.anual.total_cop)} (pagas 10,5 meses y usas 12).
+            {fmtCOP(db.mensual.total_cop)} al mes con IVA incluido. Plan anual: {fmtCOP(db.anual.total_cop)}{mesesAnual ? ` (pagas ${mesesAnual} meses y usas 12)` : ''}.
             {db.sede_extra_cop ? ` Cada sede adicional: ${fmtCOP(db.sede_extra_cop)} al mes.` : ''}
           </p>
         )}
         {db && db.max_mesas && (
           <p className="ed-body" style={{ fontSize: '0.8rem', color: 'var(--w-ink-mut)', margin: '0.25rem 0 0' }}>
-            Hasta {db.max_mesas} mesas y {db.max_usuarios} usuarios.
+            Hasta {db.max_mesas} mesas{db.max_usuarios ? ` y ${db.max_usuarios} usuarios` : ''}.
           </p>
         )}
       </div>
@@ -358,6 +366,8 @@ const navBtn: CSSProperties = {
 // Botones "fantasma" (texto); los de acento conservan el degradado de .lg-accent
 const navGhost: CSSProperties = { ...navBtn, background: 'transparent' }
 
+const irAPlanes = () => document.getElementById('planes')?.scrollIntoView({ behavior: 'smooth' })
+
 function Header() {
   const [open, setOpen] = useState(false)
   const close = (fn: () => void) => () => { setOpen(false); fn() }
@@ -375,6 +385,7 @@ function Header() {
 
         {/* ≥768px: acciones en línea */}
         <nav className="landing-nav-desktop" aria-label="Principal">
+          <button onClick={irAPlanes} className="w-press" style={{ ...navGhost, color: 'var(--w-ink)' }}>Planes</button>
           <button onClick={enterDemo} className="w-press" style={{ ...navGhost, color: 'var(--w-terra)' }}>Ver demo</button>
           <button onClick={() => go('/login')} className="w-press" style={{ ...navGhost, color: 'var(--w-ink)' }}>Iniciar sesión</button>
           <button onClick={() => go('/registro')} className="lg-accent w-press" style={{ ...navBtn, padding: '0.6rem 1.1rem', fontWeight: 700 }}>Solicitar acceso</button>
@@ -399,6 +410,7 @@ function Header() {
 
       {open && (
         <div id="landing-menu" className="landing-menu">
+          <button className="landing-menu-item" onClick={close(irAPlanes)}>Planes</button>
           <button className="landing-menu-item landing-menu-item--accent" onClick={close(enterDemo)}>Ver demo</button>
           <button className="landing-menu-item" onClick={close(() => go('/login'))}>Iniciar sesión</button>
           <button className="lg-accent landing-menu-cta" onClick={close(() => go('/registro'))}>Solicitar acceso</button>

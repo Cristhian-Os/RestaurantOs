@@ -1,4 +1,4 @@
-/** Utilidades de audio puras: remuestreo, WAV en base64 y PCM de 16 bits de Gemini → muestras. */
+/** Utilidades de audio puras: remuestreo, WAV en base64 y energía (RMS). */
 
 /** Baja la frecuencia de muestreo promediando bloques (suficiente para voz). */
 export function bajarMuestreo(datos: Float32Array, rateEntrada: number, rateSalida = 16000): Float32Array {
@@ -28,17 +28,6 @@ export function aWavBase64(muestras: Float32Array, rate = 16000): string {
   txt(36, 'data'); v.setUint32(40, muestras.length * 2, true)
   for (let i = 0; i < muestras.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, muestras[i])) * 0x7fff, true)
   return aBase64(new Uint8Array(buf))
-}
-
-/** PCM de 16 bits (little-endian) en base64 → muestras en [-1, 1]. */
-export function pcm16Base64AMuestras(b64: string): Float32Array {
-  const bin = atob(b64), n = Math.floor(bin.length / 2), out = new Float32Array(n)
-  for (let i = 0; i < n; i++) {
-    const lo = bin.charCodeAt(i * 2), hi = bin.charCodeAt(i * 2 + 1)
-    const v = (hi << 8) | lo
-    out[i] = (v >= 0x8000 ? v - 0x10000 : v) / 0x8000
-  }
-  return out
 }
 
 /** Energía (RMS) de un bloque de muestras. */

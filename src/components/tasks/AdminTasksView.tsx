@@ -3,7 +3,7 @@
  * Panel completo de gestión de tareas para el administrador.
  * Crear, asignar, seguir estado y revisar evidencias fotográficas.
  */
-import { useState, useCallback, useMemo, memo, useRef } from 'react'
+import { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }          from '../../services/supabaseClient'
 import { VoiceButton } from '../VoiceButton'
@@ -11,6 +11,8 @@ import { matchName } from '../../services/voiceMatch'
 import message               from 'antd/es/message'
 import Popconfirm            from 'antd/es/popconfirm'
 import { useRealtimeTasks }  from './useRealtimeTasks'
+import { evidenciaUrlFirmada } from '../../lib/storageUrl'
+import { urlSegura } from '../../lib/urlSegura'
 import type { Task, TaskStatus, TaskPriority, Profile } from '../../types'
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
@@ -33,6 +35,13 @@ const PRIORITY_CFG: Record<TaskPriority, { label: string; dot: string }> = {
   medium: { label: 'Media',   dot: 'bg-blue-500'   },
   high:   { label: 'Alta',    dot: 'bg-orange-500' },
   urgent: { label: 'Urgente', dot: 'bg-red-500'    },
+}
+
+// 'YYYY-MM-DDTHH:mm' (datetime-local) → ISO con la hora de quien lo escribe; solo fecha → mediodía de Bogotá
+function dueDateIso(v: string): string | null {
+  if (!v) return null
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T12:00:00-05:00`) : new Date(v)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
 }
 
 function getErrorMessage(e: unknown): string {
@@ -59,7 +68,7 @@ interface VoiceTask { transcript: string; title: string; description?: string; a
 interface AdminTasksViewProps { profile: Profile }
 
 export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
-  const { tasks, loading, refetch } = useRealtimeTasks({ isAdmin: true })
+  const { tasks, loading, refetch, hasMore, loadMore } = useRealtimeTasks({ isAdmin: true })
   const [showForm,     setShowForm]   = useState(false)
   const [form,         setForm]       = useState<NewTaskForm>(FORM_INITIAL)
   const [creating,     setCreating]   = useState(false)
@@ -80,11 +89,13 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
         .from('profiles')
         .select('id, full_name, role')
         .in('role', ['waiter', 'kitchen', 'cashier'])
+        .eq('active', true)
         .order('full_name')
       if (error) throw error
-      setEmployees((data ?? []) as Profile[])
+      setEmployees(((data ?? []) as Profile[]).filter(e => e.full_name && !/^(\[Cuenta eliminada\]|Empleado eliminado)$/i.test(e.full_name)))
     } catch (e) {
       console.error('Error loading employees:', e)
+      message.error('No se pudo cargar la lista de empleados')
       loadedEmployees.current = false // permitir reintento
     } finally {
       setLoadingEmployees(false)
@@ -99,14 +110,14 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
       description: r.description?.trim() || p.description,
       assigned_to: emp?.id ?? p.assigned_to,
       priority: (['low', 'medium', 'high', 'urgent'] as const).includes(r.priority) ? r.priority : p.priority,
-      due_date: /^\d{4}-\d{2}-\d{2}$/.test(r.due_date ?? '') ? r.due_date : p.due_date,
+      due_date: /^\d{4}-\d{2}-\d{2}$/.test(r.due_date ?? '') ? `${r.due_date}T12:00` : p.due_date,
     }))
     if (r.assignee_name && !emp) message.warning('No encontré al empleado "' + r.assignee_name + '". Elígelo en la lista.')
   }, [employees])
 
   const handleOpenForm = useCallback(() => {
     setShowForm(true)
-    loadEmployees()
+    loadEmployees(true)   // siempre fresca: puede haber altas/bajas desde la última vez
   }, [loadEmployees])
 
   const handleCreate = useCallback(async () => {
@@ -114,6 +125,8 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
     if (!form.title.trim())    { setFormError('El título es requerido');       return }
     if (!form.assigned_to)     { setFormError('Selecciona un empleado');       return }
 
+    const dueIso = dueDateIso(form.due_date)
+    if (form.due_date && !dueIso) { setFormError('La fecha límite no es válida'); return }
     setCreating(true)
     try {
       const { error } = await supabase.from('tasks').insert({
@@ -122,7 +135,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
         assigned_to: form.assigned_to,
         created_by:  profile.id,
         priority:    form.priority,
-        due_date:    form.due_date || null,
+        due_date:    dueIso,
         status:      'pending',
       })
       if (error) throw error
@@ -150,14 +163,17 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
     // La confirmación la maneja el Popconfirm del botón (estilo de la app)
+    const rutas = (tasks.find(t => t.id === taskId)?.evidence ?? []).map(ev => ev.storage_path).filter(Boolean)
     const { error } = await supabase.from('tasks').delete().eq('id', taskId)
     if (error) {
       console.error('Error deleting task:', error)
       message.error('Error al eliminar: ' + error.message)
     } else {
+      // Borra también las fotos de evidencia del bucket (mejor esfuerzo)
+      if (rutas.length > 0) await supabase.storage.from('task-evidence').remove(rutas).catch(() => undefined)
       refetch()
     }
-  }, [refetch])
+  }, [refetch, tasks])
 
   const filtered = useMemo(() =>
     filterStatus === 'all' ? tasks : tasks.filter(t => t.status === filterStatus),
@@ -413,6 +429,11 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
               />
             </motion.div>
           ))}
+          {hasMore && filterStatus === 'all' && (
+            <button onClick={loadMore} className="self-center text-sm font-bold text-[#FF5722] px-4 py-2 rounded-2xl bg-[#D8DAE4]" style={S.neoOutSm}>
+              Cargar más tareas
+            </button>
+          )}
         </div>
       )}
 
@@ -531,6 +552,42 @@ interface EvidenceModalProps {
   onReject: () => void
 }
 
+// Foto de evidencia: el bucket es privado, se muestra con una URL firmada (acepta ruta o URL pública vieja)
+const EvidenciaFoto = memo<{ ev: NonNullable<Task['evidence']>[number] }>(({ ev }) => {
+  const [url, setUrl] = useState<string | null>(null)
+  const [fallo, setFallo] = useState(false)
+  useEffect(() => {
+    let vivo = true
+    evidenciaUrlFirmada(ev.storage_path || ev.photo_url).then(u => {
+      if (!vivo) return
+      const seguro = urlSegura(u)
+      if (seguro) setUrl(seguro); else setFallo(true)
+    })
+    return () => { vivo = false }
+  }, [ev.storage_path, ev.photo_url])
+
+  return (
+    <>
+      <div className="w-full rounded-2xl overflow-hidden" style={S.neoIn}>
+        {url ? (
+          <a href={url} target="_blank" rel="noopener noreferrer">
+            <img src={url} alt="Evidencia" className="w-full h-56 object-cover hover:opacity-90 transition-opacity" loading="lazy" />
+          </a>
+        ) : (
+          <p className="text-center text-[#9CA3AF] py-8 text-sm">{fallo ? 'No se pudo cargar la foto' : 'Cargando foto…'}</p>
+        )}
+      </div>
+      <div className="flex justify-between text-xs text-[#9CA3AF]">
+        <span>{new Date(ev.submitted_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</span>
+        {url && (
+          <a href={url} download className="text-[#FF5722] font-bold" target="_blank" rel="noopener noreferrer">Descargar</a>
+        )}
+      </div>
+    </>
+  )
+})
+EvidenciaFoto.displayName = 'EvidenciaFoto'
+
 const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => {
   const evidence = task.evidence ?? []
 
@@ -577,29 +634,7 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
             evidence.map(ev => (
               <div key={ev.id} className="flex flex-col gap-3">
                 {/* Foto */}
-                <div className="w-full rounded-2xl overflow-hidden" style={S.neoIn}>
-                  <a href={ev.photo_url} target="_blank" rel="noopener noreferrer">
-                    <img
-                      src={ev.photo_url}
-                      alt="Evidencia"
-                      className="w-full h-56 object-cover hover:opacity-90 transition-opacity"
-                      loading="lazy"
-                    />
-                  </a>
-                </div>
-                {/* Metadata */}
-                <div className="flex justify-between text-xs text-[#9CA3AF]">
-                  <span>{new Date(ev.submitted_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</span>
-                  <a
-                    href={ev.photo_url}
-                    download
-                    className="text-[#FF5722] font-bold"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                   Descargar
-                  </a>
-                </div>
+                <EvidenciaFoto ev={ev} />
                 {ev.notes && (
                   <p className="text-xs text-[#6B7280] bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
                     {ev.notes}

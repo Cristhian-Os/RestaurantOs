@@ -9,12 +9,12 @@
  *  • Corte de caja diario y mensual
  */
 import { destinoPedido } from '../../lib/destino'
-import { useState, useEffect, useCallback, memo } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { descargarCorteExcel, descargarCorteMensualExcel, type CorteProducto, type CortePago } from '../../services/corteExcel'
 import { SplitPayModal } from './SplitPayModal'
-import { COLA_CAMBIO, enviarPagosPendientes, iniciarEnvioDePagos, listarPagosPendientes, type PagoPendiente } from '../../services/paymentQueue'
+import { COLA_CAMBIO, enviarPagosPendientes, iniciarEnvioDePagos, listarPagosPendientes, reintentarPagoPendiente, descartarPagoPendiente, type PagoPendiente } from '../../services/paymentQueue'
 import { PagosDelDia, ventanaHoy } from './PagosDelDia'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import { hoyBogota } from '../../services/menuOptions'
@@ -30,6 +30,8 @@ import { CategoriasGastoEditor } from './CategoriasGastoEditor'
 import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
 import { CATEGORIA_DEFECTO, categoriaLabel, rangoGastosBogota } from '../../services/gastosResumen'
 import message from 'antd/es/message'
+import Modal from 'antd/es/modal'
+import { cancelarPedido } from '../../services/cancelarPedido'
 import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Profile } from '../../pages/Dashboard'
 
@@ -154,7 +156,10 @@ interface ProvItem {
 
 const PROV_ITEM_EMPTY: ProvItem = { ingrediente_id: '', nombre_producto: '', cantidad: '', unidad: '', precio_unitario: '' }
 
-type PaymentMethod = 'efectivo' | 'transferencia'
+type PaymentMethod = 'efectivo' | 'transferencia' | 'tarjeta'
+
+// Hora de Colombia, sin importar la zona del equipo.
+const HORA_BOGOTA = { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' } as const
 
 // Denominaciones de billetes y monedas en circulación en Colombia (COP).
 const DENOMINACIONES = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50] as const
@@ -190,6 +195,20 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [colaPagos,     setColaPagos]     = useState<PagoPendiente[]>([])
   const [enviandoCola,  setEnviandoCola]  = useState(false)
   const [loading,     setLoading]   = useState(true)
+  // Consultas que fallaron en la última carga: se avisa en pantalla y se muestra '—' en lugar de $0.
+  const [fallos,      setFallos]    = useState<string[]>([])
+  const [savingAporte, setSavingAporte] = useState(false)
+  const [reembolsando, setReembolsando] = useState<string | null>(null)
+  const [eliminandoGasto, setEliminandoGasto] = useState<string | null>(null)
+  const [guardandoConteo, setGuardandoConteo] = useState(false)
+  const conteoFalloRef = useRef(false)
+  // Candados síncronos (useRef): un doble toque nunca dispara la misma operación dos veces.
+  const lock = useRef(new Set<string>())
+  const conLock = useCallback(async (clave: string, fn: () => Promise<void>) => {
+    if (lock.current.has(clave)) return
+    lock.current.add(clave)
+    try { await fn() } finally { lock.current.delete(clave) }
+  }, [])
   const [payingOrder,  setPayingOrder] = useState<Order | null>(null)
   const [payingKind,   setPayingKind]  = useState<'inicial' | 'final'>('final')
   const [payMethod,    setPayMethod] = useState<PaymentMethod>('efectivo')
@@ -231,12 +250,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   }, [])
 
   const fetchData = useCallback(async () => {
-    const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
     const parseItems = (o: any): Order => ({
       ...o,
       items: (() => { try { const p = typeof o.items === 'string' ? JSON.parse(o.items) : o.items; return Array.isArray(p) ? p : [] } catch { return [] } })()
     })
-    const { desde: pagosDesde, hasta: pagosHasta } = ventanaHoy()
+    const { desde: pagosDesde, hasta: pagosHasta } = ventanaHoy()   // día de Colombia, no el de este equipo
+    const inicioDia = pagosDesde
     const [pendingRes, ordersRes, cookingRes, completedRes, gastosRes, baseRes, pagosHoyRes, reembolsarRes] = await Promise.all([
       // Plan B: pedidos recién creados (mesero o QR) esperando cobro ANTES de pasar a cocina.
       supabase.from('orders').select('*').eq('status', 'pending').is('paid_at', null).order('created_at', { ascending: true }),
@@ -244,9 +263,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       supabase.from('orders').select('*').eq('status', 'cooking').order('created_at', { ascending: true }),
       supabase.from('orders').select('total, payment_method, propina, tipo_pedido')
         .eq('status', 'completed')
-        .gte('created_at', inicioDia),
+        .gte('created_at', inicioDia).lt('created_at', pagosHasta),
       supabase.from('gastos').select('id, concepto, monto, created_at, fuente, pagado_por_nombre, categoria')
-        .gte('created_at', inicioDia).order('created_at', { ascending: false }),
+        .gte('created_at', inicioDia).lt('created_at', pagosHasta).order('created_at', { ascending: false }),
       supabase.from('bases_caja').select('monto').eq('fecha', hoyBogota()).maybeSingle(),
       // El dinero del día sale de los PAGOS recibidos hoy, no del total de cada pedido.
       supabase.from('order_payments').select('payment_method, monto, propina, orders!inner(status, tipo_pedido, payment_method)')
@@ -254,6 +273,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       supabase.from('gastos').select('id, concepto, monto, pagado_por_nombre, created_at')
         .eq('fuente', 'propio').is('reembolsado_at', null).order('created_at'),
     ])
+
+    const nuevosFallos: string[] = []
+    if (pendingRes.error || ordersRes.error || cookingRes.error) nuevosFallos.push('pedidos')
+    if (completedRes.error || pagosHoyRes.error) nuevosFallos.push('resumen')
+    if (gastosRes.error) nuevosFallos.push('gastos')
+    if (baseRes.error) nuevosFallos.push('base')
+    if (reembolsarRes.error) nuevosFallos.push('reembolsos')
 
     if (!pendingRes.error) setPendingPayment((pendingRes.data || []).map(parseItems))
 
@@ -263,7 +289,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
     if (!cookingRes.error) setCooking((cookingRes.data || []).map(parseItems))
 
-    if (!completedRes.error) {
+    if (!completedRes.error && !pagosHoyRes.error) {
       const all = completedRes.data || []
       const orders = all.filter(o => !esRappi(o))
       // Pagos de hoy (sin pedidos cancelados ni Rappi): efectivo, transferencia, tarjeta y propinas.
@@ -283,54 +309,86 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     // Cuánto lleva pagado cada pedido abierto ("Pagado 4 de 5, falta $22.000").
     const abiertos = [...(pendingRes.data ?? []), ...(ordersRes.data ?? []), ...(cookingRes.data ?? [])].map(o => o.id as string)
     if (abiertos.length > 0) {
-      const { data: parciales } = await supabase.from('order_payments').select('order_id, monto')
+      const { data: parciales, error: parcErr } = await supabase.from('order_payments').select('order_id, monto')
         .is('anulado_at', null).in('order_id', abiertos)
-      const mapa: Record<string, number> = {}
-      for (const p of parciales ?? []) mapa[p.order_id as string] = (mapa[p.order_id as string] ?? 0) + Number(p.monto)
-      setPagadoPorOrden(mapa)
+      if (parcErr) nuevosFallos.push('pagos parciales')
+      else {
+        const mapa: Record<string, number> = {}
+        for (const p of parciales ?? []) mapa[p.order_id as string] = (mapa[p.order_id as string] ?? 0) + Number(p.monto)
+        setPagadoPorOrden(mapa)
+      }
     } else setPagadoPorOrden({})
 
     if (!reembolsarRes.error) setPorReembolsar((reembolsarRes.data ?? []) as PorReembolsar[])
     if (!gastosRes.error) setGastos((gastosRes.data ?? []) as Gasto[])
     if (!baseRes.error) setBaseHoy(baseRes.data ? Number(baseRes.data.monto) : null)
 
+    setFallos(nuevosFallos)
     setLoading(false)
   }, [])
 
   const totalGastosHoy = gastos.reduce((s, g) => s + Number(g.monto), 0)
 
-  const handleAgregarGasto = useCallback(async () => {
-    const monto = parseFloat(gastoMonto)
+  const handleAgregarGasto = useCallback(() => conLock('gasto', async () => {
+    const monto = Number(gastoMonto)
     if (!gastoConcepto.trim()) { message.error('Escribe el concepto del gasto'); return }
-    if (!monto || monto <= 0) { message.error('Monto inválido'); return }
+    if (gastoMonto.trim() === '' || !Number.isFinite(monto) || monto <= 0) { message.error('Monto inválido'); return }
     if (gastoFuente === 'propio' && !gastoPagadoPor.trim()) { message.error('Escribe quién puso la plata (ej: Angela)'); return }
     setSavingGasto(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('gastos').insert({
-      concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
-      fuente: gastoFuente, pagado_por_nombre: gastoFuente === 'propio' ? gastoPagadoPor.trim() : null,
-      categoria: categoriaActual || null,
-    })
-    setSavingGasto(false)
-    if (error) { message.error('Error: ' + error.message); return }
-    setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoCategoria(CATEGORIA_DEFECTO); setGastoPagadoPor(''); setShowGastoForm(false)
-    message.success(gastoFuente === 'propio' ? `Gasto registrado · queda por reembolsar a ${gastoPagadoPor.trim()}` : 'Gasto registrado')
-    fetchData()
-  }, [gastoConcepto, gastoMonto, gastoFuente, categoriaActual, gastoPagadoPor, fetchData])
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase.from('gastos').insert({
+        concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
+        fuente: gastoFuente, pagado_por_nombre: gastoFuente === 'propio' ? gastoPagadoPor.trim() : null,
+        categoria: categoriaActual || null,
+      })
+      if (error) { message.error('Error: ' + error.message); return }
+      setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoCategoria(CATEGORIA_DEFECTO); setGastoPagadoPor(''); setShowGastoForm(false)
+      message.success(gastoFuente === 'propio' ? `Gasto registrado · queda por reembolsar a ${gastoPagadoPor.trim()}` : 'Gasto registrado')
+      fetchData()
+    } catch (e) {
+      message.error('Error: ' + (e instanceof Error ? e.message : 'no se pudo guardar el gasto'))
+    } finally {
+      setSavingGasto(false)
+    }
+  }), [conLock, gastoConcepto, gastoMonto, gastoFuente, categoriaActual, gastoPagadoPor, fetchData])
 
   // Cola de pagos sin internet: leerla, enviarla al volver la red y refrescar caja cuando se envíe algo.
   const recargarCola = useCallback(async () => {
     try { setColaPagos(await listarPagosPendientes()) } catch { setColaPagos([]) }
   }, [])
   const enviarCola = useCallback(async () => {
+    if (lock.current.has('enviar-cola')) return
+    lock.current.add('enviar-cola')
     setEnviandoCola(true)
-    const r = await enviarPagosPendientes()
-    setEnviandoCola(false)
+    let r: Awaited<ReturnType<typeof enviarPagosPendientes>>
+    try { r = await enviarPagosPendientes() } finally { setEnviandoCola(false); lock.current.delete('enviar-cola') }
     if (r.enviados > 0) message.success(`${r.enviados} pago(s) enviados`)
     if (r.conflictos > 0) message.error(`${r.conflictos} pago(s) rechazados por el servidor: revísalos`)
     if (r.faltan > 0 && r.enviados === 0 && r.conflictos === 0) message.warning('Todavía no hay conexión')
     fetchData()
   }, [fetchData])
+  const reintentarPago = useCallback((idem: string) => conLock('cola-' + idem, async () => {
+    try {
+      const r = await reintentarPagoPendiente(idem)
+      if (r.enviados > 0) message.success('Pago enviado')
+      else if (r.conflictos > 0) message.error('El servidor volvió a rechazar el pago: revisa el motivo')
+      else message.warning('Todavía no hay conexión: el pago sigue guardado')
+    } catch (e) { message.error(e instanceof Error ? e.message : 'No se pudo reintentar el pago') }
+    void recargarCola(); fetchData()
+  }), [conLock, recargarCola, fetchData])
+  const descartarPago = useCallback((p: PagoPendiente) => {
+    Modal.confirm({
+      title: '¿Descartar este pago?',
+      content: `${p.resumen}. No se enviará al servidor y no quedará registrado. Si ya recibiste esa plata, regístrala de nuevo manualmente.`,
+      okText: 'Sí, descartar', cancelText: 'No', okButtonProps: { danger: true },
+      onOk: () => conLock('cola-' + p.idem, async () => {
+        try { await descartarPagoPendiente(p.idem); message.success('Pago descartado') }
+        catch (e) { message.error(e instanceof Error ? e.message : 'No se pudo descartar') }
+        void recargarCola()
+      }),
+    })
+  }, [conLock, recargarCola])
   useEffect(() => {
     void recargarCola()
     window.addEventListener(COLA_CAMBIO, recargarCola)
@@ -344,34 +402,48 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   }, [recargarCola, fetchData])
 
   // Devolver la plata a quien adelantó un gasto: con efectivo de la caja (resta del cajón hoy) o por transferencia.
-  const handleReembolsar = useCallback(async (g: PorReembolsar, medio: 'caja' | 'transferencia') => {
-    const { error } = await supabase.rpc('reembolsar_gasto', { p_gasto_id: g.id, p_medio: medio })
-    if (error) { message.error(error.message); return }
-    message.success(`Reembolsado a ${g.pagado_por_nombre ?? 'quien lo pagó'}${medio === 'caja' ? ' · sale del efectivo de la caja' : ''}`)
-    fetchData()
-  }, [fetchData])
+  const handleReembolsar = useCallback((g: PorReembolsar, medio: 'caja' | 'transferencia') => conLock('reembolso-' + g.id, async () => {
+    setReembolsando(g.id)
+    try {
+      const { error } = await supabase.rpc('reembolsar_gasto', { p_gasto_id: g.id, p_medio: medio })
+      if (error) { message.error(error.message); return }
+      message.success(`Reembolsado a ${g.pagado_por_nombre ?? 'quien lo pagó'}${medio === 'caja' ? ' · sale del efectivo de la caja' : ''}`)
+      fetchData()
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'No se pudo reembolsar')
+    } finally { setReembolsando(null) }
+  }), [conLock, fetchData])
 
   // Aporte a la caja: si la base no alcanzó y alguien pone más efectivo, el efectivo esperado lo suma.
-  const handleAporte = useCallback(async () => {
-    const monto = parseFloat(aporteMonto)
-    if (!monto || monto <= 0) { message.error('Escribe cuánto efectivo se puso'); return }
-    const { error } = await supabase.rpc('registrar_aporte_caja', { p_monto: monto, p_aportado_por: aportePor.trim() || null })
-    if (error) { message.error(error.message); return }
-    setAporteMonto(''); setAportePor('')
-    message.success('Aporte registrado: suma al efectivo esperado de la caja')
-  }, [aporteMonto, aportePor])
+  const handleAporte = useCallback(() => conLock('aporte', async () => {
+    const monto = Number(aporteMonto)
+    if (aporteMonto.trim() === '' || !Number.isFinite(monto) || monto <= 0) { message.error('Escribe cuánto efectivo se puso'); return }
+    setSavingAporte(true)
+    try {
+      const { error } = await supabase.rpc('registrar_aporte_caja', { p_monto: monto, p_aportado_por: aportePor.trim() || null })
+      if (error) { message.error(error.message); return }
+      setAporteMonto(''); setAportePor('')
+      message.success('Aporte registrado: suma al efectivo esperado de la caja')
+      fetchData()
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'No se pudo registrar el aporte')
+    } finally { setSavingAporte(false) }
+  }), [conLock, aporteMonto, aportePor, fetchData])
 
   // Ingredientes existentes, para vincular cada producto de la compra a su stock
   const loadIngredientes = useCallback(() => {
     supabase.from('ingredientes').select('id, nombre, unidad_medida').order('nombre')
-      .then(({ data }) => setIngredientesOpts(data ?? []))
+      .then(({ data, error }) => {
+        if (error) { message.error('No se pudieron cargar los ingredientes: ' + error.message); return }
+        setIngredientesOpts(data ?? [])
+      })
   }, [])
   useEffect(() => { loadIngredientes() }, [loadIngredientes])
 
   // % de propina sugerida configurado en Marca, para prellenar el campo de propina
   useEffect(() => {
     supabase.from('restaurant_config').select('propina_sugerida_pct').maybeSingle()
-      .then(({ data }) => setPropinaSugeridaPct(data?.propina_sugerida_pct ?? null))
+      .then(({ data, error }) => { if (!error) setPropinaSugeridaPct(data?.propina_sugerida_pct ?? null) })   // sin dato: sin propina sugerida
   }, [])
 
   const updateProvItem = useCallback((idx: number, patch: Partial<ProvItem>) => {
@@ -396,11 +468,12 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   const provTotal = provItems.reduce((s, it) => s + (parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0), 0)
 
-  const handleAgregarCompraProveedor = useCallback(async () => {
+  const handleAgregarCompraProveedor = useCallback(() => conLock('gasto', async () => {
     if (!gastoConcepto.trim()) { message.error('Escribe el concepto (ej: nombre del proveedor)'); return }
     const items = provItems.filter(it => it.nombre_producto.trim() && parseFloat(it.cantidad) > 0 && parseFloat(it.precio_unitario) >= 0)
     if (items.length === 0) { message.error('Agrega al menos un producto con cantidad y precio'); return }
     setSavingGasto(true)
+    try {
     const { data, error } = await supabase.rpc('registrar_compra_proveedor', {
       p_concepto: gastoConcepto.trim(),
       p_items: items.map(it => ({
@@ -411,7 +484,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         precio_unitario: parseFloat(it.precio_unitario),
       })),
     })
-    setSavingGasto(false)
     if (error) { message.error('Error: ' + error.message); return }
     // La base crea el proveedor y los ingredientes que no existían; se avisa qué quedó nuevo.
     const res = (data ?? {}) as { proveedor_creado?: boolean; ingredientes_creados?: { nombre: string }[] }
@@ -423,13 +495,32 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     message.success(nuevos.length > 0 ? `Compra registrada · stock actualizado · se creó ${nuevos.join(' y ')}` : 'Compra registrada · stock actualizado')
     loadIngredientes()
     fetchData()
-  }, [gastoConcepto, provItems, fetchData, loadIngredientes])
+    } catch (e) {
+      message.error('Error: ' + (e instanceof Error ? e.message : 'no se pudo registrar la compra'))
+    } finally {
+      setSavingGasto(false)
+    }
+  }), [conLock, gastoConcepto, provItems, fetchData, loadIngredientes])
 
-  const handleEliminarGasto = useCallback(async (id: string) => {
-    const { error } = await supabase.from('gastos').delete().eq('id', id)
-    if (error) { message.error('Error: ' + error.message); return }
-    setGastos(prev => prev.filter(g => g.id !== id))
-  }, [])
+  const handleEliminarGasto = useCallback((g: Gasto) => {
+    Modal.confirm({
+      title: '¿Eliminar este gasto?',
+      content: `${g.concepto} · ${fmt(g.monto)}. Esto cambia el efectivo esperado de la caja.`,
+      okText: 'Sí, eliminar', cancelText: 'No', okButtonProps: { danger: true },
+      onOk: () => conLock('del-' + g.id, async () => {
+        setEliminandoGasto(g.id)
+        try {
+          const { data, error } = await supabase.from('gastos').delete().eq('id', g.id).select('id')
+          if (error) { message.error('Error: ' + error.message); return }
+          if (!data || data.length === 0) { message.error('No se pudo eliminar el gasto (sin permiso o ya no existe).'); fetchData(); return }
+          setGastos(prev => prev.filter(x => x.id !== g.id))
+          message.success('Gasto eliminado')
+        } catch (e) {
+          message.error('Error: ' + (e instanceof Error ? e.message : 'no se pudo eliminar'))
+        } finally { setEliminandoGasto(null) }
+      }),
+    })
+  }, [conLock, fetchData])
 
   useEffect(() => {
     fetchData()
@@ -461,15 +552,22 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   // "Monto recibido" es TODO el efectivo físico que entrega el cliente (venta +
   // propina juntos) — el cambio y la validación de pago suficiente deben
   // descontar la propina también, si no, la propina se cuenta como vuelto.
-  const propinaNum = parseFloat(propinaInput) || 0
+  const propinaTexto = propinaInput.trim()
+  const propinaInvalida = propinaTexto !== '' && (!Number.isFinite(Number(propinaTexto)) || Number(propinaTexto) < 0)
+  const propinaNum = propinaTexto !== '' && !propinaInvalida ? Number(propinaTexto) : 0
   const totalConPropina = payingOrder ? payingOrder.total + propinaNum : 0
 
-  const cambio = payingOrder && payMethod === 'efectivo' && parseFloat(amountPaid) >= totalConPropina
-    ? parseFloat(amountPaid) - totalConPropina
+  // Efectivo: el monto recibido debe existir y cubrir venta + propina; si está vacío o es texto raro, NO se puede cobrar.
+  const recibidoNum = amountPaid.trim() === '' ? NaN : Number(amountPaid)
+  const recibidoValido = Number.isFinite(recibidoNum)
+
+  const cambio = payingOrder && payMethod === 'efectivo' && recibidoValido && recibidoNum >= totalConPropina
+    ? recibidoNum - totalConPropina
     : 0
 
-  const pagoInsuficiente = payingOrder && payMethod === 'efectivo'
-    && amountPaid !== '' && parseFloat(amountPaid) < totalConPropina
+  const pagoInsuficiente = !!payingOrder && payMethod === 'efectivo'
+    && (!recibidoValido || recibidoNum < totalConPropina)
+  const pagoSinMonto = !!payingOrder && payMethod === 'efectivo' && !recibidoValido
 
   // Pedido de mesa marcado listo desde Caja: aviso push a los meseros (y al que lo tomó).
   const avisarMeseros = (order: Order) => {
@@ -480,9 +578,25 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     )
   }
 
+  // Cancelar un pedido completo: un solo helper (avisa si ya tiene pagos, confirma y muestra el error real del servidor).
+  const handleCancelar = useCallback((order: Order, enPreparacion = false) => conLock('cancel-' + order.id, async () => {
+    setCancellingOrder(order.id)
+    try {
+      const ok = await cancelarPedido(order.id, { pagado: !!order.paid_at || (pagadoPorOrden[order.id] ?? 0) > 0, enPreparacion })
+      if (ok) {
+        setPendingPayment(prev => prev.filter(o => o.id !== order.id))
+        setReady(prev => prev.filter(o => o.id !== order.id))
+        setCooking(prev => prev.filter(o => o.id !== order.id))
+        fetchData()
+      }
+    } finally {
+      setCancellingOrder(null)
+    }
+  }), [conLock, pagadoPorOrden, fetchData])
+
   // Orden ya pagada antes de cocina (Plan B) y ahora lista: solo se completa,
   // sin volver a pedir el pago.
-  const handleCompletarPagada = useCallback(async (order: Order) => {
+  const handleCompletarPagada = useCallback((order: Order) => conLock('completar-' + order.id, async () => {
     setProcessing(true)
     try {
       // Rappi nace con payment_method='rappi', que cobrar_orden rechaza como
@@ -502,11 +616,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } finally {
       setProcessing(false)
     }
-  }, [fetchData])
+  }), [conLock, fetchData])
 
   // "Dividir cuenta": las personas pagan por partes. Al quedar cubierta la cuenta se hace lo mismo
   // que tras un cobro normal: antes de cocina avisa a cocina; con el pedido listo lo completa.
-  const handleSplitFinished = useCallback(async () => {
+  const handleSplitFinished = useCallback(() => conLock('split-fin', async () => {
     if (!splitOrder) return
     const { order, kind } = splitOrder
     try {
@@ -526,13 +640,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     setSplitOrder(null)
     fetchData()
     reciboTrasCobro(order.id)
-  }, [splitOrder, fetchData, reciboTrasCobro])
+  }), [conLock, splitOrder, fetchData, reciboTrasCobro])
 
   // Cobrar
-  const handleCobrar = useCallback(async () => {
+  const handleCobrar = useCallback(() => conLock('cobrar', async () => {
     if (!payingOrder) return
-    if (payMethod === 'efectivo' && parseFloat(amountPaid) < payingOrder.total) {
-      message.error('El monto recibido es menor al total')
+    if (propinaInvalida) { message.error('La propina no es válida'); return }
+    if (payMethod === 'efectivo' && (!recibidoValido || recibidoNum < payingOrder.total + propinaNum)) {
+      message.error(recibidoValido ? 'El monto recibido no cubre el total más la propina' : 'Escribe el monto recibido')
       return
     }
     setProcessing(true)
@@ -542,8 +657,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         {
           p_order_id:       payingOrder.id,
           p_payment_method: payMethod,
-          p_amount_paid:    payMethod === 'efectivo' ? parseFloat(amountPaid) : payingOrder.total,
-          p_propina:        parseFloat(propinaInput) || 0,
+          p_amount_paid:    payMethod === 'efectivo' ? recibidoNum : payingOrder.total,
+          p_propina:        propinaNum,
         }
       )
       if (error) throw error
@@ -555,8 +670,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         avisarMeseros(payingOrder)
       }
       message.success(
-        payMethod === 'efectivo' && data.change > 0
-          ? `Cobrado · Cambio: $${Math.round(data.change).toLocaleString('es-CO')}`
+        payMethod === 'efectivo' && Number(data?.change ?? 0) > 0
+          ? `Cobrado · Cambio: $${Math.round(Number(data.change)).toLocaleString('es-CO')}`
           : payingKind === 'inicial' ? 'Cobrado · enviado a cocina' : 'Cobrado exitosamente'
       )
       const cobradaId = payingOrder.id
@@ -568,26 +683,30 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } finally {
       setProcessing(false)
     }
-  }, [payingOrder, payingKind, payMethod, amountPaid, propinaInput, fetchData, reciboTrasCobro])
+  }), [conLock, payingOrder, payingKind, payMethod, recibidoNum, recibidoValido, propinaNum, propinaInvalida, fetchData, reciboTrasCobro])
 
   // Corte de caja
-  const handleCorte = useCallback(async () => {
+  const ejecutarCorte = useCallback(() => conLock('corte', async () => {
     setCortingLoading(true)
     try {
       // Desglose de productos ANTES del corte (mientras las órdenes del día siguen visibles)
-      const { data: prods } = await supabase.rpc('get_corte_productos')
+      const { data: prods, error: prodsErr } = await supabase.rpc('get_corte_productos')
+      if (prodsErr) message.warning('No se pudo leer el desglose de productos: ' + prodsErr.message)
       const { data, error } = await supabase.rpc('hacer_corte_caja', { p_notas: null })
       if (error) throw error
       setCorteResult(data)
       setCorteProductos((prods as CorteProducto[]) ?? [])
+      if ((data as { actualizado?: boolean } | null)?.actualizado) message.success('Corte actualizado: ya había un corte de hoy y se recalculó con los últimos movimientos')
       // Ayudas para cuadrar el conteo físico: transferencias del día y mesas con pagos mixtos.
-      const [{ data: trf }, { data: mixtas }, { data: pagosDia }] = await Promise.all([
+      const ventana = ventanaHoy()
+      const [{ data: trf, error: trfErr }, { data: mixtas, error: mixErr }, { data: pagosDia, error: pagosErr }] = await Promise.all([
         supabase.rpc('get_transferencias_dia'),
         supabase.rpc('get_mesas_mixtas_dia'),
         supabase.from('order_payments')
           .select('comensal, payment_method, monto, propina, referencia, transferencia_verificada, paid_at, orders!inner(order_number_today, table_num, tipo_pedido, customer_name, status)')
-          .is('anulado_at', null).gte('paid_at', ventanaHoy().desde).lt('paid_at', ventanaHoy().hasta).order('paid_at'),
+          .is('anulado_at', null).gte('paid_at', ventana.desde).lt('paid_at', ventana.hasta).order('paid_at'),
       ])
+      if (trfErr || mixErr || pagosErr) message.warning('El corte se hizo, pero no se pudieron leer algunas ayudas (transferencias, mesas mixtas o detalle de pagos): ' + (trfErr ?? mixErr ?? pagosErr)!.message)
       setTransferencias((trf ?? []) as TransferenciaDia[])
       setMesasMixtas((mixtas ?? []) as MesaMixta[])
       setPagosCorte(((pagosDia ?? []) as unknown as { comensal: string | null; payment_method: string; monto: number; propina: number; referencia: string | null; transferencia_verificada: boolean; paid_at: string; orders: { order_number_today: number | null; table_num: number | null; tipo_pedido: string; customer_name: string | null; status: string } | null }[])
@@ -597,9 +716,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           mesa: `${p.orders!.table_num ? `Mesa ${p.orders!.table_num}` : p.orders!.tipo_pedido === 'LLEVAR' ? 'Llevar' : 'Domicilio'}${p.orders!.customer_name ? ` · ${p.orders!.customer_name}` : ''}`,
           metodo: p.payment_method, monto: Number(p.monto), propina: Number(p.propina), referencia: p.referencia,
           verificada: p.transferencia_verificada,
-          hora: new Date(p.paid_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }),
+          hora: new Date(p.paid_at).toLocaleTimeString('es-CO', HORA_BOGOTA),
         })))
       setConteo({})
+      conteoFalloRef.current = false
       setShowCorte(true)
       fetchData()
     } catch (e) {
@@ -607,35 +727,50 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } finally {
       setCortingLoading(false)
     }
-  }, [fetchData])
+  }), [conLock, fetchData])
+
+  // El corte se confirma antes de hacerlo: queda registrado y repetirlo solo lo actualiza.
+  const handleCorte = useCallback(() => {
+    Modal.confirm({
+      title: '¿Hacer el corte de caja de hoy?',
+      content: 'Se calcula con todo lo cobrado hasta ahora. Si ya hay un corte de hoy, se actualiza (no se crea otro).',
+      okText: 'Sí, hacer corte', cancelText: 'No',
+      onOk: () => { void ejecutarCorte() },
+    })
+  }, [ejecutarCorte])
 
   // Base de caja: efectivo con el que arranca el cajón hoy (punto de partida del arqueo)
-  const handleGuardarBase = useCallback(async () => {
-    const monto = parseFloat(baseInput)
-    if (isNaN(monto) || monto < 0) { message.error('Escribe cuánto efectivo hay en la caja'); return }
+  const handleGuardarBase = useCallback(() => conLock('base', async () => {
+    const monto = Number(baseInput)
+    if (baseInput.trim() === '' || !Number.isFinite(monto) || monto < 0) { message.error('Escribe cuánto efectivo hay en la caja'); return }
     setSavingBase(true)
-    const { data, error } = await supabase.rpc('registrar_base_caja', { p_monto: monto })
-    setSavingBase(false)
-    if (error) { message.error('Error: ' + error.message); return }
-    setBaseHoy(Number(data?.monto ?? monto))
-    setEditandoBase(false)
-    message.success('Base de caja registrada')
-  }, [baseInput])
-
-  const handleCorteMensual = useCallback(async () => {
-    setLoadingMensual(true)
-    const { data, error } = await supabase.rpc('get_corte_mensual')
-    setLoadingMensual(false)
-    if (error) { message.error('Error: ' + error.message); return }
-    const corte = data as CorteMensual
     try {
-      const { from, to } = rangoGastosBogota(corte.desde, corte.hasta)
-      const { data: gm, error: gmErr } = await supabase.from('gastos').select('id, concepto, monto, categoria, created_at')
-        .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false }).limit(2000)
-      setGastosMes(gmErr ? [] : ((gm ?? []) as { id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]))
-    } catch { setGastosMes([]) }
-    setCorteMensual(corte)
-  }, [])
+      const { data, error } = await supabase.rpc('registrar_base_caja', { p_monto: monto })
+      if (error) { message.error('Error: ' + error.message); return }
+      setBaseHoy(Number(data?.monto ?? monto))
+      setEditandoBase(false)
+      message.success('Base de caja registrada')
+    } catch (e) {
+      message.error('Error: ' + (e instanceof Error ? e.message : 'no se pudo guardar la base'))
+    } finally { setSavingBase(false) }
+  }), [conLock, baseInput])
+
+  const handleCorteMensual = useCallback(() => conLock('mensual', async () => {
+    setLoadingMensual(true)
+    try {
+      const { data, error } = await supabase.rpc('get_corte_mensual')
+      if (error) { message.error('Error: ' + error.message); return }
+      const corte = data as CorteMensual
+      try {
+        const { from, to } = rangoGastosBogota(corte.desde, corte.hasta)
+        const { data: gm, error: gmErr } = await supabase.from('gastos').select('id, concepto, monto, categoria, created_at')
+          .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false }).limit(2000)
+        if (gmErr) message.warning('No se pudo leer el desglose de gastos del mes: ' + gmErr.message)
+        setGastosMes(gmErr ? [] : ((gm ?? []) as { id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]))
+      } catch { setGastosMes([]) }
+      setCorteMensual(corte)
+    } finally { setLoadingMensual(false) }
+  }), [conLock])
 
   // Descargar el corte mensual en Excel (resumen del mes + desglose por día)
   const handleDescargarExcelMensual = useCallback(async () => {
@@ -661,20 +796,46 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     .map(d => ({ ...d, subtotal: d.valor * d.cantidad }))
   const totalContado = denominacionesConteo.reduce((s, d) => s + d.subtotal, 0)
 
+  // Guardar el conteo en el corte ya creado, para que quede en el historial (y no solo en un Excel).
+  // Devuelve true si no había nada que guardar o se guardó bien.
+  const guardarConteo = useCallback(async (): Promise<boolean> => {
+    if (!corteResult?.corte_id || denominacionesConteo.length === 0) return true
+    setGuardandoConteo(true)
+    try {
+      const { data, error } = await supabase.from('cortes_caja')
+        .update({ denominaciones: denominacionesConteo })
+        .eq('id', corteResult.corte_id).select('id')
+      if (error) throw error
+      if (!data || data.length === 0) throw new Error('el servidor no aceptó el cambio (permiso o corte inexistente)')
+      conteoFalloRef.current = false
+      return true
+    } catch (e) {
+      conteoFalloRef.current = true
+      message.error(`No se pudo guardar el conteo: ${e instanceof Error ? e.message : 'error'}`)
+      return false
+    } finally { setGuardandoConteo(false) }
+  }, [corteResult, denominacionesConteo])
+
+  const handleGuardarConteo = useCallback(() => conLock('conteo', async () => {
+    if (denominacionesConteo.length === 0) { message.warning('Escribe cuántos billetes y monedas hay'); return }
+    if (await guardarConteo()) message.success('Conteo guardado en el corte')
+  }), [conLock, denominacionesConteo.length, guardarConteo])
+
+  // Cerrar el corte: el conteo se guarda solo. Si falló, un segundo toque cierra de todos modos.
+  const cerrarCorte = useCallback(() => conLock('conteo', async () => {
+    if (conteoFalloRef.current) { setShowCorte(false); return }
+    if (await guardarConteo()) setShowCorte(false)
+    else message.warning('Toca Cerrar otra vez para salir sin guardar el conteo.')
+  }), [conLock, guardarConteo])
+
   // Descargar el corte en Excel
-  const handleDescargarExcel = useCallback(async () => {
+  const handleDescargarExcel = useCallback(() => conLock('excel', async () => {
     if (!corteResult) return
     try {
       const { data: cfg } = await supabase
         .from('restaurant_config').select('display_name').maybeSingle()
 
-      // Guardar el conteo en el corte ya creado, para que quede en el historial
-      // y no solo en el Excel descargado esa vez.
-      if (denominacionesConteo.length > 0 && corteResult.corte_id) {
-        await supabase.from('cortes_caja')
-          .update({ denominaciones: denominacionesConteo })
-          .eq('id', corteResult.corte_id)
-      }
+      await guardarConteo()
 
       await descargarCorteExcel({
         restauranteNombre: cfg?.display_name ?? 'Restaurante',
@@ -704,8 +865,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
     }
-  }, [corteResult, corteProductos, gastos, denominacionesConteo, pagosCorte, etiquetas])
+  }), [conLock, guardarConteo, corteResult, corteProductos, gastos, denominacionesConteo, pagosCorte, etiquetas])
 
+  const resumenFalla = fallos.includes('resumen')
+  const gastosFalla  = fallos.includes('gastos')
   const totalDia = daySummary.total_efectivo + daySummary.total_transferencia + daySummary.total_tarjeta
   const netoDia  = totalDia - totalGastosHoy
 
@@ -717,6 +880,16 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   return (
     <div className="space-y-6">
+      {/* Alguna consulta falló: no se muestran $0 como si fueran datos reales */}
+      {fallos.length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3" role="alert">
+          <p className="text-sm font-bold text-red-700">
+            No se pudo cargar: {fallos.join(', ')}. Los valores con «—» no son confiables.
+          </p>
+          <button onClick={() => void fetchData()} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white bg-red-600">Reintentar</button>
+        </div>
+      )}
+
       {/* Pagos cobrados sin internet: siguen guardados aquí hasta que se envíen */}
       {colaPagos.length > 0 && (
         <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4" role="status">
@@ -727,7 +900,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               ` ${colaPagos.filter(p => p.estado === 'conflicto').length} rechazado(s) por el servidor: revísalos con el administrador.`}
           </p>
           <ul className="mt-1 text-xs text-amber-900 list-disc pl-4">
-            {colaPagos.map(p => <li key={p.idem}>{p.resumen}{p.estado === 'conflicto' ? ` — ${p.motivo}` : ''}</li>)}
+            {colaPagos.map(p => (
+              <li key={p.idem}>
+                {p.resumen}{p.estado === 'conflicto' ? ` — ${p.motivo}` : ''}
+                {p.estado === 'conflicto' && (
+                  <span className="ml-2 inline-flex gap-2">
+                    <button onClick={() => void reintentarPago(p.idem)} className="min-h-[32px] px-2 rounded-lg text-xs font-bold text-white bg-amber-600">Reintentar</button>
+                    <button onClick={() => descartarPago(p)} className="min-h-[32px] px-2 rounded-lg text-xs font-bold text-red-700 bg-red-100">Descartar</button>
+                  </span>
+                )}
+              </li>
+            ))}
           </ul>
           {colaPagos.some(p => p.estado === 'pendiente') && (
             <button onClick={enviarCola} disabled={enviandoCola}
@@ -742,7 +925,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       <div className="bg-[#D8DAE4] rounded-2xl p-4 flex flex-wrap items-center gap-3 justify-between" style={S.neoOutSm}>
         <div>
           <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">Base de caja de hoy</p>
-          {baseHoy !== null && !editandoBase ? (
+          {fallos.includes('base') ? (
+            <p className="text-2xl font-bold text-[#2D3561]" title="No se pudo leer la base">—</p>
+          ) : baseHoy !== null && !editandoBase ? (
             <p className="text-2xl font-bold text-[#2D3561]">{fmt(baseHoy)}</p>
           ) : (
             <p className="text-sm text-[#6B7280]">¿Con cuánto efectivo arranca la caja hoy?</p>
@@ -774,25 +959,25 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       {/* Resumen del día (Rappi no cuenta: precios distintos al menú físico) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Efectivo hoy',       val: `$${Math.round(daySummary.total_efectivo).toLocaleString('es-CO')}`,     color: 'text-emerald-600' },
-          { label: 'Transferencias hoy', val: `$${Math.round(daySummary.total_transferencia).toLocaleString('es-CO')}`, color: 'text-blue-600'    },
+          { label: 'Efectivo hoy',       val: resumenFalla ? '—' : `$${Math.round(daySummary.total_efectivo).toLocaleString('es-CO')}`,     color: 'text-emerald-600' },
+          { label: 'Transferencias hoy', val: resumenFalla ? '—' : `$${Math.round(daySummary.total_transferencia).toLocaleString('es-CO')}`, color: 'text-blue-600'    },
           ...(daySummary.total_tarjeta > 0 ? [{ label: 'Tarjeta hoy', val: `$${Math.round(daySummary.total_tarjeta).toLocaleString('es-CO')}`, color: 'text-indigo-600' }] : []),
-          { label: 'Propinas hoy',       val: `$${Math.round(daySummary.total_propinas).toLocaleString('es-CO')}`,      color: 'text-purple-500'  },
-          { label: 'Gastos hoy',         val: `$${Math.round(totalGastosHoy).toLocaleString('es-CO')}`,                 color: 'text-red-500'     },
-          { label: 'Neto del día',       val: `$${Math.round(netoDia).toLocaleString('es-CO')}`,                        color: 'text-[#FF5722]'   },
+          { label: 'Propinas hoy',       val: resumenFalla ? '—' : `$${Math.round(daySummary.total_propinas).toLocaleString('es-CO')}`,      color: 'text-purple-500'  },
+          { label: 'Gastos hoy',         val: gastosFalla ? '—' : `$${Math.round(totalGastosHoy).toLocaleString('es-CO')}`,                 color: 'text-red-500'     },
+          { label: 'Neto del día',       val: resumenFalla || gastosFalla ? '—' : `$${Math.round(netoDia).toLocaleString('es-CO')}`,        color: 'text-[#FF5722]'   },
         ].map(s => (
           <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
             <p className="text-[0.625rem] text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
             {s.label === 'Neto del día' && (
-              <p className="text-[0.625rem] text-[#9CA3AF]">{daySummary.total_ordenes} órdenes</p>
+              <p className="text-[0.625rem] text-[#9CA3AF]">{resumenFalla ? '—' : daySummary.total_ordenes} órdenes</p>
             )}
           </div>
         ))}
       </div>
 
       <p className="text-xs font-bold text-[#6B7280] -mt-3">
-        Pedidos Rappi: {daySummary.ordenes_rappi} {daySummary.ordenes_rappi === 1 ? 'orden' : 'órdenes'} — $0 (dinero en Rappi app)
+        Pedidos Rappi: {resumenFalla ? '—' : daySummary.ordenes_rappi} {daySummary.ordenes_rappi === 1 ? 'orden' : 'órdenes'} — $0 (dinero en Rappi app)
       </p>
 
       {/* Gastos del día */}
@@ -952,7 +1137,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div>
                   <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
                   <p className="text-[0.6875rem] text-[#9CA3AF]">
-                    {new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(g.created_at).toLocaleTimeString('es', HORA_BOGOTA)}
                     {` · ${categoriaLabel(g.categoria, etiquetas)}`}
                     {g.fuente === 'propio' && ` · lo pagó ${g.pagado_por_nombre ?? 'otra persona'} (no sale del cajón)`}
                     {g.fuente === 'transferencia' && ' · transferencia del negocio'}
@@ -961,7 +1146,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-red-500">${Math.round(Number(g.monto)).toLocaleString('es-CO')}</span>
-                  <button onClick={() => handleEliminarGasto(g.id)} className="text-[#9CA3AF] hover:text-red-500 text-sm">✕</button>
+                  <button onClick={() => handleEliminarGasto(g)} disabled={eliminandoGasto === g.id} aria-label="Eliminar gasto" className="text-[#9CA3AF] hover:text-red-500 text-sm disabled:opacity-50">✕</button>
                 </div>
               </div>
             ))}
@@ -981,8 +1166,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <div key={g.id} className="flex flex-wrap items-center justify-between gap-2 bg-white/70 rounded-xl px-3 py-2">
                 <span className="text-sm text-[#2D3561]"><b>{g.concepto}</b> · {fmt(g.monto)} · {g.pagado_por_nombre ?? 'otra persona'}</span>
                 <span className="flex gap-2">
-                  <button onClick={() => handleReembolsar(g, 'caja')} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-white bg-amber-600">Pagar con efectivo de la caja</button>
-                  <button onClick={() => handleReembolsar(g, 'transferencia')} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-amber-800 bg-amber-100">Por transferencia</button>
+                  <button onClick={() => handleReembolsar(g, 'caja')} disabled={reembolsando === g.id} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-white bg-amber-600 disabled:opacity-60">Pagar con efectivo de la caja</button>
+                  <button onClick={() => handleReembolsar(g, 'transferencia')} disabled={reembolsando === g.id} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-amber-800 bg-amber-100 disabled:opacity-60">Por transferencia</button>
                 </span>
               </div>
             ))}
@@ -1001,7 +1186,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           <input value={aportePor} onChange={e => setAportePor(e.target.value)} maxLength={80} placeholder="¿Quién lo puso? (opcional)"
             aria-label="Quién aportó" className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
         </div>
-        <button onClick={handleAporte} className="min-h-[44px] px-4 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={S.coral}>Registrar aporte</button>
+        <button onClick={handleAporte} disabled={savingAporte} className="min-h-[44px] px-4 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingAporte ? 0.6 : 1 }}>{savingAporte ? 'Guardando…' : 'Registrar aporte'}</button>
       </div>
 
       {/* Pedidos esperando cobro ANTES de pasar a cocina (Plan B) */}
@@ -1027,7 +1212,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', HORA_BOGOTA)}
                     </p>
                     {order.notes && <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>}
                   </div>
@@ -1036,8 +1221,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <OrderProgress status={order.status} />
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.slice(0, 4).map((item, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
+                    <div key={i} className={`flex justify-between text-sm ${item.cancelled ? 'line-through opacity-60' : ''}`}>
+                      <span className="text-[#6B7280]">{item.quantity}× {item.name}{item.cancelled ? ' (cancelado)' : ''}</span>
                       <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
@@ -1074,19 +1259,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     disabled={cancellingOrder === order.id}
-                    onClick={async () => {
-                      if (!window.confirm('¿Cancelar este pedido?')) return
-                      setCancellingOrder(order.id)
-                      try {
-                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
-                        if (error) { alert('Error: ' + error.message); return }
-                        setPendingPayment(prev => prev.filter(o => o.id !== order.id))
-                      } catch (err: any) {
-                        alert('Error: ' + err.message)
-                      } finally {
-                        setCancellingOrder(null)
-                      }
-                    }}
+                    onClick={() => void handleCancelar(order)}
                     className="flex-1 py-2 rounded-2xl font-bold text-white bg-red-600 text-xs"
                   >
                     {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
@@ -1121,7 +1294,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', HORA_BOGOTA)}
                     </p>
                     <p className="text-xs font-bold mt-0.5 text-amber-600">Preparándose en cocina</p>
                   </div>
@@ -1130,8 +1303,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <OrderProgress status={order.status} />
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.filter((it: any) => !it.cancelled).map((item, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
+                    <div key={i} className={`flex justify-between text-sm ${item.cancelled ? 'line-through opacity-60' : ''}`}>
+                      <span className="text-[#6B7280]">{item.quantity}× {item.name}{item.cancelled ? ' (cancelado)' : ''}</span>
                       <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
@@ -1139,19 +1312,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   disabled={cancellingOrder === order.id}
-                  onClick={async () => {
-                    if (!window.confirm('¿Cancelar este pedido? Ya está en preparación.')) return
-                    setCancellingOrder(order.id)
-                    try {
-                      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
-                      if (error) { alert('Error: ' + error.message); return }
-                      setCooking(prev => prev.filter(o => o.id !== order.id))
-                    } catch (err: any) {
-                      alert('Error: ' + err.message)
-                    } finally {
-                      setCancellingOrder(null)
-                    }
-                  }}
+                  onClick={() => void handleCancelar(order, true)}
                   className="w-full py-3 rounded-2xl font-bold text-white bg-red-600 text-sm"
                 >
                   {cancellingOrder === order.id ? '⏳ Cancelando...' : '🗑️ Cancelar pedido'}
@@ -1198,7 +1359,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', HORA_BOGOTA)}
                     </p>
                     <p className={`text-xs font-bold mt-0.5 ${order.delivered_at ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {order.delivered_at ? '✓ Entregado al mesero' : 'Esperando que el mesero lo recoja'}
@@ -1212,8 +1373,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 {/* Items */}
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.slice(0, 4).map((item, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
+                    <div key={i} className={`flex justify-between text-sm ${item.cancelled ? 'line-through opacity-60' : ''}`}>
+                      <span className="text-[#6B7280]">{item.quantity}× {item.name}{item.cancelled ? ' (cancelado)' : ''}</span>
                       <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
@@ -1280,19 +1441,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     disabled={cancellingOrder === order.id}
-                    onClick={async () => {
-                      if (!window.confirm('¿Cancelar este pedido?')) return
-                      setCancellingOrder(order.id)
-                      try {
-                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
-                        if (error) { alert('Error: ' + error.message); return }
-                        setReady(prev => prev.filter(o => o.id !== order.id))
-                      } catch (err: any) {
-                        alert('Error: ' + err.message)
-                      } finally {
-                        setCancellingOrder(null)
-                      }
-                    }}
+                    onClick={() => void handleCancelar(order)}
                     className="flex-1 py-2 rounded-2xl font-bold text-white bg-red-600 text-xs"
                   >
                     {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
@@ -1386,8 +1535,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               {/* Items en el modal */}
               <div className="bg-[#CDD0DC] rounded-2xl p-3 mb-4 max-h-32 overflow-y-auto" style={S.neoIn}>
                 {payingOrder.items.map((item, i) => (
-                  <div key={i} className="flex justify-between text-xs py-0.5">
-                    <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
+                  <div key={i} className={`flex justify-between text-xs py-0.5 ${item.cancelled ? 'line-through opacity-60' : ''}`}>
+                    <span className="text-[#6B7280]">{item.quantity}× {item.name}{item.cancelled ? ' (cancelado)' : ''}</span>
                     <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                   </div>
                 ))}
@@ -1401,14 +1550,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               </button>
 
               {/* Método de pago */}
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {(['efectivo', 'transferencia'] as PaymentMethod[]).map(m => (
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {(['efectivo', 'transferencia', 'tarjeta'] as PaymentMethod[]).map(m => (
                   <button key={m}
-                    onClick={() => { setPayMethod(m); if (m === 'transferencia') setAmountPaid(String(Math.round(payingOrder.total))) }}
+                    onClick={() => { setPayMethod(m); if (m !== 'efectivo') setAmountPaid(String(Math.round(payingOrder.total))) }}
                     className="py-3 rounded-2xl text-sm font-bold capitalize"
                     style={payMethod === m ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
                   >
-                    {m === 'efectivo' ? 'Efectivo' : 'Transferencia'}
+                    {m === 'efectivo' ? 'Efectivo' : m === 'transferencia' ? 'Transferencia' : 'Tarjeta'}
                   </button>
                 ))}
               </div>
@@ -1424,7 +1573,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     value={amountPaid}
                     onChange={e => setAmountPaid(e.target.value)}
                     min={payingOrder.total}
-                    step="0.01"
+                    step="1"
+                    inputMode="numeric"
+                    placeholder="¿Cuánto entrega el cliente?"
                     className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-lg font-bold text-[#2D3561] outline-none"
                     style={S.neoIn}
                     autoFocus
@@ -1441,15 +1592,15 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   )}
                   {pagoInsuficiente && (
                     <p className="mt-2 text-xs text-red-500 font-medium">
-                      Falta {fmt(totalConPropina - parseFloat(amountPaid))}
+                      {pagoSinMonto ? 'Escribe el monto recibido' : `Falta ${fmt(totalConPropina - recibidoNum)}`}
                     </p>
                   )}
                 </div>
               )}
 
-              {payMethod === 'transferencia' && (
+              {payMethod !== 'efectivo' && (
                 <div className="mb-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
-                  <p className="text-sm font-bold text-blue-700">Confirmar transferencia</p>
+                  <p className="text-sm font-bold text-blue-700">{payMethod === 'tarjeta' ? 'Confirmar pago con tarjeta' : 'Confirmar transferencia'}</p>
                   <p className="text-xs text-blue-600 mt-0.5">
                     {propinaNum > 0
                       ? `Venta: ${fmt(payingOrder.total)} + Propina: ${fmt(propinaNum)} = ${fmt(totalConPropina)}`
@@ -1506,11 +1657,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleCobrar}
-                  disabled={processing || !!pagoInsuficiente || !propinaRespuesta}
-                  className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-[#FF5722] ${processing || pagoInsuficiente || !propinaRespuesta ? 'opacity-60' : ''}`}
+                  disabled={processing || pagoInsuficiente || !propinaRespuesta || propinaInvalida}
+                  className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-[#FF5722] ${processing || pagoInsuficiente || !propinaRespuesta || propinaInvalida ? 'opacity-60' : ''}`}
                   style={S.coral}
                 >
-                  {processing ? 'Procesando...' : !propinaRespuesta ? 'Responde la propina' : 'Cobrar'}
+                  {processing ? 'Procesando...' : !propinaRespuesta ? 'Responde la propina' : propinaInvalida ? 'Propina inválida' : pagoInsuficiente ? 'Monto insuficiente' : 'Cobrar'}
                 </motion.button>
               </div>
             </motion.div>
@@ -1524,7 +1675,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowCorte(false)}
+            onClick={() => void cerrarCorte()}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
@@ -1536,10 +1687,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl mx-auto mb-3" style={S.green}>
                  
                 </div>
-                <h3 className="font-bold text-[#2D3561] text-xl">Corte de Caja</h3>
+                <h3 className="font-bold text-[#2D3561] text-xl">Corte de Caja{corteResult.actualizado ? ' · actualizado' : ''}</h3>
                 <p className="text-xs text-[#9CA3AF]">
-                  {new Date().toLocaleDateString('es', { dateStyle: 'full' })}
+                  {new Date().toLocaleDateString('es', { dateStyle: 'full', timeZone: 'America/Bogota' })}
                 </p>
+                {corteResult.actualizado && (
+                  <p className="text-xs font-bold text-amber-700 mt-1">Corte actualizado: ya había un corte de hoy y se recalculó.</p>
+                )}
               </div>
 
               <div className="flex flex-col gap-3 mb-5">
@@ -1688,6 +1842,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 })()}
               </div>
 
+              {denominacionesConteo.length > 0 && (
+                <button onClick={() => void handleGuardarConteo()} disabled={guardandoConteo}
+                  className="w-full py-2.5 rounded-2xl text-sm font-bold text-[#2D3561] mb-3" style={{ ...S.neoOut, opacity: guardandoConteo ? 0.6 : 1 }}>
+                  {guardandoConteo ? 'Guardando conteo…' : 'Guardar conteo en el corte'}
+                </button>
+              )}
+
               {corteProductos.length > 0 && (
                 <p className="text-xs text-[#6B7280] text-center mb-3">
                   {corteProductos.length} productos vendidos hoy · se incluyen en el Excel
@@ -1697,7 +1858,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               {/* Botones fijos al fondo: siempre alcanzables aunque el corte sea largo */}
               <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-[#D8DAE4] rounded-b-3xl">
                 <button
-                  onClick={handleDescargarExcel}
+                  onClick={() => void handleDescargarExcel()}
                   className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
                   style={{ backgroundColor: '#1D7A46', ...S.green }}
                 >
@@ -1716,7 +1877,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 </button>
 
                 <button
-                  onClick={() => setShowCorte(false)}
+                  onClick={() => void cerrarCorte()}
+                  disabled={guardandoConteo}
                   className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
                   style={S.neoOut}
                 >

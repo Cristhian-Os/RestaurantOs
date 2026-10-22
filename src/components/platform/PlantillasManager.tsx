@@ -78,6 +78,12 @@ function Editor({ inicial, esNueva, onVolver }: { inicial: { key: string; nombre
       preguntas: preguntas.filter(q => q.texto.trim()).map(q => ({ id: q.id, texto: q.texto.trim() })),
     }
     setGuardando(true)
+    if (esNueva) {
+      // Una plantilla nueva (o duplicada) nunca pisa una existente con la misma clave
+      const { data: ya, error: eYa } = await supabase.from('restaurant_templates').select('key').eq('key', kk).maybeSingle()
+      if (eYa) { setGuardando(false); setError(eYa.message); return }
+      if (ya) { setGuardando(false); setError(`Ya existe una plantilla con el identificador "${kk}". Cámbialo para no sobrescribirla.`); return }
+    }
     const { data, error: e } = await supabase.rpc('plataforma_guardar_plantilla', {
       p_key: kk, p_nombre: nombre.trim(), p_descripcion: descripcion.trim(), p_payload: payload, p_nota: nota.trim() || null,
     })
@@ -253,8 +259,13 @@ export function PlantillasManager() {
   const abrir = async (key: string, duplicar = false) => {
     const { data, error: e } = await supabase.from('restaurant_templates').select('key, nombre, descripcion, payload').eq('key', key).single()
     if (e || !data) { setError(e?.message ?? 'No se encontró la plantilla'); return }
+    // Clave libre para la copia: si "_copia" ya existe se numera (_copia2, _copia3…)
+    const usadas = new Set((filas ?? []).map(f => f.key))
+    let copia = `${data.key}_copia`.slice(0, 40), n = 2
+    while (duplicar && usadas.has(copia)) { copia = `${data.key}_copia${n++}`.slice(0, 40) }
+    if (duplicar && copia !== `${data.key}_copia`.slice(0, 40)) setError(`Ya existía "${data.key}_copia"; la copia se llamará "${copia}".`)
     setEditando(duplicar
-      ? { key: `${data.key}_copia`.slice(0, 40), nombre: `${data.nombre} (copia)`, descripcion: data.descripcion ?? '', payload: data.payload as Record<string, unknown>, nueva: true }
+      ? { key: copia, nombre: `${data.nombre} (copia)`, descripcion: data.descripcion ?? '', payload: data.payload as Record<string, unknown>, nueva: true }
       : { key: data.key, nombre: data.nombre, descripcion: data.descripcion ?? '', payload: data.payload as Record<string, unknown>, nueva: false })
   }
   const alternar = async (f: Fila) => {

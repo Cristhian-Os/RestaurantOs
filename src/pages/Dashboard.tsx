@@ -63,6 +63,7 @@ export interface Profile {
   phone?:      string | null
   avatar_url?: string | null
   active?:     boolean
+  restaurant_id?: string | null
   must_change_password?: boolean
 }
 
@@ -76,7 +77,6 @@ interface Metrics {
 }
 
 const S = {
-  sm:    { boxShadow: 'var(--w-shadow-sm)' },
   md:    { boxShadow: 'var(--w-shadow-md)' },
   terra: { boxShadow: 'var(--w-shadow-terra)' },
 } as const
@@ -95,7 +95,6 @@ const Icons = {
   Menu:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M12 2a9 9 0 100 18A9 9 0 0012 2z"/><circle cx="12" cy="12" r="4"/></svg>,
   Logout:    () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
   Hamburger: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
-  Download:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   Sun:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>,
   Moon:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>,
   Platform:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5M3 12a9 3 0 0018 0"/></svg>,
@@ -156,6 +155,14 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
   client:  [{ view:'menu', icon:<Icons.Menu />, label:'Menú' }],
 }
 
+// Vistas permitidas por rol (derivadas del menú). Se valida al navegar y al pintar.
+const ALLOWED_VIEWS: Record<Role, ReadonlySet<NavView>> = Object.fromEntries(
+  (Object.keys(NAV_BY_ROLE) as Role[]).map(r => [r, new Set(NAV_BY_ROLE[r].map(n => n.view))]),
+) as unknown as Record<Role, ReadonlySet<NavView>>
+const DEFAULT_VIEW: Record<Role, NavView> = {
+  super_admin:'platform', admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu',
+}
+
 // ── Admin Dashboard ────────────────────────────────────────────
 const AdminDashboard = memo(({ profile, onNavigate }: {
   profile: Profile
@@ -163,11 +170,16 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
 }) => {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
+  const [metricsError, setMetricsError] = useState(false)
 
   const fetchMetrics = useCallback(async () => {
     try {
       const { data, error } = await supabase.rpc('get_admin_metrics')
-      if (!error && data) setMetrics(data)
+      if (error || !data) { setMetricsError(true); return }
+      setMetrics(data)
+      setMetricsError(false)
+    } catch {
+      setMetricsError(true)
     } finally { setLoading(false) }
   }, [])
 
@@ -178,12 +190,12 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
   }, [fetchMetrics])
 
   const cards = [
-    { target:'card-ventas-hoy',    label:'Ventas hoy',    value:`$${(metrics?.total_sales_today??0).toLocaleString('es-CO')}`, Icon:Icons.Analytics, nav:'analytics' as NavView, color:'var(--w-olive)'   },
-    { target:'card-pendientes',    label:'Pendientes',    value:metrics?.pending_count??0,   Icon:Icons.Orders,  nav:'kitchen'   as NavView, color:'var(--w-saffron)' },
-    { target:'card-en-cocina',     label:'En cocina',     value:metrics?.cooking_count??0,   Icon:Icons.Kitchen, nav:'kitchen'   as NavView, color:'var(--w-terra)'   },
-    { target:'card-listas',        label:'Listas',        value:metrics?.ready_count??0,     Icon:Icons.Tasks,   nav:'cashier'   as NavView, color:'var(--w-olive)'   },
-    { target:'card-completadas',   label:'Completadas',   value:metrics?.completed_today??0, Icon:Icons.Tasks,   nav:'analytics' as NavView, color:'var(--w-wine)'    },
-    { target:'card-mesas-activas', label:'Mesas activas', value:metrics?.active_tables??0,   Icon:Icons.Tables,  nav:'tables'    as NavView, color:'var(--w-terra)'   },
+    { target:'card-ventas-hoy',    label:'Ventas hoy',    value:metrics ? `$${(metrics.total_sales_today??0).toLocaleString('es-CO')}` : '—', Icon:Icons.Analytics, nav:'analytics' as NavView, color:'var(--w-olive)'   },
+    { target:'card-pendientes',    label:'Pendientes',    value:metrics ? metrics.pending_count : '—',   Icon:Icons.Orders,  nav:'kitchen'   as NavView, color:'var(--w-saffron)' },
+    { target:'card-en-cocina',     label:'En cocina',     value:metrics ? metrics.cooking_count : '—',   Icon:Icons.Kitchen, nav:'kitchen'   as NavView, color:'var(--w-terra)'   },
+    { target:'card-listas',        label:'Listas',        value:metrics ? metrics.ready_count : '—',     Icon:Icons.Tasks,   nav:'cashier'   as NavView, color:'var(--w-olive)'   },
+    { target:'card-completadas',   label:'Completadas',   value:metrics ? metrics.completed_today : '—', Icon:Icons.Tasks,   nav:'analytics' as NavView, color:'var(--w-wine)'    },
+    { target:'card-mesas-activas', label:'Mesas activas', value:metrics ? metrics.active_tables : '—',   Icon:Icons.Tables,  nav:'tables'    as NavView, color:'var(--w-terra)'   },
   ]
 
   if (loading) return <div style={{display:'flex',justifyContent:'center',padding:'5rem 0'}}><Spin size="large"/></div>
@@ -200,6 +212,13 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
       </div>
 
       <InstallPWA />
+
+      {metricsError && (
+        <div role="alert" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'0.75rem',padding:'0.75rem 1rem',borderRadius:'0.875rem',border:'1px solid var(--w-terra)',background:'var(--w-surface)',color:'var(--w-ink)',fontSize:'0.875rem'}}>
+          <span>No se pudieron cargar las cifras de hoy{metrics ? ' (se muestran las últimas conocidas)' : ''}.</span>
+          <button onClick={fetchMetrics} style={{padding:'0.5rem 0.875rem',borderRadius:'0.75rem',border:'1px solid var(--w-line)',cursor:'pointer',fontWeight:700,background:'var(--w-surface)',color:'var(--w-ink)'}}>Reintentar</button>
+        </div>
+      )}
 
       <div className="menu-grid">
         {cards.map((card,i) => (
@@ -218,7 +237,7 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
       </div>
 
       <Tabs defaultActiveKey="orders" items={[
-        { key:'orders', label:<span data-resti-target="tab-nueva-orden">Nueva orden</span>, children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
+        { key:'orders', label:<span data-resti-target="tab-nueva-orden">Nueva orden</span>, children:<OrderFlow profile={profile} /> },
         { key:'tables', label:<span data-resti-target="tab-mesas">Mesas</span>,            children:<TableMap profile={profile} /> },
         { key:'tasks',  label:'Tareas',      children:<AdminTasksView profile={profile} /> },
         { key:'qr',     label:'Imprimir QR', children:<QRPrintManager /> },
@@ -285,10 +304,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [profile,    setProfile]    = useState<Profile | null>(null)
   const [activeNav,  setActiveNav]  = useState<NavView>('dashboard')
   const [loading,    setLoading]    = useState(true)
+  // 'red' = no se pudo leer el perfil (no cerrar sesión); 'invalido' = no existe o está inactivo (cerrar)
+  const [loadState,  setLoadState]  = useState<'ok' | 'red' | 'invalido'>('ok')
+  const [loadTry,    setLoadTry]    = useState(0)
   const [mobileOpen, setMobileOpen] = useState(false)
   // Cocina: pantalla completa para TV (sin barra lateral ni botones); "Menú" vuelve a mostrarlos.
   const [kitchenMenu, setKitchenMenu] = useState(false)
   useEffect(() => { if (activeNav === 'kitchen') setKitchenMenu(false) }, [activeNav])
+  // Navegación validada contra las vistas permitidas del rol
+  const navegar = useCallback((v: NavView) => {
+    if (!profile || !ALLOWED_VIEWS[profile.role]?.has(v)) return
+    setActiveNav(v)
+  }, [profile])
   // En celular cocina conserva la barra superior (logo, campana, tema, menú, salir): la pantalla completa es solo para TV.
   // Asistente de configuración: solo el admin de un restaurante nuevo (onboarding_completed_at nulo).
   const [wizardPending, setWizardPending] = useState(false)
@@ -335,48 +362,55 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   // Aviso de stock bajo: cuenta ingredientes por debajo de su mínimo (lo define
   // el admin en Inventario) y lo muestra como insignia sobre "Inventario".
+  const profileId = profile?.id
+  const profileRole = profile?.role
+  const restaurantId = profile?.restaurant_id
   useEffect(() => {
-    if (!profile || profile.role !== 'admin') return
+    if (!profileId || profileRole !== 'admin') return
     let cancelled = false
     const check = () => supabase.from('ingredientes').select('stock_actual, stock_minimo')
-      .then(({ data }) => {
-        if (cancelled || !data) return
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return
         setLowStock(data.filter(i => Number(i.stock_actual) <= Number(i.stock_minimo)).length)
       })
     check()
+    if (!restaurantId) return () => { cancelled = true }
+    const filter = `restaurant_id=eq.${restaurantId}`
     const channel = supabase.channel('low-stock-watch')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes' }, check)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes', filter }, check)
       .subscribe()
     return () => { cancelled = true; supabase.removeChannel(channel) }
-  }, [profile])
+  }, [profileId, profileRole, restaurantId])
 
   // Aviso de reseñas por aprobar / comentarios reportados, sobre "Menú".
   useEffect(() => {
-    if (!profile || profile.role !== 'admin') return
+    if (!profileId || profileRole !== 'admin') return
     let cancelled = false
     const check = () => Promise.all([
       supabase.from('resenas_platos').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente'),
       supabase.from('comentarios_platos').select('id', { count: 'exact', head: true }).eq('estado', 'visible').gt('reportado_count', 0),
     ]).then(([r, c]) => {
-      if (cancelled) return
+      if (cancelled || r.error || c.error) return
       setPendingSocial((r.count ?? 0) + (c.count ?? 0))
     })
     check()
+    if (!restaurantId) return () => { cancelled = true }
+    const filter = `restaurant_id=eq.${restaurantId}`
     const channel = supabase.channel('menu-social-watch')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resenas_platos' }, check)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios_platos' }, check)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resenas_platos', filter }, check)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios_platos', filter }, check)
       .subscribe()
     return () => { cancelled = true; supabase.removeChannel(channel) }
-  }, [profile])
+  }, [profileId, profileRole, restaurantId])
 
   // Aviso de sugerencias terminadas: cuenta las que pasaron a "hecho" y el restaurante aún no ha visto, sobre "Opinión".
   useEffect(() => {
-    if (!profile || !['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role)) return
+    if (!profileId || !profileRole || !['admin', 'cashier', 'waiter', 'kitchen'].includes(profileRole)) return
     let cancelled = false
     supabase.from('feedback_items').select('id', { count: 'exact', head: true }).eq('estado', 'hecho').is('cierre_visto_at', null)
-      .then(({ count }) => { if (!cancelled) setOpinionesListas(count ?? 0) })
+      .then(({ count, error }) => { if (!cancelled && !error) setOpinionesListas(count ?? 0) })
     return () => { cancelled = true }
-  }, [profile, activeNav])
+  }, [profileId, profileRole, activeNav])
 
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
@@ -408,64 +442,57 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     let active = true
 
     const load = async () => {
+      setLoading(true)
+      setLoadState('ok')
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { if (active) setLoading(false); return }
+        // getSession lee la sesión local (funciona sin red); getUser() iría a la red.
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
+        if (!user) { if (active) setLoadState('invalido'); return }
 
-        let { data: prof, error } = await supabase
-          .from('profiles').select('*').eq('id', user.id).single()
-
-        if (error?.code === 'PGRST116' || (!prof && error)) {
-          const { data: np } = await supabase.from('profiles').insert({
-            id: user.id, email: user.email ?? '',
-            full_name: user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Usuario',
-            role: user.user_metadata?.role ?? 'waiter', active: true,
-          }).select('*').single()
-          prof = np; error = null
-        }
+        const { data: prof, error } = await supabase
+          .from('profiles').select('*').eq('id', user.id).maybeSingle()
 
         if (!active) return
-        if (prof) {
-          setProfile(prof)
-          const defaults: Record<Role, NavView> = {
-            super_admin:'platform', admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
-          }
-          startTransition(() => setActiveNav(defaults[prof!.role as Role] ?? 'orders'))
+        if (error) { setLoadState('red'); return }          // fallo de red/servidor: NO cerrar sesión
+        if (!prof) { setLoadState('invalido'); return }      // el perfil no existe
+        if (prof.active === false) {
+          message.error('Tu cuenta está desactivada. Habla con el administrador.')
+          setLoadState('invalido')
+          return
         }
+        setProfile(prof)
+        startTransition(() => setActiveNav(DEFAULT_VIEW[prof.role as Role] ?? 'orders'))
       } catch (e) {
         console.error('Dashboard load:', e)
+        if (active) setLoadState('red')
       } finally {
         if (active) setLoading(false)
       }
     }
     load()
     return () => { active = false }
-  }, [])
+  }, [loadTry])
 
-  // Redirigir si no-admin aterriza en 'dashboard'
+  // Redirigir si la vista activa no es válida para el rol
   useEffect(() => {
     if (!profile) return
-    if (profile.role !== 'admin' && activeNav === 'dashboard') {
-      const defaults: Record<string, NavView> = {
-        super_admin:'platform', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
-      }
-      const target = defaults[profile.role]
+    if (!ALLOWED_VIEWS[profile.role]?.has(activeNav)) {
+      const target = DEFAULT_VIEW[profile.role]
       if (target) startTransition(() => setActiveNav(target))
     }
   }, [profile, activeNav])
 
-  // signOut en useEffect — NUNCA durante el render
+  // Cerrar sesión (con limpieza local) solo si el perfil no existe o está inactivo — NUNCA durante el render
   useEffect(() => {
-    if (!loading && !profile) {
-      supabase.auth.signOut().then(() => onLogout())
-    }
-  }, [loading, profile, onLogout])
+    if (!loading && loadState === 'invalido') onLogout()
+  }, [loading, loadState, onLogout])
 
   const renderContent = () => {
-    if (!profile) return null
+    if (!profile || !ALLOWED_VIEWS[profile.role]?.has(activeNav)) return null
     switch (activeNav) {
       case 'dashboard': return profile.role === 'admin'
-        ? <AdminDashboard profile={profile} onNavigate={setActiveNav} />
+        ? <AdminDashboard profile={profile} onNavigate={navegar} />
         : null
       case 'orders':    return (
         <div>
@@ -499,8 +526,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'opinion':   return ['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role) ? <OpinionSection /> : null
       case 'impresion': return profile.role === 'admin' ? <ImpresionConfig /> : null
       case 'setup':     return profile.role === 'admin' ? <ConfiguracionGuiada onAbrir={() => setWizardOpen(true)} /> : null
-      case 'branding':  return <BrandingManager />
-      case 'billing':   return <SubscriptionPanel />
+      case 'branding':  return profile.role === 'admin' ? <BrandingManager /> : null
+      case 'billing':   return profile.role === 'admin' ? <SubscriptionPanel /> : null
       case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformPanel /></MfaGate> : null
       default:          return null
     }
@@ -517,9 +544,22 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     </div>
   )
 
-  if (!loading && !profile) return (
+  if (loadState === 'red' && !profile) return (
+    <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
+      <div style={{textAlign:'center',maxWidth:360,fontFamily:'var(--w-sans)',color:'var(--w-ink)'}}>
+        <p style={{fontWeight:700,marginBottom:'0.5rem'}}>No se pudo cargar tu perfil</p>
+        <p style={{fontSize:'0.875rem',color:'var(--w-ink-mut)',marginBottom:'1.25rem'}}>Revisa tu conexión a internet e inténtalo de nuevo.</p>
+        <div style={{display:'flex',gap:'0.75rem',justifyContent:'center'}}>
+          <button onClick={() => setLoadTry(n => n + 1)} style={{padding:'0.75rem 1.25rem',borderRadius:'1rem',border:'none',cursor:'pointer',fontWeight:700,background:'var(--w-terra, #d97757)',color:'#fff'}}>Reintentar</button>
+          <button onClick={onLogout} style={{padding:'0.75rem 1.25rem',borderRadius:'1rem',border:'1px solid var(--w-line)',cursor:'pointer',fontWeight:700,background:'var(--w-surface)',color:'var(--w-ink)'}}>Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (!profile) return (
     <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <p style={{color:'var(--w-terra)',fontWeight:700,fontFamily:'var(--w-sans)'}}>Reiniciando sesión...</p>
+      <p style={{color:'var(--w-terra)',fontWeight:700,fontFamily:'var(--w-sans)'}}>Cerrando sesión...</p>
     </div>
   )
 
@@ -557,7 +597,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           onClose={ir => {
             try { sessionStorage.setItem('wizard_cerrado', '1') } catch { /* sin almacenamiento: se reabre en la próxima visita */ }
             setWizardOpen(false)
-            if (ir) setActiveNav(ir)
+            if (ir) navegar(ir)
           }}
           onFinished={() => { setWizardOpen(false); setWizardPending(false) }}
         />
@@ -631,7 +671,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               Navegación
             </p>
             {navItems.map(({view,icon,label})=>(
-              <button key={view} onClick={()=>{setActiveNav(view);setMobileOpen(false)}}
+              <button key={view} onClick={()=>{navegar(view);setMobileOpen(false)}}
                 className="w-press"
                 style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 1rem',
                   borderRadius:'0.875rem',border:'none',cursor:'pointer',fontFamily:'var(--w-sans)',
@@ -665,7 +705,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           overflowY:'auto',borderRadius:0,borderRight:'1px solid var(--w-line)',
           display:'none'}}>
           {navItems.map(({view,icon,label})=>(
-            <button key={view} onClick={()=>setActiveNav(view)} title={label}
+            <button key={view} onClick={()=>navegar(view)} title={label}
               className="w-press"
               style={{width:72,padding:'0.625rem 0',borderRadius:'0.875rem',border:'none',
                 cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',
@@ -694,7 +734,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </nav>
 
         <main style={{flex:1,padding:'1.25rem',overflowX:'hidden',minWidth:0}}>
-          {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
+          {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={navegar} />}
           {wizardPending && !wizardOpen && (
             <button onClick={() => setWizardOpen(true)} style={{
               width:'100%', marginBottom:'1rem', padding:'0.875rem 1rem', borderRadius:'1rem', cursor:'pointer', textAlign:'left',
@@ -712,7 +752,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
       {restiOn && profile!.role === 'admin'
         // Resti no aparece en caja, cocina, mesero (nueva orden), pagos ni en el panel de plataforma.
-        ? (['cashier', 'kitchen', 'orders', 'billing', 'platform'].includes(activeNav) ? null : <Resti userId={profile!.id} role="admin" onApplied={() => { void queryClient.invalidateQueries(); setRefreshKey(k => k + 1) }} onOpenVoiceCommands={t => { setVoiceCmdTexto(t); setVoiceCmdOpen(true) }} onGoHome={() => setActiveNav('dashboard')} />)
+        ? (['cashier', 'kitchen', 'orders', 'billing', 'platform'].includes(activeNav) ? null : <Resti userId={profile!.id} role="admin" onApplied={() => { void queryClient.invalidateQueries(); setRefreshKey(k => k + 1) }} onOpenVoiceCommands={t => { setVoiceCmdTexto(t); setVoiceCmdOpen(true) }} onGoHome={() => navegar('dashboard')} />)
         : <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />}
       {(profile?.role === 'admin' || profile?.role === 'cashier') && !(restiOn && profile.role === 'admin') && (
         <VoiceCommandFab onClick={() => { setVoiceCmdTexto(undefined); setVoiceCmdOpen(true) }} />

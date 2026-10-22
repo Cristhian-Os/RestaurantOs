@@ -4,7 +4,8 @@
 // Seguridad: los datos se piden con el JWT de quien llama (la base exige ser administrador de ese restaurante); el periodo lo decide
 // el servidor (último periodo completo), no el navegador; nada se genera si la IA está apagada para ese restaurante o se llegó al tope.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { callModel, costoUsd, MODELO_POR_DEFECTO, type ConfigProveedor } from './modelo.ts'
+import { callModel, cargarProveedor, costoUsd } from './modelo.ts'
+import { permitido, topeGlobal } from '../_shared/guardas.ts'
 import { redactar } from './generar.ts'
 import { periodo } from './periodo.ts'
 
@@ -35,8 +36,10 @@ Deno.serve(async (req: Request) => {
     const { data: datos, error: eDatos } = await comoUsuario.rpc('reporte_datos', { p_desde: desde, p_hasta: hasta })
     if (eDatos || !datos) return json({ error: 'Solo el administrador puede generar reportes' }, 403)
 
-    const { data: ok } = await admin.rpc('check_rate_limit', { p_key: `aireport:${user.id}`, p_max: 6, p_window_seconds: 3600 })
-    if (ok === false) return json({ error: 'Demasiadas solicitudes. Intenta en un rato.' }, 429)
+    // Límites que FALLAN CERRADO (solo `true` deja pasar): por usuario, por restaurante y global del día.
+    if (!(await permitido(admin, `aireport:${user.id}`, 6, 3600))
+      || !(await permitido(admin, `aireportr:${rid}`, 12, 86400))
+      || !(await topeGlobal(admin, 'ai-report'))) return json({ error: 'Demasiadas solicitudes. Intenta en un rato.' }, 429)
 
     const { data: cupo } = await admin.rpc('ai_cupo', { p_restaurant: rid, p_tipo: tipo, p_desde: desde, p_hasta: hasta })
     if (!cupo?.permitido) {
@@ -49,13 +52,9 @@ Deno.serve(async (req: Request) => {
     }
     if (!datos.ventas?.pedidos) return json({ sin_datos: true, mensaje: 'No hubo ventas en ese periodo, así que no hay nada que analizar.', periodo: { desde, hasta } })
 
-    // Proveedor y claves: de la plataforma (platform_secrets), nunca del código ni del navegador
-    const { data: filas } = await admin.from('platform_secrets').select('key, value').in('key', ['gemini_api_key', 'ai_proveedor', 'ai_modelo', 'ai_url_base', 'ai_api_key'])
-    const s = Object.fromEntries((filas ?? []).map((f: { key: string; value: string }) => [f.key, f.value]))
-    const cfg: ConfigProveedor = s.ai_proveedor === 'compatible'
-      ? { proveedor: 'compatible', modelo: s.ai_modelo ?? '', clave: s.ai_api_key ?? '', urlBase: s.ai_url_base }
-      : { proveedor: 'gemini', modelo: s.ai_modelo || MODELO_POR_DEFECTO, clave: s.gemini_api_key ?? '' }
-    if (!cfg.clave) return json({ error: 'Config faltante' }, 500)
+    // Proveedor y claves: de la plataforma (platform_secrets), nunca del código ni del navegador. Un solo lector (_shared).
+    const cfg = await cargarProveedor(admin)
+    if (!cfg) return json({ error: 'Config faltante' }, 500)
     const { data: precios } = await admin.from('platform_settings').select('clave, valor').in('clave', ['ai_precio_entrada_usd_millon', 'ai_precio_salida_usd_millon'])
     const p = Object.fromEntries((precios ?? []).map((x: { clave: string; valor: number }) => [x.clave, Number(x.valor)]))
 

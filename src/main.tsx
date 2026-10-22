@@ -26,7 +26,7 @@ async function registerSW() {
     // usaba 'ros-v22', autodestruyendo la caché del app-shell en cada visita).
     const keys = await caches.keys()
     for (const key of keys) {
-      if (key !== 'ros-v22') {
+      if (key !== 'ros-v23') {
         await caches.delete(key)
       }
     }

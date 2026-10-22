@@ -165,7 +165,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
     <>
       {/* Botón flotante */}
       <motion.button
-        onClick={() => { setOpen(o => !o); setGlobo(false) }}
+        onClick={() => { setOpen(o => !o); setGlobo(false) }} aria-expanded={open}
         whileTap={{ scale: 0.92 }}
         style={{
           position: 'fixed', bottom: 20, right: 20, zIndex: 90,
@@ -194,6 +194,8 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
       <AnimatePresence>
         {open && (
           <motion.div
+            role="dialog" aria-label={opinion ? 'Opinión y sugerencias' : landing ? 'Chat con Resti' : 'Soporte RestaurantOS'}
+            onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); setGlobo(false) } }}
             initial={{ opacity: 0, y: 20, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
@@ -223,7 +225,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
             </div>
 
             {/* Mensajes */}
-            <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.625rem', background: 'var(--w-bg)' }}>
+            <div ref={scrollRef} role="log" aria-live="polite" aria-relevant="additions text" aria-label="Conversación con Resti" style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.625rem', background: 'var(--w-bg)' }}>
               {msgs.map((m, i) => (
                 <div key={i} style={{
                   alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
@@ -257,7 +259,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
                 </div>
               )}
               {loading && (
-                <div style={{ alignSelf: 'flex-start', padding: '0.6rem 0.85rem', color: 'var(--w-ink-mut)', fontSize: '0.85rem' }}>
+                <div role="status" style={{ alignSelf: 'flex-start', padding: '0.6rem 0.85rem', color: 'var(--w-ink-mut)', fontSize: '0.85rem' }}>
                   Escribiendo…
                 </div>
               )}
@@ -273,13 +275,22 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
             )}
 
             {/* Avisos */}
-            {aviso && <div style={{ padding: '0.5rem 0.9rem', fontSize: '0.78rem', background: 'rgba(176,52,29,0.10)', color: '#B0341D' }}>{aviso}</div>}
+            {aviso && <div role="alert" style={{ padding: '0.5rem 0.9rem', fontSize: '0.78rem', background: 'rgba(176,52,29,0.10)', color: '#B0341D' }}>{aviso}</div>}
             {opinion && <div style={{ padding: '0.35rem 0.9rem', fontSize: '0.7rem', color: 'var(--w-ink-mut)', background: 'var(--w-surface)' }}>Lo que escribas se guarda para mejorar RestaurantOS. No escribas contraseñas ni datos de tarjetas.</div>}
+
+            {/* Landing: aviso de tratamiento de datos (Ley 1581 de 2012). Visible desde antes del primer mensaje: el asistente puede guardar los datos de contacto que la persona comparta. */}
+            {landing && (
+              <div style={{ padding: '0.4rem 0.9rem', fontSize: '0.7rem', lineHeight: 1.35, color: 'var(--w-ink-mut)', background: 'var(--w-surface)', borderTop: '1px solid var(--w-line)' }}>
+                Si compartes tu nombre, teléfono o correo, RestaurantOS los usa solo para contactarte sobre el servicio, conforme a la Ley 1581 de 2012. Puedes pedir que los borremos. Lee la{' '}
+                <a href="/privacidad" target="_blank" rel="noreferrer" style={{ color: 'var(--w-terra)', fontWeight: 700 }}>política de tratamiento de datos</a>.
+                {' '}Al escribir aceptas este aviso.
+              </div>
+            )}
 
             {/* Input */}
             <div style={{ padding: '0.75rem', borderTop: '1px solid var(--w-line)', display: 'flex', gap: '0.5rem', background: 'var(--w-surface)' }}>
               <input
-                value={input}
+                value={input} aria-label={opinion ? 'Escribe tu opinión o el problema' : 'Escribe tu pregunta para Resti'} maxLength={1000}
                 onChange={e => { setInput(e.target.value); if (opinion) guardarBorrador(e.target.value) }}
                 onKeyDown={e => { if (e.key === 'Enter') void enviar(input) }}
                 placeholder={oyendo ? 'Te escucho…' : opinion ? 'Cuéntame tu idea o el problema…' : 'Escribe tu pregunta…'}
@@ -290,7 +301,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 18, height: 18 }}><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v3" strokeLinecap="round" /></svg>
                 </button>
               )}
-              <button onClick={() => void enviar(input)} disabled={loading || !input.trim()}
+              <button onClick={() => void enviar(input)} disabled={loading || !input.trim()} aria-label="Enviar mensaje"
                 style={{ border: 'none', borderRadius: '0.75rem', padding: '0 0.9rem', background: 'var(--w-terra)', color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading || !input.trim() ? 0.6 : 1, fontWeight: 700 }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 18, height: 18 }}><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>

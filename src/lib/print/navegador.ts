@@ -5,17 +5,43 @@
 import type { Modelo } from './modelo.ts'
 import { renderHtml, urlWhatsApp } from './render.ts'
 
-/** Imprime con la impresora que el equipo tenga instalada (diálogo del navegador). Rechaza si no se pudo abrir. */
+const ESPERA_CARGA_MS = 10_000        // si la vista no carga en este tiempo, se da por fallida
+const ESPERA_CONFIRMAR_MS = 45_000    // tras abrir el diálogo, tiempo máximo para que el navegador avise que terminó
+
+/**
+ * Imprime con la impresora que el equipo tenga instalada (diálogo del navegador).
+ * Rechaza si la vista no carga a tiempo, si falla al abrir el diálogo o si el navegador no confirma el final
+ * (evento `afterprint`): sin esa confirmación NO se da por impreso. Nunca se queda colgada.
+ */
 export function imprimirEnNavegador(m: Modelo): Promise<void> {
   return new Promise((ok, mal) => {
     const f = document.createElement('iframe')
     f.setAttribute('aria-hidden', 'true')
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'
+    let fin = false
+    let tCarga: ReturnType<typeof setTimeout> | undefined
+    let tConfirmar: ReturnType<typeof setTimeout> | undefined
+    const cerrar = (error?: Error) => {
+      if (fin) return
+      fin = true
+      clearTimeout(tCarga); clearTimeout(tConfirmar)
+      window.removeEventListener('afterprint', alTerminar)
+      setTimeout(() => f.remove(), 500)
+      if (error) mal(error); else ok()
+    }
+    const alTerminar = () => cerrar()
+    tCarga = setTimeout(() => cerrar(new Error('La impresión no cargó a tiempo')), ESPERA_CARGA_MS)
+    f.onerror = () => cerrar(new Error('No se pudo preparar la impresión'))
     f.onload = () => {
+      clearTimeout(tCarga)
       try {
-        f.contentWindow?.focus(); f.contentWindow?.print()
-        setTimeout(() => { f.remove(); ok() }, 1500)
-      } catch (e) { f.remove(); mal(e instanceof Error ? e : new Error('No se pudo imprimir')) }
+        const w = f.contentWindow
+        if (!w) throw new Error('No se pudo abrir la impresión')
+        w.addEventListener('afterprint', alTerminar)
+        window.addEventListener('afterprint', alTerminar)
+        tConfirmar = setTimeout(() => cerrar(new Error('El navegador no confirmó la impresión')), ESPERA_CONFIRMAR_MS)
+        w.focus(); w.print()
+      } catch (e) { cerrar(e instanceof Error ? e : new Error('No se pudo imprimir')) }
     }
     f.srcdoc = renderHtml(m)
     document.body.appendChild(f)

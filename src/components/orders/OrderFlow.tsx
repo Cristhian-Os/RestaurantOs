@@ -10,7 +10,7 @@
  * Reemplaza al OrderForm anterior.
  */
 import { BARRA_NOTE } from '../../lib/destino'
-import { useState, useEffect, useCallback, useMemo, memo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { offlineService } from '../../services/offlineService'
@@ -28,6 +28,7 @@ import {
   gruposDe, selAV2, selIsValidV2, unitPriceForV2, describeSelV2,
 } from '../../services/menuOptions'
 import { OptionGroupsV2 } from './OptionGroupsV2'
+import { OfflineConflicts } from './OfflineConflicts'
 
 // ─── Estilos neomórficos ──────────────────────────────────────
 const S = {
@@ -35,7 +36,6 @@ const S = {
   neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
   neoIn:   { boxShadow: 'var(--shadow-in)' },
   coral:   { boxShadow: 'var(--shadow-coral)' },
-  green:   { boxShadow: 'var(--shadow-green)' },
 } as const
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
@@ -397,6 +397,11 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [submitting, setSubmitting]       = useState(false)
   const [isOnline, setIsOnline]           = useState(navigator.onLine)
   const [orderNotes, setOrderNotes]       = useState('')
+  // Candado síncrono contra doble envío y clave de idempotencia: misma clave mientras el pedido no cambie
+  // (si la respuesta se pierde y se reintenta, el servidor devuelve el pedido ya creado en vez de duplicarlo).
+  const enviando = useRef(false)
+  const idemRef  = useRef<{ firma: string; key: string } | null>(null)
+  const ridRef   = useRef<string | null>(null)   // restaurante de esta sesión (se guarda con el pedido offline)
 
   // Conectividad
   useEffect(() => {
@@ -425,13 +430,16 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   // Refrescar el menú en vivo si el admin edita platos/categorías en otra pestaña
   useEffect(() => {
     let ch: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
     supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
-      if (!rid) return
+      if (cancelled || !rid) return
+      ridRef.current = rid as string
+      try { localStorage.setItem('restaurantos_rid', rid as string) } catch { /* sin almacenamiento */ }
       ch = supabase.channel('order-flow-dishes-sync')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter: `restaurant_id=eq.${rid}` }, fetchDishes)
         .subscribe()
     })
-    return () => { if (ch) supabase.removeChannel(ch) }
+    return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }
   }, [fetchDishes])
 
   // Ingredientes de receta agotados (con o sin cambio configurado) — se
@@ -444,10 +452,16 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   useEffect(() => { fetchShortages() }, [fetchShortages])
 
   useEffect(() => {
-    const ch = supabase.channel('order-flow-shortages-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes' }, fetchShortages)
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    let ch: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    // Filtrado por restaurante: sin esto se recibían cambios de ingredientes de todos los restaurantes.
+    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
+      if (cancelled || !rid) return
+      ch = supabase.channel('order-flow-shortages-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes', filter: `restaurant_id=eq.${rid}` }, fetchShortages)
+        .subscribe()
+    })
+    return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }
   }, [fetchShortages])
 
   // Platos filtrados
@@ -544,10 +558,12 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
 
   // Enviar orden
   const handleSubmit = useCallback(async () => {
+    if (enviando.current) return
     if (cart.length === 0) { message.warning('Agrega al menos un plato'); return }
     if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) { message.warning('Selecciona una mesa o Barra'); return }
     if (!customerName.trim()) { message.warning('Escribe el nombre del comensal'); return }
 
+    enviando.current = true
     setSubmitting(true)
     try {
       // Si el plato vende por tamaños, el servidor necesita el nombre del tamaño para
@@ -563,57 +579,77 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         sel:      { ...(i.sel ?? {}), comment: i.notes.trim() || undefined },
         comensal: i.comensal || undefined,
       }))
+      // Notas finales (con «Barra» si el pedido es en el local sin mesa): las mismas online y offline.
+      const notasFinales = (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || null
+
+      // Misma clave de idempotencia mientras el contenido del pedido no cambie (reintentos tras un fallo).
+      const firma = JSON.stringify([items, selectedMesa?.id ?? null, tipoPedido, notasFinales, customerName.trim()])
+      if (!idemRef.current || idemRef.current.firma !== firma) idemRef.current = { firma, key: crypto.randomUUID() }
+      const idemKey = idemRef.current.key
 
       if (isOnline) {
         const { data, error } = await supabase.rpc('crear_orden_completa', {
           p_mesa_id:        selectedMesa?.id ?? null,
           p_items:          items,
           p_tipo_pedido:    tipoPedido,
-          p_notes:          (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || null,
+          p_notes:          notasFinales,
           p_table_num:      selectedMesa?.numero ?? null,
           p_customer_name:  customerName.trim() || null,
+          p_idempotency_key: idemKey,
         })
         if (error) throw error
+        // Total real, calculado por el servidor (el del carrito es solo una estimación).
+        const totalServidor = Number(data?.total ?? cartTotal)
         // Número secuencial del día (lo asigna un trigger en la base); si aún no existe, sin número.
         const { data: num } = await supabase.from('orders').select('order_number_today').eq('id', data.order_id).maybeSingle()
         const ref = num?.order_number_today ? `#${num.order_number_today}` : ''
         const dest = (selectedMesa?.numero ? `Mesa ${selectedMesa.numero}` : barra ? BARRA_NOTE : 'Mostrador') + (customerName.trim() ? ` · ${customerName.trim()}` : '')
-        if (tipoPedido === 'RAPPI') {
+        if (data?.duplicado) {
+          message.info('Este pedido ya estaba registrado; no se creó otro.')
+        } else if (tipoPedido === 'RAPPI') {
           // Rappi nace pagado: va directo a cocina, no pasa por cobro.
           message.success('Pedido Rappi enviado a cocina')
           pushNotificationService.notify(['kitchen', 'admin'], 'Nuevo pedido Rappi', `${dest} — ${items.length} ítem(s)`, '/')
         } else {
           // Plan B: el pedido no pasa a cocina hasta que Caja lo cobre.
-          message.success(`Pedido enviado a caja para cobro — Total: $${Math.round(cartTotal).toLocaleString('es-CO')}`)
-          pushNotificationService.notify(['cashier', 'admin'], 'Pedido por cobrar', `${dest} — ${items.length} ítem(s) · $${Math.round(cartTotal).toLocaleString('es-CO')}`, '/')
+          message.success(`Pedido enviado a caja para cobro — Total: $${Math.round(totalServidor).toLocaleString('es-CO')}`)
+          pushNotificationService.notify(['cashier', 'admin'], 'Pedido por cobrar', `${dest} — ${items.length} ítem(s) · $${Math.round(totalServidor).toLocaleString('es-CO')}`, '/')
         }
-        // Confirmación push a quien tomó el pedido (llega aunque cierre la app).
-        pushNotificationService.notify(
-          [], `Pedido ${ref}`.trim(), `Pedido ${ref} listo para ir a cocina — ${dest}`.replace('  ', ' '), '/',
-          undefined, [profile.id],
-        )
-        onOrderCreated?.(data.order_id, data.total)
+        if (!data?.duplicado) {
+          // Confirmación push a quien tomó el pedido (llega aunque cierre la app).
+          pushNotificationService.notify(
+            [], `Pedido ${ref}`.trim(), `Pedido ${ref} listo para ir a cocina — ${dest}`.replace('  ', ' '), '/',
+            undefined, [profile.id],
+          )
+        }
+        onOrderCreated?.(data.order_id, totalServidor)
       } else {
         const { data: { user: offlineUser } } = await supabase.auth.getUser()
-        // BUG FIX #8: user!.id lanzaba excepción si la sesión expiraba offline.
-        // Ahora usamos un fallback seguro.
-        const offlineUserId = offlineUser?.id ?? 'offline-anonymous'
+        // Sin red getUser() puede fallar: se usa el perfil de la sesión abierta (nunca un usuario genérico).
+        const offlineUserId = offlineUser?.id ?? profile.id
+        let rid = ridRef.current
+        if (!rid) { try { rid = localStorage.getItem('restaurantos_rid') } catch { rid = null } }
         await offlineService.saveOrderLocally({
           id: crypto.randomUUID(),
           user_id: offlineUserId,
+          restaurant_id: rid,
+          mesa_id: selectedMesa?.id ?? null,
+          idempotency_key: idemKey,
           items: JSON.stringify(items),
           total: cartTotal,
           status: 'pending',
           tipo_pedido: tipoPedido,
           table_num: selectedMesa?.numero ?? null,
           customer_name: customerName.trim() || undefined,
-          notes: orderNotes || undefined,
+          notes: notasFinales || undefined,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         message.warning('Sin conexión — Orden guardada localmente')
       }
 
+      // Pedido enviado o guardado: la próxima orden lleva clave nueva.
+      idemRef.current = null
       // Reset
       setCart([])
       setPersonas(0)
@@ -624,6 +660,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al enviar orden'}`)
     } finally {
+      enviando.current = false
       setSubmitting(false)
     }
   }, [cart, tipoPedido, selectedMesa, barra, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])
@@ -631,6 +668,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   // ─── RENDER ───────────────────────────────────────────────
   return (
     <div className="space-y-4">
+
+      {/* Pedidos tomados sin internet que el servidor rechazó: ver, reintentar o descartar */}
+      <OfflineConflicts />
 
       {/* Indicador offline */}
       {!isOnline && (

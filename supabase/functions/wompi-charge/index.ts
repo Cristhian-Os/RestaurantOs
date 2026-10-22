@@ -7,15 +7,18 @@
 //
 // Las transiciones de estado por fechas (past_due, mora, borrado) las hace la
 // función SQL enforce_subscription_lifecycle(); aquí SOLO se intenta cobrar.
+//
+// IDEMPOTENCIA: la referencia es DETERMINISTA (restaurante + día de Bogotá) y payments.reference es único: si el cron
+// corre dos veces el mismo día (o wompi-subscribe ya cobró hoy), el segundo INSERT falla con 23505 y ese restaurante se omite.
+// Antes de cobrar se consulta la RPC suscripcion_puede_cobrar(restaurante) (service_role).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { iguales, sha256Hex } from '../_shared/guardas.ts'
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }
 
-async function sha256Hex(input: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
-function ref(): string { return `sub_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}` }
+/** Día calendario de Bogotá (YYYYMMDD). */
+const diaBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).replaceAll('-', '')
+const ref = (restaurantId: string) => `sub_${restaurantId}_${diaBogota()}`
 // sandbox vs producción según el prefijo de la llave pública
 function apiBase(publicKey: string): string {
   return publicKey.includes('_prod_') ? 'https://production.wompi.co/v1' : 'https://sandbox.wompi.co/v1'
@@ -29,7 +32,7 @@ Deno.serve(async (req) => {
 
   // Autorización propia: solo el cron (con el secreto) puede disparar cobros
   const cronSecret = Deno.env.get('CRON_SECRET') ?? (await admin.from('platform_secrets').select('value').eq('key', 'cron_secret').maybeSingle()).data?.value
-  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+  if (!cronSecret || !iguales(req.headers.get('x-cron-secret') ?? '', String(cronSecret))) {
     return json({ error: 'no autorizado' }, 401)
   }
 
@@ -60,18 +63,33 @@ Deno.serve(async (req) => {
 
     const results: any[] = []
     for (const s of eligible) {
-      const reference = ref()
+      const reference = ref(s.restaurant_id)
       const amount = s.amount_in_cents as number
+      if (!Number.isInteger(amount) || amount < 100) continue
+
+      // La base decide si hoy toca cobrar (estado, fechas, pagos recientes). Fallo o respuesta distinta de true → no se cobra.
+      const { data: puede, error: ePuede } = await admin.rpc('suscripcion_puede_cobrar', { p_restaurant_id: s.restaurant_id })
+      if (ePuede || puede !== true) {
+        if (ePuede) console.error('wompi-charge suscripcion_puede_cobrar:', ePuede.message)
+        results.push({ restaurant_id: s.restaurant_id, skipped: ePuede ? 'error' : 'no_corresponde' })
+        continue
+      }
       const integrity = await sha256Hex(`${reference}${amount}COP${integritySecret}`)
 
-      // Registrar el intento como PENDING (con base, IVA y total por separado)
+      // Registrar el intento como PENDING (con base, IVA y total por separado). Referencia duplicada = ya se intentó hoy: se omite.
       const { data: d } = await admin.rpc('desglose_cobro', { p_total_cop: amount / 100 })
-      await admin.from('payments').insert({
+      const { error: eIns } = await admin.from('payments').insert({
         restaurant_id: s.restaurant_id, kind: 'subscription', reference,
         amount_in_cents: amount, currency: 'COP', status: 'PENDING',
         customer_email: s.wompi_customer_email,
         base_cop: d?.base_cop, iva_cop: d?.iva_cop, total_cop: d?.total_cop,
       })
+      if (eIns) {
+        if (eIns.code === '23505') { results.push({ restaurant_id: s.restaurant_id, skipped: 'ya_intentado_hoy' }); continue }
+        console.error('wompi-charge payments insert:', eIns.message)
+        results.push({ restaurant_id: s.restaurant_id, error: 'no_registrado' })
+        continue
+      }
 
       try {
         const resp = await fetch(`${base}/transactions`, {
@@ -87,18 +105,27 @@ Deno.serve(async (req) => {
             signature: integrity,
           }),
         })
-        const jr = await resp.json()
+        const jr = await resp.json().catch(() => null)
         const txId = jr?.data?.id ?? null
-        await admin.from('payments').update({ wompi_transaction_id: txId, raw: jr }).eq('reference', reference)
-        results.push({ restaurant_id: s.restaurant_id, reference, txId, http: resp.status })
+        if (!resp.ok || !txId) {
+          // Wompi rechazó la petición: no habrá webhook, así que el intento se cierra como ERROR (el cron lo reintenta mañana).
+          console.error('wompi-charge: Wompi rechazó el cobro', s.restaurant_id, resp.status)
+          await admin.from('payments').update({ status: 'ERROR', raw: jr }).eq('reference', reference).eq('status', 'PENDING')
+          results.push({ restaurant_id: s.restaurant_id, error: 'rechazado_por_wompi' })
+          continue
+        }
+        await admin.from('payments').update({ wompi_transaction_id: txId, raw: jr }).eq('reference', reference).eq('status', 'PENDING')
+        results.push({ restaurant_id: s.restaurant_id, txId })
       } catch (e) {
-        await admin.from('payments').update({ status: 'ERROR', raw: { error: String(e) } }).eq('reference', reference)
-        results.push({ restaurant_id: s.restaurant_id, reference, error: String(e) })
+        console.error('wompi-charge:', s.restaurant_id, e instanceof Error ? e.message : 'error')
+        await admin.from('payments').update({ status: 'ERROR', raw: { error: 'sin_respuesta' } }).eq('reference', reference).eq('status', 'PENDING')
+        results.push({ restaurant_id: s.restaurant_id, error: 'sin_respuesta' })
       }
     }
 
     return json({ ok: true, attempted: results.length, results })
   } catch (e) {
-    return json({ error: String(e) }, 500)
+    console.error('wompi-charge:', e instanceof Error ? e.message : 'error')
+    return json({ error: 'error interno' }, 500)
   }
 })

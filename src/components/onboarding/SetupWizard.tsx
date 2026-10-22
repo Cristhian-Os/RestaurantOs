@@ -15,6 +15,7 @@ import { QRPrintManager } from '../pwa/QRPrintManager'
 import { RestiGuia, RestiConfirma } from './RestiGuia'
 import { motivoClaro, cantidadTxt } from '../../lib/resti/motivos'
 import type { NavView } from '../../pages/Dashboard'
+import { numTxt, limpiarTxt, unidadCanon } from './numeros'
 
 type Fila = Record<string, string>
 interface Col { key: string; label: string; ph?: string; unit?: boolean; num?: boolean; list?: boolean }
@@ -94,21 +95,24 @@ const ghost: React.CSSProperties = { ...btn, background: 'var(--w-bg)', color: '
 const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }
 
 // Todo lo que viene de un archivo o del portapapeles es texto: nunca se interpreta como fórmula.
-const limpiar = (v: unknown) => String(v ?? '').trim().replace(/^[=+@]+/, '')
+const limpiar = limpiarTxt
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
-// "12.000" (miles) y "3,5" (decimal) como se escriben en Colombia
-const numTxt = (v: string) => {
-  const t = v.replace(/[$\s]/g, '')
-  return /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t.replace(',', '.')
-}
+
+const MAX_FILAS = 500
 
 function aFilas(matriz: unknown[][], cols: Col[]): Fila[] {
   if (matriz.length === 0) return []
   const head = (matriz[0] ?? []).map(c => norm(String(c ?? '')))
   const idx = cols.map(c => head.findIndex(h => h === norm(c.key) || h === norm(c.label)))
   const conEncabezado = idx[0] >= 0
-  return (conEncabezado ? matriz.slice(1) : matriz).slice(0, 500)
-    .map(r => Object.fromEntries(cols.map((c, i) => [c.key, limpiar((r ?? [])[conEncabezado ? idx[i] : i])])) as Fila)
+  const datos = conEncabezado ? matriz.slice(1) : matriz
+  if (datos.length > MAX_FILAS) message.warning(`El archivo tiene ${datos.length} filas: solo se cargaron las primeras ${MAX_FILAS}. Súbelo en partes para el resto.`)
+  return datos.slice(0, MAX_FILAS)
+    .map(r => Object.fromEntries(cols.map((c, i) => {
+      const crudo = limpiar((r ?? [])[conEncabezado ? idx[i] : i])
+      // Unidad: se reconoce (kilos → kg…); si no se entiende queda vacía y se marca para que la elijan
+      return [c.key, c.unit ? unidadCanon(crudo) : crudo]
+    })) as Fila)
     .filter(f => f[cols[0].key])
 }
 
@@ -129,7 +133,11 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, gui
   const nombreKey = cols[0].key
 
   const cambiar = (i: number, k: string, v: string) => setFilas(fs => fs.map((f, j) => j === i ? { ...f, [k]: v } : f))
-  const agregarFilas = (nuevas: Fila[]) => setFilas(fs => [...fs.filter(f => f[nombreKey]?.trim()), ...nuevas].slice(0, 500))
+  const agregarFilas = (nuevas: Fila[]) => setFilas(fs => {
+    const todas = [...fs.filter(f => f[nombreKey]?.trim()), ...nuevas]
+    if (todas.length > MAX_FILAS) message.warning(`Máximo ${MAX_FILAS} filas por carga: se descartaron ${todas.length - MAX_FILAS}.`)
+    return todas.slice(0, MAX_FILAS)
+  })
 
   const usarTexto = () => {
     const lineas = texto.split(/\r?\n/).filter(l => l.trim())
@@ -164,6 +172,12 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, gui
   const guardar = () => {
     const validas = filas.filter(f => limpiar(f[nombreKey]))
     if (validas.length === 0) { message.warning('Agrega al menos una fila'); return }
+    const unitCol = cols.find(c => c.unit)
+    const sinUnidad = unitCol ? validas.filter(f => !unidadCanon(f[unitCol.key])) : []
+    if (unitCol && sinUnidad.length > 0) {
+      message.error(`Elige la unidad (kg, gramo, litro, ml, pieza o paquete) de: ${sinUnidad.slice(0, 3).map(f => f[nombreKey]).join(', ')}${sinUnidad.length > 3 ? '…' : ''}`)
+      return
+    }
     const lista = validas.map(f => Object.fromEntries(cols.map(c => [c.key, c.num ? numTxt(limpiar(f[c.key])) : limpiar(f[c.key])])) as Fila)
     const problema = validar?.(lista)
     if (problema) { message.error(problema); return }
@@ -220,7 +234,8 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, gui
       {filas.map((f, i) => (
         <div key={i} style={{ ...card, padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(9.5rem, 1fr))', gap: '0.5rem', alignItems: 'center' }}>
           {cols.map(c => c.unit ? (
-            <select key={c.key} style={input} value={f[c.key]} aria-label={c.label} onChange={e => cambiar(i, c.key, e.target.value)}>
+            <select key={c.key} style={f[c.key] ? input : { ...input, borderColor: 'var(--w-wine)' }} value={f[c.key]} aria-label={c.label} onChange={e => cambiar(i, c.key, e.target.value)}>
+              {!f[c.key] && <option value="">Elegir unidad…</option>}
               {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
           ) : (

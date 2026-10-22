@@ -105,7 +105,7 @@ export function OptionGroupsV2({ groups, listas, sel, setSel, chip, kicker, hint
                           <button key={o.label} disabled={!on && lleno}
                             onClick={() => setGrupo(key, on ? subSel.filter(x => x !== o.label) : [...subSel, o.label])}
                             style={{ ...chip(on), opacity: !on && lleno ? 0.45 : 1 }}>
-                            {on ? '✓ ' : ''}{o.label}
+                            {on ? '✓ ' : ''}{o.label}{(Number(o.precio_extra) || 0) > 0 ? ` · +${fmt(Number(o.precio_extra))}` : ''}
                           </button>
                         )
                       })}

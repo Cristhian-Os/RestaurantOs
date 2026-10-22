@@ -7,6 +7,7 @@
  */
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { supabase } from '../services/supabaseClient'
+import message from 'antd/es/message'
 import ConfigProvider from 'antd/es/config-provider'
 import antdTheme from 'antd/es/theme'
 
@@ -17,6 +18,9 @@ interface ThemeCtx {
   setTheme: (t: Theme) => Promise<void>
   saving:   boolean
 }
+
+const leerLocal = (): string | null => { try { return localStorage.getItem('ros_theme') } catch { return null } }
+const guardarLocal = (t: Theme) => { try { localStorage.setItem('ros_theme', t) } catch { /* sin almacenamiento: no se recuerda */ } }
 
 const ThemeContext = createContext<ThemeCtx>({
   theme: 'light',
@@ -41,7 +45,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // 1. Carga instantánea desde localStorage
-    const local = localStorage.getItem('ros_theme') as Theme | null
+    const local = leerLocal() as Theme | null
     if (local === 'light' || local === 'dark') {
       applyTheme(local)
       setThemeState(local)
@@ -64,15 +68,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // 2. Fuente de verdad: Supabase (scopeado por RLS al restaurante del admin)
       supabase.from('restaurant_config')
         .select('id, modules_enabled')
-        .single()
-        .then(({ data }) => {
-          if (!data) return
+        .limit(1)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error || !data) return
           const modules = data.modules_enabled as Record<string, unknown> | null
           const dbTheme = modules?.theme as Theme | undefined
           if (dbTheme === 'light' || dbTheme === 'dark') {
             applyTheme(dbTheme)
             setThemeState(dbTheme)
-            localStorage.setItem('ros_theme', dbTheme)
+            guardarLocal(dbTheme)
           }
         })
 
@@ -90,7 +95,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             if (t === 'light' || t === 'dark') {
               applyTheme(t)
               setThemeState(t)
-              localStorage.setItem('ros_theme', t)
+              guardarLocal(t)
             }
           })
           .subscribe()
@@ -101,21 +106,30 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setTheme = useCallback(async (t: Theme) => {
+    const previo = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
     applyTheme(t)
     setThemeState(t)
-    localStorage.setItem('ros_theme', t)
+    guardarLocal(t)
     setSaving(true)
+    const revertir = (msg: string) => {
+      applyTheme(previo); setThemeState(previo); guardarLocal(previo)
+      message.error(msg)
+    }
     try {
-      const { data: cfg } = await supabase
-        .from('restaurant_config')
-        .select('id, modules_enabled')
-        .single()
+      const { data: rid } = await supabase.rpc('current_restaurant_id')
+      let q = supabase.from('restaurant_config').select('id, modules_enabled')
+      if (rid) q = q.eq('restaurant_id', rid)
+      const { data: cfg, error: e1 } = await q.limit(1).maybeSingle()
+      if (e1) { revertir('No se pudo guardar el tema'); return }
       if (cfg) {
         const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
-        await supabase.from('restaurant_config')
+        const { error: e2 } = await supabase.from('restaurant_config')
           .update({ modules_enabled: { ...modules, theme: t } })
           .eq('id', cfg.id)
+        if (e2) revertir('No se pudo guardar el tema')
       }
+    } catch {
+      revertir('No se pudo guardar el tema')
     } finally {
       setSaving(false)
     }

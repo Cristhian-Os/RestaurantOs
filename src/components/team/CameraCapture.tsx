@@ -43,15 +43,30 @@ export function CameraCapture({ title, onCapture, onClose }: Props) {
 
   useEffect(() => () => { if (shot) URL.revokeObjectURL(shot.url) }, [shot])
 
+  // Al repetir la foto el <video> se vuelve a montar: hay que reasignarle el stream o queda en negro.
+  useEffect(() => {
+    if (shot) { setReady(false); return }
+    const v = videoRef.current
+    if (v && streamRef.current && v.srcObject !== streamRef.current) {
+      v.srcObject = streamRef.current
+      v.play().catch(() => undefined)
+    }
+  }, [shot])
+
   const take = () => {
     const v = videoRef.current
-    if (!v || !v.videoWidth) return
+    if (!v || !v.videoWidth) { setError('La cámara aún no está lista. Espera un momento e intenta de nuevo.'); return }
     const scale  = Math.min(1, MAX_WIDTH / v.videoWidth)
     const canvas = document.createElement('canvas')
     canvas.width  = Math.round(v.videoWidth * scale)
     canvas.height = Math.round(v.videoHeight * scale)
-    canvas.getContext('2d')?.drawImage(v, 0, 0, canvas.width, canvas.height)
-    canvas.toBlob(blob => { if (blob) setShot({ blob, url: URL.createObjectURL(blob) }) }, 'image/jpeg', 0.8)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) { setError('No se pudo procesar la foto. Intenta de nuevo.'); return }
+    ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+    canvas.toBlob(blob => {
+      if (blob) setShot({ blob, url: URL.createObjectURL(blob) })
+      else setError('No se pudo generar la foto. Intenta de nuevo.')
+    }, 'image/jpeg', 0.8)
   }
 
   const send = async () => {

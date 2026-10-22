@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
+import { hoyBogota } from '../../services/menuOptions'
 
 interface Schedule {
   id:          string
@@ -54,7 +55,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
   const weekDays  = getWeekDays(anchor)
   const weekStart = toISO(weekDays[0])
   const weekEnd   = toISO(weekDays[6])
-  const todayISO  = toISO(new Date())
+  const todayISO  = hoyBogota()
 
   const bg     = 'var(--bg, #D8DAE4)'
   const bgSurf = 'var(--bg-surface, #CDD0DC)'
@@ -69,14 +70,15 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
 
   const fetchSchedules = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('employee_schedules')
       .select('*')
       .eq('employee_id', employeeId)
       .gte('work_date', weekStart)
       .lte('work_date', weekEnd)
       .order('work_date')
-    setSchedules(data || [])
+    if (error) message.error('No se pudo cargar el horario: ' + error.message)
+    else setSchedules(data || [])
     setLoading(false)
   }, [employeeId, weekStart, weekEnd])
 
@@ -93,7 +95,8 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
 
   const handleSave = async (iso: string) => {
     if (!form.start || !form.end)   { message.warning('Indica hora de inicio y fin'); return }
-    if (form.start >= form.end)     { message.warning('El inicio debe ser antes del fin'); return }
+    // Turno nocturno: si la salida es menor que la entrada, termina al día siguiente
+    if (form.start === form.end)    { message.warning('La entrada y la salida no pueden ser la misma hora'); return }
     setSaving(true)
     try {
       const existing = schedules.find(s => s.work_date === iso)
@@ -139,7 +142,9 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
   const totalHours = schedules.reduce((sum, s) => {
     const [sh, sm] = s.shift_start.split(':').map(Number)
     const [eh, em] = s.shift_end.split(':').map(Number)
-    return sum + (eh * 60 + em - sh * 60 - sm) / 60
+    let mins = eh * 60 + em - sh * 60 - sm
+    if (mins <= 0) mins += 24 * 60   // turno que cruza la medianoche
+    return sum + mins / 60
   }, 0)
 
   return (
@@ -234,6 +239,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
                           <div>
                             <p style={{ fontSize: '0.875rem', fontWeight: 700, color: txt, margin: 0 }}>
                               {shift.shift_start.slice(0, 5)} – {shift.shift_end.slice(0, 5)}
+                              {shift.shift_end.slice(0, 5) < shift.shift_start.slice(0, 5) && <span style={{ fontSize: '0.6875rem', color: txtMut, fontWeight: 600 }}> (+1 día)</span>}
                             </p>
                             {shift.notes && (
                               <p style={{ fontSize: '0.7rem', color: txtMut, margin: '0.125rem 0 0', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>

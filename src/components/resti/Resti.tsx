@@ -11,8 +11,8 @@ import { useRestiConversacion } from '../../hooks/useRestiConversacion'
 import { RestiSprite, RestiHat } from './RestiSprite'
 import { isRestiTarget, type RestiBrainResponse } from '../../lib/resti/targets'
 import { parseBrainResponse } from '../../lib/resti/brain'
-import { intencionLocal } from '../../lib/resti/intents'
-import { esOrdenDeCambio, ambitoDe, esConfirmacion, esConfirmacionReforzada, esCancelacion, resumenParaDecir, resumenAplicado } from '../../lib/resti/agente'
+import { intencionLocal, esFraseDeNavegacion } from '../../lib/resti/intents'
+import { esOrdenDeCambio, ambitoDe, esConfirmacion, esConfirmacionReforzada, esCancelacion, resumenParaDecir, resumenLote, FRASE_REFORZADA, type InformeLote } from '../../lib/resti/agente'
 import { loadCommandContext, applyChange } from '../../services/voiceCommandsApi'
 import { buildProposals, toPromptContext, type Proposal, type RawAction } from '../../services/voiceCommands'
 import { parseVoiceText } from '../../services/voiceService'
@@ -51,6 +51,12 @@ const movil = () => window.innerWidth < 768
 const abajo = () => (movil() ? 76 : 16)
 const ALTO_TARJETA = 200   // lo que sube Resti cuando la tarjeta del cambio propuesto ocupa el lugar de la barra
 const casa = (extra = 0) => ({ x: window.innerWidth - W - 12, y: window.innerHeight - H - abajo() - 66 - extra })
+/** Buena conexión para precargar el 3D: sin ahorro de datos, sin datos móviles y sin conexión lenta. */
+const puedePrecargar = () => {
+  const red = (navigator as unknown as { connection?: { saveData?: boolean; effectiveType?: string; type?: string } }).connection
+  if (!red) return true
+  return !red.saveData && red.type !== 'cellular' && (!red.effectiveType || red.effectiveType === '4g')
+}
 const buscar = (id: string) => document.querySelector<HTMLElement>(`[data-resti-target="${id}"]`)
 
 const CSS = `
@@ -108,9 +114,12 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
   const invocando = useRef(false)
   const propsRef = useRef({ userId, role, onApplied, onOpenVoiceCommands }); propsRef.current = { userId, role, onApplied, onOpenVoiceCommands }
   // Cambio que Resti preparó y espera tu confirmación (tocando Aplicar o diciendo «sí»). Nada se escribe sin ella.
-  const propuesta = useRef<{ proposals: Proposal[]; dicho: string } | null>(null)
+  type Origen = 'comando' | 'menu' | 'pedidos' | 'equipo' | 'operaciones'
+  const propuesta = useRef<{ proposals: Proposal[]; dicho: string; origen: Origen } | null>(null)
+  const aplicandoRef = useRef(false)                     // candado síncrono: el botón, la voz y el texto no pueden aplicar el mismo cambio dos veces
+  const [informe, setInforme] = useState<InformeLote | null>(null)   // lote aplicado a medias: qué se hizo y qué falló
   const [credenciales, setCredenciales] = useState<string[] | null>(null)
-  const [tarjeta, setTarjeta] = useState<{ proposals: Proposal[]; dicho: string; aplicando?: boolean } | null>(null)
+  const [tarjeta, setTarjeta] = useState<{ proposals: Proposal[]; dicho: string; origen: Origen; aplicando?: boolean } | null>(null)
   const [saliendo, setSaliendo] = useState(false)         // animación de vuelta al gorro (no desaparece de golpe)
   const [listo3D, setListo3D] = useState(false)          // el 3D ya dibujó su primer cuadro (hasta entonces se ve la captura del mismo modelo)
   const [sin3D, setSin3D] = useState(false)               // el equipo no puede con el 3D: se usan los sprites
@@ -119,6 +128,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
   const moviendose = useRef(false)                        // caminando o señalando: ahí el estado visual lo manda el movimiento
   const timerHabla = useRef<ReturnType<typeof setTimeout>>()
   const timerLimpiar = useRef<ReturnType<typeof setTimeout>>()
+  const timer3D = useRef<ReturnType<typeof setTimeout>>()   // reintento del 3D tras perder el contexto WebGL
   const opinion = useRef<MsgOpinion[] | null>(null)       // hilo de opinión/fallo en curso (null = conversación normal)
   const historial = useRef<Turno[]>([])                   // memoria de la conversación (últimos turnos; el servidor la valida y la recorta)
   const posRef = useRef<{ x: number; y: number } | null>(null); posRef.current = pos
@@ -269,7 +279,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
       const problema = proposals[0].problem ?? 'No pude preparar ese cambio'
       return solo ? { speech: problema, action: 'NONE' } : abrirEditor(`${problema}. Te abro el editor.`)
     }
-    const nueva = { proposals, dicho }
+    const nueva = { proposals, dicho, origen }
     propuesta.current = nueva; setTarjeta(nueva)
     setTimeout(() => { if (propuesta.current === nueva) descartar() }, 90_000)   // si nadie confirma, se descarta
     const delicado = proposals.some(p => p.change && p.riesgo === 'alto')
@@ -277,19 +287,27 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
   }, [descartar])
 
   const aplicar = useCallback(async (): Promise<RestiBrainResponse> => {
+    if (aplicandoRef.current) return { speech: 'Ya lo estoy aplicando, un momento.', action: 'NONE' }
+    // Se toma y se limpia la propuesta de forma síncrona, antes de cualquier await: un segundo toque o un «sí» repetido no la encuentra.
     const p = propuesta.current
     if (!p) return { speech: 'No tengo ningún cambio pendiente.', action: 'NONE' }
+    propuesta.current = null; aplicandoRef.current = true
     setTarjeta(t => t && { ...t, aplicando: true })
-    let hechos = 0; const fallos: string[] = [], avisos: string[] = []
-    for (const x of p.proposals) {   // en orden: las propuestas se calcularon suponiendo ese orden
-      if (!x.change) continue
-      try { const aviso = await applyChange(x.change, propsRef.current.role); if (aviso) avisos.push(aviso); hechos++ } catch (e) { fallos.push(e instanceof Error ? e.message : 'no se pudo aplicar') }
+    try {
+      const hechos: string[] = [], fallos: InformeLote['fallos'] = [], avisos: string[] = []
+      for (const x of p.proposals) {   // en orden: las propuestas se calcularon suponiendo ese orden
+        if (!x.change) continue
+        try { const aviso = await applyChange(x.change, propsRef.current.role); if (aviso) avisos.push(aviso); hechos.push(x.title) } catch (e) { fallos.push({ titulo: x.title, motivo: e instanceof Error ? e.message : 'no se pudo aplicar' }) }
+      }
+      if (hechos.length > 0) propsRef.current.onApplied()
+      // Datos que solo se muestran (la clave temporal de un alta): nunca se dicen en voz alta ni se guardan en el historial.
+      if (avisos.length) { setCredenciales(avisos); setTimeout(() => setCredenciales(null), 120_000) }
+      const inf: InformeLote = { hechos, fallos }
+      if (hechos.length > 0 && fallos.length > 0) setInforme(inf)
+      return { speech: resumenLote(inf) + (avisos.length ? ' La clave temporal está en pantalla, anótala.' : ''), action: 'NONE' }
+    } finally {
+      aplicandoRef.current = false; setTarjeta(null)
     }
-    propuesta.current = null; setTarjeta(null)
-    if (hechos > 0) propsRef.current.onApplied()
-    // Datos que solo se muestran (la clave temporal de un alta): nunca se dicen en voz alta ni se guardan en el historial.
-    if (avisos.length) { setCredenciales(avisos); setTimeout(() => setCredenciales(null), 120_000) }
-    return { speech: resumenAplicado(hechos, fallos) + (avisos.length ? ' La clave temporal está en pantalla, anótala.' : ''), action: 'NONE' }
   }, [])
 
   const ejecutar = useCallback(async (r: RestiBrainResponse, dicho: string) => {
@@ -310,15 +328,20 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
       if (saved) window.dispatchEvent(new CustomEvent(EVENTO_OPINION_GUARDADA))
       return { speech: reply, action: 'NONE' }
     }
-    // Un cambio preparado espera tu respuesta: «sí» lo aplica, «no» lo descarta; otra cosa lo descarta y se atiende lo nuevo.
+    if (aplicandoRef.current && (esConfirmacion(frase) || esCancelacion(frase))) return { speech: 'Ya lo estoy aplicando, un momento.', action: 'NONE' }
+    // Un cambio preparado espera tu respuesta. Primero la cancelación (cualquier «no», «cancela»…), luego la confirmación (solo frases cortas y completas);
+    // otra cosa descarta el cambio y se atiende lo nuevo. Los cambios delicados exigen la frase exacta o el botón Aplicar.
     if (propuesta.current) {
       const delicado = propuesta.current.proposals.some(p => p.change && p.riesgo === 'alto')
-      if (esConfirmacion(frase) && delicado && !esConfirmacionReforzada(frase)) return { speech: 'Es delicado. Toca Aplicar, o dime «sí, cancélalo» o «sí, desactívalo».', action: 'NONE' }
-      if (esConfirmacion(frase)) { if (!convRef.current.activa) ir('THINKING'); const r = await aplicar(); recordar('user', frase); recordar('assistant', r.speech); return r }
-      if (esCancelacion(frase)) { descartar(); return { speech: 'Listo, no hice ningún cambio.', action: 'NONE' } }
+      const exacta = delicado && esConfirmacionReforzada(frase)
+      if (esCancelacion(frase) && !exacta) { descartar(); return { speech: 'Listo, no hice ningún cambio.', action: 'NONE' } }
+      if (exacta || (esConfirmacion(frase) && !delicado)) { if (!convRef.current.activa) ir('THINKING'); const r = await aplicar(); recordar('user', frase); recordar('assistant', r.speech); return r }
+      if (esConfirmacion(frase)) return { speech: `Es delicado. Toca Aplicar, o dime «${FRASE_REFORZADA}».`, action: 'NONE' }
       descartar()
     }
-    let r: RestiBrainResponse | null = esOrdenDeCambio(frase) ? { speech: '', action: 'OPEN_VOICE_COMMANDS' } : intencionLocal(frase)   // las órdenes de cambio no pasan por el cerebro: más rápido
+    const local = intencionLocal(frase)
+    // Si la frase es de navegación («muéstrame las mesas») manda el router local aunque lleve un verbo de cambio; si no, las órdenes de cambio van directo al agente (sin pasar por el cerebro: más rápido).
+    let r: RestiBrainResponse | null = local?.action === 'WALK_AND_POINT' && esFraseDeNavegacion(frase) ? local : esOrdenDeCambio(frase) ? { speech: '', action: 'OPEN_VOICE_COMMANDS' } : local
     if (!r) { if (!convRef.current.activa) ir('THINKING'); r = await preguntarIA(frase, historial.current) }
     if (r.action === 'OPEN_VOICE_COMMANDS') { if (!convRef.current.activa) ir('THINKING'); r = await proponer(frase) }
     recordar('user', frase); recordar('assistant', r.speech)
@@ -336,12 +359,12 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
     try { const r = await obtenerRespuesta(frase); await ejecutar(r, frase) } finally { ocupado.current = false }
   }, [ejecutar, obtenerRespuesta])
 
-  useEffect(() => () => { clearTimeout(timerHabla.current); clearTimeout(timerLimpiar.current) }, [])
+  useEffect(() => () => { clearTimeout(timerHabla.current); clearTimeout(timerLimpiar.current); clearTimeout(timer3D.current) }, [])
 
   // Precarga (con el navegador libre) three.js y el modelo: así, al tocar el gorro, Resti aparece enseguida y no tras varios segundos en blanco.
+  // Solo con buena conexión: nada de precargar (≈2 MB) con ahorro de datos, datos móviles o conexión lenta.
   useEffect(() => {
-    const red = (navigator as unknown as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
-    if (red?.saveData || /(^|-)2g$/.test(red?.effectiveType ?? '')) return
+    if (!puedePrecargar()) return
     const w = window as unknown as { requestIdleCallback?: (f: () => void) => number; cancelIdleCallback?: (i: number) => void }
     const id = w.requestIdleCallback ? w.requestIdleCallback(() => { void cargar3D(); void fetch('/assets/resti/resti.glb').catch(() => {}) }) : window.setTimeout(() => { void cargar3D() }, 3000)
     return () => { if (w.requestIdleCallback) w.cancelIdleCallback?.(id); else clearTimeout(id) }
@@ -374,6 +397,22 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
     setPos(p => (p && Math.abs(p.y - antes.y) < 8 && Math.abs(p.x - antes.x) < 8 ? ahora : p))   // solo si está en su lugar; si caminó a otro sitio, no se mueve
   }, [tarjeta])
 
+  // Accesibilidad de las tarjetas (role=dialog): al aparecer reciben el foco, Escape las cierra y al cerrarse el foco vuelve a donde estaba.
+  const tarjetaRef = useRef<HTMLDivElement>(null)
+  const hayDialogo = !!tarjeta || !!informe || !!(credenciales && !tarjeta)
+  useEffect(() => {
+    if (!hayDialogo) return
+    const previo = document.activeElement as HTMLElement | null
+    tarjetaRef.current?.focus()
+    const alTecla = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (propuesta.current && !aplicandoRef.current) { descartar(); decir('Listo, no hice ningún cambio.') }
+      else if (!aplicandoRef.current) { setInforme(null); setCredenciales(null) }
+    }
+    window.addEventListener('keydown', alTecla)
+    return () => { window.removeEventListener('keydown', alTecla); if (previo && document.contains(previo)) previo.focus?.() }
+  }, [hayDialogo, descartar, decir])
+
   const bajoGorro = movil() ? 84 : 20   // el gorro vive aquí (en el celular, por encima de la barra de pestañas)
   const luzEl = luz && !reducido && (
     <div aria-hidden className="resti-anim" style={{ position: 'fixed', right: 45 - 110, bottom: bajoGorro + 29 - 110, width: 220, height: 220, zIndex: 93, pointerEvents: 'none', borderRadius: '50%',
@@ -384,7 +423,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
       <>
         <style>{CSS}</style>
         {luzEl}
-        <button type="button" onClick={invocar} onPointerEnter={() => { void cargar3D() }} onFocus={() => { void cargar3D() }} aria-label="Abrir a Resti, tu chef asistente" title="Resti"
+        <button type="button" onClick={invocar} onPointerEnter={() => { if (puedePrecargar()) void cargar3D() }} onFocus={() => { if (puedePrecargar()) void cargar3D() }} aria-label="Abrir a Resti, tu chef asistente" title="Resti"
           className="resti-anim"
           style={{ position: 'fixed', right: 16, bottom: bajoGorro, zIndex: 94, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer', padding: 0,
             border: '1px solid var(--w-line)', background: 'var(--w-surface)', boxShadow: 'var(--w-shadow-sm)',
@@ -426,7 +465,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
                 <>
                   {/* Mientras el 3D carga se ve la captura del mismo modelo (nunca un hueco en blanco) */}
                   {!listo3D && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}><RestiSprite estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} /></div>}
-                  <Suspense fallback={null}><Resti3D estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} height={H} onListo={() => setListo3D(true)} onFallo={() => setSin3D(true)} /></Suspense>
+                  <Suspense fallback={null}><Resti3D estado={estado3D(estado, saludando)} direccion={dir} desplazando={desplazando} luz={luzDe(estado)} width={W} height={H} onListo={() => setListo3D(true)} onFallo={motivo => { setSin3D(true); if (motivo === 'contexto-perdido') { clearTimeout(timer3D.current); timer3D.current = setTimeout(() => { setSin3D(false); setListo3D(false) }, 30_000) } }} /></Suspense>
                 </>
               )}
           </div>
@@ -452,7 +491,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
       )}
 
       {credenciales && !tarjeta && (
-        <div role="dialog" aria-label="Acceso del nuevo empleado"
+        <div ref={tarjetaRef} tabIndex={-1} role="dialog" aria-label="Acceso del nuevo empleado"
           style={{ position: 'fixed', bottom: abajo(), zIndex: 97, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 8, padding: 14,
             ...(mov ? { left: 12, right: 12 } : { right: 16, width: 360 }),
             background: 'var(--w-surface)', color: 'var(--w-ink)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', boxShadow: '0 14px 36px rgba(0,0,0,.3)',
@@ -464,8 +503,23 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
         </div>
       )}
 
+      {informe && !tarjeta && !credenciales && (
+        <div ref={tarjetaRef} tabIndex={-1} role="dialog" aria-label="Resultado de los cambios"
+          style={{ position: 'fixed', bottom: abajo(), zIndex: 97, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 8, padding: 14,
+            ...(mov ? { left: 12, right: 12 } : { right: 16, width: 360 }),
+            background: 'var(--w-surface)', color: 'var(--w-ink)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', boxShadow: '0 14px 36px rgba(0,0,0,.3)',
+            fontFamily: 'var(--w-sans)', animation: 'resti-globo 220ms ease-out both' }}>
+          <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#d6453a' }}>Se aplicó solo una parte</p>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto', fontSize: '0.8125rem' }}>
+            {informe.hechos.map((h, i) => <li key={'h' + i}>✓ {h}</li>)}
+            {informe.fallos.map((f, i) => <li key={'f' + i} style={{ color: '#d6453a', fontWeight: 700 }}>✗ {f.titulo}: {f.motivo}</li>)}
+          </ul>
+          <button type="button" onClick={() => setInforme(null)} style={{ minHeight: 44, border: 'none', borderRadius: '0.9rem', cursor: 'pointer', fontWeight: 800, fontFamily: 'inherit', background: 'var(--w-terra)', color: '#fff' }}>Entendido</button>
+        </div>
+      )}
+
       {tarjeta && (
-        <div role="dialog" aria-label="Cambio que Resti propone"
+        <div ref={tarjetaRef} tabIndex={-1} role="dialog" aria-label="Cambio que Resti propone"
           style={{ position: 'fixed', bottom: abajo(), zIndex: 97, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 10, padding: 14,
             ...(mov ? { left: 12, right: 12 } : { right: 16, width: 360 }),
             background: 'var(--w-surface)', color: 'var(--w-ink)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', boxShadow: '0 14px 36px rgba(0,0,0,.3)',
@@ -490,9 +544,9 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
             </button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: '0.72rem', color: 'var(--w-ink-mut)' }}>
-            <span>{tarjeta.proposals.some(p => p.change && p.riesgo === 'alto') ? 'Por voz di «sí, cancélalo» o «sí, desactívalo».' : 'También puedes decir «sí» o «cancela».'}</span>
-            <button type="button" onClick={() => { const d = tarjeta.dicho; descartar(); propsRef.current.onOpenVoiceCommands(d) }}
-              style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'underline', fontFamily: 'inherit', fontSize: 'inherit' }}>Revisar en el editor</button>
+            <span>{tarjeta.proposals.some(p => p.change && p.riesgo === 'alto') ? `Por voz di «${FRASE_REFORZADA}».` : 'También puedes decir «sí» o «cancela».'}</span>
+            {tarjeta.origen === 'comando' && <button type="button" onClick={() => { const d = tarjeta.dicho; descartar(); propsRef.current.onOpenVoiceCommands(d) }}
+              style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'underline', fontFamily: 'inherit', fontSize: 'inherit' }}>Revisar en el editor</button>}
           </div>
         </div>
       )}

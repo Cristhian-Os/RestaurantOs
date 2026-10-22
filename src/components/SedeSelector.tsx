@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabaseClient'
+import message from 'antd/es/message'
 
 interface Sede { id: string; nombre: string; actual: boolean }
 
@@ -15,7 +16,8 @@ export default function SedeSelector({ style }: { style?: React.CSSProperties })
 
   async function cambiar(id: string) {
     const { error } = await supabase.rpc('cambiar_sede', { p_restaurant_id: id })
-    if (!error) window.location.reload()   // todo el panel se recarga con la sede nueva
+    if (error) { message.error('No se pudo cambiar de sede: ' + error.message); return }
+    window.location.reload()   // todo el panel se recarga con la sede nueva
   }
 
   return (

@@ -6,6 +6,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
 import { MascotaUploader } from './MascotaUploader'
+import { urlSegura } from '../../lib/urlSegura'
+import { validarImagen } from '../../lib/imagenSubida'
 
 // Aplica el color primario del restaurante como acento de toda la app
 export function applyBranding(color?: string | null) {
@@ -88,6 +90,10 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
 
   const save = useCallback(async () => {
     if (!rid) return
+    const ig = cfg.instagram_url?.trim() ?? ''
+    const fb = cfg.facebook_url?.trim() ?? ''
+    if (ig && !urlSegura(ig)) { message.error('El enlace de Instagram debe empezar por https://'); return }
+    if (fb && !urlSegura(fb)) { message.error('El enlace de Facebook debe empezar por https://'); return }
     setSaving(true)
     try {
       const nombre = cfg.display_name.trim() || 'Mi Restaurante'
@@ -102,8 +108,8 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
         promo_activo:   cfg.promo_activo,
         whatsapp_numero:      cfg.whatsapp_numero?.replace(/\D/g, '') || null,
         direccion:            cfg.direccion?.trim() || null,
-        instagram_url:        cfg.instagram_url?.trim() || null,
-        facebook_url:         cfg.facebook_url?.trim() || null,
+        instagram_url:        ig ? urlSegura(ig) : null,
+        facebook_url:         fb ? urlSegura(fb) : null,
         propina_sugerida_pct: cfg.propina_sugerida_pct || null,
         horario_activo:       cfg.horario_activo,
         horario_apertura:     cfg.horario_apertura || null,
@@ -125,14 +131,16 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
     if (!rid) return
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop() || 'png'
-      const path = `${rid}/logo.${ext}`
+      const v = validarImagen(file)
+      if ('error' in v) throw new Error(v.error)
+      const path = `${rid}/logo.${v.ext}`
       const { error: upErr } = await supabase.storage.from('branding').upload(path, file, { upsert: true, contentType: file.type })
       if (upErr) throw upErr
       const { data: pub } = supabase.storage.from('branding').getPublicUrl(path)
       const url = `${pub.publicUrl}?t=${Date.now()}`
-      const { error } = await supabase.from('restaurant_config').update({ logo_url: url }).eq('restaurant_id', rid)
+      const { data: filas, error } = await supabase.from('restaurant_config').update({ logo_url: url }).eq('restaurant_id', rid).select('restaurant_id')
       if (error) throw error
+      if (!filas || filas.length === 0) throw new Error('No se pudo guardar el logo (¿no tienes permiso o falta la configuración?)')
       setCfg(c => ({ ...c, logo_url: url }))
       window.dispatchEvent(new CustomEvent('branding-updated', { detail: { logo: url } }))
       message.success('Logo actualizado')
@@ -145,14 +153,16 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
     if (!rid) return
     setUploadingPortada(true)
     try {
-      const ext = file.name.split('.').pop() || 'jpg'
-      const path = `${rid}/portada.${ext}`
+      const v = validarImagen(file)
+      if ('error' in v) throw new Error(v.error)
+      const path = `${rid}/portada.${v.ext}`
       const { error: upErr } = await supabase.storage.from('restaurant-assets').upload(path, file, { upsert: true, contentType: file.type })
       if (upErr) throw upErr
       const { data: pub } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
       const url = `${pub.publicUrl}?t=${Date.now()}`
-      const { error } = await supabase.from('restaurant_config').update({ portada_url: url }).eq('restaurant_id', rid)
+      const { data: filas, error } = await supabase.from('restaurant_config').update({ portada_url: url }).eq('restaurant_id', rid).select('restaurant_id')
       if (error) throw error
+      if (!filas || filas.length === 0) throw new Error('No se pudo guardar la portada (¿no tienes permiso o falta la configuración?)')
       setCfg(c => ({ ...c, portada_url: url }))
       message.success('Portada actualizada')
     } catch (e) {
@@ -190,7 +200,7 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
           </div>
           <label className="w-press" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-ink)' }}>
             {uploading ? 'Subiendo…' : 'Subir logo'}
-            <input type="file" accept="image/*" hidden
+            <input type="file" accept="image/jpeg,image/png,image/webp" hidden
               onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
           </label>
         </div>
@@ -207,7 +217,7 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
           </div>
           <label className="w-press" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-ink)' }}>
             {uploadingPortada ? 'Subiendo…' : 'Subir portada'}
-            <input type="file" accept="image/*" hidden
+            <input type="file" accept="image/jpeg,image/png,image/webp" hidden
               onChange={e => { const f = e.target.files?.[0]; if (f) uploadPortada(f) }} />
           </label>
         </div>

@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
+import { hashIp, ipDe, permitido, respuestaPermitida, registrarUsoIA, sinPersonales, topeGlobal } from '../_shared/guardas.ts'
 import { validarOpinion, contexto, conversacionGuardable, TIPOS, MODULOS, URGENCIAS } from './opinion.ts'
 import { SYSTEM_LANDING, GUARDAR_LEAD, MAX_MENSAJES_SESION, CIERRE_LARGO, planesTexto, filtrarRespuesta, validarLead, refValido, sesionValida, sinTelefonos, type PlanPublico } from './landing.ts'
 
@@ -57,11 +58,6 @@ const GUARDAR_OPINION = {
 const ROLES_OPINION = ['admin', 'cashier', 'waiter', 'kitchen']
 const TIPO_TXT: Record<string, string> = { fallo: 'reporte del fallo', mejora: 'sugerencia de mejora', personalizacion: 'idea de personalización', pregunta: 'pregunta', otro: 'mensaje' }
 
-async function sha256Hex(input: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   const json = (o: unknown, s = 200) =>
@@ -78,10 +74,11 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // La IP no se guarda en texto: solo un hash (sirve para el límite y para revisar abusos, no para identificar a nadie).
-    const xff = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
-    const ip = req.headers.get('cf-connecting-ip') ?? (xff || 'sin-ip')
-    const ipHash = 'h:' + (await sha256Hex(ip + Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))).slice(0, 16)
+    // La IP no se guarda en texto: solo un hash con sal propia (IP_HASH_SALT; ver _shared/guardas.ts). Sirve para el límite y para revisar abusos, no para identificar a nadie.
+    const ipHash = 'h:' + await hashIp(ipDe(req))
+
+    // Tope GLOBAL diario de la función (techo de costo aunque cambien de IP o de cuenta). Falla cerrado.
+    if (!(await topeGlobal(supabase, 'chat-support'))) return json({ reply: 'Resti está descansando por hoy. Escríbenos al correo de soporte o vuelve mañana.' }, 429)
 
     // Modo opinión: exige sesión de un usuario del personal. Restaurante, usuario y rol salen de la sesión, nunca del modelo.
     let sesion: { userId: string; restaurantId: string; role: string } | null = null
@@ -96,19 +93,16 @@ Deno.serve(async (req: Request) => {
       sesion = { userId: user.id, restaurantId: prof.restaurant_id as string, role: String(prof.role) }
       // Límites para controlar el costo: por usuario (rápido y diario) y por restaurante (diario).
       for (const [key, max, secs] of [[`op:${user.id}`, 30, 600], [`opd:${user.id}`, 100, 86400], [`opr:${sesion.restaurantId}`, 300, 86400]] as const) {
-        const { data: ok } = await supabase.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs })
-        if (ok === false) return json({ reply: 'Has enviado muchos mensajes por hoy. Intenta de nuevo más tarde.' }, 429)
+        if (!(await permitido(supabase, key, max, secs))) return json({ reply: 'Has enviado muchos mensajes por hoy. Intenta de nuevo más tarde.' }, 429)
       }
     } else {
       // Rate limit del modo soporte: máx 20 mensajes por IP cada 10 min. Cada mensaje cuesta
       // dinero real (llamada a Gemini) — sin esto, un script podía generar una factura sorpresa.
-      const { data: withinLimit } = await supabase.rpc('check_rate_limit', { p_key: `chat:${ipHash}`, p_max: 20, p_window_seconds: 600 })
-      if (withinLimit === false) return json({ reply: 'Has enviado muchos mensajes seguidos. Espera unos minutos e intenta de nuevo.' }, 429)
+      if (!(await permitido(supabase, `chat:${ipHash}`, 20, 600))) return json({ reply: 'Has enviado muchos mensajes seguidos. Espera unos minutos e intenta de nuevo.' }, 429)
       if (modoLanding) {
         // Landing: además del límite por IP, tope por conversación y por sesión (cada mensaje cuesta una llamada a Gemini).
         if (messages.filter((m) => m.role === 'user').length > MAX_MENSAJES_SESION) return json({ reply: CIERRE_LARGO })
-        const { data: okSesion } = await supabase.rpc('check_rate_limit', { p_key: `ls:${sesionValida(body?.session) ?? ipHash}`, p_max: 40, p_window_seconds: 3600 })
-        if (okSesion === false) return json({ reply: CIERRE_LARGO }, 429)
+        if (!(await permitido(supabase, `ls:${sesionValida(body?.session) ?? ipHash}`, 40, 3600))) return json({ reply: CIERRE_LARGO }, 429)
       }
     }
 
@@ -119,7 +113,7 @@ Deno.serve(async (req: Request) => {
     } else {
       // Precios: una sola fuente (tabla planes). Si falla, el chatbot no los inventa.
       const { data: planes } = await supabase.rpc('planes_publicos')
-      if (modoLanding) planesLanding = Array.isArray(planes) ? planes as PlanPublico[] : []
+      planesLanding = Array.isArray(planes) ? planes as PlanPublico[] : []   // el filtro de salida (precios/promociones) se aplica en soporte Y landing
       const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
       const planesTxt = Array.isArray(planes) && planes.length
         ? planes.map((p: any) => `- ${p.nombre}: ${cop(p.mensual.total_cop)} al mes con IVA incluido (${cop(p.mensual.base_cop)} + IVA), o ${cop(p.anual.total_cop)} al año.`
@@ -153,6 +147,7 @@ Deno.serve(async (req: Request) => {
       console.error('proveedor de IA:', e instanceof Error ? e.message : 'error')   // solo el mensaje: nunca la clave ni la conversación
       return json({ reply: 'Ahora mismo no puedo responder. Intenta de nuevo en un momento.' })
     }
+    await registrarUsoIA(supabase, sesion?.restaurantId, modoOpinion ? 'chat_opinion' : modoLanding ? 'chat_landing' : 'chat_soporte', r)
 
     // Modo opinión: si el modelo llamó a guardar_opinion, se valida y se guarda con los datos de la SESIÓN.
     if (modoOpinion && sesion) {
@@ -191,16 +186,16 @@ Deno.serve(async (req: Request) => {
     }
 
     const replyCrudo = r.texto || 'No pude generar una respuesta. ¿Puedes reformular tu pregunta?'
-    // Landing: lo que Resti dice nunca trae precios fuera de la tabla, "gratis" ni promociones inventadas.
-    const reply = modoLanding ? filtrarRespuesta(replyCrudo, planesLanding).texto : replyCrudo
+    // Soporte y landing: lo que Resti dice nunca trae precios fuera de la tabla, "gratis" ni promociones inventadas.
+    const reply = modoOpinion ? replyCrudo : filtrarRespuesta(replyCrudo, planesLanding).texto
 
-    // Log para que el super-admin pueda revisar quejas/dudas reales del chatbot (solo modo soporte; la IP va con hash).
+    // Log para que el super-admin pueda revisar quejas/dudas reales del chatbot (soporte y landing; la IP va con hash).
     // Best-effort: si falla el insert, no debe romper la respuesta al usuario.
     if (!modoOpinion) {
       const lastUserMessage = contents.filter((c) => c.role === 'user').at(-1)?.parts[0]?.text ?? ''
       supabase.from('platform_chat_logs').insert({
-        user_message: modoLanding ? sinTelefonos(lastUserMessage) : lastUserMessage,   // en la landing los teléfonos no van al registro de chats
-        bot_reply: reply,
+        user_message: sinPersonales(sinTelefonos(lastUserMessage)),   // teléfonos y correos no van al registro de chats (en ningún modo)
+        bot_reply: sinPersonales(reply),
         ip: ipHash,
       }).then(({ error }) => { if (error) console.error('chat log insert failed', error) })
     }

@@ -18,7 +18,7 @@ interface Props<T> {
   disabled?:  boolean
 }
 
-type State = 'idle' | 'recording' | 'processing'
+type State = 'idle' | 'starting' | 'recording' | 'processing'   // 'starting' = esperando el permiso del micrófono
 
 const MicIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}>
@@ -30,8 +30,10 @@ export function VoiceButton<T = Record<string, unknown>>({ kind, onResult, conte
   const [state, setState]     = useState<State>('idle')
   const [seconds, setSeconds] = useState(0)
   const recRef = useRef<Recorder | null>(null)
+  const montado = useRef(true)
+  const iniciando = useRef(false)   // candado síncrono: toques repetidos mientras se pide el permiso no abren dos grabaciones
 
-  useEffect(() => () => recRef.current?.cancel(), [])
+  useEffect(() => { montado.current = true; return () => { montado.current = false; recRef.current?.cancel(); recRef.current = null } }, [])
 
   useEffect(() => {
     if (state !== 'recording') return
@@ -60,32 +62,39 @@ export function VoiceButton<T = Record<string, unknown>>({ kind, onResult, conte
   }, [seconds, state])
 
   const toggle = async () => {
-    if (state === 'processing') return
+    if (state === 'processing' || iniciando.current) return
     if (state === 'recording') { await finish(); return }
+    iniciando.current = true; setState('starting')
     try {
-      recRef.current = await startRecording()
+      const rec = await startRecording()
+      // Si el botón se desmontó mientras se daba el permiso, el micrófono se suelta de inmediato.
+      if (!montado.current) { rec.cancel(); return }
+      recRef.current = rec
       setSeconds(0)
       setState('recording')
     } catch (e) {
-      message.error(e instanceof Error ? e.message : 'No se pudo grabar')
+      if (montado.current) { setState('idle'); message.error(e instanceof Error ? e.message : 'No se pudo grabar') }
+    } finally {
+      iniciando.current = false
     }
   }
 
   const recording  = state === 'recording'
   const processing = state === 'processing'
+  const starting   = state === 'starting'
 
   return (
-    <button type="button" onClick={toggle} disabled={disabled || processing}
+    <button type="button" onClick={toggle} disabled={disabled || processing || starting}
       title={title ?? 'Dictar por voz'} aria-label={title ?? 'Dictar por voz'}
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', flexShrink: 0,
         padding: label ? '0.5rem 0.875rem' : '0.5rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer',
         fontWeight: 700, fontSize: '0.8125rem', fontFamily: 'inherit',
         background: recording ? 'var(--w-wine, #b91c1c)' : 'var(--w-terra, #FF5722)', color: '#fff',
-        opacity: disabled || processing ? 0.6 : 1,
+        opacity: disabled || processing || starting ? 0.6 : 1,
       }}>
       <MicIcon />
-      {recording ? `Detener · ${seconds}s` : processing ? 'Procesando…' : label}
+      {recording ? `Detener · ${seconds}s` : processing ? 'Procesando…' : starting ? 'Activando…' : label}
     </button>
   )
 }

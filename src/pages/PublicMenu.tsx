@@ -10,6 +10,7 @@ import {
   useState, useEffect, useMemo, useCallback, useRef, memo,
 } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { message } from 'antd'
 import { supabase } from '../services/supabaseClient'
 import { pushNotificationService } from '../services/pushNotificationService'
 import type { Dish, DishCategory, DishOptionGroup, ItemSel } from '../types'
@@ -41,8 +42,45 @@ const CAT_TINT: Record<string, string> = {
 }
 
 
+// Mesa: 1 a 3 dígitos, rango 1-100
+function mesaValida(m: string): boolean {
+  return /^\d{1,3}$/.test(m.trim()) && Number(m) >= 1 && Number(m) <= 100
+}
+
 function fmtCOP(n: number) {
   return '$' + n.toLocaleString('es-CO')
+}
+
+// Solo https:// — para href/src que vienen de datos del restaurante
+function urlSegura(u: unknown): string | null {
+  return typeof u === 'string' && /^https:\/\/[^\s"'<>]+$/i.test(u.trim()) ? u.trim() : null
+}
+// Solo colores #hex (evita url(...) u otras expresiones CSS en variables)
+function colorSeguro(c: unknown): string | null {
+  return typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c.trim()) ? c.trim() : null
+}
+// Mensaje legible de un error de Supabase/JS (PostgrestError no es instancia de Error)
+function msgDe(e: unknown, ignorar?: RegExp): string | null {
+  const m = e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message || '') : ''
+  return m && !(ignorar && ignorar.test(m)) ? m : null
+}
+
+// Seguimiento del pedido: se guarda en este navegador para recuperarlo al recargar o volver de Wompi
+const ORDER_TRACK_KEY = 'rt_pedido_seguimiento'
+const ORDER_TRACK_TTL = 6 * 60 * 60 * 1000
+function saveTrackedOrder(orderId: string, restaurantId: string) {
+  try { localStorage.setItem(ORDER_TRACK_KEY, JSON.stringify({ orderId, restaurantId, ts: Date.now() })) } catch { /* sin localStorage */ }
+}
+function loadTrackedOrder(): { orderId: string; restaurantId: string } | null {
+  try {
+    const o = JSON.parse(localStorage.getItem(ORDER_TRACK_KEY) ?? 'null')
+    if (o && typeof o.orderId === 'string' && typeof o.restaurantId === 'string' && Date.now() - Number(o.ts) < ORDER_TRACK_TTL) return o
+    localStorage.removeItem(ORDER_TRACK_KEY)
+  } catch { /* ignorar */ }
+  return null
+}
+function clearTrackedOrder() {
+  try { localStorage.removeItem(ORDER_TRACK_KEY) } catch { /* ignorar */ }
 }
 
 interface CartItem {
@@ -174,7 +212,7 @@ DishImage.displayName = 'DishImage'
 
 // ── Customize bottom-sheet (liquid glass) ─────────────────────────
 // El mismo constructor arma un producto nuevo o edita uno ya pedido (initial).
-export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, onAddMany, onClose }: {
+const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, onAddMany, onClose }: {
   dish:          Dish
   menu:          MenuConfig
   initial?:      { qty: number; sel?: ItemSel; previousNotes?: string | null }
@@ -522,7 +560,7 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
   const chosen = Object.values(sel)
   // Precio = suma con margen, redondeado hacia ARRIBA al múltiplo de 100 más cercano
   const rawTotal = chosen.reduce((s, c) => s + c.precioUnit * c.cantidad, 0)
-  const total = Math.ceil(rawTotal / 100) * 100
+  const total = Math.ceil(Math.round(rawTotal) / 100) * 100
   const isValid = chosen.length > 0
 
   const fmtQty = (c: CustomSel) =>
@@ -678,10 +716,17 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
     setReportedIds(getReportedSet())
   }, [])
 
+  // El nombre se "debouncea" para no reiniciar el intervalo de polling con cada tecla
+  const [nombreDeb, setNombreDeb] = useState(initialName)
+  useEffect(() => {
+    const t = setTimeout(() => setNombreDeb(nombre), 600)
+    return () => clearTimeout(t)
+  }, [nombre])
+
   const fetchComentarios = useCallback(() => {
-    supabase.rpc('obtener_comentarios_plato', { p_dish_id: dish.id, p_cliente_nombre: nombre.trim() || null })
-      .then(({ data }) => setComentarios((data as Comentario[] | null) ?? []))
-  }, [dish.id, nombre])
+    supabase.rpc('obtener_comentarios_plato', { p_dish_id: dish.id, p_cliente_nombre: nombreDeb.trim() || null })
+      .then(({ data, error: err }) => { if (!err) setComentarios((data as Comentario[] | null) ?? []) })
+  }, [dish.id, nombreDeb])
 
   useEffect(() => {
     fetchComentarios()
@@ -736,7 +781,8 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
 
   const reportarComentario = async (id: string) => {
     if (reportedIds.has(id)) return
-    await supabase.rpc('reportar_comentario_plato', { p_comment_id: id })
+    const { error: err } = await supabase.rpc('reportar_comentario_plato', { p_comment_id: id })
+    if (err) { setComentarioErr(err.message); return }
     markReported(id)
     setReportedIds(getReportedSet())
   }
@@ -1101,6 +1147,9 @@ export default function PublicMenu() {
   const [savingEdit,    setSavingEdit]    = useState(false)
   const [socialMap,     setSocialMap]     = useState<Record<string, DishSocial>>({})
   const [reviewDish,    setReviewDish]    = useState<Dish | null>(null)
+  const [notFound,      setNotFound]      = useState(false)            // slug inválido / restaurante inactivo
+  const [menuError,     setMenuError]     = useState<string | null>(null)
+  const [nowTick,       setNowTick]       = useState(0)                // fuerza recalcular abierto/cerrado
 
   // Vista previa del asistente de configuración (?preview=1): el administrador ve este mismo menú con su marca sin guardar.
   // Solo se aceptan mensajes de la misma página de origen, el color debe ser hexadecimal y los enlaces https.
@@ -1130,7 +1179,10 @@ export default function PublicMenu() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const m = params.get('mesa')
-    if (m) setMesa(m)
+    if (m !== null && m !== '') {
+      if (mesaValida(m)) setMesa(String(Number(m)))
+      else message.warning('El número de mesa del enlace no es válido. Indícalo manualmente al pedir.')
+    }
     if (params.get('origen') === 'barra') setBarra(true)
   }, [])
 
@@ -1157,10 +1209,15 @@ export default function PublicMenu() {
 
     const resolve = async () => {
       if (slug) {
-        const { data } = await supabase.rpc('restaurante_publico', { p_slug: slug }).maybeSingle<{ id: string; name: string }>()
+        // Con slug (o ?r=): solo ese restaurante. Si no existe o está inactivo, no se cae a otro.
+        const { data, error } = await supabase.rpc('restaurante_publico', { p_slug: slug }).maybeSingle<{ id: string; name: string }>()
         if (data) { setRestaurantId(data.id); if (data.name) setBizName(data.name); return }
+        if (error) setMenuError('No pudimos cargar el menú. Revisa tu conexión e intenta de nuevo.')
+        else setNotFound(true)
+        setLoading(false)
+        return
       }
-      // Sin slug válido: compatibilidad con los QR físicos ya impresos de Cholaos
+      // Sin slug: compatibilidad con los QR físicos ya impresos de Cholaos
       // (creados antes del multi-tenant, sin slug en la URL). Ya no se listan restaurantes.
       const LEGACY_DEFAULT_ID = 'cdd99ebf-c8b7-43b1-b437-1d136e283212'
       const { data: legacy } = await supabase.rpc('restaurante_publico', { p_id: LEGACY_DEFAULT_ID }).maybeSingle<{ id: string; name: string }>()
@@ -1169,10 +1226,11 @@ export default function PublicMenu() {
         if (legacy.name) setBizName(legacy.name)
       } else {
         setRestaurantId(null)
+        setNotFound(true)
         setLoading(false)
       }
     }
-    resolve()
+    resolve().catch(() => { setMenuError('No pudimos cargar el menú. Revisa tu conexión e intenta de nuevo.'); setLoading(false) })
   }, [])
 
   // ── data fetch ─────────────────────────────────────────────────
@@ -1187,47 +1245,63 @@ export default function PublicMenu() {
     })
   }, [restaurantId])
 
-  const fetchMenuData = useCallback(() => {
+  const fetchMenuData = useCallback(async () => {
     if (!restaurantId) return
-    // Mascota (imagen fija, opcional). Consulta aparte: si la columna aún no existe, el menú sigue igual sin mascota.
-    supabase.from('restaurant_config').select('mascota_url').eq('restaurant_id', restaurantId).maybeSingle()
-      .then(({ data }) => { const u = data?.mascota_url; setMascotaUrl(typeof u === 'string' && /^https:\/\//.test(u) ? u : null) })
-    Promise.all([
-      supabase.from('dishes').select('*').eq('restaurant_id', restaurantId).eq('available', true)
-        .neq('availability_status', 'discontinued').order('sort_order').order('name'),
-      supabase.from('restaurant_config').select('display_name, modules_enabled, logo_url, color_primario, promo_texto, promo_activo, whatsapp_numero, direccion, instagram_url, facebook_url, propina_sugerida_pct, portada_url, horario_activo, horario_apertura, horario_cierre, cerrado_manual, cerrado_mensaje')
-        .eq('restaurant_id', restaurantId).maybeSingle(),
-    ]).then(([dr, cr]) => {
+    try {
+      // La config pública sale de la RPC config_publica (solo columnas públicas).
+      const [dr, cr] = await Promise.all([
+        supabase.from('dishes').select('*').eq('restaurant_id', restaurantId).eq('available', true)
+          .neq('availability_status', 'discontinued').order('sort_order').order('name'),
+        supabase.rpc('config_publica', { p_restaurant_id: restaurantId }),
+      ])
+      // Si algo falla se CONSERVA el estado previo (menú y agotados) y se avisa con opción de reintentar.
+      if (dr.error || cr.error) {
+        setMenuError('No pudimos actualizar el menú. Lo que ves puede estar desactualizado.')
+        return
+      }
+      setMenuError(null)
       setDishes(dr.data || [])
       refreshSocial()
-      if (cr.data?.display_name) setBizName(cr.data.display_name)
-      if (cr.data?.logo_url) setLogoUrl(cr.data.logo_url as string)
-      setPromo(cr.data?.promo_activo && cr.data?.promo_texto ? cr.data.promo_texto as string : null)
+      const raw = cr.data as Record<string, unknown> | Record<string, unknown>[] | null
+      const cfg = (Array.isArray(raw) ? raw[0] : raw) ?? {}
+      if (typeof cfg.display_name === 'string' && cfg.display_name) setBizName(cfg.display_name)
+      setLogoUrl(urlSegura(cfg.logo_url))
+      setPromo(cfg.promo_activo && typeof cfg.promo_texto === 'string' && cfg.promo_texto ? cfg.promo_texto : null)
       setBrandExtra({
-        whatsapp_numero: cr.data?.whatsapp_numero as string | null,
-        direccion: cr.data?.direccion as string | null,
-        instagram_url: cr.data?.instagram_url as string | null,
-        facebook_url: cr.data?.facebook_url as string | null,
-        propina_sugerida_pct: cr.data?.propina_sugerida_pct as number | null,
-        portada_url: cr.data?.portada_url as string | null,
-        horario_activo: cr.data?.horario_activo as boolean | undefined,
-        horario_apertura: cr.data?.horario_apertura as string | null,
-        horario_cierre: cr.data?.horario_cierre as string | null,
-        cerrado_manual: cr.data?.cerrado_manual as boolean | undefined,
-        cerrado_mensaje: cr.data?.cerrado_mensaje as string | null,
+        whatsapp_numero: typeof cfg.whatsapp_numero === 'string' ? cfg.whatsapp_numero.replace(/\D/g, '') || null : null,
+        direccion: cfg.direccion as string | null,
+        instagram_url: urlSegura(cfg.instagram_url),
+        facebook_url: urlSegura(cfg.facebook_url),
+        propina_sugerida_pct: cfg.propina_sugerida_pct as number | null,
+        portada_url: urlSegura(cfg.portada_url),
+        horario_activo: cfg.horario_activo as boolean | undefined,
+        horario_apertura: cfg.horario_apertura as string | null,
+        horario_cierre: cfg.horario_cierre as string | null,
+        cerrado_manual: cfg.cerrado_manual as boolean | undefined,
+        cerrado_mensaje: cfg.cerrado_mensaje as string | null,
       })
-      // Marca del restaurante: aplicar su color como acento del menú
-      if (cr.data?.color_primario) document.documentElement.style.setProperty('--w-terra', cr.data.color_primario as string)
+      // Marca del restaurante: aplicar su color como acento del menú (solo #hex)
+      const color = colorSeguro(cfg.color_primario)
+      if (color) document.documentElement.style.setProperty('--w-terra', color)
       // Categorías (nombre y orden), sabores y lo que caja marcó como agotado
-      const baseCfg = parseMenuConfig(cr.data?.modules_enabled)
+      const baseCfg = parseMenuConfig(cfg.modules_enabled)
       setMenuCfg(baseCfg)
+      // Mascota (imagen fija, opcional): viene en la config pública si existe; si no, consulta aparte tolerante a fallos.
+      if (typeof cfg.mascota_url === 'string') setMascotaUrl(urlSegura(cfg.mascota_url))
+      else {
+        supabase.from('restaurant_config').select('mascota_url').eq('restaurant_id', restaurantId).maybeSingle()
+          .then(({ data }) => { setMascotaUrl(urlSegura(data?.mascota_url)) }, () => {})
+      }
       // Listas de opciones del restaurante (solo si usa las opciones universales)
       if (baseCfg.optionsV2) {
         supabase.rpc('listas_opciones_publicas', { p_restaurant_id: restaurantId })
           .then(({ data }) => setMenuCfg(conListas(baseCfg, listasDesdeRpc(data))))
       }
+    } catch {
+      setMenuError('No pudimos actualizar el menú. Revisa tu conexión e intenta de nuevo.')
+    } finally {
       setLoading(false)
-    })
+    }
   }, [restaurantId, refreshSocial])
 
   useEffect(() => {
@@ -1243,10 +1317,23 @@ export default function PublicMenu() {
     if (!restaurantId) return
     const ch = supabase.channel(`public-menu-sync-${restaurantId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter: `restaurant_id=eq.${restaurantId}` }, fetchMenuData)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'restaurant_config', filter: `restaurant_id=eq.${restaurantId}` }, fetchMenuData)
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [restaurantId, fetchMenuData])
+
+  // La config pública (agotados, horario, promo) ya no llega por realtime al comensal anónimo:
+  // se consulta cada ~20 s mientras la pestaña esté visible.
+  useEffect(() => {
+    if (!restaurantId) return
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetchMenuData() }, 20000)
+    return () => clearInterval(id)
+  }, [restaurantId, fetchMenuData])
+
+  // Recalcular abierto/cerrado por horario cada 30 s
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(t => t + 1), 30000)
+    return () => clearInterval(id)
+  }, [])
 
   // ── order tracking (polling) ────────────────────────────────────
   // No se puede usar postgres_changes aquí: el comensal no tiene sesión
@@ -1261,6 +1348,29 @@ export default function PublicMenu() {
     supabase.rpc('estado_pedido_publico', { p_order_id: orderId }).maybeSingle<{ order_number_today: number | null }>()
       .then(({ data }) => setOrderNumber(data?.order_number_today ?? null))
   }, [orderId])
+
+  // Restaurar el pedido en seguimiento (recarga de página o regreso desde Wompi)
+  useEffect(() => {
+    if (!restaurantId) return
+    const t = loadTrackedOrder()
+    if (!t || t.restaurantId !== restaurantId) return
+    let cancelled = false
+    supabase.rpc('estado_pedido_publico', { p_order_id: t.orderId }).maybeSingle<{ status: string; pagado: boolean }>()
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) return   // fallo de red: se conserva para el próximo intento
+        if (!data?.status) { clearTrackedOrder(); return }
+        setOrderId(t.orderId)
+        setOrderStatus(data.status)
+        setIsPaid(!!data.pagado)
+        setShowTracking(true)
+      }, () => {})
+    return () => { cancelled = true }
+  }, [restaurantId])
+
+  useEffect(() => {
+    if (orderStatus === 'completed' || orderStatus === 'cancelled') clearTrackedOrder()
+  }, [orderStatus])
 
   useEffect(() => {
     if (!orderId || orderStatus === 'completed' || orderStatus === 'cancelled') return
@@ -1320,17 +1430,20 @@ export default function PublicMenu() {
     const [ch, cm] = brandExtra.horario_cierre.split(':').map(Number)
     const open = oh * 60 + (om || 0), close = ch * 60 + (cm || 0)
     return open <= close ? !(mins >= open && mins <= close) : !(mins >= open || mins <= close)
-  }, [brandExtra.horario_activo, brandExtra.horario_apertura, brandExtra.horario_cierre])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandExtra.horario_activo, brandExtra.horario_apertura, brandExtra.horario_cierre, nowTick])
 
   const isClosedNow = !!brandExtra.cerrado_manual || isClosedBySchedule
   const closedMessage = brandExtra.cerrado_manual
     ? (brandExtra.cerrado_mensaje || 'Cerrado temporalmente. Vuelve más tarde.')
     : `Cerrado ahora · Atendemos de ${brandExtra.horario_apertura} a ${brandExtra.horario_cierre}`
 
-  const canConfirm = (mesa.trim() !== '' || clientName.trim() !== '') && !isClosedNow
+  const mesaInvalida = mesa.trim() !== '' && !mesaValida(mesa)
+  const canConfirm = (mesa.trim() !== '' || clientName.trim() !== '') && !mesaInvalida && !isClosedNow
 
   const sendOrder = useCallback(async () => {
     if (!canConfirm || cart.length === 0 || !restaurantId) return
+    if (mesa.trim() && !mesaValida(mesa)) { setSendError('El número de mesa no es válido (debe ser de 1 a 100).'); return }
     setSending(true)
     try {
       // El precio de cada línea NUNCA se manda desde aquí — create_public_order
@@ -1342,7 +1455,7 @@ export default function PublicMenu() {
           ? { kind: 'custom', quantity: i.qty, line_notes, ingredients: i.customIngredients }
           : { kind: 'dish', dish_id: i.dish.id, quantity: i.qty, size: i.size || null, toppings: i.toppings, sel: i.sel ?? null, line_notes }
       })
-      const tableNum = mesa.trim() ? parseInt(mesa) : null
+      const tableNum = mesa.trim() ? parseInt(mesa, 10) : null
       const noteParts = [
         clientName.trim() ? `Cliente: ${clientName.trim()}` : null,
         !mesa.trim() ? (barra ? BARRA_NOTE : 'Pedido en mostrador / sin mesa') : null,
@@ -1361,6 +1474,7 @@ export default function PublicMenu() {
       }
 
       setOrderId(newOrderId)
+      saveTrackedOrder(newOrderId, restaurantId)
       setOrderStatus('pending')
       setIsPaid(false)
       setShowTracking(true)
@@ -1428,8 +1542,32 @@ export default function PublicMenu() {
   const catLabel = (c: string) => menuCfg.categories.find(x => x.value === c)?.label ?? CATEGORY_LABELS[c] ?? c
   const categoryNavItems = [{ key: 'all' as const, label: 'Todo' }, ...categories.map(c => ({ key: c, label: catLabel(c) }))]
 
+  const waDigits = (brandExtra.whatsapp_numero ?? '').replace(/\D/g, '')
+
+  if (notFound) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--w-bg)', fontFamily: 'var(--w-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', textAlign: 'center' }}>
+        <div>
+          <h1 className="ed-display" style={{ fontSize: '1.75rem', margin: 0 }}>Restaurante no encontrado</h1>
+          <p className="ed-body" style={{ marginTop: '0.75rem', color: 'var(--w-ink-mut)' }}>Revisa el enlace o escanea de nuevo el código QR de la mesa.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--w-bg)', fontFamily: 'var(--w-sans)', paddingBottom: '6rem' }}>
+
+      {/* ── Aviso de error de carga (conserva lo último que se vio) ── */}
+      {menuError && (
+        <div role="alert" style={{ background: 'var(--w-saffron)', color: '#fff', textAlign: 'center', padding: '0.625rem 1rem', fontSize: '0.8125rem', fontWeight: 700, fontFamily: 'var(--w-sans)' }}>
+          {menuError}{' '}
+          <button onClick={() => (restaurantId ? fetchMenuData() : window.location.reload())}
+            style={{ marginLeft: 8, background: 'rgba(255,255,255,0.25)', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.25rem 0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+            Reintentar
+          </button>
+        </div>
+      )}
 
       {/* ── Cerrado (bloquea pedidos) ── */}
       {isClosedNow && (
@@ -1446,15 +1584,15 @@ export default function PublicMenu() {
       )}
 
       {/* ── Portada ── */}
-      {brandExtra.portada_url && (
+      {urlSegura(brandExtra.portada_url) && (
         <div style={{ width: '100%', height: 180, overflow: 'hidden' }}>
-          <img src={brandExtra.portada_url} alt={bizName} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img src={urlSegura(brandExtra.portada_url)!} alt={bizName} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         </div>
       )}
 
       {/* ── WhatsApp flotante ── */}
-      {brandExtra.whatsapp_numero && (
-        <a href={`https://wa.me/${brandExtra.whatsapp_numero}`} target="_blank" rel="noopener noreferrer"
+      {waDigits && (
+        <a href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer"
           style={{ position: 'fixed', right: '1.1rem', bottom: '1.1rem', zIndex: 40, width: 52, height: 52, borderRadius: '50%', background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 16px rgba(0,0,0,0.25)' }}
           aria-label="Escribir por WhatsApp">
           <svg viewBox="0 0 24 24" fill="#fff" style={{ width: 28, height: 28 }}><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 004.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.24.68-1.4 1.3-1.93 1.38-.5.08-1.12.11-1.81-.11-.42-.13-.95-.31-1.64-.6-2.89-1.25-4.78-4.15-4.93-4.34-.14-.19-1.18-1.57-1.18-3 0-1.42.75-2.12 1.01-2.41.27-.29.58-.36.78-.36.19 0 .39 0 .56.01.18.01.42-.07.66.5.24.58.83 2 .9 2.15.07.15.12.32.02.51-.09.19-.14.31-.28.48-.14.16-.29.36-.42.49-.14.14-.28.29-.12.57.15.28.68 1.12 1.46 1.82 1.01.9 1.85 1.18 2.13 1.31.29.14.45.11.62-.07.17-.18.72-.84.91-1.13.19-.29.38-.24.63-.14.26.09 1.65.78 1.94.92.28.14.47.21.54.33.07.13.07.72-.16 1.4z"/></svg>
@@ -1465,8 +1603,8 @@ export default function PublicMenu() {
       <header className="menu-wrap" style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', margin: '0 auto', overflow: 'hidden' }}>
         {mascotaUrl && <MascotaMenu url={mascotaUrl} nombre={bizName} />}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-          {logoUrl && (
-            <img src={logoUrl} alt={bizName}
+          {urlSegura(logoUrl) && (
+            <img src={urlSegura(logoUrl)!} alt={bizName}
               style={{ height: 72, width: 'auto', maxWidth: 180, objectFit: 'contain', marginBottom: '1rem', borderRadius: '0.75rem' }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
           )}
@@ -1508,6 +1646,13 @@ export default function PublicMenu() {
       </div>
 
       <div className="menu-wrap" style={{ padding: '0 1.5rem', margin: '0 auto' }}>
+
+        {orderId && !showTracking && !sent && (
+          <button onClick={() => setShowTracking(true)} className="w-press"
+            style={{ width: '100%', marginBottom: '1.5rem', padding: '0.8rem', border: '1px solid var(--w-line)', borderRadius: '0.9rem', background: 'var(--w-surface)', color: 'var(--w-terra)', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+            Ver mi pedido{orderNumber ? ` · #${orderNumber}` : ''}
+          </button>
+        )}
 
         {/* ── Order tracking ── */}
         <AnimatePresence>
@@ -1557,7 +1702,7 @@ export default function PublicMenu() {
               </div>
 
               {/* Pago en línea (si el restaurante lo tiene activo) */}
-              {onlinePay && orderStatus !== 'cancelled' && orderStatus !== 'completed' && (
+              {onlinePay && !isPaid && orderStatus !== 'cancelled' && orderStatus !== 'completed' && (
                 <button
                   disabled={payingOnline}
                   onClick={async () => {
@@ -1568,10 +1713,10 @@ export default function PublicMenu() {
                         body: { kind: 'diner', order_id: orderId, redirect_url: window.location.href },
                       })
                       if (error) throw error
-                      if (data?.error) { alert(data.error); return }
+                      if (data?.error) { message.error(String(data.error)); return }
                       openWompiCheckout(data)
-                    } catch {
-                      alert('No se pudo iniciar el pago. Intenta de nuevo o paga con el mesero.')
+                    } catch (e) {
+                      message.error(msgDe(e, /non-2xx/i) ?? 'No se pudo iniciar el pago. Intenta de nuevo o paga con el mesero.')
                     } finally { setPayingOnline(false) }
                   }}
                   className="w-press"
@@ -1602,7 +1747,7 @@ export default function PublicMenu() {
                     style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-saffron)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: editingOrder ? 'not-allowed' : 'pointer', opacity: editingOrder ? 0.7 : 1 }}>
                     {editingOrder ? 'Abriendo...' : '✏️ Editar'}
                   </button>}
-                  <button
+                  {!isPaid && <button
                     disabled={cancelling}
                     onClick={async () => {
                       if (!orderId || !window.confirm('¿Cancelar este pedido?')) return
@@ -1611,15 +1756,15 @@ export default function PublicMenu() {
                         const { error } = await supabase.rpc('cancelar_orden', { p_order_id: orderId })
                         if (error) throw error
                         setOrderStatus('cancelled')
-                        alert('Pedido cancelado')
-                      } catch {
-                        alert('No se pudo cancelar el pedido.')
+                        message.success('Pedido cancelado')
+                      } catch (e) {
+                        message.error(msgDe(e) ?? 'No se pudo cancelar el pedido.')
                       } finally { setCancelling(false) }
                     }}
                     className="w-press"
                     style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-wine)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: cancelling ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.7 : 1 }}>
                     {cancelling ? 'Cancelando...' : '🗑️ Cancelar'}
-                  </button>
+                  </button>}
                 </div>
               )}
 
@@ -1734,6 +1879,9 @@ export default function PublicMenu() {
               <div style={{ flex: 1 }}>
                 <p style={{ fontFamily: 'var(--w-display)', fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontSize: '1.0625rem' }}>Pedido enviado</p>
                 <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-ink-mut)' }}>Revisa el estado de tu pedido abajo.</p>
+                {orderId && !showTracking && (
+                  <button onClick={() => setShowTracking(true)} style={{ marginTop: '0.375rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-terra)', fontWeight: 700, fontSize: '0.8125rem', padding: 0 }}>Ver mi pedido</button>
+                )}
               </div>
               <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1.125rem' }}>✕</button>
             </motion.div>
@@ -1809,7 +1957,7 @@ export default function PublicMenu() {
       </div>
 
       {/* ── Footer: contacto y ubicación ── */}
-      {(brandExtra.direccion || brandExtra.instagram_url || brandExtra.facebook_url) && (
+      {(brandExtra.direccion || urlSegura(brandExtra.instagram_url) || urlSegura(brandExtra.facebook_url)) && (
         <footer className="menu-wrap" style={{ margin: '2rem auto 0', padding: '1.5rem', textAlign: 'center', borderTop: '1px solid var(--w-line)' }}>
           {brandExtra.direccion && (
             <a href={`https://maps.google.com/?q=${encodeURIComponent(brandExtra.direccion)}`} target="_blank" rel="noopener noreferrer"
@@ -1818,11 +1966,11 @@ export default function PublicMenu() {
             </a>
           )}
           <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-            {brandExtra.instagram_url && (
-              <a href={brandExtra.instagram_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-terra)', textDecoration: 'none' }}>Instagram</a>
+            {urlSegura(brandExtra.instagram_url) && (
+              <a href={urlSegura(brandExtra.instagram_url)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-terra)', textDecoration: 'none' }}>Instagram</a>
             )}
-            {brandExtra.facebook_url && (
-              <a href={brandExtra.facebook_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-terra)', textDecoration: 'none' }}>Facebook</a>
+            {urlSegura(brandExtra.facebook_url) && (
+              <a href={urlSegura(brandExtra.facebook_url)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-terra)', textDecoration: 'none' }}>Facebook</a>
             )}
           </div>
         </footer>
@@ -1980,7 +2128,7 @@ export default function PublicMenu() {
               <button className="lg-accent w-press"
                 onClick={() => { setSendError(null); sendOrder() }} disabled={sending || !canConfirm}
                 style={{ width: '100%', padding: '1.05rem', border: 'none', fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--w-sans)', cursor: !canConfirm ? 'not-allowed' : 'pointer', opacity: !canConfirm ? 0.5 : 1 }}>
-                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : !canConfirm ? 'Ingresa nombre o mesa' : `Pedir · ${fmtCOP(cartTotal)}`}
+                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : mesaInvalida ? 'Mesa no válida (1-100)' : !canConfirm ? 'Ingresa nombre o mesa' : `Pedir · ${fmtCOP(cartTotal)}`}
               </button>
             </motion.div>
           </motion.div>

@@ -14,6 +14,7 @@ import { supabase } from '../../services/supabaseClient'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import message from 'antd/es/message'
 import { reimprimirComanda } from '../../lib/print/comandas'
+import { cancelarPedido } from '../../services/cancelarPedido'
 
 // ─── Configuración ────────────────────────────────────────────
 const WARN_SECS = 300   // el cronómetro pasa a ámbar
@@ -260,21 +261,26 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
   }
 
   const cancelOrder = async () => {
-    if (!window.confirm('¿Cancelar todo el pedido?')) return
+    if (cancellingOrder) return
     setCancellingOrder(true)
     try {
-      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
-      if (error) { message.error(error.message); return }
-      message.success('Pedido cancelado')
-      onRefresh()
+      // Helper único: avisa si ya tiene pagos, confirma y muestra el mensaje real del servidor.
+      if (await cancelarPedido(order.id, { pagado: !!order.paid_at, enPreparacion: true })) onRefresh()
     } finally { setCancellingOrder(false) }
   }
 
+  // Si una impresora falló, el siguiente toque reintenta SOLO en esas (no repite el papel en las que sí salieron).
+  const fallosPrev = useRef<string[] | null>(null)
+  const imprimiendo = useRef(false)
   const imprimirComanda = async () => {
+    if (imprimiendo.current) return
+    imprimiendo.current = true
     try {
-      const r = await reimprimirComanda(order.id)
-      if (r.fallos.length) message.error(`No se pudo imprimir en ${r.fallos.join(', ')}. Toca 🖨 COMANDA para reintentar.`)
+      const r = await reimprimirComanda(order.id, fallosPrev.current ?? undefined)
+      fallosPrev.current = r.fallos.length ? r.fallos : null
+      if (r.fallos.length) message.error(`No se pudo imprimir en ${r.fallos.join(', ')}. Toca 🖨 COMANDA para reintentar solo ahí.`)
     } catch (e) { message.error(`No se pudo imprimir: ${e instanceof Error ? e.message : 'error'}`) }
+    finally { imprimiendo.current = false }
   }
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
@@ -338,7 +344,7 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
           )
         })}
       </div>
-      {isReady && <div className="kb-hint">Esperando cobro en caja</div>}
+      {isReady && !order.paid_at && <div className="kb-hint">Esperando cobro en caja</div>}
     </div>
   )
 })
@@ -492,6 +498,8 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
   const [dishCat,  setDishCat] = useState<Record<string, string>>({})
   const [catColor, setCatColor] = useState<Record<string, string>>({})
   const prevCount = useRef(0)
+  // Candado por pedido: un doble clic no manda dos cambios de estado.
+  const avanzando = useRef(new Set<string>())
 
   useEffect(() => {
     const on = () => setWide(window.innerWidth >= TV_MIN_WIDTH)
@@ -570,21 +578,36 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
   }, [fetchOrders])
 
   const handleAdvance = useCallback(async (orderId: string, nextStatus: Status) => {
+    if (avanzando.current.has(orderId)) return
     const order = orders.find(o => o.id === orderId)
-    // Se refleja al instante; el servidor confirma enseguida (y revierte si falla).
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o))
-    const { error } = await supabase.from('orders').update({ status: nextStatus }).eq('id', orderId)
-    if (error) { message.error('Error al actualizar: ' + error.message); fetchOrders(); return }
-    fetchOrders()
-    if (nextStatus === 'ready') {
-      const dest = order?.table_num ? `Mesa ${order.table_num}` : 'Pedido'
-      message.success({ content: `${dest} — pedido listo. Notificando a los meseros...`, duration: 5 })
-      // Todos los meseros (cualquiera puede ir a buscarlo) + admin + quien lo tomó.
-      pushNotificationService.notify(
-        ['admin', 'waiter'], 'Pedido listo',
-        `${order ? orderRef(order) : 'Pedido'} listo para servir${order?.table_num ? ` en Mesa ${order.table_num}` : ''}`, '/',
-        undefined, order?.user_id ? [order.user_id] : undefined,
-      )
+    if (!order) return
+    avanzando.current.add(orderId)
+    try {
+      // Se refleja al instante; el servidor confirma enseguida (y revierte si falla).
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o))
+      // Solo avanza si el pedido sigue en el estado que vimos (contrato: el UPDATE directo escribe solo status/updated_at).
+      const { data, error } = await supabase.from('orders')
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq('id', orderId).eq('status', order.status).select('id')
+      if (error) { message.error('Error al actualizar: ' + error.message); fetchOrders(); return }
+      if (!data || data.length === 0) {
+        message.warning('Este pedido ya cambió de estado (otra persona lo movió o lo canceló). Se actualizó el tablero.')
+        fetchOrders()
+        return
+      }
+      fetchOrders()
+      if (nextStatus === 'ready') {
+        const dest = order.table_num ? `Mesa ${order.table_num}` : 'Pedido'
+        message.success({ content: `${dest} — pedido listo. Notificando a los meseros...`, duration: 5 })
+        // Todos los meseros (cualquiera puede ir a buscarlo) + admin + quien lo tomó.
+        pushNotificationService.notify(
+          ['admin', 'waiter'], 'Pedido listo',
+          `${orderRef(order)} listo para servir${order.table_num ? ` en Mesa ${order.table_num}` : ''}`, '/',
+          undefined, order.user_id ? [order.user_id] : undefined,
+        )
+      }
+    } finally {
+      avanzando.current.delete(orderId)
     }
   }, [fetchOrders, orders])
 

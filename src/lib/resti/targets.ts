@@ -8,7 +8,6 @@ export const RESTI_TARGETS = [
   'card-mesas-activas',
   'tab-nueva-orden',
   'tab-mesas',
-  'btn-notificaciones',
 ] as const
 
 export type RestiTargetId = typeof RESTI_TARGETS[number]

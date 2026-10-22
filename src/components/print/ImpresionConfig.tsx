@@ -3,7 +3,7 @@
  * Impresoras (nombre, ancho, copias, qué categorías imprime), cuándo imprimir, encabezado del recibo,
  * cuál es la estación de impresión de ESTE equipo y la página de prueba.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { cargarConfig, esEstacion, guardarConfig, marcarEstacion } from '../../lib/print/config'
@@ -25,11 +25,13 @@ export function ImpresionConfig() {
   const [cats, setCats] = useState<Cat[]>([])
   const [estacion, setEstacion] = useState(esEstacion())
   const [guardando, setGuardando] = useState(false)
+  const lockGuardar = useRef(false)
 
   useEffect(() => {
     (async () => {
       setCfg(await cargarConfig())
-      const { data } = await supabase.from('restaurant_config').select('modules_enabled').maybeSingle()
+      const { data, error } = await supabase.from('restaurant_config').select('modules_enabled').maybeSingle()
+      if (error) message.error('No se pudieron leer las categorías: ' + error.message)
       const lista = ((data?.modules_enabled as { categories?: { value?: string; label?: string }[] } | null)?.categories ?? [])
         .map(c => ({ value: c.value ?? c.label ?? '', label: c.label ?? c.value ?? '' })).filter(c => c.value)
       setCats(lista)
@@ -41,9 +43,10 @@ export function ImpresionConfig() {
   const cambiarImp = (id: string, p: Partial<Impresora>) => cambiar({ impresoras: cfg.impresoras.map(i => (i.id === id ? { ...i, ...p } : i)) })
 
   const guardar = async () => {
+    if (lockGuardar.current) return
+    lockGuardar.current = true
     setGuardando(true)
-    const err = await guardarConfig(cfg)
-    setGuardando(false)
+    const err = await guardarConfig(cfg).finally(() => { lockGuardar.current = false; setGuardando(false) })
     if (err) message.error('No se pudo guardar: ' + err); else message.success('Configuración de impresión guardada')
   }
   const probar = async (imp: Impresora) => {

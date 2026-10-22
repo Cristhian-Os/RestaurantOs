@@ -1,28 +1,17 @@
 // Pruebas de la conversación por voz (sin navegador). Correr con:  node src/lib/resti/voz/voz.test.ts
 import assert from 'node:assert/strict'
-import { bajarMuestreo, aWavBase64, pcm16Base64AMuestras, rms } from './pcm.ts'
+import { bajarMuestreo, aWavBase64, rms } from './pcm.ts'
 import { crearVad } from './vad.ts'
-import { partirFrases } from './frases.ts'
-import { crearConversacion, MSG_NO_ENTENDI, MSG_ERROR, type DepsConv, type Frase, type EstadoConv } from './conversacion.ts'
+import { crearConversacion, MSG_NO_ENTENDI, MSG_LIMITE, MSG_ERROR, type DepsConv, type Frase, type EstadoConv } from './conversacion.ts'
 
 // --- PCM / WAV ---
 {
   const tono = Float32Array.from({ length: 48000 }, (_, i) => Math.sin(i / 20) * 0.5)
   const bajo = bajarMuestreo(tono, 48000, 16000); assert.equal(bajo.length, 16000)
   const wav = aWavBase64(bajo); assert.ok(wav.startsWith('UklGR'), 'cabecera RIFF'); assert.equal(atob(wav).slice(8, 12), 'WAVE'); assert.equal(atob(wav).length, 44 + 32000)
-  const pcm = btoa(String.fromCharCode(0x00, 0x40, 0x00, 0xc0)), m = pcm16Base64AMuestras(pcm)   // +0.5 y -0.5
-  assert.ok(Math.abs(m[0] - 0.5) < 1e-3 && Math.abs(m[1] + 0.5) < 1e-3)
   assert.ok(Math.abs(rms(Float32Array.from([0.5, -0.5, 0.5, -0.5])) - 0.5) < 1e-6)
 }
 
-// --- Frases ---
-{
-  assert.deepEqual(partirFrases('Hoy llevas un millón doscientos mil en ventas. Vas un doce por ciento arriba de ayer.'), ['Hoy llevas un millón doscientos mil en ventas.', 'Vas un doce por ciento arriba de ayer.'])
-  assert.deepEqual(partirFrases('Listo. Ya quedó guardado en el sistema.'), ['Listo. Ya quedó guardado en el sistema.'], 'una frase muy corta se une')
-  assert.deepEqual(partirFrases('  '), []); assert.deepEqual(partirFrases('Hola, ¿cómo vas?'), ['Hola, ¿cómo vas?'])
-  assert.equal(partirFrases('Una frase larga uno. Una frase larga dos. Una frase larga tres. Una frase larga cuatro.').length, 3, 'máximo 3 audios')
-  assert.equal(partirFrases('A. B. C. D.').join(' ').replace(/\s+/g, ' '), 'A. B. C. D.', 'no se pierde texto')
-}
 
 // --- VAD ---
 {
@@ -116,6 +105,16 @@ function montar(over: Partial<DepsConv> = {}) {
 { // Detener a mitad de turno: nada habla después
   const t = montar({ responder: async () => { await esperar(50); return 'tarde' } }); await t.conv.iniciar(); t.cb().onFrase({ texto: 'x' }); await esperar(10); t.conv.detener(); await esperar(100)
   assert.deepEqual(t.dicho, []); assert.equal(t.conv.estado(), 'apagado')
+}
+{ // Micrófono (A3): si se apaga mientras se espera el permiso, la captura recién abierta se suelta
+  let soltada = 0
+  const t = montar({ iniciarCaptura: async () => { await esperar(40); return { detener: () => { soltada++ } } } })
+  const p = t.conv.iniciar(); await esperar(5); t.conv.detener(); await p; await esperar(60)
+  assert.equal(soltada, 1, 'se detuvo la captura tardía'); assert.equal(t.conv.estado(), 'apagado')
+}
+{ // Límite de uso (429): se avisa como límite, no como «no te escuché»
+  const t = montar({ transcribir: async () => { throw new Error('limite') } }); await t.conv.iniciar(); t.cb().onFrase({ wav: 'x' }); await esperar(60)
+  assert.deepEqual(t.errores, ['limite']); assert.deepEqual(t.dicho, [MSG_LIMITE])
 }
 // VAD: el fin de frase se mide también contra la voz de la propia frase (un zumbido más fuerte que el silencio de calibración no lo deja colgado)
 {

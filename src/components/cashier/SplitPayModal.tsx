@@ -5,13 +5,13 @@
  * Tres modos: montos libres, partes iguales y por persona (si el pedido se tomó por persona).
  * Pensado primero para celular: tarjetas apiladas y botones táctiles de 44 px.
  */
-import { forwardRef, useCallback, useEffect, useState, type InputHTMLAttributes } from 'react'
+import { forwardRef, useCallback, useEffect, useRef, useState, type InputHTMLAttributes } from 'react'
 import { motion } from 'framer-motion'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { cn } from '../../lib/cn'
 import { destinoPedido } from '../../lib/destino'
-import { COLA_CAMBIO, esErrorDeRed, guardarPagoPendiente, listarPagosPendientes, type PagoPendiente } from '../../services/paymentQueue'
+import { COLA_CAMBIO, esErrorTransitorio, guardarPagoPendiente, identidadActual, listarPagosPendientes, type PagoPendiente } from '../../services/paymentQueue'
 
 type Metodo = 'efectivo' | 'transferencia' | 'tarjeta'
 type Modo = 'libres' | 'iguales' | 'persona'
@@ -55,6 +55,8 @@ const METODOS: { id: Metodo; label: string }[] = [
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 const num = (s: string) => { const v = parseFloat(s); return Number.isFinite(v) ? v : 0 }
+// Lectura estricta para validar al cobrar: vacío = null; texto raro = NaN.
+const numEstricto = (s: string) => (s.trim() === '' ? null : Number(s))
 const uid = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
 
 const nuevaFila = (nombre: string, monto: number): Fila => ({
@@ -64,7 +66,7 @@ const nuevaFila = (nombre: string, monto: number): Fila => ({
 
 const MoneyInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
-    <input ref={ref} type="number" inputMode="numeric" min={0}
+    <input ref={ref} type="number" inputMode="numeric" min={0} step={1}
       className={cn('w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-base font-bold text-[#2D3561] outline-none', className)}
       style={S.inset} {...props} />
   ),
@@ -88,7 +90,7 @@ function filasPorPersona(order: SplitPayOrder, pagos: Pago[]): Fila[] {
   for (const p of pagos) {
     if (p.comensal && grupos.has(p.comensal)) grupos.set(p.comensal, (grupos.get(p.comensal) ?? 0) - Number(p.monto))
   }
-  return [...grupos.entries()].filter(([, v]) => v > 0.5).map(([nombre, v]) => nuevaFila(nombre, v))
+  return [...grupos.entries()].filter(([, v]) => v > 0).map(([nombre, v]) => nuevaFila(nombre, v))
 }
 
 interface Props {
@@ -127,7 +129,7 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
       .select('id, comensal, payment_method, monto, propina, referencia')
       .eq('order_id', order.id).is('anulado_at', null).order('paid_at')
     if (error) {
-      if (!esErrorDeRed(error.message)) message.error('No se pudieron leer los pagos: ' + error.message)
+      if (!esErrorTransitorio(error.message)) message.error('No se pudieron leer los pagos: ' + error.message)
       return [] as Pago[]
     }
     const lista = (data ?? []) as Pago[]
@@ -165,14 +167,25 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
   const editar = (key: string, patch: Partial<Fila>) =>
     setFilas(prev => prev.map(f => f.key === key ? { ...f, ...patch, error: null } : f))
 
+  // Candado síncrono por fila: un doble toque nunca envía dos veces el mismo cobro.
+  const cobrando = useRef(new Set<string>())
+
   const cobrar = async (f: Fila) => {
-    const monto = num(f.monto)
-    const propina = Math.max(num(f.propina), 0)
-    const recibido = f.metodo === 'efectivo' && f.recibido !== '' ? num(f.recibido) : null
-    if (monto <= 0) { editar(f.key, { error: 'Escribe cuánto paga' }); return }
-    if (monto > falta + 0.5) { editar(f.key, { error: `Solo faltan ${fmt(falta)} por cobrar` }); return }
+    if (cobrando.current.has(f.key)) return
+    // Montos en pesos enteros (COP): sin decimales ni texto raro.
+    const monto = Number(f.monto)
+    const propinaN = numEstricto(f.propina)
+    const recibidoN = f.metodo === 'efectivo' ? numEstricto(f.recibido) : null
+    if (!Number.isFinite(monto) || monto <= 0) { editar(f.key, { error: 'Escribe cuánto paga' }); return }
+    if (!Number.isInteger(monto)) { editar(f.key, { error: 'El monto debe ser en pesos enteros' }); return }
+    if (propinaN !== null && (!Number.isInteger(propinaN) || propinaN < 0)) { editar(f.key, { error: 'La propina debe ser en pesos enteros' }); return }
+    if (recibidoN !== null && !Number.isInteger(recibidoN)) { editar(f.key, { error: 'El efectivo recibido debe ser en pesos enteros' }); return }
+    const propina = propinaN ?? 0
+    const recibido = recibidoN
+    if (monto > falta) { editar(f.key, { error: `Solo faltan ${fmt(falta)} por cobrar` }); return }
     if (recibido !== null && recibido < monto + propina) { editar(f.key, { error: 'El efectivo recibido no alcanza' }); return }
 
+    cobrando.current.add(f.key)
     setFilas(prev => prev.map(x => x.key === f.key ? { ...x, estado: 'cobrando', error: null } : x))
     const args = {
       p_order_id: order.id, p_comensal: f.nombre.trim() || null, p_metodo: f.metodo, p_monto: monto,
@@ -180,24 +193,32 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
     }
     // Sin internet: el pago se guarda aquí y se envía solo al volver la conexión (la clave evita duplicarlo).
     const guardarLocal = async () => {
+      const id = await identidadActual()
       await guardarPagoPendiente({
         idem: f.idem, order_id: order.id, monto, args, creado: new Date().toISOString(), estado: 'pendiente',
+        user_id: id.user_id, restaurant_id: id.restaurant_id,
         resumen: `${f.nombre.trim() || 'Pago'} · ${METODOS.find(m => m.id === f.metodo)?.label} · ${fmt(monto)}`,
       })
       message.warning('Sin internet: pago guardado en este equipo, se envía solo al volver la conexión')
       setFilas(prev => prev.filter(x => x.key !== f.key))
     }
-    if (!navigator.onLine) { await guardarLocal(); return }
-    const { data, error } = await supabase.rpc('registrar_pago', args)
-    if (error) {
-      if (esErrorDeRed(error.message)) { await guardarLocal(); return }
-      setFilas(prev => prev.map(x => x.key === f.key ? { ...x, estado: 'pendiente', error: error.message } : x))
-      return
+    try {
+      if (!navigator.onLine) { await guardarLocal(); return }
+      const { data, error, status } = await supabase.rpc('registrar_pago', args)
+      if (error) {
+        if (esErrorTransitorio(error.message, status)) { await guardarLocal(); return }
+        setFilas(prev => prev.map(x => x.key === f.key ? { ...x, estado: 'pendiente', error: error.message } : x))
+        return
+      }
+      const cambio = Number((data as { cambio?: number } | null)?.cambio ?? 0)
+      message.success(cambio > 0 ? `Cobrado ${f.nombre.trim() || 'pago'} · Cambio: ${fmt(cambio)}` : `Cobrado ${f.nombre.trim() || 'pago'}`)
+      setFilas(prev => prev.filter(x => x.key !== f.key))
+      await cargarPagos()
+    } catch (e) {
+      setFilas(prev => prev.map(x => x.key === f.key ? { ...x, estado: 'pendiente', error: e instanceof Error ? e.message : 'No se pudo cobrar' } : x))
+    } finally {
+      cobrando.current.delete(f.key)
     }
-    const cambio = Number((data as { cambio?: number } | null)?.cambio ?? 0)
-    message.success(cambio > 0 ? `Cobrado ${f.nombre.trim() || 'pago'} · Cambio: ${fmt(cambio)}` : `Cobrado ${f.nombre.trim() || 'pago'}`)
-    setFilas(prev => prev.filter(x => x.key !== f.key))
-    await cargarPagos()
   }
 
   if (cargando) return null

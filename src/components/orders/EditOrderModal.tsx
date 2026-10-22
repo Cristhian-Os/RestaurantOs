@@ -5,7 +5,7 @@
  * toppings y comentario. Guardar actualiza ESA línea del pedido (no crea otra)
  * vía editar_items_pedido; el servidor recalcula los precios.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
@@ -52,6 +52,7 @@ export function EditOrderModal({ order, onClose, onSaved }: {
   const [shortages, setShortages] = useState<RecetaShortage[]>([])
   const [editing, setEditing]     = useState<number | null>(null)
   const [saving, setSaving]       = useState(false)
+  const guardando = useRef(false)   // candado síncrono contra doble clic
   const [lines, setLines] = useState<Line[]>(() => order.items
     .map((it, idx) => ({
       idx, dishId: it.id, name: it.name, quantity: it.quantity, unitPrice: Number(it.price),
@@ -95,15 +96,23 @@ export function EditOrderModal({ order, onClose, onSaved }: {
 
   const save = async () => {
     if (lines.length === 0) { message.warning('El pedido debe tener al menos un producto. Si ya no quieren nada, cancela el pedido.'); return }
+    if (guardando.current) return
+    guardando.current = true
     setSaving(true)
-    const { error } = await supabase.rpc('editar_items_pedido', {
-      p_order_id: order.id,
-      p_items: lines.map(l => ({ idx: l.idx, quantity: l.quantity, size: l.size, toppings: l.toppings, notes: l.notes, sel: l.sel })),
-    })
-    setSaving(false)
-    if (error) { message.error(error.message); return }
-    message.success('Pedido actualizado')
-    onSaved()
+    try {
+      const { error } = await supabase.rpc('editar_items_pedido', {
+        p_order_id: order.id,
+        p_items: lines.map(l => ({ idx: l.idx, quantity: l.quantity, size: l.size, toppings: l.toppings, notes: l.notes, sel: l.sel })),
+      })
+      if (error) { message.error(error.message); return }
+      message.success('Pedido actualizado')
+      onSaved()
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'No se pudo guardar el pedido')
+    } finally {
+      guardando.current = false
+      setSaving(false)
+    }
   }
 
   const btn: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, borderRadius: '0.75rem' }

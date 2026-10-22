@@ -42,10 +42,11 @@ export function ResumenIA() {
   const [detalle, setDetalle] = useState(false)
 
   const cargar = useCallback(async () => {
-    const [{ data: cfg }, { data: reps }] = await Promise.all([
+    const [{ data: cfg, error: cfgErr }, { data: reps, error: repErr }] = await Promise.all([
       supabase.from('ai_restaurant_settings').select('ia_activa').maybeSingle(),
       supabase.from('ai_reports').select(COLS).neq('estado', 'error').order('created_at', { ascending: false }).limit(12),
     ])
+    if (cfgErr || repErr) setAviso('No se pudo cargar el resumen con IA: ' + (cfgErr ?? repErr)?.message)
     setActiva(Boolean(cfg?.ia_activa))
     const lista = (reps ?? []) as Reporte[]
     setHistorial(lista)
@@ -57,7 +58,7 @@ export function ResumenIA() {
     setVotos({}); setDetalle(false)
     if (!actual) return
     void supabase.from('ai_report_feedback').select('hallazgo_idx, util').eq('report_id', actual.id)
-      .then(({ data }) => setVotos(Object.fromEntries((data ?? []).map(v => [v.hallazgo_idx as number, v.util as boolean]))))
+      .then(({ data, error }) => { if (error) return; setVotos(Object.fromEntries((data ?? []).map(v => [v.hallazgo_idx as number, v.util as boolean]))) })
   }, [actual])
 
   const generar = async (tipo: 'semanal' | 'mensual') => {

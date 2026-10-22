@@ -47,7 +47,7 @@ async function compressImage(file: File, maxWidthPx = 1280): Promise<Blob> {
       )
       URL.revokeObjectURL(url)
     }
-    img.onerror = () => reject(new Error('Image load error'))
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen. Usa una foto JPG, PNG o WebP.')) }
     img.src = url
   })
 }
@@ -81,6 +81,12 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
     if (!file) return
     setError(null)
 
+    // HEIC/HEIF (iPhone con formato «Alta eficiencia») no se puede procesar en el navegador
+    if (/heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
+      setError('Las fotos HEIC no se admiten. En el iPhone ve a Ajustes > Cámara > Formatos > «Más compatible», o elige otra foto (JPG/PNG).')
+      e.target.value = ''
+      return
+    }
     // Validar tipo y tamaño (5MB máximo)
     if (!file.type.startsWith('image/')) {
       setError('Solo se aceptan imágenes')
@@ -92,6 +98,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
     }
 
     selectedFile.current = file
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current)
     const objectUrl = URL.createObjectURL(file)
     setPreview(objectUrl)
     setState('preview')
@@ -102,6 +109,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
     setState('uploading')
     setError(null)
     setProgress(0)
+    let subido: string | null = null
 
     try {
       // 1. Comprimir imagen
@@ -121,18 +129,16 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
           upsert:      false,
         })
       if (uploadError) throw uploadError
+      subido = path
 
-      // 4. Obtener URL pública
+      // 4. El bucket es privado: se guarda la ruta, no una URL pública (se firma al mostrarla)
       setProgress(75)
-      const { data: { publicUrl } } = supabase.storage
-        .from('task-evidence')
-        .getPublicUrl(path)
 
       // 5. Llamar función atómica: inserta evidencia + completa tarea
       setProgress(90)
       const { error: rpcError } = await supabase.rpc('complete_task_with_evidence', {
         p_task_id:      taskId,
-        p_photo_url:    publicUrl,
+        p_photo_url:    path,
         p_storage_path: path,
         p_notes:        notes.trim() || null,
       })
@@ -143,7 +149,9 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
       setTimeout(onSuccess, 1200)
 
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error al subir evidencia'
+      // Si la tarea no se completó, no dejar la foto huérfana en el bucket
+      if (subido) await supabase.storage.from('task-evidence').remove([subido]).catch(() => undefined)
+      const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? 'Error al subir evidencia'
       setError(msg)
       setState('preview')
     }

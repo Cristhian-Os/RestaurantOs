@@ -19,6 +19,7 @@ import type { Dish, DishCategory, DishOptionGroup, OptionGroupV2 } from '../../t
 import { useMenuConfig } from '../../hooks/useMenuConfig'
 import { gruposDe } from '../../services/menuOptions'
 import { DishGroupsEditor, validarGrupos } from './DishGroupsEditor'
+import { validarImagen } from '../../lib/imagenSubida'
 
 const S = {
   neoOut:  { boxShadow: 'var(--shadow-out)' },
@@ -180,8 +181,9 @@ function parseTags(raw: string): string[] {
 }
 
 async function uploadDishImage(dishId: string, file: File): Promise<string | null> {
-  const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `dishes/${dishId}.${ext}`
+  const v = validarImagen(file)
+  if ('error' in v) { message.error(v.error); return null }
+  const path = `dishes/${dishId}.${v.ext}`
   const { error } = await supabase.storage
     .from('restaurant-assets')
     .upload(path, file, { upsert: true, contentType: file.type })
@@ -387,8 +389,10 @@ export const MenuManager = memo(() => {
   const [reportedComments,setReportedComments]= useState<ReportedComment[]>([])
 
   const fetchDishes = useCallback(async () => {
-    const { data } = await supabase.from('dishes').select('*').order('category').order('sort_order').order('name')
-    setDishes(data || [])
+    // Los platos descontinuados no se mezclan con los del menú activo
+    const { data, error } = await supabase.from('dishes').select('*').neq('availability_status', 'discontinued').order('category').order('sort_order').order('name')
+    if (error) message.error('No se pudo cargar el menú: ' + error.message)
+    else setDishes(data || [])
     setLoading(false)
   }, [])
 
@@ -471,7 +475,8 @@ export const MenuManager = memo(() => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 4 * 1024 * 1024) { message.error('La imagen debe ser menor a 4MB'); return }
+    const v = validarImagen(file)
+    if ('error' in v) { message.error(v.error); e.target.value = ''; return }
     const preview = URL.createObjectURL(file)
     setForm(p => ({ ...p, image_file: file, image_preview: preview }))
     e.target.value = ''
@@ -511,17 +516,23 @@ export const MenuManager = memo(() => {
         available:           form.available,
         has_sizes:           form.has_sizes,
         sizes:               sizesPayload,
-        options:             v2 ? form.gruposV2 : buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
+        // Con opciones v2 apagadas se conservan los grupos v2 ya guardados (no se borran al editar)
+        options:             v2 ? form.gruposV2 : [
+          ...buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
+          ...(((editing?.options ?? []) as unknown as { v?: string }[]).filter(o => o?.v === '2') as unknown as DishOptionGroup[]),
+        ],
         toppings:            form.toppings
           .map(t => ({ nombre: t.nombre.trim(), precio: Math.max(0, parseFloat(t.precio) || 0) }))
           .filter((t, i, arr) => t.nombre !== '' && arr.findIndex(x => x.nombre === t.nombre) === i),
-        availability_status: form.available ? 'available' : 'out_of_stock',
         updated_at:          new Date().toISOString(),
       }
+      // Un plato descontinuado no se reactiva al guardar
+      if (editing?.availability_status !== 'discontinued') payload.availability_status = form.available ? 'available' : 'out_of_stock'
 
       let dishId: string
       if (editing) {
-        const { error } = await supabase.from('dishes').update(payload).eq('id', editing.id)
+        const { data: filas, error } = await supabase.from('dishes').update(payload).eq('id', editing.id).select('id')
+        if (!error && (!filas || filas.length === 0)) throw new Error('No se pudo actualizar el plato (¿ya no existe o no tienes permiso?)')
         if (error) throw new Error(`Error al actualizar: ${error.message} (código: ${error.code})`)
         dishId = editing.id
         message.success('✅ Plato actualizado')
@@ -535,7 +546,8 @@ export const MenuManager = memo(() => {
       if (form.image_file) {
         const imgUrl = await uploadDishImage(dishId, form.image_file)
         if (imgUrl) {
-          await supabase.from('dishes').update({ image_url: imgUrl }).eq('id', dishId)
+          const { error: imgErr } = await supabase.from('dishes').update({ image_url: imgUrl }).eq('id', dishId)
+          if (imgErr) message.warning('El plato se guardó, pero no se pudo asociar la foto: ' + imgErr.message)
         }
       }
 
@@ -583,14 +595,18 @@ export const MenuManager = memo(() => {
     }
   }, [])
 
-  const persistCategories = async (cats: Category[]) => {
-    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
-    if (!cfg) return
+  // Escribe una clave de modules_enabled leyendo el valor fresco y revisando cada error. true si quedó guardado.
+  const persistModule = async (key: string, value: unknown): Promise<boolean> => {
+    const { data: cfg, error: rErr } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
+    if (rErr || !cfg) { message.error('No se pudo leer la configuración: ' + (rErr?.message ?? 'sin datos')); return false }
     const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
-    await supabase.from('restaurant_config')
-      .update({ modules_enabled: { ...modules, categories: cats } })
-      .eq('id', cfg.id)
+    const { data, error } = await supabase.from('restaurant_config')
+      .update({ modules_enabled: { ...modules, [key]: value } })
+      .eq('id', cfg.id).select('id')
+    if (error || !data || data.length === 0) { message.error('No se pudo guardar: ' + (error?.message ?? 'sin permiso')); return false }
+    return true
   }
+  const persistCategories = (cats: Category[]) => persistModule('categories', cats)
 
   const handleAddCategory = async () => {
     if (!newCatLabel.trim()) return
@@ -604,10 +620,13 @@ export const MenuManager = memo(() => {
     }
     setSavingCat(true)
     const newCat: Category = { value, label: newCatLabel.trim(), emoji: newCatEmoji, color: newCatColor }
+    const previas = categories
     const updated = [...categories, newCat]
     setCategories(updated)
-    await persistCategories(updated)
-    setNewCatLabel(''); setNewCatEmoji('🍽️'); setNewCatColor('#FF6B4A'); setSavingCat(false)
+    const ok = await persistCategories(updated)
+    setSavingCat(false)
+    if (!ok) { setCategories(previas); return }
+    setNewCatLabel(''); setNewCatEmoji('🍽️'); setNewCatColor('#FF6B4A')
     message.success(`Categoría "${newCat.label}" creada`)
   }
 
@@ -625,9 +644,10 @@ export const MenuManager = memo(() => {
         if (error) throw error
         setDishes(prev => prev.filter(d => d.category !== value))
       }
+      const previas = categories
       const updated = categories.filter(c => c.value !== value)
       setCategories(updated)
-      await persistCategories(updated)
+      if (!(await persistCategories(updated))) { setCategories(previas); return }
       message.success('Categoría eliminada')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al eliminar categoría'
@@ -642,16 +662,18 @@ export const MenuManager = memo(() => {
     if (to < 0 || to >= categories.length) return
     const updated = [...categories]
     ;[updated[index], updated[to]] = [updated[to], updated[index]]
+    const previas = categories
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) setCategories(previas)
   }
 
   // Guardar label de categoría
   const handleSaveCatLabel = async (catValue: string) => {
     if (!catLabel.trim()) return
     const updated = categories.map(c => c.value === catValue ? { ...c, label: catLabel.trim() } : c)
+    const previas = categories
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) { setCategories(previas); return }
     setEditingCat(null)
     message.success('Categoría actualizada')
   }
@@ -659,8 +681,9 @@ export const MenuManager = memo(() => {
   // Guardar emoji de categoría existente
   const handleSaveCatEmoji = async (catValue: string, emoji: string) => {
     const updated = categories.map(c => c.value === catValue ? { ...c, emoji } : c)
+    const previas = categories
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) { setCategories(previas); return }
     setEditEmojiForCat(null)
     message.success('Emoji actualizado')
   }
@@ -668,21 +691,15 @@ export const MenuManager = memo(() => {
   // Guardar color de categoría existente
   const handleSaveCatColor = async (catValue: string, color: string) => {
     const updated = categories.map(c => c.value === catValue ? { ...c, color } : c)
+    const previas = categories
     setCategories(updated)
-    await persistCategories(updated)
+    if (!(await persistCategories(updated))) { setCategories(previas); return }
     setEditColorForCat(null)
     message.success('Color actualizado')
   }
 
   // ── Sabores de helado (config.helado_flavors) ──────────────
-  const persistFlavors = async (list: string[]) => {
-    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
-    if (!cfg) return
-    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
-    await supabase.from('restaurant_config')
-      .update({ modules_enabled: { ...modules, helado_flavors: list } })
-      .eq('id', cfg.id)
-  }
+  const persistFlavors = (list: string[]) => persistModule('helado_flavors', list)
 
   const handleAddFlavor = async () => {
     const name = newFlavor.trim()
@@ -690,28 +707,23 @@ export const MenuManager = memo(() => {
     if (flavors.some(f => f.toLowerCase() === name.toLowerCase())) {
       message.warning('Ese sabor ya está en la lista'); return
     }
+    const previas = flavors
     const updated = [...flavors, name]
     setFlavors(updated); setNewFlavor('')
-    await persistFlavors(updated)
+    if (!(await persistFlavors(updated))) { setFlavors(previas); setNewFlavor(name); return }
     message.success(`Sabor "${name}" agregado`)
   }
 
   const handleDeleteFlavor = async (name: string) => {
+    const previas = flavors
     const updated = flavors.filter(f => f !== name)
     setFlavors(updated)
-    await persistFlavors(updated)
+    if (!(await persistFlavors(updated))) { setFlavors(previas); return }
     message.success('Sabor eliminado')
   }
 
   // ── Sabores de jugos (config.jugo_flavors) ──────────────────
-  const persistJugoFlavors = async (list: string[]) => {
-    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
-    if (!cfg) return
-    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
-    await supabase.from('restaurant_config')
-      .update({ modules_enabled: { ...modules, jugo_flavors: list } })
-      .eq('id', cfg.id)
-  }
+  const persistJugoFlavors = (list: string[]) => persistModule('jugo_flavors', list)
 
   const handleAddJugoFlavor = async () => {
     const name = newJugoFlavor.trim()
@@ -719,16 +731,18 @@ export const MenuManager = memo(() => {
     if (jugoFlavors.some(f => f.toLowerCase() === name.toLowerCase())) {
       message.warning('Ese sabor ya está en la lista'); return
     }
+    const previas = jugoFlavors
     const updated = [...jugoFlavors, name]
     setJugoFlavors(updated); setNewJugoFlavor('')
-    await persistJugoFlavors(updated)
+    if (!(await persistJugoFlavors(updated))) { setJugoFlavors(previas); setNewJugoFlavor(name); return }
     message.success(`Sabor "${name}" agregado`)
   }
 
   const handleDeleteJugoFlavor = async (name: string) => {
+    const previas = jugoFlavors
     const updated = jugoFlavors.filter(f => f !== name)
     setJugoFlavors(updated)
-    await persistJugoFlavors(updated)
+    if (!(await persistJugoFlavors(updated))) { setJugoFlavors(previas); return }
     message.success('Sabor eliminado')
   }
 
@@ -736,30 +750,30 @@ export const MenuManager = memo(() => {
     if (!bizName.trim()) return
     setSavingName(true)
     try {
-      const { data: cfg } = await supabase.from('restaurant_config').select('id').single()
-      if (cfg) {
-        await supabase.from('restaurant_config').update({ display_name: bizName.trim() }).eq('id', cfg.id)
-      }
+      const { data: cfg, error: rErr } = await supabase.from('restaurant_config').select('id').single()
+      if (rErr || !cfg) throw new Error(rErr?.message ?? 'No se encontró la configuración')
+      const { data, error } = await supabase.from('restaurant_config').update({ display_name: bizName.trim() }).eq('id', cfg.id).select('id')
+      if (error) throw error
+      if (!data || data.length === 0) throw new Error('Sin permiso para cambiar el nombre')
       message.success('Nombre actualizado')
-    } catch { message.error('Error al guardar nombre') }
+    } catch (e) { message.error('Error al guardar nombre: ' + (e instanceof Error ? e.message : (e as { message?: string })?.message ?? '')) }
     finally { setSavingName(false) }
   }
 
   const handleSaveTables = async () => {
     const n = parseInt(tableCount)
-    if (isNaN(n) || n < 1) { message.error('Ingresa un número válido'); return }
+    if (isNaN(n) || n < 1 || n > 100) { message.error('Ingresa un número de mesas entre 1 y 100'); return }
     setSavingTables(true)
     try {
-      const { data: existing } = await supabase.from('mesas').select('numero').order('numero')
-      const existingNums  = (existing || []).map((m: { numero: number }) => m.numero)
-      const toInsert      = Array.from({ length: n }, (_, i) => i + 1)
-        .filter(x => !existingNums.includes(x))
-        .map(numero => ({ numero, capacidad: 4, estado: 'libre', zona: 'principal', activa: true }))
-      if (toInsert.length > 0) await supabase.from('mesas').insert(toInsert)
-      const toDisable = existingNums.filter(x => x > n)
-      if (toDisable.length > 0) await supabase.from('mesas').update({ activa: false }).in('numero', toDisable)
+      // Crea las que faltan (la base respeta el tope del plan) y luego activa/desactiva según n
+      const { error: cErr } = await supabase.rpc('crear_mesas', { p_cantidad: n })
+      if (cErr) throw new Error(cErr.message)
+      const { error: onErr } = await supabase.from('mesas').update({ activa: true }).lte('numero', n)
+      if (onErr) throw new Error(onErr.message)
+      const { error: offErr } = await supabase.from('mesas').update({ activa: false }).gt('numero', n)
+      if (offErr) throw new Error(offErr.message)
       message.success(`Mesas actualizadas (${n} mesas activas)`)
-    } catch { message.error('Error al actualizar mesas') }
+    } catch (e) { message.error('No se pudieron actualizar las mesas: ' + (e instanceof Error ? e.message : '')) }
     finally { setSavingTables(false) }
   }
 
@@ -858,7 +872,7 @@ export const MenuManager = memo(() => {
                   Número total de mesas
                 </label>
                 <div className="flex gap-2">
-                  <input type="number" min="1" max="200" value={tableCount}
+                  <input type="number" min="1" max="100" value={tableCount}
                     onChange={e => setTableCount(e.target.value)} placeholder="Ej: 15"
                     className="flex-1 rounded-xl px-4 py-3 text-sm outline-none"
                     style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
@@ -1296,7 +1310,7 @@ export const MenuManager = memo(() => {
                     {form.image_preview ? 'Cambiar imagen' : 'Agregar imagen'}
                   </button>
                 </div>
-                <input ref={imageRef} type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                <input ref={imageRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleImageChange} />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

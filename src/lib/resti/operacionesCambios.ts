@@ -92,7 +92,7 @@ export function proponerCambiosOp(acciones: AccionOp[], d: DatosOp): Propuesta[]
       }
       case 'staff_add': {
         if (d.equipo.some(p => p.full_name && norm(p.full_name) === norm(a.nombre))) return sin(`Agregar a ${a.nombre}`, 'Ya hay alguien en el equipo con ese nombre.')
-        return { index, title: `Agregar a ${a.nombre} como ${ROL[a.rol]}`, detail: `${a.email}${a.telefono ? ` · ${a.telefono}` : ''} · se crea con una clave temporal que verás una sola vez`, change: { op: 'staff_create', email: a.email, nombre: a.nombre, rol: a.rol, telefono: a.telefono ?? null, password: claveSegura() } }
+        return { index, title: `Agregar a ${a.nombre} como ${ROL[a.rol]}`, detail: `${a.email}${a.telefono ? ` · ${a.telefono}` : ''} · se crea con una clave temporal que verás una sola vez`, change: { op: 'staff_create', email: a.email, nombre: a.nombre, rol: a.rol, telefono: a.telefono ?? null, password: claveSegura() }, riesgo: 'alto' }
       }
       case 'staff_edit': {
         const { uno, problema } = elegir(d.equipo.filter(p => p.full_name && coincide(p.full_name, a.nombre)), `a «${a.nombre}» en el equipo`, p => p.full_name ?? '')

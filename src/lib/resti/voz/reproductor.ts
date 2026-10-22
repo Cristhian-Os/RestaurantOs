@@ -1,5 +1,4 @@
 /** Reproduce el audio que devuelve Gemini (PCM de 16 bits) y se puede cortar al instante (interrupción). */
-import { pcm16Base64AMuestras } from './pcm.ts'
 
 export function crearReproductor() {
   let ctx: AudioContext | null = null, fuente: AudioBufferSourceNode | null = null
@@ -11,14 +10,6 @@ export function crearReproductor() {
   return {
     /** Llamar dentro de un gesto del usuario (el clic que activa la conversación): los navegadores no dejan sonar antes. */
     preparar() { void asegurar().resume().catch(() => {}) },
-    async reproducir(pcmBase64: string, rate: number): Promise<void> {
-      const c = asegurar(); await c.resume().catch(() => {})
-      const m = pcm16Base64AMuestras(pcmBase64); if (!m.length) return
-      const buffer = c.createBuffer(1, m.length, rate); buffer.copyToChannel(m as Float32Array<ArrayBuffer>, 0)
-      this.detener()
-      const s = c.createBufferSource(); s.buffer = buffer; s.connect(c.destination); fuente = s
-      await new Promise<void>(res => { s.onended = () => { if (fuente === s) fuente = null; res() }; s.start() })
-    },
     /**
      * Reproduce un audio que llega por partes (PCM de 16 bits): empieza cuando hay ~0,2 s acumulados y encadena cada parte sin cortes.
      * Resuelve cuando terminó de sonar; si se llama a `detener()` (interrupción) se corta de inmediato.

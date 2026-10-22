@@ -73,7 +73,13 @@ export function ShoppingList() {
       item.prioridad,
     ])
 
-    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n')
+    // Escapa cada celda: comillas dobles y, contra inyección de fórmulas, antepone ' si empieza por = + - @ tab o CR
+    const celda = (v: unknown) => {
+      let t = String(v ?? '')
+      if (/^[=+\-@\t\r]/.test(t)) t = "'" + t
+      return '"' + t.replace(/"/g, '""') + '"'
+    }
+    const csv = [headers, ...rows].map((row) => row.map(celda).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
@@ -85,6 +91,7 @@ export function ShoppingList() {
 
     link.click()
     document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
 
     message.success('Lista descargada como CSV')
   }
@@ -119,6 +126,7 @@ export function ShoppingList() {
 
     link.click()
     document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
 
     message.success('Lista descargada como JSON')
   }

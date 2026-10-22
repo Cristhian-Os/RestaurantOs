@@ -30,13 +30,17 @@ export function cifrasPermitidas(planes: PlanPublico[]): Set<number> {
   return s
 }
 
-const PROHIBIDAS = /gratis|gratuit|sin costo|sin cargo|promoci[oó]n|\boferta|rebaja|2\s?x\s?1|regalo|cortes[ií]a/i
+const PROHIBIDAS = /gratis|gratuit|sin costo|sin cargo|cero costo|promoci[oó]n|\boferta|rebaja|2\s?x\s?1|regal|cortes[ií]a|descuent|\bprueba|\bmitad\b|por ciento|d[oó]lar|\busd\b/i
+// Cifras escritas con letras ("ciento cuarenta mil", "quince mil pesos"): no pueden verificarse contra la tabla de planes, así que no se permiten.
+const NUM_PALABRA = '(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|diecis[eé]is|diecisiete|dieciocho|diecinueve|veinte|veinti\\w+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|doscientos|trescientos|cuatrocientos|quinientos|seiscientos|setecientos|ochocientos|novecientos|medio|media)'
+const NUMEROS_EN_PALABRAS = new RegExp(`\\b${NUM_PALABRA}(?:\\s+(?:y\\s+)?${NUM_PALABRA})*\\s+(?:mil|pesos|millones?)\\b`, 'i')
 const DINERO = /\$\s?(\d[\d.,]*)|(\d[\d.,]*)\s*(?:mil\s*)?(?:pesos|cop)\b|(\d[\d.,]*)\s*mil\b(?=\s*(?:al mes|mensual|al año|anual))/gi
 const aNumero = (t: string) => Number(t.replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.'))
 
 /** Filtro de salida: lo que Resti dice nunca trae precios fuera de la tabla, "gratis" ni promociones inventadas. */
 export function filtrarRespuesta(reply: string, planes: PlanPublico[]): { texto: string; filtrada: boolean } {
   if (PROHIBIDAS.test(reply)) return { texto: FALLBACK_COBRO, filtrada: true }
+  if (NUMEROS_EN_PALABRAS.test(reply)) return { texto: FALLBACK_PRECIO, filtrada: true }
   if (/\d+[.,]?\d*\s?%/.test(reply) && !/12[.,]5\s?%/.test(reply)) return { texto: FALLBACK_PRECIO, filtrada: true }
   const ok = cifrasPermitidas(planes)
   for (const m of reply.matchAll(DINERO)) {

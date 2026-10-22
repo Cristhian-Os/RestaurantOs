@@ -3,6 +3,7 @@ import { validar, SIN_RESPUESTA, limpiarHistorial, extraerJson } from './brain.t
 import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
 import { validarSugerencia, ANOTADO } from './sugerencia.ts'
 import { resumirDatos } from './datos.ts'
+import { permitido, registrarUsoIA, restiActivo, topeGlobal } from '../_shared/guardas.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -10,8 +11,18 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Datos de consulta (ventas por día, más vendidos, stock bajo…): se calculan con lo que devuelve la base y se reutilizan 60 s por usuario.
+// Datos de consulta (ventas por día, más vendidos, stock bajo…): se calculan con lo que devuelve la base y se reutilizan 60 s
+// por (usuario, restaurante). Tope de tamaño: al llenarse se purgan los vencidos y, si aún sobra, los más viejos. Nunca se sirve antes de validar rol/active.
+const CACHE_MS = 60_000, CACHE_MAX = 200
 const cache = new Map<string, { t: number; datos: unknown }>()
+function guardarCache(clave: string, datos: unknown) {
+  const ahora = Date.now()
+  if (cache.size >= CACHE_MAX) {
+    for (const [k, v] of cache) if (ahora - v.t >= CACHE_MS) cache.delete(k)
+    while (cache.size >= CACHE_MAX) { const k = cache.keys().next().value; if (k === undefined) break; cache.delete(k) }
+  }
+  cache.set(clave, { t: ahora, datos })
+}
 
 const DESTINOS = `- card-ventas-hoy: tarjeta de ventas de hoy
 - card-pendientes: pedidos pendientes
@@ -63,28 +74,34 @@ Deno.serve(async (req: Request) => {
     // Usuario, rol y restaurante salen de la sesión; el navegador no envía métricas ni restaurant_id.
     const { data: { user } } = await admin.auth.getUser(auth.replace('Bearer ', ''))
     if (!user) return json({ speech: 'Inicia sesión para hablar conmigo.', action: 'NONE' }, 401)
-    // Todo lo que necesita la respuesta se pide a la vez (antes era uno tras otro y sumaba ~1 s): perfil, topes, métricas, nombre y proveedor de IA.
-    // Las métricas se leen con el JWT del usuario: la RLS decide qué restaurante ve.
+    // 1) Perfil y rol PRIMERO: nada se calcula ni se sirve desde caché antes de validar admin activo con restaurante.
+    const { data: prof } = await admin.from('profiles').select('role, active, restaurant_id').eq('id', user.id).maybeSingle()
+    if (!prof || prof.active === false || prof.role !== 'admin' || !prof.restaurant_id) return json({ speech: 'Solo trabajo con el administrador del restaurante.', action: 'NONE' }, 403)
+    // 2) Interruptor de Resti, comprobado en el SERVIDOR (apagado por defecto): no basta con ocultar el botón.
+    if (!(await restiActivo(admin, prof.restaurant_id as string))) return json({ speech: 'Resti no está activado para tu restaurante.', action: 'NONE' }, 403)
+
+    // 3) Topes (falla cerrado: solo `true` deja pasar) y datos, a la vez. Las métricas se leen con el JWT del usuario: la RLS decide qué restaurante ve.
     const userDb = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } })
     const hace7 = new Date(Date.now() - 7 * 86400_000).toISOString()
-    const enCache = cache.get(user.id)
-    const [{ data: prof }, topes, { data: metricas }, { data: cfgRest }, cfg, consulta] = await Promise.all([
-      admin.from('profiles').select('role, active, restaurant_id').eq('id', user.id).maybeSingle(),
-      Promise.all([[`rb:${user.id}`, 20, 600], [`rbd:${user.id}`, 80, 86400]].map(([key, max, secs]) => admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs }))),
+    const claveCache = `${user.id}:${prof.restaurant_id}`
+    const enCache = cache.get(claveCache)
+    const vigente = !!enCache && Date.now() - enCache.t < CACHE_MS
+    const [topes, global, { data: metricas }, { data: cfgRest }, cfg, consulta] = await Promise.all([
+      Promise.all([[`rb:${user.id}`, 20, 600], [`rbd:${user.id}`, 80, 86400], [`rbr:${prof.restaurant_id}`, 400, 86400]].map(([key, max, secs]) => permitido(admin, key as string, max as number, secs as number))),
+      topeGlobal(admin, 'resti-brain'),
       userDb.rpc('get_admin_metrics'),
       userDb.from('restaurant_config').select('display_name').maybeSingle(),
       cargarProveedor(admin),
-      enCache && Date.now() - enCache.t < 60_000 ? Promise.resolve(enCache.datos) : Promise.all([
+      vigente ? Promise.resolve(enCache!.datos) : Promise.all([
         userDb.from('orders').select('total, created_at, items, tipo_pedido, payment_method').eq('status', 'completed').gte('created_at', hace7).order('created_at', { ascending: false }).limit(600),
         userDb.from('ingredientes').select('nombre, unidad_medida, stock_actual, stock_minimo').limit(400),
         userDb.from('mesas').select('estado').eq('activa', true).limit(200),
         userDb.from('tasks').select('id', { count: 'exact', head: true }).in('status', ['pending', 'in_progress']),
       ]).then(([o, i, m, t]) => resumirDatos({ ordenes: o.data ?? [], ingredientes: i.data ?? [], mesas: m.data ?? [], tareasPendientes: t.count ?? 0 })).catch(() => null),
     ])
-    if (consulta && !(enCache && Date.now() - enCache.t < 60_000)) cache.set(user.id, { t: Date.now(), datos: consulta })
-    if (!prof || prof.active === false || prof.role !== 'admin') return json({ speech: 'Solo trabajo con el administrador del restaurante.', action: 'NONE' }, 403)
-    // Tope por usuario (ráfaga y día): controla el costo. Se responde 200 para que Resti lo diga en voz alta.
-    if (topes.some(({ data: ok }) => ok === false)) return json({ speech: 'Hoy ya hablamos bastante. Mañana seguimos, o escríbeme algo corto.', action: 'NONE' })
+    if (consulta && !vigente) guardarCache(claveCache, consulta)
+    // Tope por usuario, por restaurante y global: controla el costo. Se responde 200 para que Resti lo diga en voz alta.
+    if (!topes.every(Boolean) || !global) return json({ speech: 'Hoy ya hablamos bastante. Mañana seguimos, o escríbeme algo corto.', action: 'NONE' })
     if (!cfg) return json({ speech: 'Ahora mismo no puedo ayudarte. Intenta en un momento.', action: 'NONE' })
 
     let crudo: unknown = null
@@ -94,6 +111,7 @@ Deno.serve(async (req: Request) => {
         usuario: text, mensajes: historial, maxTokens: 350, temperatura: 0.3, timeoutMs: 9000,
       }, fetch as unknown as Fetch)
       crudo = extraerJson(r.texto)
+      await registrarUsoIA(admin, prof.restaurant_id as string, 'resti_brain', r)
     } catch (e) {
       // Solo el mensaje (nunca la clave ni la petición): el error del proveedor ya viene sin secretos.
       console.error('proveedor de IA:', e instanceof Error ? e.message : 'error')
@@ -103,8 +121,7 @@ Deno.serve(async (req: Request) => {
     // Sugerencia de mejora: se guarda en feedback_items con el restaurante y el usuario de la SESIÓN (el modelo nunca los envía).
     const sug = crudo && typeof crudo === 'object' ? validarSugerencia((crudo as Record<string, unknown>).sugerencia, text) : null
     if (sug && prof.restaurant_id) {
-      const { data: okDia } = await admin.rpc('check_rate_limit', { p_key: `rbs:${user.id}`, p_max: 10, p_window_seconds: 86400 })
-      if (okDia !== false) {
+      if (await permitido(admin, `rbs:${user.id}`, 10, 86400)) {
         const { error } = await admin.from('feedback_items').insert({
           restaurant_id: prof.restaurant_id, user_id: user.id, user_role: 'admin', ...sug,
           pantalla: 'resti', conversacion: [{ role: 'user', text }],
