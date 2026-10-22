@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { validar, TARGETS, limpiarHistorial, extraerJson } from './brain.ts'
 
-assert.equal(TARGETS.length, 9)
+assert.equal(TARGETS.length, 8)
 assert.deepEqual(validar({ speech: 'Vas bien hoy.', action: 'NONE' }), { speech: 'Vas bien hoy.', action: 'NONE' })
 assert.deepEqual(validar({ speech: 'Mira.', action: 'WALK_AND_POINT', targetId: 'card-listas' }), { speech: 'Mira.', action: 'WALK_AND_POINT', targetId: 'card-listas' })
 assert.equal(validar({ speech: 'x', action: 'WALK_AND_POINT', targetId: 'btn-cobrar' }), null)   // fuera de la lista blanca

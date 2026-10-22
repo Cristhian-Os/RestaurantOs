@@ -31,8 +31,7 @@ const DESTINOS = `- card-ventas-hoy: tarjeta de ventas de hoy
 - card-completadas: órdenes completadas hoy
 - card-mesas-activas: mesas activas
 - tab-nueva-orden: pestaña para tomar una nueva orden
-- tab-mesas: pestaña del mapa de mesas
-- btn-notificaciones: notificaciones`
+- tab-mesas: pestaña del mapa de mesas`
 
 const SYSTEM = (nombre: string, datos: string) => `Eres Resti, el chef ejecutivo y mano derecha del administrador de "${nombre}" en RestaurantOS. Hablas en español colombiano, cálido y directo, con máximo 2 oraciones.
 

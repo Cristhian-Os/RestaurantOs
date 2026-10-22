@@ -8,7 +8,8 @@
     "check:resti": "node scripts/check-resti-targets.mjs",
     "build": "node scripts/check-resti-targets.mjs && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
