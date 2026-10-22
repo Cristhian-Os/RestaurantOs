@@ -5,7 +5,7 @@
  * hero (useScroll), reveals al hacer scroll (ScrollReveal) y un
  * selector de mesas en el plan Emprende.
  */
-import { useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion, useScroll, useTransform, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from '../components/ScrollReveal'
 import { PLANS, type PlanTexto } from '../config/plans'
@@ -45,7 +45,8 @@ function Hero() {
 
   return (
     <section ref={ref} className="landing-hero">
-      {/* Blobs decorativos con parallax */}
+      {/* Blobs decorativos con parallax (el contenedor los desvanece abajo para evitar un corte duro) */}
+      <div className="landing-hero-bg" aria-hidden="true">
       <motion.div style={{
         position: 'absolute', top: '-8%', left: '-10%', width: 'min(420px, 90vw)', height: 'min(420px, 90vw)',
         borderRadius: '50%', y: yBlob1, filter: 'blur(70px)', zIndex: 0,
@@ -56,6 +57,7 @@ function Hero() {
         borderRadius: '50%', y: yBlob2, filter: 'blur(80px)', zIndex: 0,
         background: 'radial-gradient(circle, color-mix(in oklch, var(--w-saffron) 45%, transparent), transparent 70%)',
       }} />
+      </div>
 
       <motion.div className="landing-hero-inner" style={{ y: yText, opacity }}>
         <motion.div
@@ -260,7 +262,7 @@ function Testimonials() {
           Historias que saben bien
         </h2>
       </ScrollReveal>
-      <ScrollRevealList stagger={0.1} className="landing-features">
+      <ScrollRevealList stagger={0.1} className="landing-features landing-testimonials">
         {TESTIMONIALS.map(t => (
           <ScrollRevealItem key={t.name}>
             <div className="lg" style={{ padding: 'clamp(1.25rem, 4vw, 2rem)', borderRadius: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -408,6 +410,13 @@ function Header() {
 
 /* ═══════════════════ LANDING ═══════════════════ */
 export default function Landing() {
+  // Escala tipográfica para PC/TV: solo mientras la landing está visible
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.add('landing-active')
+    return () => root.classList.remove('landing-active')
+  }, [])
+
   return (
     <div style={{ background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', minHeight: '100vh', overflowX: 'clip' }}>
       <Header />
