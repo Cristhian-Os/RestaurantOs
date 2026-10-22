@@ -16,7 +16,7 @@ function getAuthError(code: string | undefined): string {
     case 'invalid_credentials':        return 'Email o contraseña incorrectos'
     case 'email_not_confirmed':        return 'Confirma tu email antes de ingresar'
     case 'over_email_send_rate_limit': return 'Demasiados intentos, espera un momento'
-    case 'over_request_rate_limit':    return 'Demasiados intentos, espera un momento'
+    case 'user_not_found':             return 'No existe cuenta con ese email'
     default:                           return 'Error al iniciar sesión, intenta de nuevo'
   }
 }

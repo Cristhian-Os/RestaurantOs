@@ -3,11 +3,10 @@
  * Week-view schedule editor for a single employee.
  * CRUD on public.employee_schedules table.
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
-import { hoyBogota } from '../../services/menuOptions'
 
 interface Schedule {
   id:          string
@@ -36,9 +35,6 @@ function getWeekDays(anchor: Date): Date[] {
   })
 }
 
-// Hoy en hora de Bogotá como fecha local (sin hora), para que el calendario no dependa de la zona del dispositivo
-const hoyLocalBogota = () => new Date(hoyBogota() + 'T00:00:00')
-
 function toISO(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -47,7 +43,7 @@ function toISO(d: Date): string {
 }
 
 export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
-  const [anchor,      setAnchor]    = useState(hoyLocalBogota())
+  const [anchor,      setAnchor]    = useState(new Date())
   const [schedules,   setSchedules] = useState<Schedule[]>([])
   const [loading,     setLoading]   = useState(true)
   const [editingDate, setEditing]   = useState<string | null>(null)
@@ -58,7 +54,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
   const weekDays  = getWeekDays(anchor)
   const weekStart = toISO(weekDays[0])
   const weekEnd   = toISO(weekDays[6])
-  const todayISO  = hoyBogota()
+  const todayISO  = toISO(new Date())
 
   const bg     = 'var(--bg, #D8DAE4)'
   const bgSurf = 'var(--bg-surface, #CDD0DC)'
@@ -69,23 +65,18 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
 
   const shadowOut  = 'var(--shadow-out)'
   const shadowIn   = 'var(--shadow-in-sm)'
-  
+  const shadowOutLg= 'var(--shadow-out)'
 
-  // Solo cuenta la respuesta de la última consulta: si se cambia de semana rápido, las viejas se descartan
-  const reqId = useRef(0)
   const fetchSchedules = useCallback(async () => {
-    const mine = ++reqId.current
     setLoading(true)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('employee_schedules')
       .select('*')
       .eq('employee_id', employeeId)
       .gte('work_date', weekStart)
       .lte('work_date', weekEnd)
       .order('work_date')
-    if (mine !== reqId.current) return
-    if (error) message.error('No se pudo cargar el horario: ' + error.message)
-    else setSchedules(data || [])
+    setSchedules(data || [])
     setLoading(false)
   }, [employeeId, weekStart, weekEnd])
 
@@ -102,8 +93,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
 
   const handleSave = async (iso: string) => {
     if (!form.start || !form.end)   { message.warning('Indica hora de inicio y fin'); return }
-    // Turnos nocturnos permitidos (ej. 18:00 → 02:00 termina al día siguiente); solo se rechaza inicio = fin
-    if (form.start === form.end)    { message.warning('La entrada y la salida no pueden ser la misma hora'); return }
+    if (form.start >= form.end)     { message.warning('El inicio debe ser antes del fin'); return }
     setSaving(true)
     try {
       const existing = schedules.find(s => s.work_date === iso)
@@ -149,9 +139,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
   const totalHours = schedules.reduce((sum, s) => {
     const [sh, sm] = s.shift_start.split(':').map(Number)
     const [eh, em] = s.shift_end.split(':').map(Number)
-    let mins = eh * 60 + em - sh * 60 - sm
-    if (mins <= 0) mins += 24 * 60   // turno nocturno: termina al día siguiente
-    return sum + mins / 60
+    return sum + (eh * 60 + em - sh * 60 - sm) / 60
   }, 0)
 
   return (
@@ -197,7 +185,7 @@ export function ScheduleCalendar({ employeeId, employeeName, onClose }: Props) {
           </button>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: '0.75rem', fontWeight: 700, color: txt, margin: 0 }}>{weekLabel}</p>
-            <button onClick={() => setAnchor(hoyLocalBogota())}
+            <button onClick={() => setAnchor(new Date())}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: acc, fontFamily: 'inherit', fontWeight: 700, fontSize: '0.6875rem', padding: 0 }}>
               Ir a hoy
             </button>

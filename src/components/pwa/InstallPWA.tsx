@@ -3,7 +3,7 @@
  * Botón de instalación PWA + modal con QR para móvil
  * Se muestra SOLO cuando el browser soporta instalación (beforeinstallprompt)
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import QRCode from 'qrcode'
 
@@ -80,20 +80,14 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
     window.addEventListener('beforeinstallprompt', handler)
 
     // Detectar instalación completada
-    let closeTimer: ReturnType<typeof setTimeout> | null = null
-    const onInstalled = () => {
+    window.addEventListener('appinstalled', () => {
       setIsInstalled(true)
       setDeferredPrompt(null)
       setInstalled(true)
-      closeTimer = setTimeout(() => setShowModal(false), 2000)
-    }
-    window.addEventListener('appinstalled', onInstalled)
+      setTimeout(() => setShowModal(false), 2000)
+    })
 
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handler)
-      window.removeEventListener('appinstalled', onInstalled)
-      if (closeTimer) clearTimeout(closeTimer)
-    }
+    return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
   // Generar QR cuando se abre el modal

@@ -1,7 +1,7 @@
 /**
  * SubscriptionBanner.tsx — aviso de estado de la suscripción
  * ───────────────────────────────────────────────────────────────
- * Se muestra arriba del panel cuando el restaurante está en prueba, en mora o
+ * Se muestra arriba del panel cuando el restaurante tiene el pago pendiente, en mora o
  * cancelado. Invita al admin a ir a "Suscripción" para pagar. No bloquea la app
  * (el bloqueo duro lo maneja restaurants.active + el cron); esto es el aviso.
  */
@@ -20,7 +20,7 @@ export default function SubscriptionBanner({ onNavigate }: { onNavigate?: (v: Na
   useEffect(() => {
     supabase.from('subscriptions')
       .select('status, trial_ends_at, grace_ends_at, is_promo')
-      .limit(1).maybeSingle()
+      .maybeSingle()
       .then(({ data }) => { if (data) setInfo(data as any) })
     supabase.rpc('platform_billing_active').then(({ data }) => setBillingActive(data === true))
   }, [])
@@ -35,7 +35,7 @@ export default function SubscriptionBanner({ onNavigate }: { onNavigate?: (v: Na
   if (info.status === 'trialing') {
     const d = daysLeft(info.trial_ends_at)
     if (d === null || d > 3) return null // solo avisar cerca del final
-    text = d <= 0 ? 'Tu prueba gratuita terminó. Activa tu plan para seguir usando la app.' : `Tu prueba gratuita termina en ${d} día${d === 1 ? '' : 's'}. Activa tu plan para no perder acceso.`
+    text = d <= 0 ? 'Tu plan está pendiente de pago. Actívalo para seguir usando la app.' : `Tu acceso vence en ${d} día${d === 1 ? '' : 's'}. Activa tu plan para no perder acceso.`
     bg = 'rgba(201,160,64,0.14)'; color = '#8a6d3b'
   } else if (info.status === 'past_due') {
     const d = daysLeft(info.grace_ends_at)

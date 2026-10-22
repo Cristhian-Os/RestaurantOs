@@ -3,7 +3,7 @@
  * Panel completo de gestión de tareas para el administrador.
  * Crear, asignar, seguir estado y revisar evidencias fotográficas.
  */
-import { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react'
+import { useState, useCallback, useMemo, memo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }          from '../../services/supabaseClient'
 import { VoiceButton } from '../VoiceButton'
@@ -11,7 +11,6 @@ import { matchName } from '../../services/voiceMatch'
 import message               from 'antd/es/message'
 import Popconfirm            from 'antd/es/popconfirm'
 import { useRealtimeTasks }  from './useRealtimeTasks'
-import { evidenciaUrlFirmada } from '../../lib/storageUrl'
 import type { Task, TaskStatus, TaskPriority, Profile } from '../../types'
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
@@ -54,30 +53,13 @@ const FORM_INITIAL: NewTaskForm = {
   priority: 'medium', due_date: '',
 }
 
-// La voz puede traer solo fecha (YYYY-MM-DD) o fecha y hora; el campo datetime-local necesita
-// 'YYYY-MM-DDTHH:mm' en hora de Bogotá. Solo fecha = vence al final de ese día.
-function voiceDueToLocal(v: string | undefined): string | null {
-  const t = (v ?? '').trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return `${t}T23:59`
-  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(t)) return t.replace(' ', 'T').slice(0, 16)
-  const d = new Date(t)   // con zona horaria (Z / +hh:mm): se convierte a hora de Bogotá
-  if (!t || isNaN(d.getTime())) return null
-  const parts = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).format(d)   // "2026-10-15 14:30"
-  return parts.replace(' ', 'T')
-}
-
-// datetime-local entrega hora local sin zona: se interpreta SIEMPRE como hora de Bogotá (UTC-5, sin horario de verano)
-const dueToISO = (local: string) => (local ? `${local.slice(0, 16)}:00-05:00` : null)
-
 interface VoiceTask { transcript: string; title: string; description?: string; assignee_name?: string; priority: TaskPriority; due_date?: string }
 
 // ─── Componente principal ─────────────────────────────────────
 interface AdminTasksViewProps { profile: Profile }
 
 export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
-  const { tasks, loading, refetch, hasMore, loadMore, error: loadError } = useRealtimeTasks({ isAdmin: true })
+  const { tasks, loading, refetch } = useRealtimeTasks({ isAdmin: true })
   const [showForm,     setShowForm]   = useState(false)
   const [form,         setForm]       = useState<NewTaskForm>(FORM_INITIAL)
   const [creating,     setCreating]   = useState(false)
@@ -117,7 +99,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
       description: r.description?.trim() || p.description,
       assigned_to: emp?.id ?? p.assigned_to,
       priority: (['low', 'medium', 'high', 'urgent'] as const).includes(r.priority) ? r.priority : p.priority,
-      due_date: voiceDueToLocal(r.due_date) ?? p.due_date,
+      due_date: /^\d{4}-\d{2}-\d{2}$/.test(r.due_date ?? '') ? r.due_date : p.due_date,
     }))
     if (r.assignee_name && !emp) message.warning('No encontré al empleado "' + r.assignee_name + '". Elígelo en la lista.')
   }, [employees])
@@ -140,7 +122,7 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
         assigned_to: form.assigned_to,
         created_by:  profile.id,
         priority:    form.priority,
-        due_date:    dueToISO(form.due_date),
+        due_date:    form.due_date || null,
         status:      'pending',
       })
       if (error) throw error
@@ -157,6 +139,12 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
   const handleRejectTask = useCallback(async (taskId: string) => {
     const { error } = await supabase.from('tasks').update({ status: 'rejected' }).eq('id', taskId)
     if (error) message.error('Error al rechazar: ' + error.message)
+    else refetch()
+  }, [refetch])
+
+  const handleApproveTask = useCallback(async (taskId: string) => {
+    const { error } = await supabase.from('tasks').update({ status: 'completed' }).eq('id', taskId)
+    if (error) message.error('Error al aprobar: ' + error.message)
     else refetch()
   }, [refetch])
 
@@ -396,10 +384,6 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
         ))}
       </div>
 
-      {loadError && (
-        <p className="text-xs text-red-500 font-medium mb-3">{loadError}</p>
-      )}
-
       {/* Tabla de tareas */}
       {loading ? (
         <div className="flex justify-center py-12">
@@ -424,22 +408,11 @@ export const AdminTasksView = memo<AdminTasksViewProps>(({ profile }) => {
                 task={task}
                 onViewEvidence={() => setEvidenceTask(task)}
                 onReject={() => handleRejectTask(task.id)}
+                onApprove={() => handleApproveTask(task.id)}
                 onDelete={() => handleDeleteTask(task.id)}
               />
             </motion.div>
           ))}
-        </div>
-      )}
-
-      {hasMore && !loading && (
-        <div className="flex justify-center mt-5">
-          <button
-            onClick={loadMore}
-            className="text-sm font-bold text-[#6B7280] bg-[#D8DAE4] px-5 py-2.5 rounded-2xl"
-            style={S.neoOutSm}
-          >
-            Ver más tareas
-          </button>
         </div>
       )}
 
@@ -463,10 +436,11 @@ interface AdminTaskCardProps {
   task:           Task
   onViewEvidence: () => void
   onReject:       () => void
+  onApprove:      () => void
   onDelete:       () => void
 }
 
-const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject, onDelete }) => {
+const AdminTaskCard = memo<AdminTaskCardProps>(({ task, onViewEvidence, onReject, onApprove, onDelete }) => {
   const st  = STATUS_CFG[task.status]
   const pri = PRIORITY_CFG[task.priority]
   const evidenceCount = task.evidence?.length ?? 0
@@ -559,18 +533,6 @@ interface EvidenceModalProps {
 
 const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => {
   const evidence = task.evidence ?? []
-  // El bucket es privado: cada foto se muestra con una URL firmada temporal
-  const [urls, setUrls] = useState<Record<string, string | null>>({})
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const entries = await Promise.all(
-        (task.evidence ?? []).map(async ev => [ev.id, await evidenciaUrlFirmada(ev.storage_path || ev.photo_url)] as const),
-      )
-      if (!cancelled) setUrls(Object.fromEntries(entries))
-    })()
-    return () => { cancelled = true }
-  }, [task.evidence])
 
   return (
     <motion.div
@@ -616,35 +578,27 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
               <div key={ev.id} className="flex flex-col gap-3">
                 {/* Foto */}
                 <div className="w-full rounded-2xl overflow-hidden" style={S.neoIn}>
-                  {urls[ev.id] ? (
-                    <a href={urls[ev.id]!} target="_blank" rel="noopener noreferrer">
-                      <img
-                        src={urls[ev.id]!}
-                        alt="Evidencia"
-                        className="w-full h-56 object-cover hover:opacity-90 transition-opacity"
-                        loading="lazy"
-                      />
-                    </a>
-                  ) : (
-                    <p className="text-center text-xs text-[#9CA3AF] py-20">
-                      {ev.id in urls ? 'No se pudo cargar la foto' : 'Cargando foto…'}
-                    </p>
-                  )}
+                  <a href={ev.photo_url} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={ev.photo_url}
+                      alt="Evidencia"
+                      className="w-full h-56 object-cover hover:opacity-90 transition-opacity"
+                      loading="lazy"
+                    />
+                  </a>
                 </div>
                 {/* Metadata */}
                 <div className="flex justify-between text-xs text-[#9CA3AF]">
                   <span>{new Date(ev.submitted_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</span>
-                  {urls[ev.id] && (
-                    <a
-                      href={urls[ev.id]!}
-                      download
-                      className="text-[#FF5722] font-bold"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                     Descargar
-                    </a>
-                  )}
+                  <a
+                    href={ev.photo_url}
+                    download
+                    className="text-[#FF5722] font-bold"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                   Descargar
+                  </a>
                 </div>
                 {ev.notes && (
                   <p className="text-xs text-[#6B7280] bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
@@ -671,7 +625,7 @@ const EvidenceModal = memo<EvidenceModalProps>(({ task, onClose, onReject }) => 
               className="flex-1 py-3 rounded-2xl text-sm font-bold text-emerald-600 bg-[#D8DAE4]"
               style={S.neoOut}
             >
-              Cerrar
+              Aceptar
             </button>
           </div>
         )}

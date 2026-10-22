@@ -12,24 +12,16 @@ interface Options {
   isAdmin?: boolean  // si true, trae todas las tareas
 }
 
-const PAGE = 100
-
 interface Return {
-  tasks:    Task[]
-  loading:  boolean
-  refetch:  () => void
-  hasMore:  boolean      // puede haber tareas más antiguas sin cargar
-  loadMore: () => void   // carga otras 100
-  error:    string | null
+  tasks:   Task[]
+  loading: boolean
+  refetch: () => void
 }
 
 export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
   const [tasks,   setTasks]   = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
-  const [hasMore, setHasMore] = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
   const isMounted = useRef(true)
-  const limitRef  = useRef(PAGE)
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -40,7 +32,7 @@ export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
           evidence:task_evidence(id, photo_url, storage_path, notes, submitted_at, uploaded_by)
         `)
         .order('created_at', { ascending: false })
-        .limit(limitRef.current)
+        .limit(100)
 
       // Filtro por usuario si no es admin
       if (!isAdmin && userId) {
@@ -49,14 +41,9 @@ export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
 
       const { data, error } = await query
       if (error) throw error
-      if (isMounted.current) {
-        setTasks((data ?? []) as Task[])
-        setHasMore((data ?? []).length >= limitRef.current)
-        setError(null)
-      }
+      if (isMounted.current) setTasks((data ?? []) as Task[])
     } catch (e) {
       console.error('[useRealtimeTasks]', e)
-      if (isMounted.current) setError('No se pudieron cargar las tareas')
     } finally {
       if (isMounted.current) setLoading(false)
     }
@@ -90,7 +77,5 @@ export function useRealtimeTasks({ userId, isAdmin = false }: Options): Return {
     }
   }, [fetchTasks, isAdmin, userId])
 
-  const loadMore = useCallback(() => { limitRef.current += PAGE; fetchTasks() }, [fetchTasks])
-
-  return { tasks, loading, refetch: fetchTasks, hasMore, loadMore, error }
+  return { tasks, loading, refetch: fetchTasks }
 }

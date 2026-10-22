@@ -7,7 +7,7 @@
  * Colores con las variables --w-* del tema: el modo claro/oscuro de la app se
  * aplica solo (la app no usa la clase `dark:` de Tailwind).
  */
-import { forwardRef, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import message from 'antd/es/message'
@@ -29,6 +29,8 @@ interface Props {
   role:      VoiceRole
   onApplied: () => void
   onClose:   () => void
+  /** Lo que la persona le dijo a Resti: se interpreta al abrir (igual hay que revisar y aprobar cada cambio). */
+  textoInicial?: string
 }
 
 // ─── Fila de un cambio propuesto ─────────────────────────────────────────────
@@ -66,7 +68,7 @@ ProposalRow.displayName = 'ProposalRow'
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
 
-export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
+export function VoiceCommandModal({ userId, role, onApplied, onClose, textoInicial }: Props) {
   const [ctx, setCtx]               = useState<CommandContext | null>(null)
   const [items, setItems]           = useState<Item[]>([])
   const [dictados, setDictados]     = useState<Dictado[]>([])
@@ -116,6 +118,13 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
     }
   }
 
+  // Si viene de Resti con lo que dijiste, se interpreta solo (sin tener que repetirlo). Los cambios siguen necesitando tu aprobación.
+  useEffect(() => {
+    const t = textoInicial?.trim(); if (!t) return
+    const id = seq.current++, d = { id, text: t, n: 0 }
+    setDictados([d]); void interpretar(d)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const apply = async () => {
     if (applicable === 0 || applying) return
     setApplying(true)
@@ -130,8 +139,6 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
         done.add(item.id)
       } catch (e) {
         failed.set(item.id, e instanceof Error ? e.message : 'No se pudo aplicar')
-        // Los siguientes cambios pueden depender de este (se calcularon en cadena): se detiene aquí.
-        break
       }
     }
     if (done.size > 0) onApplied()
@@ -147,7 +154,7 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
     try {
       setCtx(await loadCommandContext(role))
       setItems(remaining)
-      if (done.size > 0) message.warning(`${done.size} aplicados. Se detuvo en el primer error; revisa los que quedaron.`)
+      if (done.size > 0) message.warning(`${done.size} aplicados. Revisa los que quedaron.`)
       else message.error('No se pudo aplicar ningún cambio.')
     } catch {
       message.warning(`${done.size} aplicados. Cierra y vuelve a abrir para continuar.`)

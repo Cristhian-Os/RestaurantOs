@@ -5,6 +5,17 @@
  * textos cuando tengas testimonios reales de tus clientes.
  */
 
+/** Cupos de la promoción de lanzamiento (primeros N = plan sin costo).
+ *  Bajado de 5 a 3 el 2026-09-26 — los 3 cupos ya están ocupados por
+ *  restaurantes existentes, así que de aquí en adelante ningún restaurante
+ *  nuevo la recibe automáticamente (nunca se activó de forma automática:
+ *  siempre fue el dueño marcando is_promo=true a mano). */
+export const PROMO_SLOTS = 3
+
+/** WhatsApp del equipo de VENTAS al que Resti manda a quien quiere comprar (con indicativo). Vacío = Resti no muestra el botón y el equipo escribe desde los leads.
+ *  Es el WhatsApp Business de RestaurantOS (dado por el dueño el 2026-10-22). CONTACTO_WHATSAPP es otro número, sin confirmar que sea de RestaurantOS. */
+export const WHATSAPP_VENTAS: string = '+57 310 4645742'
+
 /** WhatsApp de contacto para activar un restaurante (con indicativo, ej. +57 300 000 0000). Vacío = solo texto. */
 export const CONTACTO_WHATSAPP = '+57 304 538 8425'
 
@@ -44,8 +55,8 @@ export const FAQS: Faq[] = [
     a: 'No. RestaurantOS funciona desde el navegador de cualquier celular, tablet o computador. Solo entras con tu cuenta.',
   },
   {
-    q: '¿Cómo empiezo a usar RestaurantOS?',
-    a: 'Solicita acceso y nuestro equipo activa tu restaurante contigo: dejamos listo tu menú, mesas y equipo, y te entregamos tu usuario de administrador.',
+    q: '¿Cómo funciona el cobro?',
+    a: 'Se cobra desde el primer mes, sin permanencia, y la comisión de Wompi ya viene incluida en el precio. Puedes pagar mes a mes o el plan anual prepagado, que sale más barato. Si no te convence, te devolvemos el primer pago si lo pides dentro de los 30 días.',
   },
   {
     q: '¿Puedo cambiar de plan o cancelar?',

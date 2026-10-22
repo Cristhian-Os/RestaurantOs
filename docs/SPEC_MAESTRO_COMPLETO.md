@@ -1,8 +1,95 @@
-# SPEC MAESTRO COMPLETO: cómo construir RestaurantOS paso a paso
+﻿# SPEC MAESTRO COMPLETO: cómo construir RestaurantOS paso a paso
 
 **Este es el único archivo que necesitas.** Dice en qué orden se construye todo, con qué reglas y dónde debes detenerte a esperar a Cristhian, y **trae adentro, como anexos A a J, todas las especificaciones y el plan de acción completos**. No dependes de ningún otro archivo para construir. Guárdalo como `docs/SPEC_MAESTRO_COMPLETO.md` y léelo desde ahí.
 
 Cristhian es emprendedor sin formación en programación. Todo lo que le reportes debe estar en español sencillo, corto y sin jerga. Cuando le pidas que pruebe algo, dile exactamente qué abrir, qué tocar y qué debe pasar.
+
+---
+
+## 0. ESTADO ACTUAL (actualizado el 20 de octubre de 2026)
+
+Esta sección dice dónde va la construcción. Si algo de aquí contradice un bloque más abajo, **manda esta sección** (refleja lo que realmente está en producción).
+
+### 0.1 Resumen de bloques
+
+| Bloque | Qué es | Estado |
+|---|---|---|
+| 0 | Auditoría | ✅ Hecho (`docs/AUDITORIA.md`) |
+| 1 | La plata del piloto: pagos divididos, gastos por origen, reembolsos | ✅ En producción desde el 14-oct |
+| 2 | Voz editable (texto, corregir transcripción, escribir en vez de hablar) | ✅ En producción |
+| 3 | Seguridad y aislamiento, 2FA del superadmin | ✅ En producción (`SECURITY.md`). 2FA activo |
+| 4 | Opciones universales, 17 plantillas y su editor, preguntas al dueño, menú por voz | ✅ En producción (19-oct). Opciones nuevas encendidas **solo en Sabor encantado** |
+| 5A | Facturas de compra con foto | ✅ En producción (19-oct). **Falta tu prueba con foto real** |
+| 5B | Opiniones dentro del chatbot | ✅ En producción desde el 21-oct (ver `docs/informes/BLOQUE5B_OPINIONES.md`). **Falta tu prueba real con Gemini** desde un usuario de Sabor encantado |
+| 6 | Planes, precios, IVA, prueba de 7 días, plan anual (10,5 meses) y cobro Wompi | ✅ En producción desde el 20-oct (cobro real apagado; Cholaos sin tocar). Ver `docs/informes/BLOQUE6_PLANES_Y_PRECIOS.md`. Precios: Esencial 160.000, Pro 260.000, Premium 375.000 (no disponible hasta que existan las sedes), sede extra 70.000 |
+| 7 | Panel de plataforma Fase 1: Inicio, ficha de restaurante, origen, semáforo | ✅ En producción (19-oct) |
+| 8 | Vendedores con contrato, comisiones, pagos, Dinero y Rendimiento | ✅ En producción (20-oct). Sin datos reales todavía |
+| 9 | Asistente de configuración completo | 🟡 Construido y probado en el proyecto de prueba y el simulador (21-oct); **falta aplicar en producción** (ver `docs/informes/BLOQUE9_ASISTENTE.md`). Incluye cierre del hueco de fotos entre restaurantes |
+| 10 | Impresión de comandas, tickets y recibos | ✅ En producción desde el 21-oct (migración 20261021182625, Cholaos sin tocar); **falta probar con una impresora real** (ver `docs/informes/BLOQUE10_IMPRESION.md`). Impresión rápida ESC/POS pospuesta hasta tener impresora |
+| 11 | Reportes con inteligencia artificial real | 🟡 Pasos 1 a 5 **en producción desde el 21-oct** (IA encendida solo en Demo; apagada en los demás, Cholaos incluido). Decisión del 22-oct: solo reporte semanal y mensual con IA; el antifraude avisa solo si detecta algo; el dueño ve el consumo por restaurante. Pendiente: pasos 6 a 8, prueba real con Gemini, precios y comparación con una semana real de Cholaos (ver `docs/informes/BLOQUE11_REPORTES_IA.md`) |
+| 12 | Fase 4 restante y Fase 5 (Sentry, copias automáticas, soporte, etc.) | ⬜ Pendiente (se elige con Cristhian) |
+| 13 | Panel "Negocio": globo con restaurantes, semáforo y control de la plataforma | ⬜ Al final, solo por orden expresa |
+
+### 0.2 Qué hay en producción hoy (resumen por bloque)
+
+- **Bloque 4.** Listas y opciones reutilizables, grupos de opciones por plato, precios y consumo de inventario por opción, interruptor por restaurante, 17 plantillas aprobadas (heladería, cafetería, hamburguesería, pizzería, parrilla, almuerzos, panadería, comida de mar, sushi, asiática, mexicana, italiana, árabe, etc., con 115 preguntas), editor de plantillas con versiones, asistente de tipo de negocio con selección múltiple y formulario de preguntas, y comandos de voz para agotar o activar sabores y opciones.
+- **Bloque 5A.** Menú "Facturas" para administrador y cajero: foto por cámara o galería (hasta 10 páginas), proveedor, monto, nota, gasto de caja opcional, filtros, zoom, descarga, edición y borrado solo del administrador, Excel y cola sin internet. Fotos en bucket privado.
+- **Bloque 7.** Pestañas del panel: **Inicio** (qué necesita atención hoy y semáforo), **Restaurantes** (lista, filtros y ficha editable con notas, próxima acción, contactos, prueba extendida y activar/desactivar). El formulario "Nuevo restaurante" pide "¿Cómo se enteró?" o el código del vendedor. Registro de cambios que nadie puede editar ni borrar.
+- **Bloque 8.** Pestañas: **Vendedores** (contrato obligatorio, código inmutable si ya trajo clientes, activar/desactivar con motivo, prospectos, enlaces de referido, condiciones generales), **Pagos a vendedores** (calcular, revisar, cuenta de cobro, aprobar, registrar pago con comprobante, recibo PDF `LIQ-AAAA-NNNN`), **Dinero** y **Rendimiento** (solo para el dueño).
+
+### 0.3 Cambios frente al plan original (decisiones tomadas en la práctica)
+
+1. **El registro público está cerrado.** Los restaurantes los crea el dueño desde el panel. Por eso "¿Cómo te enteraste?" va en el formulario "Nuevo restaurante" y no en `Signup`. La página `/registro` guarda `?v=` y `?o=` y los pone en el mensaje de WhatsApp.
+2. **Datos internos en tabla aparte.** Estado comercial, notas, origen y vendedor viven en `restaurant_crm`, no como columnas de `restaurants` (el administrador de cada restaurante puede leer su propia fila de `restaurants`).
+3. **Bono del vendedor:** la mitad del precio base de cada uno de los dos primeros pagos (equivale a "un mes del plan repartido en dos"). No depende de la lista de precios.
+4. **Precio base e IVA de los pagos:** `payments` ya tiene `base_cop`, `iva_cop` y `total_cop`, pero **los llena el Bloque 6**. Mientras tanto la base se calcula como total ÷ (1 + IVA).
+5. **Comida internacional se dividió** en 5 plantillas independientes (sushi, asiática, mexicana, italiana, árabe).
+6. **Rendimiento** se incluyó en el Bloque 8 por pedido de Cristhian.
+7. **Facturas:** la lectura automática con IA queda para una segunda versión.
+8. **Migraciones:** todas se probaron primero en el proyecto de prueba de Supabase y se aplicaron en producción con "apruebo, aplica" de Cristhian, con respaldo previo y prueba que se revierte sola. Cada una tiene su reversa en `supabase/rollback/`. El registro de copias está en `REGISTRO_COPIAS.txt` (fuera del repositorio).
+
+### 0.4 Lo que falta construir (en el orden propuesto)
+
+1. **Bloque 6: Planes, precios y cobro.** Planes y límites en base de datos y en `plans.ts` y `billing.ts` con los nombres y precios de la sección 4; precios "más IVA"; guardar base, IVA y total de cada pago; prueba de 14 días; plan anual; que el chatbot lea los precios de una sola fuente (hoy los tiene escritos a mano); cobro recurrente con Wompi **solo en modo de pruebas**. 🛑 No se activa cobro real hasta que Cristhian tenga RUT con responsabilidad de IVA y factura electrónica.
+2. **Bloque 5B: Opiniones en el chatbot (Anexo F).** Falta: función `chat-support` en modo opinión con herramienta `guardar_opinion` (restaurante y usuario salen de la sesión, nunca del modelo; urgencia "alta" limitada si el texto no muestra un bloqueo real; IP con hash; clave de Gemini en cabecera), atajos en el chat, "Mis sugerencias", pestaña en el panel con filtros y resumen semanal con IA, aviso de urgencia alta y aviso al restaurante cuando algo pasa a "hecho". La tabla `feedback_items` y sus funciones ya están escritas y probadas solo en el proyecto de prueba.
+3. **Bloque 9: Asistente de configuración completo** (Anexo D).
+4. **Bloque 10: Impresión** de comandas, pre-cuenta, recibo y cierre de caja (Anexo H).
+5. **Bloque 11: Reportes con IA real** (Anexo I). No se activa para clientes reales sin aprobar el aviso de privacidad y medir el costo.
+6. **Bloque 12:** Sentry, copias automáticas y prueba de restauración, correo propio (SMTP), soporte con WhatsApp, centro de ayuda, modo sin internet y auditoría. Se elige con Cristhian.
+7. **Bloque 13: Panel "Negocio"** (globo con un punto por restaurante y semáforo, ficha editable, suspender o borrar con seguridad, avisos, salud de backups). Solo por orden expresa.
+
+### 0.5 Pendientes descubiertos y deuda conocida
+
+- Cholaos Dany: migrar sus platos viejos a las opciones nuevas (cuando no esté operando y con respaldo).
+- Limpieza de lo heredado (sabores de helado y jugo antiguos) una vez migrado Cholaos.
+- Contraseñas filtradas: la protección de Supabase exige plan Pro (USD 25 al mes); decisión de Cristhian.
+- Correo propio (SMTP) para los correos de la app; dominio y buzones oficiales de la empresa.
+- Errores menores conocidos: el pedido sin conexión no envía el nombre del cliente; el modal de pago rápido no tiene Tarjeta; el Excel mensual no trae la columna de tarjeta.
+- Una migración suelta sin revisar (`20260928195300_fix_cancelar_orden_editar_pedido_cliente_security.sql`) existe solo en el disco y no debe subirse.
+- Instalación de Bremantia (Filandia) y pruebas reales en TV (WebOS) y iPad: las hace Cristhian.
+- La página `/registro` apunta al +57 304 538 8425, que **no es** un WhatsApp de RestaurantOS: decidir si se deja vacío hasta tener uno.
+- Anexo G: las casillas `[x]` de ese plan no se han actualizado bloque por bloque; vale esta sección como fuente de verdad.
+
+### 0.6 Qué le toca a Cristhian
+
+**Pruebas manuales pendientes**
+1. Subir una factura de prueba con foto real desde el celular (Facturas, en Demo) y revisar que se vea, se descargue y salga en Excel.
+2. Entrar al panel de plataforma con el código de 2 pasos y recorrer Inicio, Restaurantes, Vendedores, Pagos, Dinero y Rendimiento en el celular.
+3. Abrir la ficha de Cholaos, anotar un contacto y cambiar el estado comercial.
+4. En Sabor encantado (opciones nuevas encendidas): iniciar sesión como administrador y revisar el menú, listas y plantillas.
+5. Un pedido normal en Cholaos y en Bremantia para confirmar que nada cambió.
+
+**Decisiones**
+- ¿Dejar vacío el WhatsApp de `/registro` hasta tener uno de RestaurantOS?
+- ¿Retomar el 5B (opiniones) o seguir con el Bloque 6?
+- Plan Pro de Supabase (contraseñas filtradas).
+
+**Fuera del código**
+- Contador: retención en la fuente sobre comisiones, cómo documentar el pago (cuenta de cobro o factura) y política de conservación de facturas.
+- Abogado: contrato de comisión o agencia comercial, qué pasa al desactivar un código, textos legales y política de privacidad (opiniones y facturas con datos de terceros).
+- RUT con responsabilidad de IVA y factura electrónica antes del primer cobro real.
+- Wompi: preguntar por pagos a terceros (solo para una fase futura).
+- Crear el primer vendedor o aliado real con su contrato firmado.
 
 ---
 
@@ -142,6 +229,24 @@ Sigue exactamente este orden. Cada bloque dice qué leer y cuál es la parada.
 ### Bloque 12: Fase 4 restante y Fase 5
 - Lee: Anexo G, Fase 4 (Sentry, copias de seguridad, correo, soporte, modo sin internet, auditoría) y Fase 5.
 - Haz: **no empieces nada de aquí sin que Cristhian elija cuál.** Propón cuál sigue según el informe más reciente y espera su respuesta.
+
+### Bloque 13: Panel "Negocio" del superadministrador (mapa y control de la plataforma). SE HACE AL FINAL
+Pedido por Cristhian el 2026-10-19: **dejarlo para lo último**, después de todos los bloques anteriores. No empezar antes sin su orden expresa.
+- Qué es: una pestaña nueva del panel de plataforma llamada **"Negocio"**, que es la pantalla de entrada del dueño de la plataforma (hoy el panel tiene Restaurantes, Plantillas y Opciones por restaurante). Va detrás del código de 2 pasos, como todo lo demás.
+- **Globo terráqueo** al abrir: un punto por cada restaurante en su ubicación real (ciudad o coordenadas), con el color del semáforo de uso. Al tocar un punto se abre su ficha. Debe funcionar en celular, girar con el dedo y tener una lista alternativa para quien no pueda usar el globo.
+- Datos que hacen falta: ubicación de cada restaurante (ciudad ya se pide en el asistente; agregar latitud y longitud, que se calculan desde la ciudad o se marcan a mano). Cuidar la política de seguridad de la app (`vercel.json`: solo se permiten las fuentes necesarias) y evitar librerías pesadas: el globo debe cargar rápido en un celular de gama media.
+- Funciones que viven dentro de "Negocio" (aprobadas como lista de ideas el 2026-10-19; Cristhian elige el orden al llegar):
+  1. **Semáforo de uso** por restaurante (verde, amarillo, rojo según pedidos recientes) y **"qué necesita atención hoy"**: pruebas gratis por vencer, pagos atrasados, restaurantes sin pedidos hace días, asistentes de configuración sin terminar.
+  2. **Ficha editable** de cada restaurante (nombre, contacto, país, notas, plan, fechas, con motivo y registro) y **avance del asistente** con las respuestas del administrador.
+  3. **Suspender, reactivar y borrar con seguridad**: el borrado exige el código de 2 pasos, copia previa y escribir el nombre del restaurante, y deja registro.
+  4. **Vendedores, códigos y comisiones** (Bloques 7 y 8), incluido el código propio de cada restaurante para que gane comisión si vende.
+  5. **Panel de dinero**: ingresos por mes, planes activos, pagos, comisiones que se deben.
+  6. **Costo de la voz e IA por restaurante** para que no se dispare.
+  7. **"Ver como el restaurante"** en solo lectura y con registro, para dar soporte sin pedir claves.
+  8. **Avisos** a todos o a un grupo de restaurantes.
+  9. **Estado de copias y salud del sistema**: última copia, errores recientes, uso de la base.
+- Reutiliza lo que ya exista de los Bloques 7, 8 y 11 en vez de duplicarlo: este bloque es la pantalla que los reúne y los pone sobre el mapa.
+- 🛑 Parada: Cristhian abre "Negocio" en el celular y en el computador, ve el globo con sus restaurantes reales, toca un punto, y confirma que el semáforo y la lista de atención hoy coinciden con lo que él sabe de cada uno. Nada se aplica en producción sin su confirmación y una copia reciente.
 
 ## 6. Lo que Claude Code no puede hacer y depende de Cristhian
 
@@ -1459,6 +1564,7 @@ Reglas completas en el documento de precios y comisiones. Resumen: el vendedor g
 - [ ] **Roles y permisos** claros y probados: admin, cajero, mesero, cocina.
 - [ ] **Asistente de configuración paso a paso**: tipo de restaurante, datos, mesas, proveedores, inventario, menú con foto y descripción por plato, recetas que conectan cada plato con sus ingredientes, marca con vista previa en vivo y equipo, para dejar el sistema completo sin ayuda en menos de 45 minutos. Diseño completo en el Anexo D (necesita primero las plantillas de 1.5).
 - [ ] **Facturas y comprobantes con foto**: apartado en caja para subir fotos de facturas de compra, con proveedor, monto y fecha, y opción de registrar el gasto. Pedido por Angela. Diseño en el Anexo E.
+- [ ] **Lectura automática de facturas con IA** (Anexo E, punto 3.5): Gemini propone proveedor, fecha, monto y productos al subir la foto; el usuario revisa antes de guardar. Pospuesto por Cristhian el 19-oct-2026; se hace después de la primera entrega de facturas.
 - [ ] **Dominio propio y correos oficiales de la empresa** (no son un cobro a los clientes: son costos de la empresa que ya cubre el aumento de precios). Dejar de mostrar la dirección gratuita de Vercel:
   1. Confirmar que `usarestaurantos.com` está comprado a nombre de la empresa (o tuyo, para transferirlo luego a la SAS) y apuntar su DNS a Vercel.
   2. Tú, en Vercel: Project → Settings → Domains → agregar `usarestaurantos.com` y `www.usarestaurantos.com`; poner el principal como producción. (Hacerlo por la API devolvió 403; es un paso manual.)

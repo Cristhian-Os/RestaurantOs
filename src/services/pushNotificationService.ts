@@ -147,9 +147,11 @@ export const pushNotificationService = {
   // Enviar push a todos los dispositivos de uno o varios roles, vía Edge Function.
   // Funciona aunque la app del destinatario esté cerrada.
   //
-  // MULTI-TENANT: ya no se manda restaurant_id desde el cliente: la Edge Function lo toma del
-  // token de quien llama (staff autenticado), así nadie puede notificar a otro restaurante.
-  // El parámetro `_restaurantId` se conserva solo por compatibilidad con los llamadores y se ignora.
+  // MULTI-TENANT: siempre se manda restaurant_id, para que la notificación
+  // solo llegue al personal de ESE restaurante (nunca a otros con el mismo
+  // rol). Si no se pasa explícito (staff autenticado), se resuelve desde el
+  // perfil del usuario actual. El flujo anónimo del menú público (sin
+  // sesión) SÍ debe pasarlo explícito, porque no hay perfil de quien llama.
   // userIds: si se pasa, ADEMÁS de los roles se notifica directo a esas
   // personas puntuales (ej. el mesero dueño del pedido) — no reemplaza los
   // roles, los complementa.
@@ -158,13 +160,21 @@ export const pushNotificationService = {
     title: string,
     body: string,
     url = '/',
-    _restaurantId?: string,
+    restaurantId?: string,
     userIds?: string[],
   ): Promise<void> {
     try {
+      let rid = restaurantId
+      if (!rid) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).maybeSingle()
+        rid = prof?.restaurant_id ?? undefined
+        if (!rid) return
+      }
       const roles = Array.isArray(target) ? target : [target]
       await supabase.functions.invoke('send-push', {
-        body: { roles, title, body, url, user_ids: userIds },
+        body: { roles, title, body, url, restaurant_id: rid, user_ids: userIds },
       })
     } catch (error) {
       console.error('Error enviando push:', error)

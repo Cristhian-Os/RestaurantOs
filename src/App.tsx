@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, startTransition, Suspense, lazy } from 'react'
+import { useState, useEffect, useCallback, startTransition, Suspense, lazy } from 'react'
 import { supabase }  from './services/supabaseClient'
 import Login         from './pages/Login'
 import PublicMenu    from './pages/PublicMenu'
@@ -7,7 +7,6 @@ import Signup        from './pages/Signup'
 import Legal         from './pages/Legal'
 import ResetPassword from './pages/ResetPassword'
 import { ThemeProvider } from './contexts/ThemeContext'
-import { limpiarSesionLocal } from './services/sessionCleanup'
 import type { Session } from '@supabase/supabase-js'
 
 // Dashboard (y todo lo que solo usa el admin: mesas, menú, marca, suscripción,
@@ -59,8 +58,6 @@ function SplashScreen() {
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready,   setReady]   = useState(false)
-  // Último usuario visto en este dispositivo: si cambia, se limpia lo local de la cuenta anterior
-  const lastUserId = useRef<string | null>(null)
 
   useEffect(() => {
     if (IS_PUBLIC_MENU) {
@@ -73,15 +70,6 @@ export default function App() {
     // nunca interrumpe un render en curso → elimina el error #300.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, s) => {
-        // Cambio de cuenta (también entre recargas): nada de la cuenta anterior debe quedar
-        const uid = s?.user?.id ?? null
-        if (uid) {
-          let prev = lastUserId.current
-          if (!prev) { try { prev = localStorage.getItem('restaurantos_last_uid') } catch { /* sin almacenamiento */ } }
-          if (prev && prev !== uid) void limpiarSesionLocal()
-          lastUserId.current = uid
-          try { localStorage.setItem('restaurantos_last_uid', uid) } catch { /* sin almacenamiento */ }
-        }
         startTransition(() => {
           setSession(s)
           setReady(true)
@@ -106,8 +94,6 @@ export default function App() {
   }, [])
 
   const handleLogout = useCallback(async () => {
-    // Limpiar ANTES de cerrar sesión: desuscribir push necesita la sesión activa
-    try { await limpiarSesionLocal() } catch { /* no bloquear el cierre de sesión */ }
     await supabase.auth.signOut()
     // signOut dispara onAuthStateChange con session=null → setSession automático
   }, [])

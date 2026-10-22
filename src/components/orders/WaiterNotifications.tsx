@@ -4,9 +4,8 @@
  * - Fallback: polling cada 15s por si Realtime falla
  * - Tono según el tipo de pedido (orderSounds) + vibración al llegar
  */
-import { useState, useEffect, useCallback, useRef, memo } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { playOrderSound, TIPO_LABEL } from '../../services/orderSounds'
 
@@ -20,13 +19,7 @@ interface ReadyOrder {
 }
 
 export const WaiterNotifications = memo(() => {
-  const [ready, setReadyState] = useState<ReadyOrder[]>([])
-  // Espejo de la lista: el sonido se decide FUERA de los actualizadores de setState (que React puede ejecutar dos veces).
-  const readyRef = useRef<ReadyOrder[]>([])
-  const setReady = useCallback((fn: (prev: ReadyOrder[]) => ReadyOrder[]) => {
-    readyRef.current = fn(readyRef.current)
-    setReadyState(readyRef.current)
-  }, [])
+  const [ready, setReady] = useState<ReadyOrder[]>([])
 
   // Todos los meseros ven el aviso de "pedido listo": cualquiera puede ir a
   // buscarlo. "Ya lo tengo" lo quita en todos los dispositivos.
@@ -36,20 +29,15 @@ export const WaiterNotifications = memo(() => {
       .select('id, table_num, customer_name, created_at, user_id, tipo_pedido')
       .eq('status', 'ready')
       .is('delivered_at', null)
-    if (data) setReady(() => data)
-  }, [setReady])
+    if (data) setReady(data)
+  }, [])
 
   // Marcar como entregada: persiste en la base (visible en Caja) y quita
   // el aviso de todos los dispositivos, no solo de esta pantalla.
   const markDelivered = useCallback(async (orderId: string) => {
     setReady(prev => prev.filter(o => o.id !== orderId))
-    const { error } = await supabase.from('orders').update({ delivered_at: new Date().toISOString() }).eq('id', orderId)
-    if (error) {
-      // No se guardó: el aviso vuelve a aparecer para no perder el pedido.
-      message.error('No se pudo marcar como entregado: ' + error.message)
-      void fetchReady()
-    }
-  }, [setReady, fetchReady])
+    await supabase.from('orders').update({ delivered_at: new Date().toISOString() }).eq('id', orderId)
+  }, [])
 
   useEffect(() => {
     // Carga inicial
@@ -80,14 +68,15 @@ export const WaiterNotifications = memo(() => {
             }
 
             if (row.status === 'ready' && !row.delivered_at) {
-              if (!readyRef.current.some(o => o.id === row.id)) {
+              setReady(prev => {
+                if (prev.some(o => o.id === row.id)) return prev
                 playOrderSound(row.tipo_pedido)
-                setReady(prev => [...prev, {
+                return [...prev, {
                   id: row.id, table_num: row.table_num,
                   customer_name: row.customer_name, created_at: row.created_at,
                   user_id: row.user_id, tipo_pedido: row.tipo_pedido,
-                }])
-              }
+                }]
+              })
             }
             // Entregada (por este u otro mesero) o cerrada: quitar el aviso de todos los dispositivos.
             if (row.delivered_at || row.status === 'completed' || row.status === 'cancelled') {
@@ -103,7 +92,7 @@ export const WaiterNotifications = memo(() => {
       clearInterval(poll)
       if (ch) supabase.removeChannel(ch)
     }
-  }, [fetchReady, setReady])
+  }, [fetchReady])
 
   if (ready.length === 0) return null
 

@@ -1,0 +1,496 @@
+{
+ "almuerzos": [
+  {
+   "id": "p1",
+   "texto": "¿Cada mañana escribes un menú nuevo de sopas, principios y jugos, o repites un ciclo fijo por días de la semana?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿El precio del almuerzo cambia según la proteína que elija el cliente, por ejemplo res o pescado frente a pollo?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿El corrientazo y el ejecutivo son platos distintos en tu negocio? ¿En qué se diferencian?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Qué elige el cliente en el almuerzo y qué viene fijo: solo la proteína, o también la sopa, el principio y el jugo?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Cobras algo cuando el cliente repite sopa o jugo, o cuando pide el almuerzo para llevar con empaque?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Se te agota la proteína durante la tarde? ¿Limitas cuántos platos de cada una vendes al día?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Vendes almuerzos por mensualidad o a empresas con convenio, o fías a clientes de oficina?"
+  }
+ ],
+ "bar": [
+  {
+   "id": "p1",
+   "texto": "¿Cómo vendes los licores: por trago, media y botella? ¿Cada marca tiene su propio precio o manejas un solo precio por tipo de licor?"
+  },
+  {
+   "id": "p2",
+   "texto": "Cuando vendes una botella o media, ¿los mezcladores, el hielo y las gaseosas van incluidos o se cobran aparte?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Vendes el trago doble? ¿Cuesta el doble del sencillo o tiene un precio propio?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Qué presentaciones de cerveza vendes (botella, jarra, cubetazo) y cuántas cervezas trae cada una?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Cobras de más por la michelada, la cerveza con limón y sal, o un cóctel con licor premium?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Tienes happy hour, 2x1 u otras promociones? ¿Cómo funcionan?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿El precio de tu carta ya incluye el impuesto al consumo y la propina sugerida?"
+  }
+ ],
+ "cafeteria": [
+  {
+   "id": "p1",
+   "texto": "¿Cuántos tamaños de bebida vendes y cómo los llamas (pequeño, mediano, grande, onzas)? ¿Son los mismos para todas las bebidas?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Cobras más por cambiar a leche de avena, almendra u otra leche vegetal? ¿Ese extra cambia según el tamaño?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Cobras aparte los jarabes, el shot extra de café, la crema u otras adiciones?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Vendes el mismo café caliente y frío al mismo precio, o son productos distintos?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Tienes combos de café con pan o postre? ¿El cliente escoge el acompañante o ya viene definido?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Vendes café en grano o molido para llevar? ¿En qué presentaciones (250 g, 500 g) y con qué molienda?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Tu café de especialidad cambia de precio según el origen o el método de preparación?"
+  }
+ ],
+ "comida_arabe": [
+  {
+   "id": "p1",
+   "texto": "¿Cómo vendes el shawarma: por tamaño (mini, regular, extra) o por formato (rollo, pita, plato)?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿El precio cambia según la proteína, por ejemplo cordero o res frente a pollo?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Vendes el mezze como una tabla de precio fijo donde el cliente elige entradas, o cada entrada se cobra por aparte?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Qué salsas y extras cobras aparte (salsa de ajo, pan adicional) y cuáles van incluidos en el plato?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Vendes dulces árabes por unidad, por peso o por caja?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Qué proteínas ofreces de verdad en tu carta (pollo, res, cordero)?"
+  }
+ ],
+ "comida_asiatica": [
+  {
+   "id": "p1",
+   "texto": "En tus platos al wok, ¿el cliente arma el suyo con base, proteína y salsa a un precio fijo, o cada proteína o vegetal extra suma al precio?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Qué tamaños vendes (personal, para compartir, media, completa) y cuánto cambian el precio?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿El arroz o los acompañantes vienen incluidos en el plato fuerte, o el cliente los elige y se cobran aparte?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Preguntas al cliente cuánto picante quiere? ¿En una escala o solo con o sin picante?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Vendes té u otras bebidas asiáticas, o solo gaseosas y jugos?"
+  }
+ ],
+ "comida_italiana": [
+  {
+   "id": "p1",
+   "texto": "¿Tus pastas son platos cerrados, o el cliente elige el tipo de pasta y la salsa? ¿Cambiar la pasta cuesta extra?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Cobras aparte el pollo, el camarón, el queso u otros extras en la pasta? ¿Cuesta lo mismo en todos los platos?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Vendes la lasaña por bandeja para llevar (para 3, 6 o 10 personas) además de la porción individual?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Manejas media porción de pasta u otros tamaños de plato?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿El pan de ajo es cortesía, se cobra o es una adición?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Tienes menú del día o ejecutivo, o vendes solo a la carta?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Vendes vino por copa y por botella, o solo vino de la casa?"
+  }
+ ],
+ "comida_mexicana": [
+  {
+   "id": "p1",
+   "texto": "¿Qué cobras aparte y qué va incluido: guacamole, queso extra, segunda proteína, tortilla de harina o consomé?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Cómo vendes los tacos: por unidad, en órdenes de 3, 5 u 8, o en bandeja para compartir?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿La proteína es fija en cada plato (tacos de birria, al pastor) o el cliente la elige, como en burritos y bowls?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿El cliente elige las salsas y el nivel de picante, o vienen definidas con el plato?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Tienes promociones como 3x2 los martes o todo lo que puedas comer? ¿Cómo funcionan?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Vendes cocteles, mezcal o tequila? ¿Por copa, jarra o botella?"
+  }
+ ],
+ "comida_rapida": [
+  {
+   "id": "p1",
+   "texto": "¿Cómo armas tus combos: un precio fijo con papas y bebida a elegir, o sumas el precio de cada parte? ¿Cobras si cambian la bebida o las papas?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Qué adiciones cobras siempre (queso, tocineta, huevo, doble carne, papas extra) y cuáles son gratis?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Preguntas al cliente el término de la carne, o sale siempre igual?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Las salsas son gratis e ilimitadas, tienen un máximo por plato, o algunas se cobran?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Tus papas y bebidas vienen en varios tamaños con precios distintos, o en uno solo?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Tus salchipapas y perros tienen versiones (sencilla, especial) o el cliente va armando con adiciones?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Cobras empaque o domicilio por aparte, y los precios en apps de domicilio son distintos a los del local?"
+  }
+ ],
+ "heladeria": [
+  {
+   "id": "p1",
+   "texto": "¿Cómo cobras el helado: por bola, por tamaño de copa o cono, por peso, o por combinación de todo?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Cobras los toppings y salsas? ¿El primero va incluido y los demás se cobran, o todos tienen precio?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Se puede mezclar dos sabores en una copa o malteada? ¿Eso cambia el precio?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿El cono o el vaso se cobra aparte (cono waffle, bañado) o va incluido?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Qué más vendes además de helado (cholado, obleas, fresas con crema, café, bebidas)? ¿Cuál es tu mayor venta?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Tienes promociones o combos, como copas los martes, 2x1 o helado por litro?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Tus sabores rotan por temporada o se agotan en el día?"
+  }
+ ],
+ "jugueria": [
+  {
+   "id": "p1",
+   "texto": "¿El precio del jugo cambia según la fruta, por ejemplo mango, mora o aguacate frente a naranja?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Cuántos tamaños vendes y cómo los llamas (12 oz, 16 oz, jarra, litro)? ¿Son iguales para jugos y batidos?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Cobras más cuando el jugo es en leche en vez de agua? ¿Cuánto, y también con leche vegetal?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Cobras las adiciones como avena, proteína o chía? ¿Cuestan lo mismo en todos los tamaños?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Preguntas siempre si lleva azúcar, o el jugo sale endulzado por defecto?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Tienes mezclas de la casa con nombre (Defensas, Detox) o el cliente arma su propia mezcla?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Vendes jarras o litros para llevar? ¿Y qué más vendes además de bebidas: sándwiches, ensaladas, empanadas?"
+  }
+ ],
+ "mariscos": [
+  {
+   "id": "p1",
+   "texto": "¿Cobras el pescado por plato a precio fijo, por especie (mojarra, pargo, róbalo) o por libra según el precio del día?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿El arroz de coco, el patacón y la ensalada vienen incluidos? ¿Cobras si el cliente cambia o agrega un acompañante?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿La preparación cambia el precio: frito, a la plancha, al ajillo o encocado cuestan lo mismo?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Qué porciones vendes de verdad (individual, media, para dos, para cuatro)? ¿Una media porción cuesta la mitad?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Qué mariscos o pescados se te agotan en el día y cómo los quitas de la carta?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Vendes combos o almuerzo ejecutivo con sopa y jugo? ¿Tienes platos especiales de fin de semana?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Tus parrilladas o platos para compartir se cobran por plato o por persona?"
+  }
+ ],
+ "panaderia_reposteria": [
+  {
+   "id": "p1",
+   "texto": "¿Cómo vendes el pan: por unidad, por docena, por libra o por peso?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Vendes las tortas enteras y por porción? ¿Son dos productos con su precio o la misma torta en dos formatos?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿El precio de la torta sube según el tamaño o las porciones? ¿Cobras aparte rellenos, coberturas y decoración?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Con cuántos días de anticipación aceptas encargos y pides abono? ¿Hay un tope de tortas por día?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Qué datos anotas al tomar un encargo (fecha y hora de entrega, mensaje, tema, colores, foto de referencia)?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Ofreces opciones sin gluten, sin azúcar o veganas? ¿Tienen otro precio o son productos distintos?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Tienes mesas y café para consumir en el local, o solo mostrador y domicilios?"
+  }
+ ],
+ "parrilla": [
+  {
+   "id": "p1",
+   "texto": "¿Cobras los acompañantes extra cuando el plato incluye dos? ¿Alguno, como aguacate o patacón, tiene recargo?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Vendes la carne por gramaje (250 g, 300 g, 400 g) con precios distintos, o cada corte es un plato aparte?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Preguntas el término de la carne? ¿Qué términos ofreces (medio, tres cuartos, bien cocido)?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿En el pollo asado el cliente elige la presa y cobras más por la pechuga? ¿Vendes pollo entero y medio?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Tus combos de pollo tienen precio fijo o se arman sumando porciones y acompañantes?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Las salsas (chimichurri, ají, guacamole) son gratis, tienen un límite por plato o se cobran?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Tu parrillada o picada trae proteínas fijas o el cliente elige la mezcla? ¿Para cuántas personas rinde?"
+  }
+ ],
+ "pizzeria": [
+  {
+   "id": "p1",
+   "texto": "Cuando alguien pide una pizza mitad y mitad, ¿cobras el precio de la más cara, el promedio o el de cada mitad?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Qué tamaños vendes y cómo los llamas (personal, mediana, grande, familiar)? ¿Cuántas porciones tiene cada uno?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Las adiciones y el borde rellenado cuestan distinto según el tamaño de la pizza?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Qué bordes y tipos de masa ofreces de verdad? ¿Cuáles cobras aparte?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Cómo armas los combos (2 pizzas y bebida, pizza con palitos)? ¿El cliente puede escoger los sabores?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Vendes porciones sueltas de pizza?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Cobras la caja o el domicilio aparte, y tu carta en apps de domicilio tiene otros precios?"
+  }
+ ],
+ "sandwicheria": [
+  {
+   "id": "p1",
+   "texto": "¿Qué tamaños de sándwich vendes y cómo los llamas (15 y 30 cm, mini y grande)? ¿El tamaño grande se cobra como un recargo fijo?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Qué cobras aparte (extra proteína, queso, tocineta, aguacate, pan especial)? ¿Hay ingredientes gratis hasta cierto número?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Vendes sobre todo recetas fijas o el cliente arma su sándwich eligiendo pan, proteína y salsas?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Qué incluye tu combo (papas, galleta, bebida) y cuánto suma al precio del sándwich?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Tus wraps y ensaladas se arman con opciones o son recetas fijas?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Preguntas si el sándwich va tostado o caliente, o ya sale así por defecto?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Ofreces pan sin gluten u opciones veganas?"
+  }
+ ],
+ "sushi": [
+  {
+   "id": "p1",
+   "texto": "¿Cómo vendes los combos de bocados (20, 30, 50 piezas): un producto por tamaño o uno solo donde el cliente elige el tamaño? ¿Cuántos sabores puede escoger?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Cuántas piezas trae un roll en tu negocio (6, 10, 12)? ¿Vendes medio roll?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Cobras extra por empanizado o tempura en un roll, o esos son rolls distintos con nombre propio?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Tu poke o bowl lo arma el cliente con un máximo de toppings, o son bowls cerrados?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Vendes barcos o tablas para compartir? ¿Con piezas fijas o sabores a elegir, y para cuántas personas?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Cobras aparte el empaque, la soya, el jengibre y el wasabi en domicilios?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Qué postres vendes (sushi de frutas, banano tempura, helado frito)?"
+  }
+ ],
+ "tipica_regional": [
+  {
+   "id": "p1",
+   "texto": "¿Los acompañantes de tu plato son fijos o el cliente puede cambiarlos o quitarlos, por ejemplo cambiar el arroz por papa?"
+  },
+  {
+   "id": "p2",
+   "texto": "¿Cobras aparte las adiciones y proteínas extra como aguacate, arepa, ají o chicharrón? ¿A qué precio?"
+  },
+  {
+   "id": "p3",
+   "texto": "¿Vendes media porción, plato infantil o bandeja para compartir? ¿Cómo los manejas?"
+  },
+  {
+   "id": "p4",
+   "texto": "¿Tienes menú del día o corrientazo? ¿La sopa y la proteína cambian cada día?"
+  },
+  {
+   "id": "p5",
+   "texto": "¿Tus tamales y envueltos se venden por unidad, por encargo o solo ciertos días?"
+  },
+  {
+   "id": "p6",
+   "texto": "¿Qué platos se te agotan en el día (sancocho, mondongo) y cómo los quitas de la carta?"
+  },
+  {
+   "id": "p7",
+   "texto": "¿Tus bebidas típicas (jugos en agua o leche, chocolate, agua de panela) cambian de precio según tamaño o base?"
+  }
+ ]
+}

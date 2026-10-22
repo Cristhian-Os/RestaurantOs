@@ -49,8 +49,8 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
 
   // ─── Productos disponibles (para elegir a cuál editar receta) ─
   const productosQuery = useQuery({
-    queryKey: ['platos_receta'],
-    queryFn: () => inventoryService.getPlatosParaReceta(),
+    queryKey: ['productos_disponibles'],
+    queryFn: () => inventoryService.getProductosDisponibles(),
     staleTime: 1000 * 60 * 5,
     enabled: isModalVisible && !propProductId,
   })
@@ -164,7 +164,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
     onSuccess: () => {
       message.success('Receta guardada')
       queryClient.invalidateQueries({ queryKey: ['receta', productId] })
-      queryClient.invalidateQueries({ queryKey: ['platos_receta'] })
+      queryClient.invalidateQueries({ queryKey: ['productos_disponibles'] })
     },
     onError: (error) => message.error(`Error: ${error instanceof Error ? error.message : 'Desconocido'}`),
   })
@@ -394,18 +394,9 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                   </p>
                   <Button
                     type="primary"
-                    onClick={() => {
-                      // Una receta vacía es válida (plato sin ingredientes), pero borra la anterior: se confirma.
-                      if (validLines === 0) {
-                        Modal.confirm({
-                          title: 'Guardar receta vacía',
-                          content: 'No hay materias primas: se borrará la receta actual de este plato. ¿Continuar?',
-                          okText: 'Sí, guardar', cancelText: 'Cancelar',
-                          onOk: () => saveMutation.mutate(),
-                        })
-                      } else saveMutation.mutate()
-                    }}
+                    onClick={() => saveMutation.mutate()}
                     loading={saveMutation.isPending}
+                    disabled={validLines === 0}
                   >
                     Guardar receta
                   </Button>

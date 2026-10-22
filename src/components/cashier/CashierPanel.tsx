@@ -9,12 +9,12 @@
  *  • Corte de caja diario y mensual
  */
 import { destinoPedido } from '../../lib/destino'
-import { useState, useEffect, useCallback, useRef, memo } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { descargarCorteExcel, descargarCorteMensualExcel, type CorteProducto, type CortePago } from '../../services/corteExcel'
 import { SplitPayModal } from './SplitPayModal'
-import { COLA_CAMBIO, descartarPagoPendiente, enviarPagosPendientes, iniciarEnvioDePagos, listarPagosPendientes, reintentarPagoPendiente, type PagoPendiente } from '../../services/paymentQueue'
+import { COLA_CAMBIO, enviarPagosPendientes, iniciarEnvioDePagos, listarPagosPendientes, type PagoPendiente } from '../../services/paymentQueue'
 import { PagosDelDia, ventanaHoy } from './PagosDelDia'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import { hoyBogota } from '../../services/menuOptions'
@@ -22,6 +22,9 @@ import { VoiceButton } from '../VoiceButton'
 import { matchName } from '../../services/voiceMatch'
 import { EditOrderModal, type OrderItemRow } from '../orders/EditOrderModal'
 import { SalesHistory } from './SalesHistory'
+import { TicketModal } from '../print/TicketModal'
+import { cargarConfig } from '../../lib/print/config'
+import { armarCierre, type TicketListo } from '../../lib/print/datos'
 import { GastosDesglose } from './GastosDesglose'
 import { CategoriasGastoEditor } from './CategoriasGastoEditor'
 import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
@@ -29,7 +32,6 @@ import { CATEGORIA_DEFECTO, categoriaLabel, rangoGastosBogota } from '../../serv
 import message from 'antd/es/message'
 import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Profile } from '../../pages/Dashboard'
-import { esRappi, fmt, horaBogota, orderRef } from './shared'
 
 const S = {
   neoOut:  { boxShadow: 'var(--shadow-out)' },
@@ -68,7 +70,6 @@ interface DaySummary {
   total_ordenes:      number
   total_propinas:     number
   ordenes_rappi:      number   // solo conteo: el dinero lo paga Rappi por fuera
-  pagos_validos:      number   // pagos recibidos hoy (sin Rappi ni cancelados): habilita el corte aunque no haya pedidos completados
 }
 
 interface CorteMensual {
@@ -78,17 +79,16 @@ interface CorteMensual {
   dias: { fecha: string; efectivo: number; transferencia: number; tarjeta?: number; total: number; ordenes: number; gastos: number }[]
 }
 
-// fmt / esRappi / orderRef / horaBogota viven en ./shared (Rappi no cuenta en ventas: sus precios no son los del menú físico).
+const fmt = (n: number | string | null | undefined) => '$' + Math.round(Number(n ?? 0)).toLocaleString('es-CO')
 
-// Etiquetas de las consultas de fetchData: si una falla se avisa y no se pinta $0 como si fuera real.
-const L_RESUMEN = 'resumen del día'
-const L_GASTOS  = 'gastos del día'
-const L_PARCIAL = 'pagos parciales de los pedidos'
-const L_PEDIDOS = 'pedidos'
-const L_OTROS   = 'base de caja o reembolsos'
+// Rappi no cuenta en ventas: sus precios no son los del menú físico y la
+// plata la paga Rappi por fuera.
+const esRappi = (o: { tipo_pedido?: string | null; payment_method?: string | null }) =>
+  o.tipo_pedido === 'RAPPI' || o.payment_method === 'rappi'
 
-// Número seguro desde un campo de texto: vacío o inválido = NaN (nunca se manda al servidor).
-const aNumero = (txt: string) => (txt.trim() === '' ? NaN : Number(txt))
+// Número del pedido: secuencial del día; los anteriores a ese cambio usan el id corto.
+const orderRef = (o: { id: string; order_number_today?: number | null }) =>
+  `#${o.order_number_today ?? o.id.slice(0, 8)}`
 
 const PROGRESS_STEPS = [
   { key: 'pending',   label: 'Pendiente',  color: '#9CA3AF' },
@@ -165,7 +165,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [readyOrders,  setReady]     = useState<Order[]>([])
   const [pendingPayment, setPendingPayment] = useState<Order[]>([])
   const [cookingOrders, setCooking]  = useState<Order[]>([])
-  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_tarjeta: 0, total_ordenes: 0, total_propinas: 0, ordenes_rappi: 0, pagos_validos: 0 })
+  const [daySummary,   setSummary]   = useState<DaySummary>({ total_efectivo: 0, total_transferencia: 0, total_tarjeta: 0, total_ordenes: 0, total_propinas: 0, ordenes_rappi: 0 })
   // Cobros por partes: cuánto lleva pagado cada pedido abierto, y el pedido que se está dividiendo.
   const [pagadoPorOrden, setPagadoPorOrden] = useState<Record<string, number>>({})
   const [splitOrder,    setSplitOrder]    = useState<{ order: Order; kind: 'inicial' | 'final' } | null>(null)
@@ -222,21 +222,16 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [gastosMes,     setGastosMes]     = useState<{ id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]>([])
   const [loadingMensual,setLoadingMensual]= useState(false)
   const [showHistory,  setShowHistory]  = useState(false)
-  const [errCarga,      setErrCarga]      = useState<string[]>([])   // consultas de fetchData que fallaron
-  const [savingAporte,  setSavingAporte]  = useState(false)
-  const [corteActualizado, setCorteActualizado] = useState(false)    // el corte de hoy ya existía y se actualizó
-  const [guardandoConteo, setGuardandoConteo]   = useState(false)
-  // Candado contra doble clic: el estado "disabled" tarda un render en aplicarse; este se activa al instante.
-  const candados = useRef(new Set<string>())
-  const conCandado = useCallback(async (clave: string, fn: () => Promise<void>) => {
-    if (candados.current.has(clave)) return
-    candados.current.add(clave)
-    try { await fn() } finally { candados.current.delete(clave) }
+  const [cierreTicket, setCierreTicket] = useState<TicketListo | null>(null)
+  const [ticket, setTicket] = useState<{ tipo: 'precuenta' | 'recibo'; orderId: string; automatico?: boolean } | null>(null)
+
+  // Tras un cobro completo: el recibo se ofrece o se imprime según lo configurado. Nunca estorba al cobro (si falla la config, no pasa nada).
+  const reciboTrasCobro = useCallback((orderId: string) => {
+    cargarConfig().then(cfg => { if (cfg.recibo !== 'nunca') setTicket({ tipo: 'recibo', orderId, automatico: cfg.recibo === 'siempre' }) }).catch(() => {})
   }, [])
-  const conteoGuardado = useRef('')     // último conteo de billetes guardado en el corte
-  const conteoFallo    = useRef(false)  // el último intento de guardarlo falló (la segunda vez deja cerrar)
 
   const fetchData = useCallback(async () => {
+    const inicioDia = new Date(new Date().setHours(0,0,0,0)).toISOString()
     const parseItems = (o: any): Order => ({
       ...o,
       items: (() => { try { const p = typeof o.items === 'string' ? JSON.parse(o.items) : o.items; return Array.isArray(p) ? p : [] } catch { return [] } })()
@@ -249,9 +244,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       supabase.from('orders').select('*').eq('status', 'cooking').order('created_at', { ascending: true }),
       supabase.from('orders').select('total, payment_method, propina, tipo_pedido')
         .eq('status', 'completed')
-        .gte('created_at', pagosDesde).lt('created_at', pagosHasta),   // día de Colombia, no el del equipo
+        .gte('created_at', inicioDia),
       supabase.from('gastos').select('id, concepto, monto, created_at, fuente, pagado_por_nombre, categoria')
-        .gte('created_at', pagosDesde).lt('created_at', pagosHasta).order('created_at', { ascending: false }),
+        .gte('created_at', inicioDia).order('created_at', { ascending: false }),
       supabase.from('bases_caja').select('monto').eq('fecha', hoyBogota()).maybeSingle(),
       // El dinero del día sale de los PAGOS recibidos hoy, no del total de cada pedido.
       supabase.from('order_payments').select('payment_method, monto, propina, orders!inner(status, tipo_pedido, payment_method)')
@@ -259,9 +254,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       supabase.from('gastos').select('id, concepto, monto, pagado_por_nombre, created_at')
         .eq('fuente', 'propio').is('reembolsado_at', null).order('created_at'),
     ])
-
-    const fallos = new Set<string>()
-    if (pendingRes.error || ordersRes.error || cookingRes.error) fallos.add(L_PEDIDOS)
 
     if (!pendingRes.error) setPendingPayment((pendingRes.data || []).map(parseItems))
 
@@ -271,8 +263,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
     if (!cookingRes.error) setCooking((cookingRes.data || []).map(parseItems))
 
-    if (completedRes.error || pagosHoyRes.error) fallos.add(L_RESUMEN)
-    else {
+    if (!completedRes.error) {
       const all = completedRes.data || []
       const orders = all.filter(o => !esRappi(o))
       // Pagos de hoy (sin pedidos cancelados ni Rappi): efectivo, transferencia, tarjeta y propinas.
@@ -286,57 +277,46 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         total_tarjeta:       suma('tarjeta'),
         total_ordenes:       orders.length,
         total_propinas:      pagos.reduce((s, p) => s + Number(p.propina || 0), 0),
-        pagos_validos:       pagos.length,
       })
     }
 
     // Cuánto lleva pagado cada pedido abierto ("Pagado 4 de 5, falta $22.000").
     const abiertos = [...(pendingRes.data ?? []), ...(ordersRes.data ?? []), ...(cookingRes.data ?? [])].map(o => o.id as string)
     if (abiertos.length > 0) {
-      const { data: parciales, error: parcialesErr } = await supabase.from('order_payments').select('order_id, monto')
+      const { data: parciales } = await supabase.from('order_payments').select('order_id, monto')
         .is('anulado_at', null).in('order_id', abiertos)
-      if (parcialesErr) fallos.add(L_PARCIAL)   // se conserva lo último conocido: no se muestra "falta todo" por un fallo de red
-      else {
-        const mapa: Record<string, number> = {}
-        for (const p of parciales ?? []) mapa[p.order_id as string] = (mapa[p.order_id as string] ?? 0) + Number(p.monto)
-        setPagadoPorOrden(mapa)
-      }
+      const mapa: Record<string, number> = {}
+      for (const p of parciales ?? []) mapa[p.order_id as string] = (mapa[p.order_id as string] ?? 0) + Number(p.monto)
+      setPagadoPorOrden(mapa)
     } else setPagadoPorOrden({})
 
     if (!reembolsarRes.error) setPorReembolsar((reembolsarRes.data ?? []) as PorReembolsar[])
-    if (gastosRes.error) fallos.add(L_GASTOS); else setGastos((gastosRes.data ?? []) as Gasto[])
+    if (!gastosRes.error) setGastos((gastosRes.data ?? []) as Gasto[])
     if (!baseRes.error) setBaseHoy(baseRes.data ? Number(baseRes.data.monto) : null)
-    if (reembolsarRes.error || baseRes.error) fallos.add(L_OTROS)
 
-    setErrCarga([...fallos])
     setLoading(false)
   }, [])
 
   const totalGastosHoy = gastos.reduce((s, g) => s + Number(g.monto), 0)
 
   const handleAgregarGasto = useCallback(async () => {
-    const monto = aNumero(gastoMonto)
+    const monto = parseFloat(gastoMonto)
     if (!gastoConcepto.trim()) { message.error('Escribe el concepto del gasto'); return }
-    if (!Number.isFinite(monto) || monto <= 0) { message.error('Monto inválido'); return }
+    if (!monto || monto <= 0) { message.error('Monto inválido'); return }
     if (gastoFuente === 'propio' && !gastoPagadoPor.trim()) { message.error('Escribe quién puso la plata (ej: Angela)'); return }
-    await conCandado('gasto', async () => {
-      setSavingGasto(true)
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        const { error } = await supabase.from('gastos').insert({
-          concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
-          fuente: gastoFuente, pagado_por_nombre: gastoFuente === 'propio' ? gastoPagadoPor.trim() : null,
-          categoria: categoriaActual || null,
-        })
-        if (error) { message.error('Error: ' + error.message); return }
-        setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoCategoria(CATEGORIA_DEFECTO); setGastoPagadoPor(''); setShowGastoForm(false)
-        message.success(gastoFuente === 'propio' ? `Gasto registrado · queda por reembolsar a ${gastoPagadoPor.trim()}` : 'Gasto registrado')
-        fetchData()
-      } finally {
-        setSavingGasto(false)
-      }
+    setSavingGasto(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('gastos').insert({
+      concepto: gastoConcepto.trim(), monto, registrado_por: user?.id ?? null,
+      fuente: gastoFuente, pagado_por_nombre: gastoFuente === 'propio' ? gastoPagadoPor.trim() : null,
+      categoria: categoriaActual || null,
     })
-  }, [gastoConcepto, gastoMonto, gastoFuente, categoriaActual, gastoPagadoPor, fetchData, conCandado])
+    setSavingGasto(false)
+    if (error) { message.error('Error: ' + error.message); return }
+    setGastoConcepto(''); setGastoMonto(''); setGastoFuente('caja'); setGastoCategoria(CATEGORIA_DEFECTO); setGastoPagadoPor(''); setShowGastoForm(false)
+    message.success(gastoFuente === 'propio' ? `Gasto registrado · queda por reembolsar a ${gastoPagadoPor.trim()}` : 'Gasto registrado')
+    fetchData()
+  }, [gastoConcepto, gastoMonto, gastoFuente, categoriaActual, gastoPagadoPor, fetchData])
 
   // Cola de pagos sin internet: leerla, enviarla al volver la red y refrescar caja cuando se envíe algo.
   const recargarCola = useCallback(async () => {
@@ -354,63 +334,32 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   useEffect(() => {
     void recargarCola()
     window.addEventListener(COLA_CAMBIO, recargarCola)
-    const quitarAviso = iniciarEnvioDePagos(r => {
+    iniciarEnvioDePagos(r => {
       if (r.enviados > 0) message.success(`${r.enviados} pago(s) guardados sin internet ya se enviaron`)
       if (r.conflictos > 0) message.error(`${r.conflictos} pago(s) rechazados por el servidor: revísalos`)
       fetchData()
     })
     if (navigator.onLine) void enviarPagosPendientes().then(() => { void recargarCola(); fetchData() })   // restos de una sesión anterior
-    return () => { window.removeEventListener(COLA_CAMBIO, recargarCola); quitarAviso() }
+    return () => window.removeEventListener(COLA_CAMBIO, recargarCola)
   }, [recargarCola, fetchData])
 
-  // Pago rechazado por el servidor: reintentarlo (vuelve a "pendiente" y se envía) o descartarlo (con confirmación).
-  const reintentarConflicto = useCallback((p: PagoPendiente) => conCandado(`cola-${p.idem}`, async () => {
-    try {
-      const r = await reintentarPagoPendiente(p.idem)
-      if (r.enviados > 0) message.success('Pago enviado')
-      else if (r.conflictos > 0) message.error('El servidor volvió a rechazar el pago')
-      else message.warning('Todavía no hay conexión: queda pendiente y se envía solo')
-    } catch (e) {
-      message.error(`No se pudo reintentar: ${e instanceof Error ? e.message : 'error'}`)
-    }
-    void recargarCola()
-    fetchData()
-  }), [conCandado, recargarCola, fetchData])
-  const descartarConflicto = useCallback((p: PagoPendiente) => conCandado(`cola-${p.idem}`, async () => {
-    if (!window.confirm(`¿Descartar este pago?\n${p.resumen}\nEl dinero NO quedará registrado en el sistema. Hazlo solo si ya lo revisaste.`)) return
-    try {
-      await descartarPagoPendiente(p.idem)
-      message.success('Pago descartado')
-    } catch (e) {
-      message.error(`No se pudo descartar: ${e instanceof Error ? e.message : 'error'}`)
-    }
-    void recargarCola()
-  }), [conCandado, recargarCola])
-
   // Devolver la plata a quien adelantó un gasto: con efectivo de la caja (resta del cajón hoy) o por transferencia.
-  const handleReembolsar = useCallback((g: PorReembolsar, medio: 'caja' | 'transferencia') => conCandado(`reembolso-${g.id}`, async () => {
+  const handleReembolsar = useCallback(async (g: PorReembolsar, medio: 'caja' | 'transferencia') => {
     const { error } = await supabase.rpc('reembolsar_gasto', { p_gasto_id: g.id, p_medio: medio })
     if (error) { message.error(error.message); return }
     message.success(`Reembolsado a ${g.pagado_por_nombre ?? 'quien lo pagó'}${medio === 'caja' ? ' · sale del efectivo de la caja' : ''}`)
     fetchData()
-  }), [fetchData, conCandado])
+  }, [fetchData])
 
   // Aporte a la caja: si la base no alcanzó y alguien pone más efectivo, el efectivo esperado lo suma.
   const handleAporte = useCallback(async () => {
-    const monto = aNumero(aporteMonto)
-    if (!Number.isFinite(monto) || monto <= 0) { message.error('Escribe cuánto efectivo se puso'); return }
-    await conCandado('aporte', async () => {
-      setSavingAporte(true)
-      try {
-        const { error } = await supabase.rpc('registrar_aporte_caja', { p_monto: monto, p_aportado_por: aportePor.trim() || null })
-        if (error) { message.error(error.message); return }
-        setAporteMonto(''); setAportePor('')
-        message.success('Aporte registrado: suma al efectivo esperado de la caja')
-      } finally {
-        setSavingAporte(false)
-      }
-    })
-  }, [aporteMonto, aportePor, conCandado])
+    const monto = parseFloat(aporteMonto)
+    if (!monto || monto <= 0) { message.error('Escribe cuánto efectivo se puso'); return }
+    const { error } = await supabase.rpc('registrar_aporte_caja', { p_monto: monto, p_aportado_por: aportePor.trim() || null })
+    if (error) { message.error(error.message); return }
+    setAporteMonto(''); setAportePor('')
+    message.success('Aporte registrado: suma al efectivo esperado de la caja')
+  }, [aporteMonto, aportePor])
 
   // Ingredientes existentes, para vincular cada producto de la compra a su stock
   const loadIngredientes = useCallback(() => {
@@ -451,8 +400,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     if (!gastoConcepto.trim()) { message.error('Escribe el concepto (ej: nombre del proveedor)'); return }
     const items = provItems.filter(it => it.nombre_producto.trim() && parseFloat(it.cantidad) > 0 && parseFloat(it.precio_unitario) >= 0)
     if (items.length === 0) { message.error('Agrega al menos un producto con cantidad y precio'); return }
-    if (candados.current.has('gasto')) return
-    candados.current.add('gasto')
     setSavingGasto(true)
     const { data, error } = await supabase.rpc('registrar_compra_proveedor', {
       p_concepto: gastoConcepto.trim(),
@@ -465,7 +412,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       })),
     })
     setSavingGasto(false)
-    candados.current.delete('gasto')
     if (error) { message.error('Error: ' + error.message); return }
     // La base crea el proveedor y los ingredientes que no existían; se avisa qué quedó nuevo.
     const res = (data ?? {}) as { proveedor_creado?: boolean; ingredientes_creados?: { nombre: string }[] }
@@ -479,13 +425,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     fetchData()
   }, [gastoConcepto, provItems, fetchData, loadIngredientes])
 
-  const handleEliminarGasto = useCallback((g: Gasto) => conCandado(`del-gasto-${g.id}`, async () => {
-    if (!window.confirm(`¿Eliminar el gasto "${g.concepto}" por ${fmt(g.monto)}? Esta acción no se puede deshacer.`)) return
-    const { error } = await supabase.from('gastos').delete().eq('id', g.id)
-    if (error) { message.error('No se pudo eliminar el gasto: ' + error.message); return }   // p. ej. el día ya tiene corte
-    setGastos(prev => prev.filter(x => x.id !== g.id))
-    message.success('Gasto eliminado')
-  }), [conCandado])
+  const handleEliminarGasto = useCallback(async (id: string) => {
+    const { error } = await supabase.from('gastos').delete().eq('id', id)
+    if (error) { message.error('Error: ' + error.message); return }
+    setGastos(prev => prev.filter(g => g.id !== id))
+  }, [])
 
   useEffect(() => {
     fetchData()
@@ -517,39 +461,15 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   // "Monto recibido" es TODO el efectivo físico que entrega el cliente (venta +
   // propina juntos) — el cambio y la validación de pago suficiente deben
   // descontar la propina también, si no, la propina se cuenta como vuelto.
-  const propinaNum = (n => (Number.isFinite(n) && n > 0 ? n : 0))(Number(propinaInput))
+  const propinaNum = parseFloat(propinaInput) || 0
   const totalConPropina = payingOrder ? payingOrder.total + propinaNum : 0
 
-  // Efectivo: el monto recibido tiene que ser un número válido y cubrir venta + propina. Vacío = no se puede cobrar.
-  const recibidoNum = aNumero(amountPaid)
-  const recibidoValido = Number.isFinite(recibidoNum)
-
-  const cambio = payingOrder && payMethod === 'efectivo' && recibidoValido && recibidoNum >= totalConPropina
-    ? recibidoNum - totalConPropina
+  const cambio = payingOrder && payMethod === 'efectivo' && parseFloat(amountPaid) >= totalConPropina
+    ? parseFloat(amountPaid) - totalConPropina
     : 0
 
-  const pagoInsuficiente = !!payingOrder && payMethod === 'efectivo'
-    && (!recibidoValido || recibidoNum < totalConPropina)
-
-  // Cancelar un pedido (cualquiera de las tres listas). Avisa si ya tiene pagos y muestra el error del servidor.
-  const cancelarPedido = useCallback((order: Order, enCocina: boolean, quitar: (id: string) => void) => conCandado(`cancelar-${order.id}`, async () => {
-    const pagado = pagadoPorOrden[order.id] ?? 0
-    const tienePagos = pagado > 0 || !!order.paid_at
-    const msg = `${enCocina ? '¿Cancelar este pedido? Ya está en preparación.' : '¿Cancelar este pedido?'}` +
-      (tienePagos ? `\n\nEste pedido ya está pagado${pagado > 0 ? ` (${fmt(pagado)})` : ''}: anula primero los pagos (botón "Pagos de hoy"); mientras tenga pagos el sistema no deja cancelarlo.` : '')
-    if (!window.confirm(msg)) return
-    setCancellingOrder(order.id)
-    try {
-      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
-      if (error) { message.error(error.message); return }
-      quitar(order.id)
-      message.success('Pedido cancelado')
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : 'No se pudo cancelar el pedido')
-    } finally {
-      setCancellingOrder(null)
-    }
-  }), [conCandado, pagadoPorOrden])
+  const pagoInsuficiente = payingOrder && payMethod === 'efectivo'
+    && amountPaid !== '' && parseFloat(amountPaid) < totalConPropina
 
   // Pedido de mesa marcado listo desde Caja: aviso push a los meseros (y al que lo tomó).
   const avisarMeseros = (order: Order) => {
@@ -562,7 +482,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   // Orden ya pagada antes de cocina (Plan B) y ahora lista: solo se completa,
   // sin volver a pedir el pago.
-  const handleCompletarPagada = useCallback((order: Order) => conCandado(`completar-${order.id}`, async () => {
+  const handleCompletarPagada = useCallback(async (order: Order) => {
     setProcessing(true)
     try {
       // Rappi nace con payment_method='rappi', que cobrar_orden rechaza como
@@ -582,11 +502,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } finally {
       setProcessing(false)
     }
-  }), [fetchData, conCandado])
+  }, [fetchData])
 
   // "Dividir cuenta": las personas pagan por partes. Al quedar cubierta la cuenta se hace lo mismo
   // que tras un cobro normal: antes de cocina avisa a cocina; con el pedido listo lo completa.
-  const handleSplitFinished = useCallback(() => conCandado('split-fin', async () => {
+  const handleSplitFinished = useCallback(async () => {
     if (!splitOrder) return
     const { order, kind } = splitOrder
     try {
@@ -605,13 +525,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     }
     setSplitOrder(null)
     fetchData()
-  }), [splitOrder, fetchData, conCandado])
+    reciboTrasCobro(order.id)
+  }, [splitOrder, fetchData, reciboTrasCobro])
 
   // Cobrar
-  const handleCobrar = useCallback(() => conCandado('cobrar', async () => {
+  const handleCobrar = useCallback(async () => {
     if (!payingOrder) return
-    if (payMethod === 'efectivo' && (!Number.isFinite(recibidoNum) || recibidoNum < payingOrder.total + propinaNum)) {
-      message.error(Number.isFinite(recibidoNum) ? 'El monto recibido es menor al total más la propina' : 'Escribe cuánto efectivo recibiste')
+    if (payMethod === 'efectivo' && parseFloat(amountPaid) < payingOrder.total) {
+      message.error('El monto recibido es menor al total')
       return
     }
     setProcessing(true)
@@ -621,8 +542,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         {
           p_order_id:       payingOrder.id,
           p_payment_method: payMethod,
-          p_amount_paid:    payMethod === 'efectivo' ? recibidoNum : payingOrder.total,
-          p_propina:        propinaNum,
+          p_amount_paid:    payMethod === 'efectivo' ? parseFloat(amountPaid) : payingOrder.total,
+          p_propina:        parseFloat(propinaInput) || 0,
         }
       )
       if (error) throw error
@@ -634,42 +555,39 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         avisarMeseros(payingOrder)
       }
       message.success(
-        payMethod === 'efectivo' && data?.change > 0
+        payMethod === 'efectivo' && data.change > 0
           ? `Cobrado · Cambio: $${Math.round(data.change).toLocaleString('es-CO')}`
           : payingKind === 'inicial' ? 'Cobrado · enviado a cocina' : 'Cobrado exitosamente'
       )
+      const cobradaId = payingOrder.id
       setPayingOrder(null)
       fetchData()
+      reciboTrasCobro(cobradaId)
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al cobrar'}`)
     } finally {
       setProcessing(false)
     }
-  }), [payingOrder, payingKind, payMethod, recibidoNum, propinaNum, fetchData, conCandado])
+  }, [payingOrder, payingKind, payMethod, amountPaid, propinaInput, fetchData, reciboTrasCobro])
 
   // Corte de caja
-  const handleCorte = useCallback(() => conCandado('corte', async () => {
+  const handleCorte = useCallback(async () => {
     setCortingLoading(true)
     try {
-      // ¿Ya había un corte hoy? El servidor lo actualiza en vez de crear otro; se avisa al cajero.
-      const { data: previo } = await supabase.from('cortes_caja').select('id').eq('fecha', hoyBogota()).limit(1)
       // Desglose de productos ANTES del corte (mientras las órdenes del día siguen visibles)
-      const { data: prods, error: prodsErr } = await supabase.rpc('get_corte_productos')
-      if (prodsErr) message.warning('No se pudo leer el detalle de productos del Excel: ' + prodsErr.message)
+      const { data: prods } = await supabase.rpc('get_corte_productos')
       const { data, error } = await supabase.rpc('hacer_corte_caja', { p_notas: null })
       if (error) throw error
       setCorteResult(data)
-      setCorteActualizado((previo?.length ?? 0) > 0 || data?.actualizado === true)
       setCorteProductos((prods as CorteProducto[]) ?? [])
       // Ayudas para cuadrar el conteo físico: transferencias del día y mesas con pagos mixtos.
-      const [{ data: trf, error: trfErr }, { data: mixtas, error: mixErr }, { data: pagosDia, error: pagosErr }] = await Promise.all([
+      const [{ data: trf }, { data: mixtas }, { data: pagosDia }] = await Promise.all([
         supabase.rpc('get_transferencias_dia'),
         supabase.rpc('get_mesas_mixtas_dia'),
         supabase.from('order_payments')
           .select('comensal, payment_method, monto, propina, referencia, transferencia_verificada, paid_at, orders!inner(order_number_today, table_num, tipo_pedido, customer_name, status)')
           .is('anulado_at', null).gte('paid_at', ventanaHoy().desde).lt('paid_at', ventanaHoy().hasta).order('paid_at'),
       ])
-      if (trfErr || mixErr || pagosErr) message.warning('El corte se hizo, pero no se pudo leer parte del detalle (transferencias, pagos mixtos o pagos del Excel)')
       setTransferencias((trf ?? []) as TransferenciaDia[])
       setMesasMixtas((mixtas ?? []) as MesaMixta[])
       setPagosCorte(((pagosDia ?? []) as unknown as { comensal: string | null; payment_method: string; monto: number; propina: number; referencia: string | null; transferencia_verificada: boolean; paid_at: string; orders: { order_number_today: number | null; table_num: number | null; tipo_pedido: string; customer_name: string | null; status: string } | null }[])
@@ -682,7 +600,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           hora: new Date(p.paid_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }),
         })))
       setConteo({})
-      conteoGuardado.current = ''; conteoFallo.current = false
       setShowCorte(true)
       fetchData()
     } catch (e) {
@@ -690,25 +607,20 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } finally {
       setCortingLoading(false)
     }
-  }), [fetchData, conCandado])
+  }, [fetchData])
 
   // Base de caja: efectivo con el que arranca el cajón hoy (punto de partida del arqueo)
   const handleGuardarBase = useCallback(async () => {
-    const monto = aNumero(baseInput)
-    if (!Number.isFinite(monto) || monto < 0) { message.error('Escribe cuánto efectivo hay en la caja'); return }
-    await conCandado('base', async () => {
-      setSavingBase(true)
-      try {
-        const { data, error } = await supabase.rpc('registrar_base_caja', { p_monto: monto })
-        if (error) { message.error('Error: ' + error.message); return }
-        setBaseHoy(Number(data?.monto ?? monto))
-        setEditandoBase(false)
-        message.success('Base de caja registrada')
-      } finally {
-        setSavingBase(false)
-      }
-    })
-  }, [baseInput, conCandado])
+    const monto = parseFloat(baseInput)
+    if (isNaN(monto) || monto < 0) { message.error('Escribe cuánto efectivo hay en la caja'); return }
+    setSavingBase(true)
+    const { data, error } = await supabase.rpc('registrar_base_caja', { p_monto: monto })
+    setSavingBase(false)
+    if (error) { message.error('Error: ' + error.message); return }
+    setBaseHoy(Number(data?.monto ?? monto))
+    setEditandoBase(false)
+    message.success('Base de caja registrada')
+  }, [baseInput])
 
   const handleCorteMensual = useCallback(async () => {
     setLoadingMensual(true)
@@ -749,44 +661,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     .map(d => ({ ...d, subtotal: d.valor * d.cantidad }))
   const totalContado = denominacionesConteo.reduce((s, d) => s + d.subtotal, 0)
 
-  // Guarda el conteo de billetes en el corte ya creado (queda en el historial, no solo en el Excel).
-  // Se llama al cerrar el modal, con su botón propio y al descargar el Excel. Devuelve false si falló.
-  const guardarConteo = useCallback(async (avisarOk = false): Promise<boolean> => {
-    if (!corteResult?.corte_id || denominacionesConteo.length === 0) return true
-    const firma = JSON.stringify(denominacionesConteo)
-    if (firma === conteoGuardado.current) { if (avisarOk) message.success('Conteo ya guardado'); return true }
-    let ok = true
-    await conCandado('conteo', async () => {
-      setGuardandoConteo(true)
-      try {
-        const { error } = await supabase.from('cortes_caja')
-          .update({ denominaciones: denominacionesConteo })
-          .eq('id', corteResult.corte_id)
-        if (error) {
-          ok = false
-          conteoFallo.current = true
-          message.error('No se pudo guardar el conteo de efectivo: ' + error.message)
-        } else {
-          conteoGuardado.current = firma
-          conteoFallo.current = false
-          if (avisarOk) message.success('Conteo de efectivo guardado en el corte')
-        }
-      } finally {
-        setGuardandoConteo(false)
-      }
-    })
-    return ok
-  }, [corteResult, denominacionesConteo, conCandado])
-
-  // Cerrar el modal del corte: antes guarda el conteo. Si falla, se queda abierto una vez para no perderlo;
-  // si vuelven a cerrar (p. ej. sin internet), se cierra.
-  const cerrarCorte = useCallback(async () => {
-    const yaFallo = conteoFallo.current
-    const ok = await guardarConteo()
-    if (!ok && !yaFallo) return
-    setShowCorte(false)
-  }, [guardarConteo])
-
   // Descargar el corte en Excel
   const handleDescargarExcel = useCallback(async () => {
     if (!corteResult) return
@@ -794,7 +668,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       const { data: cfg } = await supabase
         .from('restaurant_config').select('display_name').maybeSingle()
 
-      await guardarConteo()
+      // Guardar el conteo en el corte ya creado, para que quede en el historial
+      // y no solo en el Excel descargado esa vez.
+      if (denominacionesConteo.length > 0 && corteResult.corte_id) {
+        await supabase.from('cortes_caja')
+          .update({ denominaciones: denominacionesConteo })
+          .eq('id', corteResult.corte_id)
+      }
 
       await descargarCorteExcel({
         restauranteNombre: cfg?.display_name ?? 'Restaurante',
@@ -824,13 +704,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al generar Excel'}`)
     }
-  }, [corteResult, corteProductos, gastos, denominacionesConteo, pagosCorte, etiquetas, guardarConteo])
+  }, [corteResult, corteProductos, gastos, denominacionesConteo, pagosCorte, etiquetas])
 
   const totalDia = daySummary.total_efectivo + daySummary.total_transferencia + daySummary.total_tarjeta
   const netoDia  = totalDia - totalGastosHoy
-  const resumenMal = errCarga.includes(L_RESUMEN)   // el resumen falló: se muestra "—", no $0
-  const gastosMal  = errCarga.includes(L_GASTOS)
-  const sinVentasHoy = daySummary.total_ordenes === 0 && daySummary.pagos_validos === 0   // sin pedidos completados ni pagos hoy
 
   if (loading) return (
     <div className="flex justify-center py-20">
@@ -840,16 +717,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   return (
     <div className="space-y-6">
-      {/* Si una consulta falló, se avisa: los números en blanco ("—") no son $0 */}
-      {errCarga.length > 0 && (
-        <div className="bg-red-50 border border-red-300 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2" role="alert">
-          <p className="text-sm font-bold text-red-700">
-            No se pudo cargar: {errCarga.join(', ')}. {errCarga.includes(L_PARCIAL) ? 'No cobres hasta recargar: puede haber pagos parciales sin mostrar. ' : ''}Revisa tu conexión.
-          </p>
-          <button onClick={fetchData} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white bg-red-600">Reintentar</button>
-        </div>
-      )}
-
       {/* Pagos cobrados sin internet: siguen guardados aquí hasta que se envíen */}
       {colaPagos.length > 0 && (
         <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4" role="status">
@@ -860,17 +727,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               ` ${colaPagos.filter(p => p.estado === 'conflicto').length} rechazado(s) por el servidor: revísalos con el administrador.`}
           </p>
           <ul className="mt-1 text-xs text-amber-900 list-disc pl-4">
-            {colaPagos.map(p => (
-              <li key={p.idem} className="mb-1">
-                {p.resumen}{p.estado === 'conflicto' ? ` — ${p.motivo}` : ''}
-                {p.estado === 'conflicto' && (
-                  <span className="ml-2 inline-flex gap-2 align-middle">
-                    <button onClick={() => reintentarConflicto(p)} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-white bg-amber-600">Reintentar</button>
-                    <button onClick={() => descartarConflicto(p)} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-red-700 bg-red-100">Descartar</button>
-                  </span>
-                )}
-              </li>
-            ))}
+            {colaPagos.map(p => <li key={p.idem}>{p.resumen}{p.estado === 'conflicto' ? ` — ${p.motivo}` : ''}</li>)}
           </ul>
           {colaPagos.some(p => p.estado === 'pendiente') && (
             <button onClick={enviarCola} disabled={enviandoCola}
@@ -917,25 +774,25 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       {/* Resumen del día (Rappi no cuenta: precios distintos al menú físico) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Efectivo hoy',       val: resumenMal ? '—' : fmt(daySummary.total_efectivo),      color: 'text-emerald-600' },
-          { label: 'Transferencias hoy', val: resumenMal ? '—' : fmt(daySummary.total_transferencia), color: 'text-blue-600'    },
-          ...(!resumenMal && daySummary.total_tarjeta > 0 ? [{ label: 'Tarjeta hoy', val: fmt(daySummary.total_tarjeta), color: 'text-indigo-600' }] : []),
-          { label: 'Propinas hoy',       val: resumenMal ? '—' : fmt(daySummary.total_propinas),      color: 'text-purple-500'  },
-          { label: 'Gastos hoy',         val: gastosMal ? '—' : fmt(totalGastosHoy),                  color: 'text-red-500'     },
-          { label: 'Neto del día',       val: resumenMal || gastosMal ? '—' : fmt(netoDia),           color: 'text-[#FF5722]'   },
+          { label: 'Efectivo hoy',       val: `$${Math.round(daySummary.total_efectivo).toLocaleString('es-CO')}`,     color: 'text-emerald-600' },
+          { label: 'Transferencias hoy', val: `$${Math.round(daySummary.total_transferencia).toLocaleString('es-CO')}`, color: 'text-blue-600'    },
+          ...(daySummary.total_tarjeta > 0 ? [{ label: 'Tarjeta hoy', val: `$${Math.round(daySummary.total_tarjeta).toLocaleString('es-CO')}`, color: 'text-indigo-600' }] : []),
+          { label: 'Propinas hoy',       val: `$${Math.round(daySummary.total_propinas).toLocaleString('es-CO')}`,      color: 'text-purple-500'  },
+          { label: 'Gastos hoy',         val: `$${Math.round(totalGastosHoy).toLocaleString('es-CO')}`,                 color: 'text-red-500'     },
+          { label: 'Neto del día',       val: `$${Math.round(netoDia).toLocaleString('es-CO')}`,                        color: 'text-[#FF5722]'   },
         ].map(s => (
           <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
             <p className="text-[0.625rem] text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
             {s.label === 'Neto del día' && (
-              <p className="text-[0.625rem] text-[#9CA3AF]">{resumenMal ? '—' : daySummary.total_ordenes} órdenes</p>
+              <p className="text-[0.625rem] text-[#9CA3AF]">{daySummary.total_ordenes} órdenes</p>
             )}
           </div>
         ))}
       </div>
 
       <p className="text-xs font-bold text-[#6B7280] -mt-3">
-        Pedidos Rappi: {resumenMal ? '—' : daySummary.ordenes_rappi} {daySummary.ordenes_rappi === 1 ? 'orden' : 'órdenes'} — $0 (dinero en Rappi app)
+        Pedidos Rappi: {daySummary.ordenes_rappi} {daySummary.ordenes_rappi === 1 ? 'orden' : 'órdenes'} — $0 (dinero en Rappi app)
       </p>
 
       {/* Gastos del día */}
@@ -1095,7 +952,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div>
                   <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
                   <p className="text-[0.6875rem] text-[#9CA3AF]">
-                    {horaBogota(g.created_at)}
+                    {new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                     {` · ${categoriaLabel(g.categoria, etiquetas)}`}
                     {g.fuente === 'propio' && ` · lo pagó ${g.pagado_por_nombre ?? 'otra persona'} (no sale del cajón)`}
                     {g.fuente === 'transferencia' && ' · transferencia del negocio'}
@@ -1104,7 +961,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-red-500">${Math.round(Number(g.monto)).toLocaleString('es-CO')}</span>
-                  <button onClick={() => handleEliminarGasto(g)} aria-label={`Eliminar gasto ${g.concepto}`} className="text-[#9CA3AF] hover:text-red-500 text-sm">✕</button>
+                  <button onClick={() => handleEliminarGasto(g.id)} className="text-[#9CA3AF] hover:text-red-500 text-sm">✕</button>
                 </div>
               </div>
             ))}
@@ -1144,7 +1001,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           <input value={aportePor} onChange={e => setAportePor(e.target.value)} maxLength={80} placeholder="¿Quién lo puso? (opcional)"
             aria-label="Quién aportó" className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
         </div>
-        <button onClick={handleAporte} disabled={savingAporte} className="min-h-[44px] px-4 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingAporte ? 0.6 : 1 }}>{savingAporte ? 'Guardando…' : 'Registrar aporte'}</button>
+        <button onClick={handleAporte} className="min-h-[44px] px-4 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={S.coral}>Registrar aporte</button>
       </div>
 
       {/* Pedidos esperando cobro ANTES de pasar a cocina (Plan B) */}
@@ -1170,7 +1027,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      {orderRef(order)} · {horaBogota(order.created_at)}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
                     {order.notes && <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>}
                   </div>
@@ -1217,7 +1074,19 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     disabled={cancellingOrder === order.id}
-                    onClick={() => cancelarPedido(order, false, id => setPendingPayment(prev => prev.filter(o => o.id !== id)))}
+                    onClick={async () => {
+                      if (!window.confirm('¿Cancelar este pedido?')) return
+                      setCancellingOrder(order.id)
+                      try {
+                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                        if (error) { alert('Error: ' + error.message); return }
+                        setPendingPayment(prev => prev.filter(o => o.id !== order.id))
+                      } catch (err: any) {
+                        alert('Error: ' + err.message)
+                      } finally {
+                        setCancellingOrder(null)
+                      }
+                    }}
                     className="flex-1 py-2 rounded-2xl font-bold text-white bg-red-600 text-xs"
                   >
                     {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
@@ -1252,7 +1121,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      {orderRef(order)} · {horaBogota(order.created_at)}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
                     <p className="text-xs font-bold mt-0.5 text-amber-600">Preparándose en cocina</p>
                   </div>
@@ -1270,7 +1139,19 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   disabled={cancellingOrder === order.id}
-                  onClick={() => cancelarPedido(order, true, id => setCooking(prev => prev.filter(o => o.id !== id)))}
+                  onClick={async () => {
+                    if (!window.confirm('¿Cancelar este pedido? Ya está en preparación.')) return
+                    setCancellingOrder(order.id)
+                    try {
+                      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                      if (error) { alert('Error: ' + error.message); return }
+                      setCooking(prev => prev.filter(o => o.id !== order.id))
+                    } catch (err: any) {
+                      alert('Error: ' + err.message)
+                    } finally {
+                      setCancellingOrder(null)
+                    }
+                  }}
                   className="w-full py-3 rounded-2xl font-bold text-white bg-red-600 text-sm"
                 >
                   {cancellingOrder === order.id ? '⏳ Cancelando...' : '🗑️ Cancelar pedido'}
@@ -1317,7 +1198,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
                     </p>
                     <p className="text-xs text-[#9CA3AF]">
-                      {orderRef(order)} · {horaBogota(order.created_at)}
+                      {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
                     <p className={`text-xs font-bold mt-0.5 ${order.delivered_at ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {order.delivered_at ? '✓ Entregado al mesero' : 'Esperando que el mesero lo recoja'}
@@ -1384,6 +1265,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     )}
                   </>
                 )}
+                <button onClick={() => setTicket({ tipo: order.paid_at ? 'recibo' : 'precuenta', orderId: order.id })}
+                  className="w-full min-h-[44px] mt-2 rounded-2xl text-xs font-bold text-[#2D3561]" style={S.neoOutSm}>
+                  🖨 {order.paid_at ? 'Recibo' : 'Pre-cuenta'}
+                </button>
                 <div className="flex gap-2 mt-2">
                   <motion.button
                     whileTap={{ scale: 0.97 }}
@@ -1395,7 +1280,19 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     disabled={cancellingOrder === order.id}
-                    onClick={() => cancelarPedido(order, false, id => setReady(prev => prev.filter(o => o.id !== id)))}
+                    onClick={async () => {
+                      if (!window.confirm('¿Cancelar este pedido?')) return
+                      setCancellingOrder(order.id)
+                      try {
+                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                        if (error) { alert('Error: ' + error.message); return }
+                        setReady(prev => prev.filter(o => o.id !== order.id))
+                      } catch (err: any) {
+                        alert('Error: ' + err.message)
+                      } finally {
+                        setCancellingOrder(null)
+                      }
+                    }}
                     className="flex-1 py-2 rounded-2xl font-bold text-white bg-red-600 text-xs"
                   >
                     {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
@@ -1427,11 +1324,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         </button>
         <button
           onClick={handleCorte}
-          disabled={cortingLoading || (!resumenMal && sinVentasHoy)}
-          className={`w-full py-3.5 rounded-2xl font-bold text-sm text-[#2D3561] ${cortingLoading || (!resumenMal && sinVentasHoy) ? 'opacity-50' : ''}`}
+          disabled={cortingLoading || daySummary.total_ordenes === 0}
+          className={`w-full py-3.5 rounded-2xl font-bold text-sm text-[#2D3561] ${cortingLoading || daySummary.total_ordenes === 0 ? 'opacity-50' : ''}`}
           style={S.neoOut}
         >
-          {cortingLoading ? 'Generando corte...' : resumenMal ? 'Hacer corte de caja' : `Hacer corte de caja · ${daySummary.total_ordenes} órdenes`}
+          {cortingLoading ? 'Generando corte...' : `Hacer corte de caja · ${daySummary.total_ordenes} órdenes`}
         </button>
         <button
           onClick={handleCorteMensual}
@@ -1445,6 +1342,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
       <AnimatePresence>
         {showHistory && <SalesHistory onClose={() => setShowHistory(false)} />}
+        {cierreTicket && <TicketModal tipo="cierre" preparado={cierreTicket} onClose={() => setCierreTicket(null)} />}
+        {ticket && <TicketModal tipo={ticket.tipo} orderId={ticket.orderId} automatico={ticket.automatico} onClose={() => setTicket(null)} />}
         {showPagos && (
           <PagosDelDia esAdmin={profile.role === 'admin'} onClose={() => setShowPagos(false)} onChanged={fetchData} />
         )}
@@ -1542,7 +1441,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   )}
                   {pagoInsuficiente && (
                     <p className="mt-2 text-xs text-red-500 font-medium">
-                      {recibidoValido ? `Falta ${fmt(totalConPropina - recibidoNum)}` : 'Escribe cuánto efectivo recibiste'}
+                      Falta {fmt(totalConPropina - parseFloat(amountPaid))}
                     </p>
                   )}
                 </div>
@@ -1625,22 +1524,21 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={cerrarCorte}
+            onClick={() => setShowCorte(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm" style={S.neoOut}
+              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm overscroll-contain" style={{ ...S.neoOut, maxHeight: '90vh', overflowY: 'auto' }}
             >
               <div className="text-center mb-5">
                 <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl mx-auto mb-3" style={S.green}>
                  
                 </div>
-                <h3 className="font-bold text-[#2D3561] text-xl">{corteActualizado ? 'Corte actualizado' : 'Corte de Caja'}</h3>
-                {corteActualizado && <p className="text-xs text-amber-700 font-bold">Ya había un corte hoy: se actualizó con los datos de ahora.</p>}
+                <h3 className="font-bold text-[#2D3561] text-xl">Corte de Caja</h3>
                 <p className="text-xs text-[#9CA3AF]">
-                  {new Date().toLocaleDateString('es', { dateStyle: 'full', timeZone: 'America/Bogota' })}
+                  {new Date().toLocaleDateString('es', { dateStyle: 'full' })}
                 </p>
               </div>
 
@@ -1776,12 +1674,6 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     Incluye {fmt(corteResult.total_propinas_efectivo)} de propinas en efectivo — recuerda separarlas, no son venta del restaurante.
                   </p>
                 )}
-                {denominacionesConteo.length > 0 && (
-                  <button type="button" onClick={() => guardarConteo(true)} disabled={guardandoConteo}
-                    className="w-full min-h-[44px] mb-2 rounded-xl text-xs font-bold text-[#2D3561]" style={S.neoOutSm}>
-                    {guardandoConteo ? 'Guardando…' : 'Guardar conteo en el corte'}
-                  </button>
-                )}
                 {denominacionesConteo.length > 0 && (() => {
                   const efectivoEsperado = Number(corteResult.efectivo_esperado_cajon ?? corteResult.total_efectivo)
                   const diferencia = totalContado - efectivoEsperado
@@ -1802,25 +1694,35 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 </p>
               )}
 
-              <button
-                onClick={handleDescargarExcel}
-                className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#1D7A46', ...S.green }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Descargar Excel
-              </button>
+              {/* Botones fijos al fondo: siempre alcanzables aunque el corte sea largo */}
+              <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-[#D8DAE4] rounded-b-3xl">
+                <button
+                  onClick={handleDescargarExcel}
+                  className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#1D7A46', ...S.green }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Descargar Excel
+                </button>
 
-              <button
-                onClick={cerrarCorte}
-                disabled={guardandoConteo}
-                className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
-                style={S.neoOut}
-              >
-                {guardandoConteo ? 'Guardando conteo…' : 'Cerrar'}
-              </button>
+                <button
+                  onClick={() => armarCierre(corteResult, denominacionesConteo.length > 0 ? totalContado : null).then(setCierreTicket).catch(e => message.error(`No se pudo preparar el cierre: ${e instanceof Error ? e.message : 'error'}`))}
+                  className="w-full py-3 rounded-2xl font-bold text-[#2D3561] mb-3"
+                  style={S.neoOut}
+                >
+                  🖨 Imprimir cierre (con el conteo, si lo hiciste)
+                </button>
+
+                <button
+                  onClick={() => setShowCorte(false)}
+                  className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
+                  style={S.neoOut}
+                >
+                  Cerrar
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

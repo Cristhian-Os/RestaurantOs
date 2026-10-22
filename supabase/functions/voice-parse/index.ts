@@ -95,6 +95,7 @@ Si un plato se vende por tamaños, llena "sizes" (nombre y precio de cada uno) y
 Tipos de acción ("type") y los campos que usa cada uno:
 - dish_price: cambiar el precio de un plato. Campos: dish, price, y size SOLO si el plato se vende por tamaños (context.dishes[].sizes no vacío) y dijeron cuál.
 - dish_availability: marcar un plato disponible o agotado ("se acabó el cholao" = available false). Campos: dish, available.
+- option_availability: marcar agotado o disponible un ÍTEM de una lista de opciones que el cliente elige al pedir (sabores de helado o de jugo, leches, salsas, toppings…): "se acabó el sabor fresa", "ya no hay leche de avena", "volvió el sabor mora". Campos: item (valor EXACTO de context.listas[].items cuando encaje), available (false = agotado, true = disponible otra vez), y lista (el nombre de la lista, igual a context.listas[].name) SOLO si lo dijeron ("el sabor…", "la salsa…", "la leche…"). Si lo que se acaba es un ingrediente del inventario y no una opción que se elige, usa ingredient_stock.
 - ingredient_stock: cambiar el inventario de un ingrediente. Campos: ingredient, mode ("set" = dejar en esa cantidad, "add" = sumar, "subtract" = restar), quantity. "Se acabó la fresa" = set con quantity 0. Expresa quantity en la unidad del ingrediente (context.ingredients[].unit): si dicen gramos y la unidad es kg, convierte.
 - task_create: crear una tarea. Campos: title, description, assignee, priority (low, medium, high, urgent; medium por defecto), due_date (YYYY-MM-DD calculado con context.today, "" si no hay fecha).
 - shift_set: asignar o cambiar el turno de un empleado. Campos: employee, date (YYYY-MM-DD calculado con context.today y context.weekday; "el lunes" es el próximo lunes), start y end en formato 24 h HH:MM ("de ocho a cinco" = 08:00 y 17:00), notes opcional.
@@ -115,6 +116,7 @@ Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la
           anyOf: [
             variant('dish_price', { dish: S, size: S, price: N }, ['dish', 'price']),
             variant('dish_availability', { dish: S, available: { type: 'BOOLEAN' } }, ['dish', 'available']),
+            variant('option_availability', { item: S, lista: S, available: { type: 'BOOLEAN' } }, ['item', 'available']),
             variant('ingredient_stock', { ingredient: S, mode: { type: 'STRING', enum: ['set', 'add', 'subtract'] }, quantity: N }, ['ingredient', 'mode', 'quantity']),
             variant('task_create', { title: S, description: S, assignee: S, priority: { type: 'STRING', enum: ['low', 'medium', 'high', 'urgent'] }, due_date: S }, ['title']),
             variant('shift_set', { employee: S, date: S, start: S, end: S, notes: S }, ['employee', 'date', 'start', 'end']),
@@ -149,8 +151,11 @@ Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la
   },
 }
 
-// La llave va en el header (no en la URL) para que no quede en logs de red ni de errores.
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+// Modelos en orden de preferencia: Google retira modelos (gemini-2.5-flash ya da 404 con claves nuevas). Ante un 404 se pasa al siguiente
+// y se recuerda el que funcionó mientras viva esta instancia.
+const MODELOS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-flash']   // lite: ~1 s en pruebas reales; 3.6-flash "piensa" y tardó ~8 s
+let modeloVivo = 0
+const GEMINI_URL = (modelo: string) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`
 const MAX_WAIT_MS = 25_000 // lo máximo que esperamos si Gemini pide reintentar (límite por minuto)
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -158,13 +163,19 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 interface GeminiReply { status: number; data: { error?: { details?: { retryDelay?: string }[] }; candidates?: { content?: { parts?: { text?: string }[] } }[] } }
 
 async function callGemini(key: string, body: unknown): Promise<GeminiReply> {
-  try {
-    const resp = await fetch(GEMINI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) })
-    const data = await resp.json().catch(() => ({}))
-    return { status: resp.status, data }
-  } catch {
-    return { status: 0, data: {} } // sin conexión con Gemini: se trata como error pasajero
+  let ultima: GeminiReply = { status: 0, data: {} }
+  for (let i = modeloVivo; i < MODELOS.length; i++) {
+    try {
+      const resp = await fetch(GEMINI_URL(MODELOS[i]), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) })
+      const data = await resp.json().catch(() => ({}))
+      ultima = { status: resp.status, data }
+    } catch {
+      return { status: 0, data: {} } // sin conexión con Gemini: se trata como error pasajero
+    }
+    if (ultima.status !== 404) { modeloVivo = i; return ultima }
+    console.error('modelo no disponible:', MODELOS[i])
   }
+  return ultima
 }
 
 /** "19s" / "19.6s" → milisegundos (0 si Gemini no dice cuánto esperar). */
@@ -190,8 +201,7 @@ async function askGemini(key: string, text: string, input: { audio: { mimeType: 
       { text: withSchema ? text : `${text}\nResponde SOLO con un JSON que cumpla exactamente este esquema (tipos OpenAPI de Gemini): ${JSON.stringify(schema)}` },
       media,
     ] }],
-    // thinkingBudget 0: sin "pensamiento" facturable; el JSON estructurado no lo necesita.
-    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 }, ...(withSchema ? { responseSchema: schema } : {}) },
+    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', ...(withSchema ? { responseSchema: schema } : {}) },
   })
 
   let withSchema = true
@@ -219,23 +229,6 @@ async function askGemini(key: string, text: string, input: { audio: { mimeType: 
   return reply
 }
 
-/** Recorta el contexto por LISTAS (no a la mitad del JSON, que dejaba un JSON roto y platos sin ver). */
-function recortarContexto(ctx: unknown, max: number): string {
-  let s = JSON.stringify(ctx ?? {})
-  if (s.length <= max || typeof ctx !== 'object' || ctx === null) return s.slice(0, max)
-  const c: Record<string, unknown> = { ...(ctx as Record<string, unknown>) }
-  for (let i = 0; i < 40 && s.length > max; i++) {
-    let changed = false
-    for (const k of Object.keys(c)) {
-      const v = c[k]
-      if (Array.isArray(v) && v.length > 1) { c[k] = v.slice(0, Math.max(1, Math.floor(v.length * 0.8))); changed = true }
-    }
-    s = JSON.stringify(c)
-    if (!changed) break
-  }
-  return s.slice(0, max)
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   const json = (o: unknown, s = 200) =>
@@ -260,24 +253,18 @@ Deno.serve(async (req: Request) => {
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
     const { data: { user } } = await supabase.auth.getUser(token)
     if (!user) return json({ error: 'no autenticado' }, 401)
-    const { data: prof } = await supabase.from('profiles').select('role, restaurant_id, active').eq('id', user.id).maybeSingle()
-    if (!prof?.restaurant_id || !prof.active || !cfg.roles.includes(prof.role)) return json({ error: 'Sin permiso para este dictado' }, 403)
+    const { data: prof } = await supabase.from('profiles').select('role, restaurant_id').eq('id', user.id).maybeSingle()
+    if (!prof?.restaurant_id || !cfg.roles.includes(prof.role)) return json({ error: 'Sin permiso para este dictado' }, 403)
 
     // Cada llamada cuesta dinero: máx 30 dictados por usuario cada 10 min.
-    // Falla cerrado: si el contador no responde, no se llama a Gemini.
     const { data: ok } = await supabase.rpc('check_rate_limit', { p_key: `voice:${user.id}`, p_max: 30, p_window_seconds: 600 })
-    if (ok !== true) return json({ error: 'Muchos dictados seguidos. Espera unos minutos.' }, 429)
-    // Tope diario por restaurante y global: una cuenta comprometida no puede disparar la factura.
-    const { data: okRest } = await supabase.rpc('check_rate_limit', { p_key: `voice-rest:${prof.restaurant_id}`, p_max: 400, p_window_seconds: 86400 })
-    if (okRest !== true) return json({ error: 'Se llegó al límite diario de dictados de tu restaurante. Intenta mañana.' }, 429)
-    const { data: okGlobal } = await supabase.rpc('check_rate_limit', { p_key: 'voice-global', p_max: 20000, p_window_seconds: 86400 })
-    if (okGlobal !== true) return json({ error: 'El servicio de voz está en su límite diario. Intenta más tarde.' }, 429)
+    if (ok === false) return json({ error: 'Muchos dictados seguidos. Espera unos minutos.' }, 429)
 
     const { data: secret } = await supabase.from('platform_secrets').select('value').eq('key', 'gemini_api_key').single()
     if (!secret?.value) return json({ error: 'Config faltante' }, 500)
 
     // Los comandos llevan menú + inventario + equipo + mesas, así que necesitan más espacio.
-    const ctx = recortarContexto(context, kind === 'command' ? 20000 : 8000)
+    const ctx = JSON.stringify(context).slice(0, kind === 'command' ? 20000 : 8000)
     const reply = await askGemini(
       secret.value,
       `${cfg.prompt}\nSi en vez de un audio recibes un texto escrito, ese texto es lo que se dijo: devuélvelo igual en "transcript".\nResponde solo con el JSON pedido. No inventes datos que no se dijeron.\ncontext: ${ctx}`,

@@ -10,7 +10,6 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryService } from '../../services/inventoryService'
 import message from 'antd/es/message'
-import { supabase } from '../../services/supabaseClient'
 import { VoiceButton } from '../VoiceButton'
 import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Ingrediente } from '../../types/inventory'
@@ -41,7 +40,6 @@ export function IngredientesManager() {
   const [compraFor, setCompraFor] = useState<Ingrediente | null>(null)
   const [compraCantidad, setCompraCantidad] = useState('')
   const [compraPrecio, setCompraPrecio] = useState('')
-  const [compraProveedor, setCompraProveedor] = useState('')
   const [editFor, setEditFor] = useState<Ingrediente | null>(null)
   const [editStock, setEditStock] = useState('')
   const [editMinimo, setEditMinimo] = useState('')
@@ -73,29 +71,19 @@ export function IngredientesManager() {
   })
 
   const compraMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => {
       if (!compraFor) throw new Error('Sin ingrediente')
       const cantidad = parseFloat(compraCantidad)
       const precio = parseFloat(compraPrecio)
-      // Función atómica de la base: suma al stock actual del servidor (no al caché del navegador),
-      // actualiza el costo y registra el gasto de la compra.
-      const { error } = await supabase.rpc('registrar_compra_proveedor', {
-        p_concepto: compraProveedor.trim(),
-        p_items: [{
-          ingrediente_id: compraFor.id,
-          nombre_producto: compraFor.nombre,
-          cantidad,
-          unidad: compraFor.unidad_medida,
-          precio_unitario: precio,
-        }],
+      return inventoryService.updateIngrediente(compraFor.id, {
+        stock_actual: Number(compraFor.stock_actual) + cantidad,
+        costo_unitario: precio,
       })
-      if (error) throw new Error(error.message)
     },
     onSuccess: () => {
       message.success('Compra registrada')
-      setCompraFor(null); setCompraCantidad(''); setCompraPrecio(''); setCompraProveedor('')
+      setCompraFor(null); setCompraCantidad(''); setCompraPrecio('')
       invalidate()
-      queryClient.invalidateQueries({ queryKey: ['shopping_list'] })
     },
     onError: (e) => message.error(e instanceof Error ? e.message : 'Error al registrar la compra'),
   })
@@ -122,15 +110,7 @@ export function IngredientesManager() {
   const eliminarMutation = useMutation({
     mutationFn: (id: string) => inventoryService.deleteIngrediente(id),
     onSuccess: () => { message.success('Ingrediente eliminado'); invalidate() },
-    onError: (e) => {
-      const msg = e instanceof Error ? e.message : ''
-      // 23503 = violación de llave foránea: el ingrediente está en una receta o en una compra
-      if (/foreign key|violates|23503|still referenced/i.test(msg)) {
-        message.error('No se puede eliminar: este ingrediente se usa en recetas o compras. Quítalo de ellas primero.')
-      } else {
-        message.error(msg || 'Error al eliminar')
-      }
-    },
+    onError: (e) => message.error(e instanceof Error ? e.message : 'Error al eliminar'),
   })
 
   const sustitutoMutation = useMutation({
@@ -142,9 +122,8 @@ export function IngredientesManager() {
 
   const compraValida = useMemo(() => {
     const c = parseFloat(compraCantidad), p = parseFloat(compraPrecio)
-    // La compra queda como gasto: el monto debe ser mayor que cero y debe tener proveedor/concepto.
-    return c > 0 && p > 0 && compraProveedor.trim().length > 0
-  }, [compraCantidad, compraPrecio, compraProveedor])
+    return c > 0 && p >= 0
+  }, [compraCantidad, compraPrecio])
 
   const editValido = useMemo(() => {
     return [editStock, editMinimo, editCosto].every(v => v.trim() !== '' && Number.isFinite(parseFloat(v)) && parseFloat(v) >= 0)
@@ -161,7 +140,6 @@ export function IngredientesManager() {
     setCompraFor(ing)
     setCompraCantidad('')
     setCompraPrecio(String(ing.costo_unitario))
-    setCompraProveedor('')
   }
 
   const ingredientes = ingredientesQuery.data ?? []
@@ -323,10 +301,6 @@ export function IngredientesManager() {
             <h3 style={{ margin: '0 0 0.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Registrar compra</h3>
             <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{compraFor.nombre} · stock actual: {Number(compraFor.stock_actual).toFixed(2)} {compraFor.unidad_medida}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Proveedor o concepto</label>
-                <input type="text" maxLength={120} value={compraProveedor} onChange={e => setCompraProveedor(e.target.value)} style={inputBase} placeholder="Ej: Plaza de mercado" />
-              </div>
               <div>
                 <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Cantidad comprada ({compraFor.unidad_medida})</label>
                 <input type="number" min={0} autoFocus value={compraCantidad} onChange={e => setCompraCantidad(e.target.value)} style={inputBase} placeholder="0" />

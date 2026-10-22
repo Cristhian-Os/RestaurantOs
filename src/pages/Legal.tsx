@@ -5,6 +5,8 @@
  * un SaaS que puede operar en varios países, pero DEBE ser revisada
  * por un abogado antes de operar. Edita nombre de empresa y correo.
  */
+import { PROMO_SLOTS } from '../config/content'
+
 const go = (path: string) => { window.location.href = path }
 
 // ── Datos de la empresa (EDITAR) ──
@@ -12,8 +14,6 @@ const EMPRESA = {
   nombre: 'RestaurantOS',
   correo: 'soporte@restaurantos.com',
 }
-// Fecha fija de la última revisión de los textos (actualizar al modificarlos; NO usar la fecha de hoy)
-const ULTIMA_ACTUALIZACION = '15 de octubre de 2026'
 const GRACE_DAYS = 7
 const PURGE_DAYS = 30
 
@@ -21,7 +21,7 @@ interface Sec { h: string; p: string[]; warn?: boolean }
 
 const TERMINOS: Sec[] = [
   { h: '1. Aceptación y alcance', p: [
-    `Al contratar el servicio o usar ${EMPRESA.nombre} ("la Plataforma"), usted ("el Cliente") acepta estos Términos y Condiciones. Si no está de acuerdo, no use la Plataforma.`,
+    `Al crear una cuenta o usar ${EMPRESA.nombre} ("la Plataforma"), usted ("el Cliente") acepta estos Términos y Condiciones. Si no está de acuerdo, no use la Plataforma.`,
     'La Plataforma está disponible internacionalmente. El Cliente es responsable de cumplir las leyes aplicables en su propio país o jurisdicción al usar el servicio.',
   ]},
   { h: '2. Descripción del servicio', p: [
@@ -31,13 +31,13 @@ const TERMINOS: Sec[] = [
     'El Cliente es responsable de la veracidad de sus datos, de la seguridad de sus contraseñas y de toda la actividad realizada bajo su cuenta y las de su personal.',
     'El Cliente es el único responsable de la información, precios y contenido que carga sobre su negocio.',
   ]},
-  { h: '4. Activación del servicio', p: [
-    `El registro público está cerrado: ${EMPRESA.nombre} activa cada restaurante junto con el Cliente, a solicitud de este, y le entrega su usuario de administrador.`,
-    'Las condiciones comerciales (plan, precio y fecha de inicio) se acuerdan con el Cliente al momento de la activación.',
+  { h: '4. Acuerdos de lanzamiento', p: [
+    `El cobro de la Plataforma comienza desde el primer mes.`,
+    `Como acuerdo de lanzamiento, ${PROMO_SLOTS} restaurantes tienen un plan sin costo de forma permanente. Este acuerdo es personal, intransferible, aplica solo mientras la cuenta se mantenga activa y conforme a estos Términos, y no se ofrece a nuevos registros.`,
   ]},
   { h: '5. Planes, facturación mensual y renovación', p: [
-    'El uso de la Plataforma requiere un plan de pago. Los planes se facturan de forma mensual y recurrente, por adelantado, y se renuevan automáticamente cada mes hasta que el Cliente cancele.',
-    'Los precios pueden cambiar avisando con antelación razonable. Salvo que la ley aplicable exija lo contrario, los pagos de periodos ya iniciados no son reembolsables.',
+    'Salvo los acuerdos de lanzamiento, el uso de la Plataforma requiere un plan de pago. Los planes se facturan por adelantado, de forma mensual (con renovación automática cada mes hasta que el Cliente cancele) o anual prepagada.',
+    'Los precios pueden cambiar avisando con antelación razonable. Se devuelve el primer pago si el Cliente lo solicita dentro de los 30 días siguientes; después de ese plazo, y salvo que la ley aplicable exija lo contrario, los pagos no son reembolsables.',
   ]},
   { h: '6. Mora, suspensión y eliminación de la cuenta', warn: true, p: [
     `Si un pago no se realiza en la fecha correspondiente, el Cliente contará con un periodo de gracia de ${GRACE_DAYS} días (una semana) para ponerse al día, durante el cual conserva el acceso a la Plataforma.`,
@@ -76,6 +76,7 @@ const PRIVACIDAD: Sec[] = [
   ]},
   { h: '3. Finalidad', p: [
     'Usamos los datos para prestar el servicio, administrar cuentas, procesar pagos, brindar soporte y mejorar la Plataforma.',
+    'Las opiniones y sugerencias que el equipo de un restaurante escribe al asistente Resti se guardan junto con el restaurante, el rol de quien las envía y la conversación, con el único fin de mejorar la Plataforma. No deben incluir contraseñas ni datos de tarjetas. En el asistente de soporte la dirección IP no se guarda en texto, solo un código irreversible (hash) que sirve para limitar abusos.',
   ]},
   { h: '4. Seguridad y ubicación', p: [
     'La información se almacena en servidores seguros en la nube y puede procesarse en distintos países. Aplicamos medidas técnicas para proteger los datos y aislar la información de cada restaurante.',
@@ -85,6 +86,7 @@ const PRIVACIDAD: Sec[] = [
     `Para ejercer estos derechos, escriba a ${EMPRESA.correo}.`,
   ]},
   { h: '6. Conservación y eliminación', p: [
+    'Las opiniones y sugerencias se conservan mientras la cuenta del restaurante esté activa y se eliminan junto con ella.',
     `Conservamos los datos mientras la cuenta esté activa. En caso de falta de pago, tras la suspensión los datos se conservan ${PURGE_DAYS} días para permitir la reactivación y luego se eliminan de forma permanente. En caso de cancelación voluntaria, los datos podrán borrarse conforme a los Términos y Condiciones.`,
   ]},
   { h: '7. Cambios', p: [
@@ -107,7 +109,7 @@ export default function Legal() {
 
         <h1 className="ed-display" style={{ fontSize: 'clamp(2rem, 5vw, 2.75rem)', fontWeight: 600, margin: '0 0 0.5rem' }}>{title}</h1>
         <p className="ed-body" style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', marginBottom: '2.5rem' }}>
-          Última actualización: {ULTIMA_ACTUALIZACION}
+          Última actualización: {new Date().toLocaleDateString('es', { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
 
         {secs.map(s => (

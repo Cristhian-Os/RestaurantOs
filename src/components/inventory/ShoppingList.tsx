@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { inventoryService } from '../../services/inventoryService'
 import Table from 'antd/es/table'
@@ -22,18 +22,6 @@ const S = {
 // Postgres numeric llega como string vía Supabase/PostgREST — nunca confiar en el tipo TS
 const fmtCOP = (n: unknown) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO')
 
-// Cantidad a comprar: la que el admin fijó a mano, o la sugerida (2 × mínimo − stock). El costo siempre es
-// cantidad × costo unitario, así lo que se ve en la columna de cantidad cuadra con el costo mostrado.
-const cantidadAComprar = (i: ListaCompras) => Number(i.cantidad_necesaria ?? i.cantidad_sugerida) || 0
-const costoTotal = (i: ListaCompras) => cantidadAComprar(i) * (Number(i.costo_unitario) || 0)
-
-// Celda CSV: se encomilla, y si empieza con = + - @ se neutraliza para que Excel no la ejecute como fórmula
-const csvCell = (v: unknown) => {
-  let t = String(v ?? '')
-  if (/^[=+\-@\t\r]/.test(t)) t = "'" + t
-  return '"' + t.replace(/"/g, '""') + '"'
-}
-
 export function ShoppingList() {
   const [filteredPriority, setFilteredPriority] = useState<'URGENTE' | 'ALTO' | 'NORMAL' | 'TODOS'>('TODOS')
 
@@ -45,10 +33,6 @@ export function ShoppingList() {
     staleTime: 1000 * 60 * 2,
   })
 
-  useEffect(() => {
-    if (listaQuery.error) message.error('No se pudo cargar la lista de compras: ' + (listaQuery.error as Error).message)
-  }, [listaQuery.error])
-
   // Filtrar datos
   const filteredData = (listaQuery.data || []).filter((item) =>
     filteredPriority === 'TODOS' ? true : item.prioridad === filteredPriority
@@ -56,7 +40,7 @@ export function ShoppingList() {
 
   // Calcular totales
   const totalItems = filteredData.length
-  const totalCost = filteredData.reduce((sum, item) => sum + costoTotal(item), 0)
+  const totalCost = filteredData.reduce((sum, item) => sum + Number(item.costo_total), 0)
   const urgenteCount = (listaQuery.data || []).filter((i) => i.prioridad === 'URGENTE').length
   const altoCount = (listaQuery.data || []).filter((i) => i.prioridad === 'ALTO').length
 
@@ -72,7 +56,7 @@ export function ShoppingList() {
       'Unidad',
       'Stock Actual',
       'Stock Mínimo',
-      'Cantidad a Comprar',
+      'Cantidad Sugerida',
       'Costo Unitario',
       'Costo Total',
       'Prioridad',
@@ -83,14 +67,14 @@ export function ShoppingList() {
       item.unidad_medida,
       Number(item.stock_actual).toFixed(2),
       Number(item.stock_minimo).toFixed(2),
-      cantidadAComprar(item).toFixed(2),
+      Number(item.cantidad_sugerida).toFixed(2),
       Number(item.costo_unitario).toFixed(2),
-      costoTotal(item).toFixed(2),
+      Number(item.costo_total).toFixed(2),
       item.prioridad,
     ])
 
-    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
 
@@ -101,7 +85,6 @@ export function ShoppingList() {
 
     link.click()
     document.body.removeChild(link)
-    URL.revokeObjectURL(url)
 
     message.success('Lista descargada como CSV')
   }
@@ -117,8 +100,8 @@ export function ShoppingList() {
       filteredData.map((item) => ({
         ingrediente: item.nombre,
         unidad: item.unidad_medida,
-        cantidad_a_comprar: cantidadAComprar(item),
-        costo_total: costoTotal(item),
+        cantidad_sugerida: Number(item.cantidad_sugerida),
+        costo_total: Number(item.costo_total),
         prioridad: item.prioridad,
       })),
       null,
@@ -136,7 +119,6 @@ export function ShoppingList() {
 
     link.click()
     document.body.removeChild(link)
-    URL.revokeObjectURL(url)
 
     message.success('Lista descargada como JSON')
   }
@@ -177,11 +159,12 @@ export function ShoppingList() {
       render: (val: number) => <span className="text-sm text-neo-mid">{Number(val).toFixed(2)}</span>,
     },
     {
-      title: 'Cant. a comprar',
-      key: 'cantidad_a_comprar',
-      width: 120,
-      render: (_: unknown, rec: ListaCompras) => (
-        <span className="font-bold text-neo-coral">{cantidadAComprar(rec).toFixed(2)}</span>
+      title: 'Qty Sugerida',
+      dataIndex: 'cantidad_sugerida',
+      key: 'cantidad_sugerida',
+      width: 110,
+      render: (val: number) => (
+        <span className="font-bold text-neo-coral">{Number(val).toFixed(2)}</span>
       ),
     },
     {
@@ -195,12 +178,13 @@ export function ShoppingList() {
     },
     {
       title: 'Costo Total',
+      dataIndex: 'costo_total',
       key: 'costo_total',
       width: 110,
-      render: (_: unknown, rec: ListaCompras) => (
-        <span className="font-bold text-neo-dark">{fmtCOP(costoTotal(rec))}</span>
+      render: (val: number) => (
+        <span className="font-bold text-neo-dark">{fmtCOP(val)}</span>
       ),
-      sorter: (a: ListaCompras, b: ListaCompras) => costoTotal(a) - costoTotal(b),
+      sorter: (a: ListaCompras, b: ListaCompras) => Number(a.costo_total) - Number(b.costo_total),
     },
     {
       title: 'Prioridad',

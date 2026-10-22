@@ -5,7 +5,7 @@
  * toppings y comentario. Guardar actualiza ESA línea del pedido (no crea otra)
  * vía editar_items_pedido; el servidor recalcula los precios.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
@@ -15,7 +15,6 @@ import { lineNotes } from '../../services/menuOptions'
 import { DishOptionsModal, needsCustomization, type BuilderResult } from './OrderFlow'
 import type { Dish, ItemSel } from '../../types'
 import type { RecetaShortage } from '../../types/inventory'
-import { fmt } from '../cashier/shared'
 
 export interface OrderItemRow {
   id:        string | null
@@ -41,6 +40,8 @@ interface Line {
   sel:       ItemSel | null
 }
 
+const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
+
 export function EditOrderModal({ order, onClose, onSaved }: {
   order:   { id: string; items: OrderItemRow[]; paid_at: string | null; total: number }
   onClose: () => void
@@ -51,9 +52,6 @@ export function EditOrderModal({ order, onClose, onSaved }: {
   const [shortages, setShortages] = useState<RecetaShortage[]>([])
   const [editing, setEditing]     = useState<number | null>(null)
   const [saving, setSaving]       = useState(false)
-  const [dishesError, setDishesError] = useState<string | null>(null)   // la consulta de platos falló: se avisa, no queda en "Cargando…"
-  const [dishesLoaded, setDishesLoaded] = useState(false)
-  const guardando = useRef(false)
   const [lines, setLines] = useState<Line[]>(() => order.items
     .map((it, idx) => ({
       idx, dishId: it.id, name: it.name, quantity: it.quantity, unitPrice: Number(it.price),
@@ -66,12 +64,7 @@ export function EditOrderModal({ order, onClose, onSaved }: {
     const ids = [...new Set(order.items.map(i => i.id).filter((x): x is string => !!x))]
     if (ids.length) {
       supabase.from('dishes').select('*').in('id', ids)
-        .then(({ data, error }) => {
-          if (error) { setDishesError(error.message); message.error('No se pudieron cargar los platos del pedido: ' + error.message); return }
-          setDishesError(null)
-          setDishes(Object.fromEntries((data ?? []).map((d: Dish) => [d.id, d])))
-          setDishesLoaded(true)
-        })
+        .then(({ data }) => setDishes(Object.fromEntries((data ?? []).map((d: Dish) => [d.id, d]))))
     }
     inventoryService.getRecetaShortages().then(setShortages).catch(() => {})
   }, [order.items])
@@ -102,15 +95,12 @@ export function EditOrderModal({ order, onClose, onSaved }: {
 
   const save = async () => {
     if (lines.length === 0) { message.warning('El pedido debe tener al menos un producto. Si ya no quieren nada, cancela el pedido.'); return }
-    if (guardando.current) return
-    guardando.current = true
     setSaving(true)
     const { error } = await supabase.rpc('editar_items_pedido', {
       p_order_id: order.id,
       p_items: lines.map(l => ({ idx: l.idx, quantity: l.quantity, size: l.size, toppings: l.toppings, notes: l.notes, sel: l.sel })),
     })
     setSaving(false)
-    guardando.current = false
     if (error) { message.error(error.message); return }
     message.success('Pedido actualizado')
     onSaved()
@@ -156,10 +146,8 @@ export function EditOrderModal({ order, onClose, onSaved }: {
                         <button onClick={() => setEditing(l.idx)} style={{ ...btn, flex: 1, padding: '0.55rem', background: 'var(--w-saffron)', color: '#fff' }}>
                           Editar
                         </button>
-                      ) : l.dishId && !(dishesLoaded && !dishesError) ? (
-                        <span style={{ flex: 1, fontSize: '0.8125rem', color: dishesError ? 'var(--w-wine)' : 'var(--w-ink-mut)' }}>
-                          {dishesError ? 'No se pudo cargar este plato (revisa la conexión)' : 'Cargando…'}
-                        </span>
+                      ) : l.dishId ? (
+                        <span style={{ flex: 1, fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Cargando…</span>
                       ) : (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <button onClick={() => setQty(l.idx, l.quantity - 1)} style={{ ...btn, width: 34, height: 34, background: 'var(--w-surface)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>−</button>

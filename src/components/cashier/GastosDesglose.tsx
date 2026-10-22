@@ -7,7 +7,6 @@
 import { forwardRef, useMemo, useState, type HTMLAttributes } from 'react'
 import { cn } from '../../lib/cn'
 import { categoriaKey, resumirPorCategoria, totalGastos, type Etiquetas, type GastoLite } from '../../services/gastosResumen'
-import { fmt } from './shared'
 
 export interface GastoDetalle extends GastoLite {
   id?:         string
@@ -22,6 +21,7 @@ export interface GastosDesgloseProps extends HTMLAttributes<HTMLDivElement> {
   etiquetas?: Etiquetas
 }
 
+const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 
 const cuando = (iso: string | undefined, periodo: 'dia' | 'mes') => {
   if (!iso) return ''

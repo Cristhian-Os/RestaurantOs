@@ -56,29 +56,18 @@ const FORM_INITIAL: NewEmployeeForm = {
   email: '', recovery_email: '', full_name: '', role: 'waiter', password: '', phone: '',
 }
 
-// Nombre que deja eliminar_empleado (y el que usaba la versión anterior)
-const DELETED_NAMES = ['Empleado eliminado', '[Cuenta eliminada]']
-const isDeleted = (name: string | null) => !!name && DELETED_NAMES.includes(name)
-
-const AVATAR_MIMES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024
-const MIN_PASSWORD = 8
+const DELETED_NAME = '[Cuenta eliminada]'
 
 async function uploadAvatar(profileId: string, file: File): Promise<string | null> {
-  const ext = AVATAR_MIMES[file.type]
-  if (!ext) { message.error('Formato de foto no permitido (usa JPG, PNG o WebP)'); return null }
-  if (file.size > MAX_AVATAR_BYTES) { message.error('La foto debe pesar 5 MB o menos'); return null }
-  const { data: rid, error: ridErr } = await supabase.rpc('current_restaurant_id')
-  if (ridErr || !rid) { message.error('No se pudo subir la foto: no se identificó el restaurante'); return null }
-  // El 2º segmento del path debe ser el restaurant_id (política del bucket); sin upsert: cada subida es un archivo nuevo.
-  const path = `avatars/${rid}/${profileId}-${Date.now()}.${ext}`
+  const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `avatars/${profileId}.${ext}`
   const { error } = await supabase.storage
     .from('restaurant-assets')
-    .upload(path, file, { contentType: file.type })
+    .upload(path, file, { upsert: true, contentType: file.type })
   if (error) { message.error(`No se pudo subir la foto: ${error.message}`); return null }
   const { data: { publicUrl } } = supabase.storage
     .from('restaurant-assets').getPublicUrl(path)
-  return publicUrl
+  return publicUrl + `?v=${Date.now()}`
 }
 
 export const TeamManager = memo(() => {
@@ -155,14 +144,14 @@ export const TeamManager = memo(() => {
     setFormError(null)
     if (!form.email.trim())       { setFormError('Email requerido'); return }
     if (!form.full_name.trim())   { setFormError('Nombre requerido'); return }
-    if (form.password.trim().length < MIN_PASSWORD) { setFormError(`Contraseña mínimo ${MIN_PASSWORD} caracteres`); return }
+    if (form.password.length < 6) { setFormError('Contraseña mínimo 6 caracteres'); return }
     setCreating(true)
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('create_employee_profile', {
         p_email:          form.email.trim().toLowerCase(),
         p_full_name:      form.full_name.trim(),
         p_role:           form.role,
-        p_password:       form.password.trim(),
+        p_password:       form.password.trim() || 'Temporal1234!',
         p_recovery_email: form.recovery_email.trim() || null,
         p_phone:          form.phone.trim() || null,
       })
@@ -173,10 +162,7 @@ export const TeamManager = memo(() => {
 
       if (avatarFile && profileId) {
         const url = await uploadAvatar(profileId, avatarFile)
-        if (url) {
-          const { error: avErr } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', profileId)
-          if (avErr) message.error('Empleado creado, pero no se pudo guardar la foto: ' + avErr.message)
-        }
+        if (url) await supabase.from('profiles').update({ avatar_url: url }).eq('id', profileId)
       }
       setForm(FORM_INITIAL); setAvatarFile(null); setPreview(null); setShowForm(false)
       if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
@@ -193,17 +179,13 @@ export const TeamManager = memo(() => {
     setSavingMe(true)
     try {
       // 1. Actualizar datos del perfil
-      const patch: { full_name: string | null; phone: string | null; avatar_url?: string } = {
+      let avatarUrl = myProfile.avatar_url
+      if (meAvatarFile) avatarUrl = await uploadAvatar(myProfile.id, meAvatarFile)
+      const { error: profErr } = await supabase.from('profiles').update({
         full_name: myForm.full_name.trim() || null,
         phone:     myForm.phone.trim() || null,
-      }
-      if (meAvatarFile) {
-        const url = await uploadAvatar(myProfile.id, meAvatarFile)
-        // Si la subida falla no se toca avatar_url (no se borra la foto actual)
-        if (!url) throw new Error('No se pudo subir la foto de perfil')
-        patch.avatar_url = url
-      }
-      const { error: profErr } = await supabase.from('profiles').update(patch).eq('id', myProfile.id)
+        avatar_url: avatarUrl,
+      }).eq('id', myProfile.id)
       if (profErr) throw profErr
 
       // 2. Cambiar email si el campo está lleno
@@ -214,7 +196,7 @@ export const TeamManager = memo(() => {
       }
       // 3. Cambiar contraseña si el campo está lleno
       if (myForm.new_password.trim()) {
-        if (myForm.new_password.trim().length < MIN_PASSWORD) throw new Error(`La contraseña debe tener al menos ${MIN_PASSWORD} caracteres`)
+        if (myForm.new_password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
         const { error: passErr } = await supabase.auth.updateUser({ password: myForm.new_password.trim() })
         if (passErr) throw passErr
         message.success('Contraseña actualizada')
@@ -246,8 +228,8 @@ export const TeamManager = memo(() => {
     setEditErr(null)
     if (!editForm.full_name.trim()) { setEditErr('El nombre es requerido'); return }
     if (!editForm.email.trim())     { setEditErr('El email es requerido'); return }
-    if (editForm.new_password.trim() && editForm.new_password.trim().length < MIN_PASSWORD) {
-      setEditErr(`La contraseña debe tener al menos ${MIN_PASSWORD} caracteres`); return
+    if (editForm.new_password.trim() && editForm.new_password.trim().length < 6) {
+      setEditErr('La contraseña debe tener al menos 6 caracteres'); return
     }
     setSavingEmp(true)
     try {
@@ -272,8 +254,7 @@ export const TeamManager = memo(() => {
   // ── toggle active ─────────────────────────────────────────────
   const handleToggleActive = useCallback(async (profile: Profile) => {
     if (profile.role === 'admin') { message.warning('No se puede desactivar al admin'); return }
-    // Función de la base (admin): marca el perfil y también bloquea/desbloquea el acceso en auth
-    const { error } = await supabase.rpc('set_employee_active', { p_employee_id: profile.id, p_active: !profile.active })
+    const { error } = await supabase.from('profiles').update({ active: !profile.active }).eq('id', profile.id)
     if (error) { message.error('Error: ' + error.message); return }
     message.success(profile.active ? 'Empleado desactivado' : 'Empleado reactivado')
     fetchProfiles()
@@ -283,8 +264,15 @@ export const TeamManager = memo(() => {
   const handleHardDelete = useCallback(async (profileId: string) => {
     setHardDeleting(true)
     try {
-      // La función de la base anonimiza el perfil, borra sus turnos y bloquea el acceso
-      const { error } = await supabase.rpc('eliminar_empleado', { p_employee_id: profileId })
+      // 1. Eliminar turnos del empleado
+      await supabase.from('employee_schedules').delete().eq('employee_id', profileId)
+      // 2. Anonimizar el perfil
+      const { error } = await supabase.from('profiles').update({
+        active:     false,
+        full_name:  DELETED_NAME,
+        phone:      null,
+        avatar_url: null,
+      }).eq('id', profileId)
       if (error) throw error
       message.success('Empleado eliminado del equipo')
       setConfirmDeleteId(null)
@@ -298,8 +286,7 @@ export const TeamManager = memo(() => {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>, forMe = false) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!AVATAR_MIMES[file.type]) { message.error('Formato no permitido: usa JPG, PNG o WebP'); e.target.value = ''; return }
-    if (file.size > MAX_AVATAR_BYTES) { message.error('La foto debe pesar 5 MB o menos'); e.target.value = ''; return }
+    if (file.size > 3 * 1024 * 1024) { message.error('La foto debe ser menor a 3MB'); return }
     const url = URL.createObjectURL(file)
     if (forMe) { setMeAvatarFile(file); setMePreview(url) }
     else       { setAvatarFile(file);   setPreview(url)   }
@@ -308,7 +295,7 @@ export const TeamManager = memo(() => {
 
   // ── filter (hide deleted accounts) ───────────────────────────
   const filtered = profiles.filter(p => {
-    if (isDeleted(p.full_name)) return false
+    if (p.full_name === DELETED_NAME) return false
     if (!search.trim()) return true
     const q = search.toLowerCase()
     return p.full_name?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q) || p.role.includes(q)
@@ -329,7 +316,7 @@ export const TeamManager = memo(() => {
         <div>
           <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: 0 }}>Equipo</h2>
           <p style={{ fontSize: '0.875rem', color: txtMut, marginTop: '0.125rem' }}>
-            {profiles.filter(p => p.active && !isDeleted(p.full_name)).length} activos · {profiles.filter(p => !isDeleted(p.full_name)).length} total
+            {profiles.filter(p => p.active && p.full_name !== DELETED_NAME).length} activos · {profiles.filter(p => p.full_name !== DELETED_NAME).length} total
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -396,7 +383,7 @@ export const TeamManager = memo(() => {
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Contraseña *</label>
                   <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder="Mínimo 6 caracteres"
                     style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div>
@@ -561,7 +548,7 @@ export const TeamManager = memo(() => {
                     <div>
                       <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nueva contraseña</label>
                       <input type="password" value={myForm.new_password} onChange={e => setMyForm(p => ({ ...p, new_password: e.target.value }))}
-                        placeholder="Mínimo 8 caracteres"
+                        placeholder="Mínimo 6 caracteres"
                         style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                     </div>
                   </div>
@@ -631,7 +618,7 @@ export const TeamManager = memo(() => {
                 <div style={{ borderTop: `1px solid ${bgSurf}`, paddingTop: '0.875rem' }}>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nueva contraseña (dejar en blanco para no cambiar)</label>
                   <input type="password" value={editForm.new_password} onChange={e => setEditForm(p => ({ ...p, new_password: e.target.value }))}
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder="Mínimo 6 caracteres"
                     style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
               </div>

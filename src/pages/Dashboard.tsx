@@ -8,7 +8,6 @@ import { supabase } from '../services/supabaseClient'
 import { useTheme } from '../contexts/ThemeContext'
 import { initializeOfflineSync } from '../services/offlineService'
 import { queryClient } from '../services/queryClient'
-import type { Profile, Role } from '../types'
 import { VoiceCommandModal } from '../components/VoiceCommandModal'
 import { VoiceCommandFab } from '../components/VoiceCommandFab'
 import { pushNotificationService } from '../services/pushNotificationService'
@@ -38,15 +37,34 @@ import SupportChat            from '../components/SupportChat'
 import BrandingManager, { applyBranding } from '../components/branding/BrandingManager'
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
-import { PlatformOverview } from '../components/platform/PlatformOverview'
+import SedeSelector from '../components/SedeSelector'
+import Resti from '../components/resti/Resti'
+import { PlatformPanel } from '../components/platform/PlatformPanel'
+import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
+import { OptionListsSection } from '../components/menu/OptionListsSection'
 import { Proveedores }      from '../components/cashier/Proveedores'
+import { Facturas }         from '../components/cashier/Facturas'
+import { OpinionSection }   from '../components/feedback/OpinionSection'
+import { ConfiguracionGuiada } from '../components/onboarding/ConfiguracionGuiada'
+import { ImpresionConfig } from '../components/print/ImpresionConfig'
+import { EstacionImpresion } from '../components/print/EstacionImpresion'
 import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
-// Profile y Role viven en types/index.ts; se re-exportan aquí porque varios componentes los importan de esta página.
-export type { Profile, Role }
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'proveedores' | 'branding' | 'billing' | 'platform'
+export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'platform'
+
+export interface Profile {
+  id:          string
+  role:        Role
+  full_name:   string | null
+  email?:      string
+  phone?:      string | null
+  avatar_url?: string | null
+  active?:     boolean
+  must_change_password?: boolean
+}
 
 interface Metrics {
   total_sales_today: number
@@ -58,6 +76,7 @@ interface Metrics {
 }
 
 const S = {
+  sm:    { boxShadow: 'var(--w-shadow-sm)' },
   md:    { boxShadow: 'var(--w-shadow-md)' },
   terra: { boxShadow: 'var(--w-shadow-terra)' },
 } as const
@@ -76,11 +95,15 @@ const Icons = {
   Menu:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M12 2a9 9 0 100 18A9 9 0 0012 2z"/><circle cx="12" cy="12" r="4"/></svg>,
   Logout:    () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
   Hamburger: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+  Download:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   Sun:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>,
   Moon:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>,
   Platform:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5M3 12a9 3 0 0018 0"/></svg>,
   Toggles:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><rect x="2" y="5" width="20" height="6" rx="3"/><circle cx="16" cy="8" r="1.5"/><rect x="2" y="13" width="20" height="6" rx="3"/><circle cx="8" cy="16" r="1.5"/></svg>,
+  Receipt:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2zM9 7h6M9 11h6"/></svg>,
   Truck:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M1 4h14v12H1zM15 9h4l3 3v4h-7"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg>,
+  Printer:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>,
+  Opinion:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 0113 3h.5a8.5 8.5 0 018 8z"/></svg>,
 }
 
 const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: string }[]> = {
@@ -99,7 +122,12 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'team',      icon:<Icons.Team />,      label:'Equipo'     },
     { view:'menu',      icon:<Icons.Menu />,      label:'Menú'       },
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú'},
+    { view:'menu_listas', icon:<Icons.Menu />,     label:'Listas y opciones'},
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
+    { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'   },
+    { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'    },
+    { view:'impresion',    icon:<Icons.Printer />, label:'Impresión'  },
+    { view:'setup',        icon:<Icons.Toggles />, label:'Configuración guiada' },
     { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
     { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
   ],
@@ -108,10 +136,12 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'tables', icon:<Icons.Tables />, label:'Mesas'   },
     { view:'tasks',  icon:<Icons.Tasks />,  label:'Tareas'  },
     { view:'shifts', icon:<Icons.Team />,   label:'Mis turnos' },
+    { view:'opinion', icon:<Icons.Opinion />, label:'Opinión' },
   ],
   kitchen: [
     { view:'kitchen', icon:<Icons.Kitchen />, label:'Cocina' },
     { view:'shifts',  icon:<Icons.Team />,    label:'Mis turnos' },
+    { view:'opinion', icon:<Icons.Opinion />, label:'Opinión' },
   ],
   cashier: [
     { view:'cashier',      icon:<Icons.Cashier />, label:'Caja'         },
@@ -120,21 +150,11 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'shifts',       icon:<Icons.Team />,    label:'Mis turnos'   },
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú' },
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'  },
+    { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'     },
+    { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'      },
   ],
   client:  [{ view:'menu', icon:<Icons.Menu />, label:'Menú' }],
 }
-
-// Vistas permitidas por rol (derivadas del menú de cada rol). 'dashboard' es solo del admin.
-// Se valida al navegar y al renderizar, para que un rol no abra una vista que no le corresponde.
-const ALLOWED_VIEWS: Record<Role, NavView[]> = {
-  super_admin: NAV_BY_ROLE.super_admin.map(n => n.view),
-  admin:       NAV_BY_ROLE.admin.map(n => n.view),
-  waiter:      NAV_BY_ROLE.waiter.map(n => n.view),
-  kitchen:     NAV_BY_ROLE.kitchen.map(n => n.view),
-  cashier:     NAV_BY_ROLE.cashier.map(n => n.view),
-  client:      NAV_BY_ROLE.client.map(n => n.view),
-}
-const puedeVer = (role: Role, view: NavView) => ALLOWED_VIEWS[role]?.includes(view) ?? false
 
 // ── Admin Dashboard ────────────────────────────────────────────
 const AdminDashboard = memo(({ profile, onNavigate }: {
@@ -158,12 +178,12 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
   }, [fetchMetrics])
 
   const cards = [
-    { label:'Ventas hoy',    value:`$${(metrics?.total_sales_today??0).toLocaleString('es-CO')}`, Icon:Icons.Analytics, nav:'analytics' as NavView, color:'var(--w-olive)'   },
-    { label:'Pendientes',    value:metrics?.pending_count??0,   Icon:Icons.Orders,  nav:'kitchen'   as NavView, color:'var(--w-saffron)' },
-    { label:'En cocina',     value:metrics?.cooking_count??0,   Icon:Icons.Kitchen, nav:'kitchen'   as NavView, color:'var(--w-terra)'   },
-    { label:'Listas',        value:metrics?.ready_count??0,     Icon:Icons.Tasks,   nav:'cashier'   as NavView, color:'var(--w-olive)'   },
-    { label:'Completadas',   value:metrics?.completed_today??0, Icon:Icons.Tasks,   nav:'analytics' as NavView, color:'var(--w-wine)'    },
-    { label:'Mesas activas', value:metrics?.active_tables??0,   Icon:Icons.Tables,  nav:'tables'    as NavView, color:'var(--w-terra)'   },
+    { target:'card-ventas-hoy',    label:'Ventas hoy',    value:`$${(metrics?.total_sales_today??0).toLocaleString('es-CO')}`, Icon:Icons.Analytics, nav:'analytics' as NavView, color:'var(--w-olive)'   },
+    { target:'card-pendientes',    label:'Pendientes',    value:metrics?.pending_count??0,   Icon:Icons.Orders,  nav:'kitchen'   as NavView, color:'var(--w-saffron)' },
+    { target:'card-en-cocina',     label:'En cocina',     value:metrics?.cooking_count??0,   Icon:Icons.Kitchen, nav:'kitchen'   as NavView, color:'var(--w-terra)'   },
+    { target:'card-listas',        label:'Listas',        value:metrics?.ready_count??0,     Icon:Icons.Tasks,   nav:'cashier'   as NavView, color:'var(--w-olive)'   },
+    { target:'card-completadas',   label:'Completadas',   value:metrics?.completed_today??0, Icon:Icons.Tasks,   nav:'analytics' as NavView, color:'var(--w-wine)'    },
+    { target:'card-mesas-activas', label:'Mesas activas', value:metrics?.active_tables??0,   Icon:Icons.Tables,  nav:'tables'    as NavView, color:'var(--w-terra)'   },
   ]
 
   if (loading) return <div style={{display:'flex',justifyContent:'center',padding:'5rem 0'}}><Spin size="large"/></div>
@@ -183,7 +203,7 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
 
       <div className="menu-grid">
         {cards.map((card,i) => (
-          <button key={i} onClick={()=>onNavigate(card.nav)}
+          <button key={i} onClick={()=>onNavigate(card.nav)} data-resti-target={card.target}
             className="w-lift w-rise"
             style={{padding:'1.25rem',textAlign:'left',border:'1px solid var(--w-line)',cursor:'pointer',fontFamily:'var(--w-sans)',background:'var(--w-surface)',borderRadius:'1.25rem',boxShadow:'var(--w-shadow-sm)',animationDelay:`${i*45}ms`}}>
             <div style={{color:card.color,marginBottom:'0.75rem'}}><card.Icon /></div>
@@ -198,8 +218,8 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
       </div>
 
       <Tabs defaultActiveKey="orders" items={[
-        { key:'orders', label:'Nueva orden', children:<OrderFlow profile={profile} /> },
-        { key:'tables', label:'Mesas',       children:<TableMap profile={profile} /> },
+        { key:'orders', label:<span data-resti-target="tab-nueva-orden">Nueva orden</span>, children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
+        { key:'tables', label:<span data-resti-target="tab-mesas">Mesas</span>,            children:<TableMap profile={profile} /> },
         { key:'tasks',  label:'Tareas',      children:<AdminTasksView profile={profile} /> },
         { key:'qr',     label:'Imprimir QR', children:<QRPrintManager /> },
       ]} />
@@ -287,17 +307,36 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       try { if (!sessionStorage.getItem('wizard_cerrado')) setWizardOpen(true) } catch { setWizardOpen(true) }
     })
   }, [profile?.role])
+  // Resti (módulo B): solo si el restaurante lo tiene encendido (modules_enabled.resti_agent). Apagado por defecto.
+  const [restiOn, setRestiOn] = useState(false)
+  useEffect(() => {
+    if (profile?.role !== 'admin') return
+    supabase.from('restaurant_config').select('modules_enabled').maybeSingle().then(({ data }) => {
+      setRestiOn((data?.modules_enabled as { resti_agent?: unknown } | null)?.resti_agent === true)
+    })
+  }, [profile?.role])
+  // Pasos del asistente ya hechos (para el aviso "X de 8 pasos"); se vuelve a leer cada vez que se cierra el asistente.
+  const [wizardHechos, setWizardHechos] = useState(0)
+  useEffect(() => {
+    if (profile?.role !== 'admin' || wizardOpen) return
+    supabase.from('restaurant_onboarding').select('steps_done').maybeSingle().then(({ data }) => {
+      const sd = (data?.steps_done ?? {}) as Record<string, boolean>
+      setWizardHechos(Object.entries(sd).filter(([k, v]) => k !== 'v2' && v === true && Number(k) < 9).length)
+    })
+  }, [profile?.role, wizardOpen])
   const [brand,      setBrand]      = useState<{ name?: string; logo?: string }>({})
   const [lowStock,   setLowStock]   = useState(0)
   const [pendingSocial, setPendingSocial] = useState(0)
+  const [opinionesListas, setOpinionesListas] = useState(0)
   const [voiceCmdOpen, setVoiceCmdOpen] = useState(false)
+  const [voiceCmdTexto, setVoiceCmdTexto] = useState<string | undefined>(undefined)   // lo que el administrador le dijo a Resti
   const [refreshKey,   setRefreshKey]   = useState(0)
   const { theme, setTheme } = useTheme()
 
   // Aviso de stock bajo: cuenta ingredientes por debajo de su mínimo (lo define
   // el admin en Inventario) y lo muestra como insignia sobre "Inventario".
   useEffect(() => {
-    if (!profile?.id || profile.role !== 'admin') return
+    if (!profile || profile.role !== 'admin') return
     let cancelled = false
     const check = () => supabase.from('ingredientes').select('stock_actual, stock_minimo')
       .then(({ data }) => {
@@ -309,11 +348,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes' }, check)
       .subscribe()
     return () => { cancelled = true; supabase.removeChannel(channel) }
-  }, [profile?.id, profile?.role])
+  }, [profile])
 
   // Aviso de reseñas por aprobar / comentarios reportados, sobre "Menú".
   useEffect(() => {
-    if (!profile?.id || profile.role !== 'admin') return
+    if (!profile || profile.role !== 'admin') return
     let cancelled = false
     const check = () => Promise.all([
       supabase.from('resenas_platos').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente'),
@@ -328,7 +367,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios_platos' }, check)
       .subscribe()
     return () => { cancelled = true; supabase.removeChannel(channel) }
-  }, [profile?.id, profile?.role])
+  }, [profile])
+
+  // Aviso de sugerencias terminadas: cuenta las que pasaron a "hecho" y el restaurante aún no ha visto, sobre "Opinión".
+  useEffect(() => {
+    if (!profile || !['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role)) return
+    let cancelled = false
+    supabase.from('feedback_items').select('id', { count: 'exact', head: true }).eq('estado', 'hecho').is('cierre_visto_at', null)
+      .then(({ count }) => { if (!cancelled) setOpinionesListas(count ?? 0) })
+    return () => { cancelled = true }
+  }, [profile, activeNav])
 
   useEffect(() => {
     try { initializeOfflineSync() } catch { /* no crítico */ }
@@ -355,59 +403,44 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     return () => window.removeEventListener('branding-updated', onBrand)
   }, [])
 
-  // Resultado de la carga del perfil:
-  //  - 'ok'        → perfil cargado
-  //  - 'sin_perfil'→ no existe o está desactivado → se cierra la sesión
-  //  - 'red'       → falló la red/servidor → se ofrece reintentar SIN cerrar sesión
-  const [cargaPerfil, setCargaPerfil] = useState<'ok' | 'sin_perfil' | 'red'>('ok')
-  const [reintento, setReintento] = useState(0)
-
   useEffect(() => {
     // Variable local — cada ejecución del efecto tiene su propio 'active'
     let active = true
 
     const load = async () => {
       try {
-        const { data: { user }, error: userErr } = await supabase.auth.getUser()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { if (active) setLoading(false); return }
+
+        let { data: prof, error } = await supabase
+          .from('profiles').select('*').eq('id', user.id).single()
+
+        if (error?.code === 'PGRST116' || (!prof && error)) {
+          const { data: np } = await supabase.from('profiles').insert({
+            id: user.id, email: user.email ?? '',
+            full_name: user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Usuario',
+            role: user.user_metadata?.role ?? 'waiter', active: true,
+          }).select('*').single()
+          prof = np; error = null
+        }
+
         if (!active) return
-        if (userErr && !user) {
-          // Sin red no se puede validar el usuario: no es lo mismo que "no hay sesión"
-          const status = (userErr as { status?: number }).status
-          setCargaPerfil(status === 401 || status === 403 ? 'sin_perfil' : 'red')
-          return
+        if (prof) {
+          setProfile(prof)
+          const defaults: Record<Role, NavView> = {
+            super_admin:'platform', admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
+          }
+          startTransition(() => setActiveNav(defaults[prof!.role as Role] ?? 'orders'))
         }
-        if (!user) { setCargaPerfil('sin_perfil'); return }
-
-        // El perfil lo crea el trigger handle_new_user al dar de alta la cuenta; el cliente no lo inserta.
-        const { data: prof, error } = await supabase
-          .from('profiles').select('*').eq('id', user.id).maybeSingle()
-        if (!active) return
-
-        if (error) { setCargaPerfil('red'); return }
-        if (!prof) { setCargaPerfil('sin_perfil'); return }
-        if (prof.active === false) {
-          message.error('Tu cuenta está desactivada. Contacta al administrador de tu restaurante.')
-          setCargaPerfil('sin_perfil')
-          return
-        }
-
-        setCargaPerfil('ok')
-        setProfile(prof as Profile)
-        const defaults: Record<Role, NavView> = {
-          super_admin:'platform', admin:'dashboard', waiter:'orders', kitchen:'kitchen', cashier:'cashier', client:'menu'
-        }
-        startTransition(() => setActiveNav(defaults[prof.role as Role] ?? 'orders'))
       } catch (e) {
         console.error('Dashboard load:', e)
-        if (active) setCargaPerfil('red')
       } finally {
         if (active) setLoading(false)
       }
     }
-    setLoading(true)
     load()
     return () => { active = false }
-  }, [reintento])
+  }, [])
 
   // Redirigir si no-admin aterriza en 'dashboard'
   useEffect(() => {
@@ -421,26 +454,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }, [profile, activeNav])
 
-  // Cerrar sesión (perfil inexistente o desactivado) en useEffect — NUNCA durante el render.
-  // Un error de red NO cierra sesión: se muestra "Reintentar".
+  // signOut en useEffect — NUNCA durante el render
   useEffect(() => {
-    if (!loading && !profile && cargaPerfil === 'sin_perfil') {
-      onLogout()
+    if (!loading && !profile) {
+      supabase.auth.signOut().then(() => onLogout())
     }
-  }, [loading, profile, cargaPerfil, onLogout])
-
-  // Navegar solo a vistas permitidas para el rol
-  const navegar = useCallback((v: NavView) => {
-    if (!profile || !puedeVer(profile.role, v)) return
-    setActiveNav(v)
-  }, [profile])
+  }, [loading, profile, onLogout])
 
   const renderContent = () => {
     if (!profile) return null
-    if (!puedeVer(profile.role, activeNav)) return null
     switch (activeNav) {
       case 'dashboard': return profile.role === 'admin'
-        ? <AdminDashboard profile={profile} onNavigate={navegar} />
+        ? <AdminDashboard profile={profile} onNavigate={setActiveNav} />
         : null
       case 'orders':    return (
         <div>
@@ -468,10 +493,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'team':      return <TeamManager />
       case 'menu':      return profile.role === 'admin' ? <MenuManager /> : <ClientMenuSection />
       case 'menu_gestion': return <MenuAvailability />
+      case 'menu_listas':  return <OptionListsSection />
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
+      case 'facturas':     return profile.role === 'admin' || profile.role === 'cashier' ? <Facturas profile={profile} /> : null
+      case 'opinion':   return ['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role) ? <OpinionSection /> : null
+      case 'impresion': return profile.role === 'admin' ? <ImpresionConfig /> : null
+      case 'setup':     return profile.role === 'admin' ? <ConfiguracionGuiada onAbrir={() => setWizardOpen(true)} /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
-      case 'platform':  return profile.role === 'super_admin' ? <PlatformOverview /> : null
+      case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformPanel /></MfaGate> : null
       default:          return null
     }
   }
@@ -483,25 +513,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <img src="/logo.jpg" alt="logo" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
         </div>
         <Spin size="large" />
-      </div>
-    </div>
-  )
-
-  if (!loading && !profile && cargaPerfil === 'red') return (
-    <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
-      <div style={{textAlign:'center',fontFamily:'var(--w-sans)'}}>
-        <p style={{color:'var(--w-ink)',fontWeight:700,margin:'0 0 0.5rem'}}>No pudimos cargar tu perfil</p>
-        <p style={{color:'var(--w-ink-mut)',fontSize:'0.875rem',margin:'0 0 1rem'}}>Revisa tu conexión a internet e inténtalo de nuevo.</p>
-        <div style={{display:'flex',gap:'0.5rem',justifyContent:'center'}}>
-          <button onClick={() => setReintento(n => n + 1)}
-            style={{padding:'0.75rem 1.25rem',borderRadius:'1rem',border:'none',cursor:'pointer',fontWeight:700,background:'var(--w-terra)',color:'#fff'}}>
-            Reintentar
-          </button>
-          <button onClick={onLogout}
-            style={{padding:'0.75rem 1.25rem',borderRadius:'1rem',cursor:'pointer',fontWeight:700,background:'var(--w-surface)',color:'var(--w-ink-soft)',border:'1px solid var(--w-line)'}}>
-            Cerrar sesión
-          </button>
-        </div>
       </div>
     </div>
   )
@@ -528,6 +539,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
         )}
         <OrderSoundAlerts role={profile!.role} userId={profile!.id} />
+        <EstacionImpresion />
         <KitchenBoard tv onMenu={() => setKitchenMenu(true)} onLogout={onLogout} />
       </div>
     )
@@ -545,7 +557,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           onClose={ir => {
             try { sessionStorage.setItem('wizard_cerrado', '1') } catch { /* sin almacenamiento: se reabre en la próxima visita */ }
             setWizardOpen(false)
-            if (ir) navegar(ir)
+            if (ir) setActiveNav(ir)
           }}
           onFinished={() => { setWizardOpen(false); setWizardPending(false) }}
         />
@@ -558,6 +570,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {/* Sonido por tipo de pedido: cocina (pedido para preparar) y caja/admin (pedido nuevo) */}
       <OrderSoundAlerts role={profile!.role} userId={profile!.id} />
+      {['admin', 'cashier', 'kitchen'].includes(profile!.role) && <EstacionImpresion />}
       {hasSounds && <SoundUnlockBanner />}
 
       {/* Header */}
@@ -584,6 +597,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </div>
 
         <div style={{display:'flex',gap:'0.5rem',alignItems:'center',flexShrink:0,marginLeft:'0.5rem'}}>
+          {profile!.role === 'admin' && <SedeSelector style={{ ...chromeBtn, width: 'auto', padding: '0 0.5rem', maxWidth: 140 }} />}
           <InstallPWA compact />
           {hasSounds && <SoundTestButton style={chromeBtn} />}
           {/* Theme toggle — solo admin */}
@@ -617,7 +631,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               Navegación
             </p>
             {navItems.map(({view,icon,label})=>(
-              <button key={view} onClick={()=>{navegar(view);setMobileOpen(false)}}
+              <button key={view} onClick={()=>{setActiveNav(view);setMobileOpen(false)}}
                 className="w-press"
                 style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 1rem',
                   borderRadius:'0.875rem',border:'none',cursor:'pointer',fontFamily:'var(--w-sans)',
@@ -632,6 +646,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 )}
                 {view==='menu' && pendingSocial>0 && (
                   <span style={{marginLeft:'auto',background:'#DC2626',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{pendingSocial}</span>
+                )}
+                {view==='opinion' && opinionesListas>0 && (
+                  <span style={{marginLeft:'auto',background:'#1D7A46',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{opinionesListas}</span>
                 )}
               </button>
             ))}
@@ -648,7 +665,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           overflowY:'auto',borderRadius:0,borderRight:'1px solid var(--w-line)',
           display:'none'}}>
           {navItems.map(({view,icon,label})=>(
-            <button key={view} onClick={()=>navegar(view)} title={label}
+            <button key={view} onClick={()=>setActiveNav(view)} title={label}
               className="w-press"
               style={{width:72,padding:'0.625rem 0',borderRadius:'0.875rem',border:'none',
                 cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',
@@ -665,6 +682,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 {view==='menu' && pendingSocial>0 && (
                   <span style={{position:'absolute',top:-6,right:-8,background:'#DC2626',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{pendingSocial}</span>
                 )}
+                {view==='opinion' && opinionesListas>0 && (
+                  <span style={{position:'absolute',top:-6,right:-8,background:'#1D7A46',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{opinionesListas}</span>
+                )}
               </span>
               <span style={{fontSize:'0.5625rem',fontWeight:700,lineHeight:1.15,textAlign:'center'}}>
                 {label}
@@ -674,13 +694,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </nav>
 
         <main style={{flex:1,padding:'1.25rem',overflowX:'hidden',minWidth:0}}>
-          {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={navegar} />}
+          {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
           {wizardPending && !wizardOpen && (
             <button onClick={() => setWizardOpen(true)} style={{
               width:'100%', marginBottom:'1rem', padding:'0.875rem 1rem', borderRadius:'1rem', cursor:'pointer', textAlign:'left',
               border:'1px solid var(--w-terra)', background:'var(--w-surface)', color:'var(--w-ink)', fontFamily:'var(--w-sans)', fontWeight:700, minHeight:'2.75rem',
             }}>
-              Completa la configuración de tu restaurante → continuar
+              Completa la configuración de tu restaurante ({wizardHechos} de 8 pasos) → continuar
             </button>
           )}
           {/* La key re-monta la sección activa tras un comando de voz para que muestre los datos nuevos */}
@@ -690,15 +710,19 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       </div>
 
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
-      <SupportChat />
-      {(profile?.role === 'admin' || profile?.role === 'cashier') && (
-        <VoiceCommandFab onClick={() => setVoiceCmdOpen(true)} />
+      {restiOn && profile!.role === 'admin'
+        // Resti no aparece en caja, cocina, mesero (nueva orden), pagos ni en el panel de plataforma.
+        ? (['cashier', 'kitchen', 'orders', 'billing', 'platform'].includes(activeNav) ? null : <Resti userId={profile!.id} role="admin" onApplied={() => { void queryClient.invalidateQueries(); setRefreshKey(k => k + 1) }} onOpenVoiceCommands={t => { setVoiceCmdTexto(t); setVoiceCmdOpen(true) }} onGoHome={() => setActiveNav('dashboard')} />)
+        : <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />}
+      {(profile?.role === 'admin' || profile?.role === 'cashier') && !(restiOn && profile.role === 'admin') && (
+        <VoiceCommandFab onClick={() => { setVoiceCmdTexto(undefined); setVoiceCmdOpen(true) }} />
       )}
       {voiceCmdOpen && (profile?.role === 'admin' || profile?.role === 'cashier') && (
         <VoiceCommandModal
           userId={profile.id}
           role={profile.role}
-          onClose={() => setVoiceCmdOpen(false)}
+          textoInicial={voiceCmdTexto}
+          onClose={() => { setVoiceCmdOpen(false); setVoiceCmdTexto(undefined) }}
           onApplied={() => { void queryClient.invalidateQueries(); setRefreshKey(k => k + 1) }} />
       )}
     </div>

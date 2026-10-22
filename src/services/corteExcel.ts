@@ -3,7 +3,6 @@
  * Muestra los productos vendidos, cantidades, el resumen de pagos y en qué se gastó.
  */
 import { categoriaLabel, resumirPorCategoria, type Etiquetas } from './gastosResumen.ts'
-import { hoyBogota } from './menuOptions.ts'
 
 export interface CorteProducto {
   producto:    string
@@ -73,7 +72,7 @@ export async function descargarCorteExcel(opts: {
 }) {
   const XLSX = await import('xlsx')
   const { restauranteNombre, totales, productos, gastos = [], denominaciones = [], pagos = [], etiquetas } = opts
-  const fecha = totales.fecha ?? hoyBogota()
+  const fecha = totales.fecha ?? new Date().toISOString().slice(0, 10)
 
   const n = (v: unknown) => Number(v ?? 0)
   const totalUnidades  = productos.reduce((s, p) => s + n(p.cantidad), 0)
@@ -249,17 +248,17 @@ export async function descargarCorteMensualExcel(opts: {
 
   if (corte.dias.length > 0) {
     rows.push([])
-    rows.push(['DÍA', 'Efectivo', 'Transferencia', 'Tarjeta', 'Total', 'Órdenes'])
+    rows.push(['DÍA', 'Efectivo', 'Transferencia', 'Órdenes', 'Total'])
     for (const d of corte.dias) {
       const diaLabel = new Date(d.fecha + 'T12:00:00')
         .toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' })
       const r = rows.length
-      rows.push([diaLabel.charAt(0).toUpperCase() + diaLabel.slice(1), n(d.efectivo), n(d.transferencia), n(d.tarjeta), n(d.total), n(d.ordenes)])
-      moneyCells.push([r, 1], [r, 2], [r, 3], [r, 4])
+      rows.push([diaLabel.charAt(0).toUpperCase() + diaLabel.slice(1), n(d.efectivo), n(d.transferencia), n(d.ordenes), n(d.total)])
+      moneyCells.push([r, 1], [r, 2], [r, 4])
     }
     const totalRow = rows.length
-    rows.push(['TOTAL', n(corte.total_efectivo), n(corte.total_transferencia), n(corte.total_tarjeta), n(corte.total_general), n(corte.total_ordenes)])
-    moneyCells.push([totalRow, 1], [totalRow, 2], [totalRow, 3], [totalRow, 4])
+    rows.push(['TOTAL', n(corte.total_efectivo), n(corte.total_transferencia), n(corte.total_ordenes), n(corte.total_general)])
+    moneyCells.push([totalRow, 1], [totalRow, 2], [totalRow, 4])
   }
 
   // ¿En qué se gastó? Primero el resumen por categoría y luego cada gasto con su fecha.
@@ -285,7 +284,7 @@ export async function descargarCorteMensualExcel(opts: {
   }
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 10 }]
+  ws['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 16 }]
   ws['!merges'] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },

@@ -1,134 +1,43 @@
 {
   "rewrites": [
-    {
-      "source": "/((?!sw\\.js|manifest\\.json|icon.*\\.png|apple-touch-icon\\.png|logo\\.jpg|kitchen-tv\\.html).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/((?!sw\\.js|manifest\\.json|icon.*\\.png|apple-touch-icon\\.png|logo\\.jpg|kitchen-tv\\.html).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
-      "source": "/((?!kitchen-tv\\.html|sw\\.js).*)",
+      "source": "/(.*)",
       "headers": [
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://production.wompi.co https://sandbox.wompi.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
-        },
-        {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=63072000; includeSubDomains"
-        }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy",        "value": "strict-origin-when-cross-origin" },
+        { "key": "X-Frame-Options",        "value": "DENY" },
+        { "key": "Permissions-Policy",     "value": "geolocation=(), microphone=(self)" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co; frame-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://checkout.wompi.co; frame-ancestors 'none'" }
       ]
     },
     {
       "source": "/sw.js",
       "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/javascript; charset=utf-8"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        },
-        {
-          "key": "Service-Worker-Allowed",
-          "value": "/"
-        },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://*.supabase.co; object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
-        },
-        {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=63072000; includeSubDomains"
-        }
+        { "key": "Content-Type",           "value": "application/javascript; charset=utf-8" },
+        { "key": "Cache-Control",          "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
       ]
     },
     {
       "source": "/manifest.json",
       "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/manifest+json"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "no-cache"
-        }
+        { "key": "Content-Type",  "value": "application/manifest+json" },
+        { "key": "Cache-Control", "value": "no-cache" }
       ]
     },
     {
       "source": "/kitchen-tv.html",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "no-referrer"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
-        },
-        {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=63072000; includeSubDomains"
-        }
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     },
     {
       "source": "/icon-(.*)\\.png",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=604800, immutable"
-        }
+        { "key": "Cache-Control", "value": "public, max-age=604800, immutable" }
       ]
     }
   ]

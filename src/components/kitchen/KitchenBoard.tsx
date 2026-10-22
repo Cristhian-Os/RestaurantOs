@@ -13,8 +13,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, memo } from 
 import { supabase } from '../../services/supabaseClient'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import message from 'antd/es/message'
-import { orderRef } from '../cashier/shared'
-import { TIPO_LABEL } from '../../services/orderSounds'
+import { reimprimirComanda } from '../../lib/print/comandas'
 
 // ─── Configuración ────────────────────────────────────────────
 const WARN_SECS = 300   // el cronómetro pasa a ámbar
@@ -26,6 +25,7 @@ const DEFAULT_CAT_COLOR: Record<string, string> = {
   entrada: '#22D3EE', principal: '#A78BFA', postre: '#60A5FA', bebida: '#CBD5E1', especial: '#BEF264',
 }
 const NEUTRAL_COLOR = '#CBD5E1'
+const TIPO_LABEL: Record<string, string> = { LOCAL: 'Mesa', LLEVAR: 'Para llevar', DOMICILIO: 'Domicilio', RAPPI: 'Rappi' }
 
 interface OrderItem {
   id: string; name: string; price: number; quantity: number
@@ -46,6 +46,10 @@ interface Order {
 }
 type Status = Order['status']
 type ColKey = 'pending' | 'cooking' | 'ready'
+
+// Número secuencial del día; los pedidos anteriores a ese cambio usan el id corto.
+const orderRef = (o: { id: string; order_number_today?: number | null }) =>
+  `#${o.order_number_today ?? o.id.slice(0, 8)}`
 
 const isHex = (c: unknown): c is string => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)
 
@@ -256,10 +260,7 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
   }
 
   const cancelOrder = async () => {
-    const aviso = order.paid_at
-      ? '\n\nEste pedido ya está pagado: anula primero los pagos en Caja ("Pagos de hoy"); mientras tenga pagos el sistema no deja cancelarlo.'
-      : ''
-    if (!window.confirm('¿Cancelar todo el pedido?' + aviso)) return
+    if (!window.confirm('¿Cancelar todo el pedido?')) return
     setCancellingOrder(true)
     try {
       const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
@@ -267,6 +268,13 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
       message.success('Pedido cancelado')
       onRefresh()
     } finally { setCancellingOrder(false) }
+  }
+
+  const imprimirComanda = async () => {
+    try {
+      const r = await reimprimirComanda(order.id)
+      if (r.fallos.length) message.error(`No se pudo imprimir en ${r.fallos.join(', ')}. Toca 🖨 COMANDA para reintentar.`)
+    } catch (e) { message.error(`No se pudo imprimir: ${e instanceof Error ? e.message : 'error'}`) }
   }
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
@@ -288,6 +296,8 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
         <span className="kb-sub">{sub}</span>
         <span>
           <span className={cn('kb-tag', order.paid_at ? 'paid' : 'unpaid')}>{order.paid_at ? 'PAGADO' : 'POR COBRAR'}</span>
+          <button type="button" className="kb-cancel" style={{ background: 'var(--inset)', color: 'var(--ink-soft)', border: '.06em solid var(--card-line)' }}
+            onClick={e => { stop(e); void imprimirComanda() }}>🖨 COMANDA</button>
           {order.status === 'cooking' && (
             <button type="button" className="kb-cancel" disabled={cancellingOrder}
               onClick={e => { stop(e); void cancelOrder() }}>
@@ -328,7 +338,7 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
           )
         })}
       </div>
-      {isReady && !order.paid_at && <div className="kb-hint">Esperando cobro en caja</div>}
+      {isReady && <div className="kb-hint">Esperando cobro en caja</div>}
     </div>
   )
 })
@@ -482,7 +492,6 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
   const [dishCat,  setDishCat] = useState<Record<string, string>>({})
   const [catColor, setCatColor] = useState<Record<string, string>>({})
   const prevCount = useRef(0)
-  const enVuelo = useRef(new Set<string>())   // pedidos con un cambio de estado en curso (contra doble clic)
 
   useEffect(() => {
     const on = () => setWide(window.innerWidth >= TV_MIN_WIDTH)
@@ -561,22 +570,11 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
   }, [fetchOrders])
 
   const handleAdvance = useCallback(async (orderId: string, nextStatus: Status) => {
-    if (enVuelo.current.has(orderId)) return
-    enVuelo.current.add(orderId)
-    try {
     const order = orders.find(o => o.id === orderId)
-    const estadoAnterior: Status = nextStatus === 'cooking' ? 'pending' : 'cooking'
     // Se refleja al instante; el servidor confirma enseguida (y revierte si falla).
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o))
-    // Solo avanza si sigue en el estado que vio esta pantalla: si otro equipo ya lo movió, no se pisa.
-    const { data: filas, error } = await supabase.from('orders').update({ status: nextStatus })
-      .eq('id', orderId).eq('status', estadoAnterior).select('id')
+    const { error } = await supabase.from('orders').update({ status: nextStatus }).eq('id', orderId)
     if (error) { message.error('Error al actualizar: ' + error.message); fetchOrders(); return }
-    if (!filas || filas.length === 0) {
-      message.warning('Este pedido ya cambió de estado en otro equipo (o se canceló). Se actualizó la pantalla.')
-      fetchOrders()
-      return
-    }
     fetchOrders()
     if (nextStatus === 'ready') {
       const dest = order?.table_num ? `Mesa ${order.table_num}` : 'Pedido'
@@ -587,9 +585,6 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
         `${order ? orderRef(order) : 'Pedido'} listo para servir${order?.table_num ? ` en Mesa ${order.table_num}` : ''}`, '/',
         undefined, order?.user_id ? [order.user_id] : undefined,
       )
-    }
-    } finally {
-      enVuelo.current.delete(orderId)
     }
   }, [fetchOrders, orders])
 

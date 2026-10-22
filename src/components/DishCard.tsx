@@ -9,7 +9,7 @@
  *  • Imágenes con lazy loading nativo
  */
 
-import { memo, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { memo, useState, useCallback, type ReactNode } from 'react'
 import { motion, AnimatePresence, type Transition } from 'framer-motion'
 import type { Dish } from '../types'
 import { CategoryIcon } from './CategoryIcon'
@@ -52,9 +52,6 @@ interface DishCardProps {
 // ─── Componente ───────────────────────────────────────────────
 export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, categoryLabel, categoryIcon, categoryColor }) => {
   const [justAdded, setJustAdded] = useState(false)
-  const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Evita setState en un componente desmontado
-  useEffect(() => () => { if (addedTimer.current) clearTimeout(addedTimer.current) }, [])
   const cat = CATEGORY_CONFIG[dish.category as keyof typeof CATEGORY_CONFIG]
   const icon = categoryIcon ?? <CategoryIcon category={dish.category} size={40} />
   const label = categoryLabel ?? cat?.label ?? dish.category
@@ -66,8 +63,8 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
     onAdd(dish)
     setJustAdded(true)
     // Feedback visual durante 600ms
-    if (addedTimer.current) clearTimeout(addedTimer.current)
-    addedTimer.current = setTimeout(() => setJustAdded(false), 600)
+    const timer = setTimeout(() => setJustAdded(false), 600)
+    return () => clearTimeout(timer)
   }, [dish, onAdd])
 
   // Glass color: usa categoryColor si existe, sino fallback al gris por defecto

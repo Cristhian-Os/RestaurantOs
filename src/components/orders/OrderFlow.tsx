@@ -10,7 +10,7 @@
  * Reemplaza al OrderForm anterior.
  */
 import { BARRA_NOTE } from '../../lib/destino'
-import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { offlineService } from '../../services/offlineService'
@@ -25,7 +25,9 @@ import { useMenuConfig } from '../../hooks/useMenuConfig'
 import {
   type MenuConfig, defaultSel, describeSel, flavorsNeeded, hasOptions, lineNotes, orderCategories,
   groupUnits, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
+  gruposDe, selAV2, selIsValidV2, unitPriceForV2, describeSelV2,
 } from '../../services/menuOptions'
+import { OptionGroupsV2 } from './OptionGroupsV2'
 
 // ─── Estilos neomórficos ──────────────────────────────────────
 const S = {
@@ -112,11 +114,17 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
   const hasSizes = !!dish.has_sizes && sizes.length > 0
   const tags = dish.tags ?? []
 
+  // Opciones universales (interruptor por restaurante): grupos v2, precio, validación y texto con el motor nuevo.
+  const v2 = menu.optionsV2
+  const groupsV2 = useMemo(() => gruposDe(dish), [dish])
+  const priceOf = (u: ItemSel) => (v2 ? unitPriceForV2(dish, menu.listas, u) : unitPriceFor(dish, u))
+  const validOf = (u: ItemSel) => (v2 ? selIsValidV2(groupsV2, menu.listas, u) : selIsValid(dish, u))
+
   // Al armar un producto NUEVO cada unidad se elige por separado (dos cholaos pueden llevar
   // sabores o toppings distintos). Al editar una línea que ya está en un pedido se mantiene
   // como siempre: una sola selección para toda la cantidad.
   const perUnit = !initial
-  const [units, setUnits]     = useState<ItemSel[]>(() => [{ ...defaultSel(dish), ...(initial?.sel ?? {}) }])
+  const [units, setUnits]     = useState<ItemSel[]>(() => [{ ...defaultSel(dish), ...(v2 ? selAV2(dish, initial?.sel ?? {}) : (initial?.sel ?? {})) }])
   const [active, setActive]   = useState(0)
   const [editQty, setEditQty] = useState(initial?.qty ?? 1)
   const act = Math.min(active, units.length - 1)
@@ -138,9 +146,9 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
 
   const chosenFlavors = Object.values(sel.helado ?? {}).flat()
   const toppings = (dish.toppings ?? []).filter(t => !menu.toppingsOff.includes(t.nombre) || sel.toppings?.includes(t.nombre))
-  const unitPrice = unitPriceFor(dish, sel)
-  const optionsValid = units.every(u => selIsValid(dish, u))
-  const totalPrice = perUnit ? units.reduce((sum, u) => sum + unitPriceFor(dish, u), 0) : unitPrice * qty
+  const unitPrice = priceOf(sel)
+  const optionsValid = units.every(validOf)
+  const totalPrice = perUnit ? units.reduce((sum, u) => sum + priceOf(u), 0) : unitPrice * qty
 
   const toggleFlavor = (gi: number, flavor: string, max: number) => setSel(s => {
     const k = String(gi)
@@ -163,8 +171,8 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
   const toResult = (u: ItemSel, n: number): BuilderResult => {
     const c = (u.comment ?? '').trim()
     return {
-      qty: n, unitPrice: unitPriceFor(dish, u), size: hasSizes ? (u.size ?? null) : null, toppings: u.toppings ?? [],
-      optsText: describeSel(dish, u, shortages),
+      qty: n, unitPrice: priceOf(u), size: hasSizes ? (u.size ?? null) : null, toppings: u.toppings ?? [],
+      optsText: v2 ? describeSelV2(dish, u, shortages) : describeSel(dish, u, shortages),
       sel: { ...u, comment: c || undefined },
       comment: c,
     }
@@ -212,7 +220,7 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
             <div className="flex flex-wrap gap-2">
               {units.map((u, i) => (
                 <button key={i} onClick={() => setActive(i)} aria-label={`Unidad ${i + 1}`} style={chipStyle(i === act)}>
-                  {i + 1}{selIsValid(dish, u) ? '' : ' ⚠'}
+                  {i + 1}{validOf(u) ? '' : ' ⚠'}
                 </button>
               ))}
             </div>
@@ -233,7 +241,12 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
           </div>
         )}
 
-        {optionGroups.map((g, gi) => {
+        {v2 && (
+          <OptionGroupsV2 groups={groupsV2} listas={menu.listas} sel={sel} setSel={setSel} chip={chipStyle}
+            kicker={{ className: 'text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2' }}
+            hint={{ className: 'text-xs text-[#9CA3AF]' }} />
+        )}
+        {!v2 && optionGroups.map((g, gi) => {
           const need = flavorsNeeded(g, gi, sel)
           const flavorOptions = g.tipo === 'jugo'
             ? visibleOptions(menu.jugoFlavors, menu.jugoOff, chosenFlavors)
@@ -384,9 +397,6 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [submitting, setSubmitting]       = useState(false)
   const [isOnline, setIsOnline]           = useState(navigator.onLine)
   const [orderNotes, setOrderNotes]       = useState('')
-  const enviandoRef = useRef(false)   // candado contra doble envío (el estado "submitting" tarda un render en aplicarse)
-  const intentoRef  = useRef<{ firma: string; clave: string } | null>(null)   // clave de idempotencia del intento en curso
-  const restaurantRef = useRef<string | null>(null)   // restaurante actual, para marcar los pedidos guardados sin internet
 
   // Conectividad
   useEffect(() => {
@@ -415,15 +425,13 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   // Refrescar el menú en vivo si el admin edita platos/categorías en otra pestaña
   useEffect(() => {
     let ch: ReturnType<typeof supabase.channel> | null = null
-    let cancelled = false   // si el componente se desmonta antes de que responda el rpc, no se abre el canal
     supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
-      if (cancelled || !rid) return
-      restaurantRef.current = rid as string
+      if (!rid) return
       ch = supabase.channel('order-flow-dishes-sync')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter: `restaurant_id=eq.${rid}` }, fetchDishes)
         .subscribe()
     })
-    return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }
+    return () => { if (ch) supabase.removeChannel(ch) }
   }, [fetchDishes])
 
   // Ingredientes de receta agotados (con o sin cambio configurado) — se
@@ -436,16 +444,10 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   useEffect(() => { fetchShortages() }, [fetchShortages])
 
   useEffect(() => {
-    let ch: ReturnType<typeof supabase.channel> | null = null
-    let cancelled = false
-    // Filtrado por restaurante: sin esto se recibían los cambios de ingredientes de todos los restaurantes.
-    supabase.rpc('current_restaurant_id').then(({ data: rid }) => {
-      if (cancelled || !rid) return
-      ch = supabase.channel('order-flow-shortages-sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes', filter: `restaurant_id=eq.${rid}` }, fetchShortages)
-        .subscribe()
-    })
-    return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }
+    const ch = supabase.channel('order-flow-shortages-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredientes' }, fetchShortages)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
   }, [fetchShortages])
 
   // Platos filtrados
@@ -545,8 +547,6 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     if (cart.length === 0) { message.warning('Agrega al menos un plato'); return }
     if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) { message.warning('Selecciona una mesa o Barra'); return }
     if (!customerName.trim()) { message.warning('Escribe el nombre del comensal'); return }
-    if (enviandoRef.current) return
-    enviandoRef.current = true
 
     setSubmitting(true)
     try {
@@ -564,21 +564,14 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         comensal: i.comensal || undefined,
       }))
 
-      const notasPedido = (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || null
-      // Una clave por intento del usuario: los reintentos (mismo contenido) la reutilizan y el servidor no duplica el pedido.
-      const firma = JSON.stringify([items, selectedMesa?.id ?? null, tipoPedido, notasPedido, customerName.trim()])
-      if (intentoRef.current?.firma !== firma) intentoRef.current = { firma, clave: crypto.randomUUID() }
-      const claveIdem = intentoRef.current.clave
-
       if (isOnline) {
         const { data, error } = await supabase.rpc('crear_orden_completa', {
           p_mesa_id:        selectedMesa?.id ?? null,
           p_items:          items,
           p_tipo_pedido:    tipoPedido,
-          p_notes:          notasPedido,
+          p_notes:          (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || null,
           p_table_num:      selectedMesa?.numero ?? null,
           p_customer_name:  customerName.trim() || null,
-          p_idempotency_key: claveIdem,
         })
         if (error) throw error
         // Número secuencial del día (lo asigna un trigger en la base); si aún no existe, sin número.
@@ -601,20 +594,20 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         )
         onOrderCreated?.(data.order_id, data.total)
       } else {
-        // Sin internet getUser() (red) falla: el usuario actual es el del perfil ya cargado.
+        const { data: { user: offlineUser } } = await supabase.auth.getUser()
+        // BUG FIX #8: user!.id lanzaba excepción si la sesión expiraba offline.
+        // Ahora usamos un fallback seguro.
+        const offlineUserId = offlineUser?.id ?? 'offline-anonymous'
         await offlineService.saveOrderLocally({
           id: crypto.randomUUID(),
-          user_id: profile.id,
-          mesa_id: selectedMesa?.id ?? null,
-          idempotency_key: claveIdem,
-          restaurant_id: restaurantRef.current,
+          user_id: offlineUserId,
           items: JSON.stringify(items),
           total: cartTotal,
           status: 'pending',
           tipo_pedido: tipoPedido,
           table_num: selectedMesa?.numero ?? null,
           customer_name: customerName.trim() || undefined,
-          notes: notasPedido || undefined,   // incluye la nota "Barra" si aplica
+          notes: orderNotes || undefined,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -622,7 +615,6 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       }
 
       // Reset
-      intentoRef.current = null
       setCart([])
       setPersonas(0)
       setStep('mesa')
@@ -632,7 +624,6 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al enviar orden'}`)
     } finally {
-      enviandoRef.current = false
       setSubmitting(false)
     }
   }, [cart, tipoPedido, selectedMesa, barra, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])

@@ -32,32 +32,11 @@ interface Row {
 
 // "Grande: 14000, Mediano 10000" ⇄ [{nombre, precio}]
 const fmtPairs = (l?: { nombre: string; precio: number }[]) => (l ?? []).map(x => `${x.nombre}: ${x.precio}`).join(', ')
-
-// Precios en pesos colombianos: "14.000" o "14,000" = 14000 (el punto/coma es separador de miles);
-// "2.5" = 2,5 (decimal, solo si no tiene grupos de 3 dígitos).
-const parsePrecio = (t: string): number => {
-  if (/^\d{1,3}(?:[.,]\d{3})+$/.test(t)) return Number(t.replace(/[.,]/g, ''))
-  return Math.max(0, parseFloat(t.replace(',', '.')) || 0)
-}
-
 const parsePairs = (s: string) =>
   s.split(',').map(p => p.trim()).filter(Boolean).map(p => {
-    const m = p.match(/(?:^|[\s:=])(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)$/)
-    if (!m) return { nombre: p.replace(/[\s:=]+$/, ''), precio: 0 }
-    const before = p.slice(0, m.index ?? 0)
-    const precio = parsePrecio(m[1])
-    // Sin ":" ni "=" y con un número chico ("Combo 2", "Menú 3") el número es parte del nombre, no un precio.
-    const conSeparador = /^[:=]/.test(m[0]) || /[:=]\s*$/.test(before)
-    if (!conSeparador && precio < 100) return { nombre: p, precio: 0 }
-    return { nombre: before.replace(/[\s:=]+$/, '').trim(), precio }
+    const m = p.match(/^(.*?)[\s:=]*(\d+(?:[.,]\d+)?)?$/)
+    return { nombre: (m?.[1] ?? p).trim(), precio: Math.max(0, parseFloat((m?.[2] ?? '0').replace(',', '.')) || 0) }
   }).filter(x => x.nombre !== '')
-
-/** Nombres repetidos (sin importar mayúsculas) dentro de una lista de pares. */
-const duplicados = (l: { nombre: string }[]) => {
-  const vistos = new Set<string>(), dup = new Set<string>()
-  for (const x of l) { const k = x.nombre.toLowerCase(); if (vistos.has(k)) dup.add(x.nombre); vistos.add(k) }
-  return [...dup]
-}
 
 export function VoiceMenuModal({ categories, onSaved, onClose }: {
   categories: Category[]
@@ -119,10 +98,6 @@ export function VoiceMenuModal({ categories, onSaved, onClose }: {
     const payloads = []
     for (const r of rows) {
       const sizes = parsePairs(r.sizes).filter(s => s.precio > 0)
-      const dupSizes = duplicados(sizes)
-      if (dupSizes.length) { message.error(`"${r.name || 'plato'}": el tamaño ${dupSizes.join(', ')} está repetido`); return }
-      const dupTop = duplicados(parsePairs(r.toppings))
-      if (dupTop.length) { message.error(`"${r.name || 'plato'}": el topping ${dupTop.join(', ')} está repetido`); return }
       const price = sizes.length ? Math.min(...sizes.map(s => s.precio)) : parseFloat(r.price)
       if (!r.name.trim() || !Number.isFinite(price) || price < 0) { message.error(`Revisa "${r.name || 'plato sin nombre'}": nombre y precio`); return }
       payloads.push({

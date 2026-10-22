@@ -8,14 +8,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
-import BrandingManager from '../branding/BrandingManager'
+import { MarcaConVistaPrevia } from './MarcaConVistaPrevia'
+import { MenuFotos } from './MenuFotos'
+import { RecetasPaso } from './RecetasPaso'
+import { QRPrintManager } from '../pwa/QRPrintManager'
+import { RestiGuia, RestiConfirma } from './RestiGuia'
+import { motivoClaro, cantidadTxt } from '../../lib/resti/motivos'
 import type { NavView } from '../../pages/Dashboard'
 
 type Fila = Record<string, string>
 interface Col { key: string; label: string; ph?: string; unit?: boolean; num?: boolean; list?: boolean }
 interface Resultado { creados: number; existentes: number; errores: { fila: number; motivo: string }[]; proveedores_no_encontrados?: string[] }
 
-const PASOS = ['Tipo de negocio', 'Mesas', 'Proveedores', 'Inventario', 'Menú', 'Marca y datos', 'Equipo', 'Listo']
+const PASOS = ['Tipo de negocio', 'Mesas', 'Proveedores', 'Inventario', 'Menú', 'Recetas', 'Marca y datos', 'Equipo', 'Listo']
+export const PASOS_ASISTENTE = PASOS
 const UNIDADES = ['kg', 'gramo', 'litro', 'ml', 'pieza', 'paquete']
 
 const TIPOS = [
@@ -24,6 +30,9 @@ const TIPOS = [
   { id: 'almuerzos', label: 'Almuerzos', emoji: '🍲' }, { id: 'parrilla', label: 'Parrilla', emoji: '🥩' },
   { id: 'otro', label: 'Otro', emoji: '🍽️' },
 ]
+
+interface Pregunta { id: string; texto: string }
+interface PlantillaActiva { key: string; nombre: string; emoji: string; preguntas: Pregunta[] }
 
 const ing = (nombre: string, unidad: string): Fila => ({ nombre, unidad, stock_actual: '', stock_minimo: '', costo_unitario: '', proveedor: '' })
 const plato = (nombre: string, categoria: string): Fila => ({ nombre, categoria, precio: '', descripcion: '' })
@@ -104,10 +113,13 @@ function aFilas(matriz: unknown[][], cols: Col[]): Fila[] {
 }
 
 // ── Tabla de carga: filas editables + pegar desde Excel / subir .xlsx o .csv + lista sugerida ──
-function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado }: {
+function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, guia, cosa, intro }: {
   cols: Col[]; rpc: string; sugeridos: Fila[]; categorias?: string[]
   validar?: (f: Fila[]) => string | null; onGuardado: () => void
+  guia?: boolean; cosa?: [string, string]   // con Resti guiando: resumen y confirmación antes de guardar
+  intro?: string                            // lo que Resti dice al abrir el paso
 }) {
+  const [conf, setConf] = useState<Fila[] | null>(null)
   const vacia = (): Fila => Object.fromEntries(cols.map(c => [c.key, c.unit ? 'pieza' : '']))
   const [filas, setFilas] = useState<Fila[]>([vacia()])
   const [pegar, setPegar] = useState(false)
@@ -149,18 +161,24 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado }: {
     a.click(); URL.revokeObjectURL(a.href)
   }
 
-  const guardar = async () => {
+  const guardar = () => {
     const validas = filas.filter(f => limpiar(f[nombreKey]))
     if (validas.length === 0) { message.warning('Agrega al menos una fila'); return }
     const lista = validas.map(f => Object.fromEntries(cols.map(c => [c.key, c.num ? numTxt(limpiar(f[c.key])) : limpiar(f[c.key])])) as Fila)
     const problema = validar?.(lista)
     if (problema) { message.error(problema); return }
+    if (guia) { setConf(lista); return }   // Resti resume y espera el "sí" antes de cargar en lote
+    void ejecutar(lista, validas)
+  }
+
+  const ejecutar = async (lista: Fila[], validas: Fila[]) => {
+    setConf(null)
     setGuardando(true)
     const { data, error } = await supabase.rpc(rpc, { p_filas: lista })
     setGuardando(false)
-    if (error) { message.error('No se pudo guardar: ' + error.message); return }
+    if (error) { message.error('No se pudo guardar: ' + motivoClaro(error.message)); return }
     const res = data as Resultado
-    const lineas = res.errores.map(e => `“${lista[e.fila - 1]?.[nombreKey] ?? 'fila ' + e.fila}”: ${e.motivo}`)
+    const lineas = res.errores.map(e => `“${lista[e.fila - 1]?.[nombreKey] ?? 'fila ' + e.fila}”: ${motivoClaro(e.motivo)}`)
     if (res.proveedores_no_encontrados?.length) lineas.push('Proveedores que no existen (quedaron sin proveedor): ' + res.proveedores_no_encontrados.join(', '))
     setAviso(lineas)
     const malas = new Set(res.errores.map(e => e.fila - 1))
@@ -169,8 +187,16 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado }: {
     if (malas.size === 0) onGuardado()
   }
 
+  if (conf) return (
+    <RestiConfirma ocupado={guardando}
+      resumen={`Voy a guardar ${cantidadTxt(conf.length, cosa?.[0] ?? 'fila', cosa?.[1] ?? 'filas')} (${conf.slice(0, 3).map(f => f[nombreKey]).join(', ')}${conf.length > 3 ? '…' : ''}). Lo que ya exista no se repite.`}
+      onConfirmar={() => void ejecutar(conf, filas.filter(f => limpiar(f[nombreKey])))}
+      onRevisar={() => setConf(null)} />
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {guia && intro && <RestiGuia texto={intro} pose="click" />}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {sugeridos.length > 0 && <button style={ghost} onClick={() => agregarFilas(sugeridos.map(s => ({ ...vacia(), ...s })))}>✨ Usar lista sugerida</button>}
         <button style={ghost} onClick={() => setPegar(p => !p)}>📋 Pegar o subir Excel / CSV</button>
@@ -214,7 +240,9 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado }: {
       </div>
       {aviso.length > 0 && (
         <div style={{ ...card, borderColor: 'var(--w-wine)' }}>
-          <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Revisa estas filas (las demás ya quedaron guardadas):</p>
+          {guia
+            ? <RestiGuia texto="Hubo filas que no pude guardar; las demás ya quedaron listas. Corrígelas y vuelve a guardar:" pose="think" />
+            : <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Revisa estas filas (las demás ya quedaron guardadas):</p>}
           {aviso.map((a, i) => <p key={i} style={{ margin: '0.125rem 0', fontSize: '0.875rem' }}>{a}</p>)}
         </div>
       )}
@@ -234,7 +262,13 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
   const [paso, setPaso] = useState(1)
   const [hecho, setHecho] = useState<Record<string, boolean>>({})
   const [cargando, setCargando] = useState(true)
-  const [tipo, setTipo] = useState('')
+  // Tipos de negocio elegidos (puede ser más de uno: ej. heladería y cafetería). El primero es el principal.
+  const [tipos, setTipos] = useState<string[]>([])
+  const tipo = tipos[0] ?? ''
+  // Plantillas activas de la plataforma (si hay, reemplazan las tarjetas fijas) y preguntas de cada una
+  const [plantillas, setPlantillas] = useState<PlantillaActiva[]>([])
+  const [sub, setSub] = useState<'tipo' | 'preguntas'>('tipo')
+  const [respuestas, setRespuestas] = useState<Record<string, string>>({})
   const [ciudad, setCiudad] = useState('')
   const [razon, setRazon] = useState('')
   const [nit, setNit] = useState('')
@@ -244,21 +278,48 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
   const [resumen, setResumen] = useState<Record<string, number>>({})
   const [slug, setSlug] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
-  const [marcaSinGuardar, setMarcaSinGuardar] = useState(false)
+  const [subMenu, setSubMenu] = useState<'carga' | 'fotos'>('carga')
+  const [verQr, setVerQr] = useState(false)
+  // Resti guía solo mientras la configuración está pendiente (onboarding_completed_at nulo); al terminar se apaga.
+  const [guia, setGuia] = useState(false)
+  const [topeMesas, setTopeMesas] = useState<number | null>(null)
+  const [confMesas, setConfMesas] = useState<number | null>(null)
 
   useEffect(() => {
     (async () => {
       const { data: id } = await supabase.rpc('current_restaurant_id')
       setRid((id as string) ?? null)
-      const [{ data: ob }, { data: cfg }, { data: fis }] = await Promise.all([
+      const [{ data: ob }, { data: cfg }, { data: fis }, { data: pls }, { data: resp }] = await Promise.all([
         supabase.from('restaurant_onboarding').select('current_step, steps_done').maybeSingle(),
-        supabase.from('restaurant_config').select('business_type, ciudad, modules_enabled').maybeSingle(),
+        supabase.from('restaurant_config').select('business_type, ciudad, modules_enabled, plantillas_aplicadas, onboarding_completed_at').maybeSingle(),
         supabase.from('restaurant_fiscal').select('razon_social, nit').maybeSingle(),
+        supabase.from('restaurant_templates').select('key, nombre, payload').eq('activo', true).order('nombre'),
+        supabase.from('restaurant_template_answers').select('template_key, pregunta_id, respuesta'),
       ])
-      if (ob) { setPaso(Math.min(Math.max(ob.current_step ?? 1, 1), PASOS.length)); setHecho((ob.steps_done as Record<string, boolean>) ?? {}) }
+      setPlantillas((pls ?? []).map(p => {
+        const pay = (p.payload ?? {}) as { categorias?: { emoji?: string }[]; preguntas?: Pregunta[] }
+        return { key: p.key as string, nombre: p.nombre as string, emoji: pay.categorias?.find(c => c.emoji)?.emoji ?? '🍽️', preguntas: pay.preguntas ?? [] }
+      }))
+      setRespuestas(Object.fromEntries((resp ?? []).map(r => [`${r.template_key}|${r.pregunta_id}`, r.respuesta as string])))
+      const { data: rest } = await supabase.from('restaurants').select('slug').maybeSingle()   // la vista previa de la marca abre el menú público
+      setSlug((rest?.slug as string) ?? null)
+      // Tope de mesas del plan (el servidor también lo hace cumplir)
+      const [{ data: sus }, { data: pp }] = await Promise.all([supabase.from('subscriptions').select('plan').maybeSingle(), supabase.rpc('planes_publicos')])
+      const tope = (Array.isArray(pp) ? pp : []).find((p: { id: string }) => p.id === sus?.plan)?.max_mesas
+      setTopeMesas(typeof tope === 'number' ? tope : null)
+      if (ob) {
+        // El paso "Recetas" se agregó como paso 6: quien ya venía a medias conserva su lugar (lo guardado antes de la marca v2 se corre un paso).
+        const sd = (ob.steps_done ?? {}) as Record<string, boolean>
+        const nuevo = sd.v2 === true
+        const corrido = (n: number) => (!nuevo && n >= 6 ? n + 1 : n)
+        setPaso(Math.min(Math.max(corrido(ob.current_step ?? 1), 1), PASOS.length))
+        setHecho(Object.fromEntries(Object.entries(sd).filter(([k]) => k !== 'v2').map(([k, v]) => [String(corrido(Number(k))), !!v])))
+      }
       if (fis) { setRazon(fis.razon_social ?? ''); setNit(fis.nit ?? '') }
       if (cfg) {
-        setTipo(cfg.business_type ?? ''); setCiudad(cfg.ciudad ?? '')
+        setGuia(!cfg.onboarding_completed_at)
+        const aplicadas = (cfg.plantillas_aplicadas as string[] | null) ?? []
+        setTipos([...new Set([cfg.business_type, ...aplicadas].filter((x): x is string => !!x))]); setCiudad(cfg.ciudad ?? '')
         const cats = (cfg.modules_enabled as { categories?: { label?: string }[] } | null)?.categories
         if (cats?.length) setCategorias(cats.map(c => c.label ?? '').filter(Boolean))
       }
@@ -268,7 +329,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
 
   const guardarProgreso = useCallback(async (n: number, h: Record<string, boolean>) => {
     if (!rid) return
-    await supabase.from('restaurant_onboarding').upsert({ restaurant_id: rid, current_step: n, steps_done: h, updated_at: new Date().toISOString() })
+    await supabase.from('restaurant_onboarding').upsert({ restaurant_id: rid, current_step: n, steps_done: { ...h, v2: true }, updated_at: new Date().toISOString() })
   }, [rid])
 
   const irA = (n: number, marcar?: boolean) => {
@@ -283,35 +344,90 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
     if (paso !== PASOS.length) return
     ;(async () => {
       const n = async (t: string) => (await supabase.from(t).select('id', { count: 'exact', head: true })).count ?? 0
-      const [mesasN, prov, ings, platos, recetas] = await Promise.all([n('mesas'), n('proveedores'), n('ingredientes'), n('dishes'), n('recetas')])
-      setResumen({ mesas: mesasN, proveedores: prov, ingredientes: ings, platos, recetas })
+      // El menú es público: los platos se cuentan SOLO de este restaurante.
+      const platosDe = () => supabase.from('dishes').select('id', { count: 'exact', head: true }).eq('restaurant_id', rid ?? '')
+      const [mesasN, prov, ings, platos, conFoto, recs] = await Promise.all([
+        n('mesas'), n('proveedores'), n('ingredientes'),
+        platosDe().then(r => r.count ?? 0), platosDe().not('image_url', 'is', null).then(r => r.count ?? 0),
+        supabase.from('recetas').select('producto_id').eq('restaurant_id', rid ?? '').then(r => r.data ?? []),
+      ])
+      setResumen({ mesas: mesasN, proveedores: prov, ingredientes: ings, platos, conFoto, recetas: new Set(recs.map(x => x.producto_id as string)).size })
       const { data } = await supabase.from('restaurants').select('slug').maybeSingle()
       setSlug((data?.slug as string) ?? null)
     })()
-  }, [paso])
+  }, [paso, rid])
+
+  const elegidas = plantillas.filter(p => tipos.includes(p.key))
+  const alternar = (id: string) => setTipos(ts => ts.includes(id) ? ts.filter(x => x !== id) : [...ts, id])
+
+  const guardarRespuestas = async () => {
+    const filas = elegidas.flatMap(p => p.preguntas.map(q => ({
+      plantilla: p.key, pregunta_id: q.id, pregunta: q.texto, respuesta: respuestas[`${p.key}|${q.id}`] ?? '',
+    })))
+    setGuardando(true)
+    const { error } = await supabase.rpc('guardar_respuestas_plantilla', { p_respuestas: filas })
+    setGuardando(false)
+    if (error) { message.error('No se pudieron guardar las respuestas: ' + error.message); return }
+    setSub('tipo'); siguiente(true)
+  }
 
   const guardarTipo = async () => {
-    if (!tipo) { message.warning('Elige el tipo de negocio'); return }
+    if (tipos.length === 0) { message.warning('Elige el tipo de negocio'); return }
     setGuardando(true)
     const { error } = await supabase.from('restaurant_config')
-      .update({ business_type: tipo, ciudad: ciudad.trim() || null }).eq('restaurant_id', rid)
+      .update({ business_type: tipos[0], ciudad: ciudad.trim() || null }).eq('restaurant_id', rid)
     // Razón social y NIT van en una tabla privada: restaurant_config la lee cualquier visitante.
     const { error: errFiscal } = await supabase.from('restaurant_fiscal')
       .upsert({ restaurant_id: rid, razon_social: razon.trim() || null, nit: nit.trim() || null, updated_at: new Date().toISOString() })
+    if (error || errFiscal) { setGuardando(false); message.error('No se pudo guardar: ' + (error ?? errFiscal)!.message); return }
+    // Plantillas activas elegidas: copian categorías, listas de opciones y platos de ejemplo (idempotente, no pisa lo editado)
+    for (const p of elegidas) {
+      const { error: errPl } = await supabase.rpc('aplicar_plantilla', { p_key: p.key })
+      if (errPl) message.warning(`No se pudo agregar la plantilla ${p.nombre}: ${errPl.message}`)
+    }
     setGuardando(false)
-    if (error || errFiscal) { message.error('No se pudo guardar: ' + (error ?? errFiscal)!.message); return }
+    if (elegidas.some(p => p.preguntas.length > 0)) { setSub('preguntas'); return }
     siguiente(true)
   }
 
-  const guardarMesas = async () => {
+  const guardarMesas = async (confirmado = false) => {
     const n = Number(mesas)
     if (!Number.isInteger(n) || n < 0 || n > 100) { message.warning('Escribe un número de mesas entre 0 y 100'); return }
+    if (topeMesas && n > topeMesas) { message.warning(`Tu plan permite hasta ${topeMesas} mesas`); return }
+    if (guia && n > 0 && !confirmado) { setConfMesas(n); return }   // Resti resume y espera el "sí" antes de crear
+    setConfMesas(null)
     setGuardando(true)
     const { error } = await supabase.rpc('crear_mesas', { p_cantidad: n })
     setGuardando(false)
-    if (error) { message.error('No se pudieron crear las mesas: ' + error.message); return }
+    if (error) { message.error('No se pudieron crear las mesas: ' + motivoClaro(error.message)); return }
     siguiente(true)
   }
+
+  const sugeridosDe = (t: string) => SUGERIDOS[t || 'otro'] ?? SUGERIDOS.otro
+  // Lo que Resti pregunta o propone en cada paso (solo mientras la configuración está pendiente)
+  const nombreTipo = plantillas.find(p => p.key === tipo)?.nombre ?? TIPOS.find(t => t.id === tipo)?.label ?? 'tu negocio'
+  const textoGuia = (): { texto: string; pose: 'wave' | 'click' | 'think' } | null => {
+    if (!guia) return null
+    switch (paso) {
+      case 1: return sub === 'preguntas'
+        ? { texto: 'Gracias. Cuéntame con tus palabras lo que sepas; lo que no, lo dejas en blanco.', pose: 'think' }
+        : { texto: '¡Hola! Soy Resti, tu chef asistente. Te acompaño a dejar listo tu restaurante. Para empezar: ¿qué tipo de negocio tienes?', pose: 'wave' }
+      case 2: return confMesas !== null ? null : { texto: soloDomicilio ? 'Entonces vendes solo por domicilio y para llevar: no creo mesas.'
+        : `¿Cuántas mesas tienes? Te propongo ${mesas}${topeMesas ? ` (tu plan permite hasta ${topeMesas})` : ''}. Cámbialo si quieres y yo las creo.`, pose: 'click' }
+      case 3: case 4: return null   // los dice la tabla de carga, para no repetir a Resti cuando pide confirmar
+      case 5: return subMenu === 'carga' ? null : { texto: 'Una foto y una descripción hacen que tus platos se vendan más. Es opcional.', pose: 'wave' }
+      case 6: return { texto: 'Las recetas conectan cada plato con sus ingredientes; así el inventario se descuenta solo cuando vendes.', pose: 'think' }
+      case 7: return { texto: 'Dale tu marca: logo, colores y datos. Mira la vista previa mientras lo haces.', pose: 'wave' }
+      case 8: return { texto: 'Tu equipo: crea los usuarios de caja, mesero y cocina cuando quieras.', pose: 'wave' }
+      default: return { texto: 'Esto es lo que quedó listo. Haz un pedido de prueba y termina cuando estés tranquilo.', pose: 'wave' }
+    }
+  }
+  const introIng = sugeridosDe(tipo).ingredientes.length
+    ? `Estos son los ingredientes que usas. Para ${nombreTipo} te propongo una lista: pulsa “Usar lista sugerida” y ajústala. Antes de guardar te hago un resumen.`
+    : 'Estos son los ingredientes que usas. Escríbelos o pega tu lista; antes de guardar te hago un resumen.'
+  const introMenu = sugeridosDe(tipo).menu.length
+    ? 'Ahora el menú. Te propongo platos de ejemplo, pero los precios los pones tú: yo no los invento. Antes de guardar te hago un resumen.'
+    : 'Ahora el menú. Escribe tus platos con su precio; antes de guardar te hago un resumen.'
 
   const terminar = async () => {
     setGuardando(true)
@@ -345,12 +461,49 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
         </div>
 
         {cargando ? <p style={{ color: 'var(--w-ink-mut)' }}>Cargando…</p> : (<>
-          {paso === 1 && (<>
-            <Titulo t="¿Qué tipo de negocio tienes?" s="Con esto te sugerimos listas de ejemplo para el inventario y el menú." />
+          {(() => { const g = textoGuia(); return g && <RestiGuia texto={g.texto} pose={g.pose} /> })()}
+          {paso === 1 && sub === 'preguntas' && (<>
+            <Titulo t="Cuéntanos de tu negocio" s="Estas preguntas nos ayudan a dejar tu menú y tus opciones como las necesitas. Responde lo que sepas con tus palabras; puedes dejar en blanco lo que no." />
+            {elegidas.filter(p => p.preguntas.length > 0).map(p => (
+              <div key={p.key} style={{ ...card, marginBottom: '0.75rem' }}>
+                <p className="ed-kicker" style={{ margin: '0 0 0.75rem' }}>{p.emoji} {p.nombre}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                  {p.preguntas.map((q, i) => {
+                    const id = `preg-${p.key}-${q.id}`
+                    return (
+                      <div key={q.id}>
+                        <label htmlFor={id} style={{ display: 'block', fontWeight: 600, marginBottom: '0.375rem' }}>{i + 1}. {q.texto}</label>
+                        <textarea id={id} rows={2} maxLength={2000} placeholder="Escribe tu respuesta aquí"
+                          value={respuestas[`${p.key}|${q.id}`] ?? ''}
+                          onChange={e => setRespuestas(r => ({ ...r, [`${p.key}|${q.id}`]: e.target.value }))}
+                          style={{ ...input, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'var(--w-sans)' }} />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>
+              Tus respuestas las lee el equipo de RestaurantOS para ajustar tu configuración. No son obligatorias y las puedes cambiar después.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+              <button style={{ ...primary, opacity: guardando ? 0.7 : 1 }} disabled={guardando} onClick={guardarRespuestas}>Guardar respuestas y continuar</button>
+              <button style={ghost} onClick={() => { setSub('tipo'); siguiente(true) }}>Omitir las preguntas</button>
+              <button style={ghost} onClick={() => setSub('tipo')}>← Cambiar tipo de negocio</button>
+            </div>
+          </>)}
+
+          {paso === 1 && sub === 'tipo' && (<>
+            <Titulo t="¿Qué tipo de negocio tienes?" s={plantillas.length > 0
+              ? 'Puedes elegir más de uno (por ejemplo heladería y cafetería). Con esto te dejamos categorías, listas de opciones y platos de ejemplo para que solo pongas tus precios.'
+              : 'Con esto te sugerimos listas de ejemplo para el inventario y el menú.'} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))', gap: '0.625rem' }}>
-              {TIPOS.map(t => (
-                <button key={t.id} onClick={() => setTipo(t.id)} aria-pressed={tipo === t.id}
-                  style={{ ...card, cursor: 'pointer', textAlign: 'center', borderColor: tipo === t.id ? 'var(--w-terra)' : 'var(--w-line)', borderWidth: tipo === t.id ? 2 : 1, minHeight: '5.5rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 700 }}>
+              {(plantillas.length > 0
+                ? [...plantillas.map(p => ({ id: p.key, label: p.nombre, emoji: p.emoji })), { id: 'otro', label: 'Otro', emoji: '🍽️' }]
+                : TIPOS
+              ).map(t => (
+                <button key={t.id} onClick={() => (plantillas.length > 0 ? alternar(t.id) : setTipos([t.id]))} aria-pressed={tipos.includes(t.id)}
+                  style={{ ...card, cursor: 'pointer', textAlign: 'center', borderColor: tipos.includes(t.id) ? 'var(--w-terra)' : 'var(--w-line)', borderWidth: tipos.includes(t.id) ? 2 : 1, minHeight: '5.5rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 700 }}>
                   <div style={{ fontSize: '1.75rem' }}>{t.emoji}</div>{t.label}
                 </button>
               ))}
@@ -365,45 +518,60 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
 
           {paso === 2 && (<>
             <Titulo t="Mesas" s="Se crean numeradas del 1 en adelante. Si ya tienes algunas, no se repiten." />
-            <div style={card}>
+            {confMesas !== null && (
+              <RestiConfirma ocupado={guardando} resumen={`Voy a crear ${cantidadTxt(confMesas, 'mesa', 'mesas')}, numeradas del 1 al ${confMesas}. Las que ya existan no se repiten.`}
+                onConfirmar={() => void guardarMesas(true)} onRevisar={() => setConfMesas(null)} />
+            )}
+            <div style={{ ...card, display: confMesas !== null ? 'none' : undefined }}>
               <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', fontWeight: 600 }}>
                 <input type="checkbox" checked={soloDomicilio} onChange={e => setSoloDomicilio(e.target.checked)} style={{ width: '1.25rem', height: '1.25rem' }} />
                 Solo vendo por domicilio y para llevar (sin mesas)
               </label>
-              {!soloDomicilio && <input style={{ ...input, maxWidth: '12rem' }} type="number" min={0} max={100} value={mesas} aria-label="Cantidad de mesas" onChange={e => setMesas(e.target.value)} />}
+              {!soloDomicilio && <input style={{ ...input, maxWidth: '12rem' }} type="number" min={0} max={topeMesas ?? 100} value={mesas} aria-label="Cantidad de mesas" onChange={e => setMesas(e.target.value)} />}
             </div>
-            <div style={{ marginTop: '1rem' }}>
+            <div style={{ marginTop: '1rem', display: confMesas !== null ? 'none' : undefined }}>
               <button style={{ ...primary, opacity: guardando ? 0.7 : 1 }} disabled={guardando} onClick={() => soloDomicilio ? siguiente(true) : guardarMesas()}>Guardar y continuar</button>
             </div>
           </>)}
 
           {paso === 3 && (<>
             <Titulo t="Proveedores" s="A quién le compras. Después puedes asignar un proveedor a cada ingrediente." />
-            <CargaTabla key="prov" cols={COLS_PROV} rpc="importar_proveedores" sugeridos={[]} onGuardado={() => siguiente(true)} />
+            <CargaTabla key="prov" cols={COLS_PROV} rpc="importar_proveedores" sugeridos={[]} onGuardado={() => siguiente(true)}
+              guia={guia} cosa={['proveedor', 'proveedores']} intro="Ahora, ¿a quién le compras? Escribe tus proveedores o pega una lista. Si no los tienes a la mano, omite este paso. Antes de guardar te hago un resumen." />
           </>)}
 
           {paso === 4 && (<>
             <Titulo t="Inventario" s="Los ingredientes que usas, con su unidad, cuánto tienes, el mínimo para avisarte y su costo." />
-            <CargaTabla key="ing" cols={COLS_ING} rpc="importar_ingredientes" sugeridos={sug.ingredientes} onGuardado={() => siguiente(true)} />
+            <CargaTabla key="ing" cols={COLS_ING} rpc="importar_ingredientes" sugeridos={sug.ingredientes} onGuardado={() => siguiente(true)}
+              guia={guia} cosa={['ingrediente', 'ingredientes']} intro={introIng} />
           </>)}
 
           {paso === 5 && (<>
-            <Titulo t="Menú" s="Tus platos con categoría, precio y descripción. Las fotos las subes después en Menú, plato por plato." />
-            <CargaTabla key="menu" cols={COLS_MENU} rpc="importar_menu" sugeridos={sug.menu} categorias={categorias}
-              validar={f => f.some(x => !(Number(x.precio) > 0)) ? 'Ponle precio a todos los platos (mayor que 0)' : null}
-              onGuardado={() => siguiente(true)} />
+            {subMenu === 'carga' ? (<>
+              <Titulo t="Menú" s="Tus platos con categoría, precio y descripción. En la siguiente pantalla les pones foto." />
+              <CargaTabla key="menu" cols={COLS_MENU} rpc="importar_menu" sugeridos={sug.menu} categorias={categorias}
+                validar={f => f.some(x => !(Number(x.precio) > 0)) ? 'Ponle precio a todos los platos (mayor que 0)' : null}
+                onGuardado={() => setSubMenu('fotos')} guia={guia} cosa={['plato', 'platos']} intro={introMenu} />
+              <div style={{ marginTop: '0.75rem' }}><button style={ghost} onClick={() => setSubMenu('fotos')}>Ya tengo mis platos: ir a las fotos →</button></div>
+            </>) : (<>
+              <Titulo t="Fotos y descripciones" s="Una foto y una descripción corta hacen que tus platos se vendan más. Todo es opcional." />
+              {rid && <MenuFotos rid={rid} onListo={() => { setSubMenu('carga'); siguiente(true) }} />}
+              <div style={{ marginTop: '0.75rem' }}><button style={ghost} onClick={() => setSubMenu('carga')}>← Volver a la lista de platos</button></div>
+            </>)}
           </>)}
 
           {paso === 6 && (<>
-            <Titulo t="Marca y datos del restaurante" s="Logo, colores, eslogan, portada, dirección, WhatsApp, horario y propina sugerida." />
-            <BrandingManager onDirtyChange={setMarcaSinGuardar} />
-            <div style={{ marginTop: '1rem' }}><button style={primary} onClick={() => {
-              if (marcaSinGuardar && !window.confirm('Tienes cambios sin guardar en la marca. Si continúas se pierden. ¿Continuar de todos modos?')) return
-              siguiente(true)
-            }}>Continuar</button></div>
+            <Titulo t="Recetas" s="Qué ingredientes lleva cada plato. Así el inventario se descuenta solo cuando vendes y ves cuánto te deja cada plato." />
+            {rid && <RecetasPaso rid={rid} onListo={() => siguiente(true)} />}
           </>)}
 
           {paso === 7 && (<>
+            <Titulo t="Marca y datos del restaurante" s="Logo, colores, eslogan, portada, dirección, WhatsApp, horario y propina sugerida." />
+            <MarcaConVistaPrevia slug={slug} />
+            <div style={{ marginTop: '1rem' }}><button style={primary} onClick={() => siguiente(true)}>Continuar</button></div>
+          </>)}
+
+          {paso === 8 && (<>
             <Titulo t="Tu equipo" s="Crea los usuarios de cajero, mesero y cocina. Es opcional y lo puedes hacer cuando quieras." />
             <div style={card}>
               <p style={{ margin: '0 0 0.75rem' }}>Cada persona entra con su correo y su contraseña, y ve solo lo de su rol.</p>
@@ -411,23 +579,36 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
             </div>
           </>)}
 
-          {paso === 8 && (<>
+          {paso === 9 && (<>
             <Titulo t="¡Listo!" s="Esto es lo que quedó configurado y lo que falta." />
             <div style={card}>
               {pendiente(!!tipo, 'Tipo de negocio')}
               {pendiente((resumen.mesas ?? 0) > 0 || soloDomicilio, `Mesas (${resumen.mesas ?? 0})`)}
               {pendiente((resumen.proveedores ?? 0) > 0, `Proveedores (${resumen.proveedores ?? 0})`, 'proveedores')}
               {pendiente((resumen.ingredientes ?? 0) > 0, `Inventario (${resumen.ingredientes ?? 0} ingredientes)`, 'inventory')}
-              {pendiente((resumen.platos ?? 0) > 0, `Menú (${resumen.platos ?? 0} platos). Falta subir las fotos en Menú`, 'menu')}
-              {pendiente((resumen.recetas ?? 0) > 0, `Recetas (${resumen.recetas ?? 0}). Conectan cada plato con sus ingredientes para descontar el inventario solo`, 'inventory')}
+              {pendiente((resumen.platos ?? 0) > 0, `Menú (${resumen.platos ?? 0} platos, ${resumen.conFoto ?? 0} con foto)`, 'menu')}
+              {pendiente((resumen.recetas ?? 0) > 0, `Recetas (${resumen.recetas ?? 0} de ${resumen.platos ?? 0} platos). Conectan cada plato con sus ingredientes para descontar el inventario solo`, 'inventory')}
             </div>
             {slug && (
               <div style={{ ...card, marginTop: '0.75rem' }}>
                 <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Tu menú público</p>
                 <a href={`/menu/${slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--w-terra)', fontWeight: 700, wordBreak: 'break-all' }}>{window.location.origin}/menu/{slug}</a>
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Los códigos QR para las mesas los imprimes desde Menú.</p>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Un QR por mesa para que tus clientes abran el menú y pidan desde su celular.</p>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <button style={ghost} onClick={() => setVerQr(v => !v)}>{verQr ? 'Ocultar los QR' : '🖨 Imprimir los QR de mis mesas (PDF)'}</button>
+                </div>
+                {verQr && <div style={{ marginTop: '0.75rem' }}><QRPrintManager /></div>}
               </div>
             )}
+            <div style={{ ...card, marginTop: '0.75rem' }}>
+              <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Haz tu primer pedido de prueba</p>
+              <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'grid', gap: '0.5rem', fontSize: '0.9375rem' }}>
+                <li>Abre tu menú y pide un plato como si fueras un cliente.{slug && <> <a href={`/menu/${slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--w-terra)', fontWeight: 700 }}>Abrir mi menú</a></>}</li>
+                <li>Míralo llegar a la pantalla de <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('kitchen')}>Cocina</button></li>
+                <li>Cóbralo en <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('cashier')}>Caja</button></li>
+                <li>Revisa en <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('inventory')}>Inventario</button> que el stock de sus ingredientes bajó solo.</li>
+              </ol>
+            </div>
             <div style={{ marginTop: '1rem' }}><button style={{ ...primary, opacity: guardando ? 0.7 : 1 }} disabled={guardando} onClick={terminar}>Terminar configuración</button></div>
           </>)}
 

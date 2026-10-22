@@ -4,7 +4,7 @@
  * Funciones puras: sin supabase ni React, para poder probarlas solas
  * (ver scripts/menuOptions.check.ts).
  */
-import type { Dish, DishOptionGroup, ItemSel } from '../types'
+import type { Dish, DishOptionGroup, ItemSel, OptionGroupV2, OptionItem, OptionList } from '../types'
 
 export interface MenuCategory { value: string; label: string; emoji?: string }
 
@@ -17,6 +17,9 @@ export interface MenuConfig {
   heladoOff:     string[]
   jugoOff:       string[]
   toppingsOff:   string[]
+  optionsV2:     boolean   // interruptor por restaurante (modules_enabled.options_v2): opciones universales
+  listas:        ListMap   // listas de opciones (option_lists + las heredadas de sabores)
+  listaNombres:  Record<string, string>   // nombre visible de cada lista, por key
 }
 
 const strList = (v: unknown): string[] =>
@@ -24,14 +27,32 @@ const strList = (v: unknown): string[] =>
 
 export function parseMenuConfig(mods: unknown): MenuConfig {
   const m = (mods && typeof mods === 'object' ? mods : {}) as Record<string, unknown>
-  return {
+  const base = {
     categories:    Array.isArray(m.categories) ? (m.categories as MenuCategory[]).filter(c => c?.value) : [],
     heladoFlavors: strList(m.helado_flavors),
     jugoFlavors:   strList(m.jugo_flavors),
     heladoOff:     strList(m.helado_flavors_off),
     jugoOff:       strList(m.jugo_flavors_off),
     toppingsOff:   strList(m.toppings_off),
+    optionsV2:     m.options_v2 === true,
   }
+  return {
+    ...base, listas: listasHeredadas(base as MenuConfig),
+    listaNombres: { sabores_helado: 'Sabores de helado', sabores_jugo: 'Sabores de jugo' },
+  }
+}
+
+// Suma las listas guardadas (option_lists) a la config; las guardadas mandan sobre las heredadas.
+export const conListas = (menu: MenuConfig, guardadas: OptionList[]): MenuConfig => ({
+  ...menu, listas: mezclarListas(guardadas, menu),
+  listaNombres: { ...menu.listaNombres, ...Object.fromEntries(guardadas.map(l => [l.key, l.nombre])) },
+})
+
+// Interpreta el JSON que devuelve listas_opciones_publicas (menú del cliente).
+export function listasDesdeRpc(raw: unknown): OptionList[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter(l => l && typeof l.key === 'string' && Array.isArray(l.items))
+    .map(l => ({ key: l.key, nombre: String(l.nombre ?? l.key), items: l.items as OptionItem[], sort_order: Number(l.sort_order) || 0 }))
 }
 
 // Orden de aparición de categorías = orden del arreglo de config (se cambia
@@ -148,6 +169,128 @@ export function groupUnits(units: ItemSel[]): { sel: ItemSel; qty: number }[] {
     else groups.set(key, { sel, qty: 1 })
   }
   return [...groups.values()]
+}
+
+// ─── Modelo v2 (Anexo B): grupos genéricos + listas reutilizables ──────────────
+// Las funciones son puras. `listas` = listas del restaurante por key (option_lists).
+export type ListMap = Record<string, OptionItem[]>
+
+const LISTA_HELADO = 'sabores_helado'
+const LISTA_JUGO   = 'sabores_jugo'
+
+// Listas "virtuales" armadas con la config heredada (helado_flavors, jugo_flavors y sus *_off).
+// Sirven para que un restaurante con options_v2 encendido funcione antes de migrar sus listas.
+export function listasHeredadas(menu: MenuConfig): ListMap {
+  return {
+    [LISTA_HELADO]: menu.heladoFlavors.map(label => ({ label, activo: !menu.heladoOff.includes(label) })),
+    [LISTA_JUGO]:   menu.jugoFlavors.map(label => ({ label, activo: !menu.jugoOff.includes(label) })),
+  }
+}
+
+// Las listas guardadas (option_lists) mandan; la config heredada completa lo que falte.
+export function mezclarListas(guardadas: OptionList[], menu: MenuConfig): ListMap {
+  const out = listasHeredadas(menu)
+  for (const l of guardadas) out[l.key] = l.items
+  return out
+}
+
+const esV2 = (g: unknown): g is OptionGroupV2 => !!g && typeof g === 'object' && (g as { v?: unknown }).v === 2
+
+// Grupos del plato en formato v2. Los heredados se convierten en memoria (ids estables g_<índice>).
+export function gruposDe(dish: Dish): OptionGroupV2[] {
+  return ((dish.options ?? []) as unknown[]).map((raw, i): OptionGroupV2 => {
+    if (esV2(raw)) return raw
+    const g = raw as DishOptionGroup
+    if (g.tipo === 'helado' || g.tipo === 'jugo') {
+      return { v: 2, id: `g_${i}`, nombre: g.nombre, modo: 'multi', min: 1, max: g.cantidad ?? 1, requerido: true,
+        fuente: { lista: g.tipo === 'jugo' ? LISTA_JUGO : LISTA_HELADO } }
+    }
+    const items: OptionItem[] = (g.opciones ?? []).map(o => ({
+      label: o.label, ...((o.helado ?? 0) > 0 ? { sub: { lista: LISTA_HELADO, cantidad: o.helado as number } } : {}),
+    }))
+    return { v: 2, id: `g_${i}`, nombre: g.nombre, modo: g.multiple ? 'multi' : 'single', min: 1,
+      max: g.multiple ? Math.max(1, items.length) : 1, requerido: true, fuente: { items } }
+  })
+}
+
+export const itemsDeGrupo = (g: OptionGroupV2, listas: ListMap): OptionItem[] =>
+  'lista' in g.fuente ? (listas[g.fuente.lista] ?? []) : g.fuente.items
+
+// Ítems que se pueden ofrecer: activos, más los que ya venían elegidos (al editar un pedido).
+export const itemsVisibles = (g: OptionGroupV2, listas: ListMap, chosen: string[] = []): OptionItem[] =>
+  itemsDeGrupo(g, listas).filter(it => it.activo !== false || chosen.includes(it.label))
+
+export const maxDeGrupo = (g: OptionGroupV2): number => (g.max === 'cantidad' ? 1 : g.max)
+
+export const subKey = (gid: string, label: string) => `${gid}>${label}`
+
+// Convierte una selección heredada (helado/opcion/opcionMulti por índice) al formato v2,
+// para abrir pedidos viejos en el constructor nuevo. Una selección v2 pasa igual.
+export function selAV2(dish: Dish, sel: ItemSel): ItemSel {
+  if (sel.grupos) return sel
+  const grupos: Record<string, string[]> = {}
+  ;(dish.options ?? []).forEach((g, gi) => {
+    if (esV2(g)) return
+    const id = `g_${gi}`, k = String(gi)
+    const sabores = sel.helado?.[k] ?? []
+    if (g.tipo === 'helado' || g.tipo === 'jugo') { if (sabores.length) grupos[id] = sabores; return }
+    const labels = selectedLabels(g, gi, sel)
+    if (labels.length) grupos[id] = labels
+    const conSub = (g.opciones ?? []).find(o => (o.helado ?? 0) > 0 && labels.includes(o.label))
+    if (conSub && sabores.length) grupos[subKey(id, conSub.label)] = sabores
+  })
+  const { helado: _h, opcion: _o, opcionMulti: _m, ...resto } = sel
+  return { ...resto, ...(Object.keys(grupos).length ? { grupos } : {}) }
+}
+
+const elegidos = (sel: ItemSel, id: string) => sel.grupos?.[id] ?? []
+
+export function selIsValidV2(groups: OptionGroupV2[], listas: ListMap, sel: ItemSel): boolean {
+  return groups.every(g => {
+    const ch = elegidos(sel, g.id)
+    const minimo = g.requerido ? Math.max(1, g.min) : g.min
+    if (ch.length < minimo || ch.length > maxDeGrupo(g)) return false
+    const items = itemsDeGrupo(g, listas)
+    return ch.every(label => {
+      const it = items.find(x => x.label === label)
+      if (!it) return false
+      if (!it.sub) return true
+      const n = elegidos(sel, subKey(g.id, label)).length
+      return n >= 1 && n <= it.sub.cantidad
+    })
+  })
+}
+
+// Suma de precio_extra de los ítems elegidos (mismo cálculo que el servidor).
+export function extrasV2(groups: OptionGroupV2[], listas: ListMap, sel: ItemSel): number {
+  return groups.reduce((sum, g) => {
+    const items = itemsDeGrupo(g, listas)
+    return sum + elegidos(sel, g.id).reduce((s, label) => s + (Number(items.find(x => x.label === label)?.precio_extra) || 0), 0)
+  }, 0)
+}
+
+export const unitPriceForV2 = (dish: Dish, listas: ListMap, sel: ItemSel): number =>
+  unitPriceFor(dish, sel) + extrasV2(gruposDe(dish), listas, sel)
+
+// Texto para cocina: igual que describeSel pero leyendo sel.grupos.
+export function describeSelV2(dish: Dish, sel: ItemSel, shortages: Swap[] = []): string {
+  const parts: string[] = []
+  if (dish.has_sizes && sel.size) parts.push(sel.size)
+  for (const g of gruposDe(dish)) {
+    const ch = elegidos(sel, g.id)
+    if (!ch.length) continue
+    const sep = 'lista' in g.fuente ? ', ' : ' + '
+    parts.push(ch.map(label => {
+      const sub = elegidos(sel, subKey(g.id, label))
+      return sub.length ? `${label} (${sub.join(', ')})` : label
+    }).join(sep))
+  }
+  if (sel.toppings?.length) parts.push(sel.toppings.join(', '))
+  if (sel.extras?.length) parts.push(sel.extras.join(', '))
+  for (const s of shortages) {
+    if (s.sustituto_nombre && sel.swaps?.includes(s.ingrediente_id)) parts.push(`Cambio: ${s.ingrediente_nombre} → ${s.sustituto_nombre}`)
+  }
+  return parts.join(' · ')
 }
 
 // Fecha de hoy en Colombia (YYYY-MM-DD), igual que hoy_local() en la base.

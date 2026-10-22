@@ -19,9 +19,6 @@ interface EvidenceUploadProps {
 
 type UploadState = 'idle' | 'preview' | 'uploading' | 'done' | 'error'
 
-const UPLOAD_MIMES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
-const isHeic = (f: File) => /heic|heif/i.test(f.type) || /\.(heic|heif)$/i.test(f.name)
-
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 const S = {
   neoOut:  { boxShadow: 'var(--shadow-out)' },
@@ -38,19 +35,19 @@ async function compressImage(file: File, maxWidthPx = 1280): Promise<Blob> {
     img.onload = () => {
       const ratio  = Math.min(1, maxWidthPx / img.width)
       const canvas = document.createElement('canvas')
-      canvas.width  = Math.round(img.width  * ratio)
-      canvas.height = Math.round(img.height * ratio)
+      canvas.width  = img.width  * ratio
+      canvas.height = img.height * ratio
       const ctx = canvas.getContext('2d')
-      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('Canvas error')); return }
+      if (!ctx) { resolve(file); return }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(url)
       canvas.toBlob(
         blob => blob ? resolve(blob) : reject(new Error('Canvas error')),
         'image/jpeg',
         0.82  // calidad 82%: buen balance tamaño/calidad
       )
+      URL.revokeObjectURL(url)
     }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load error')) }
+    img.onerror = () => reject(new Error('Image load error'))
     img.src = url
   })
 }
@@ -85,7 +82,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
     setError(null)
 
     // Validar tipo y tamaño (5MB máximo)
-    if (!file.type.startsWith('image/') && !isHeic(file)) {
+    if (!file.type.startsWith('image/')) {
       setError('Solo se aceptan imágenes')
       return
     }
@@ -109,26 +106,10 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
     try {
       // 1. Comprimir imagen
       setProgress(20)
-      const original = selectedFile.current
-      let compressed: Blob = original
-      let contentType = 'image/jpeg'
-      let ext = 'jpg'
-      try {
-        compressed = await compressImage(original)
-      } catch {
-        // El navegador no pudo decodificar la imagen (típico de HEIC en Chrome/Firefox).
-        // Si el formato original es aceptado por el servidor se sube tal cual; si no, se avisa claro.
-        const okExt = UPLOAD_MIMES[original.type]
-        if (!okExt) {
-          throw new Error(isHeic(original)
-            ? 'Tu navegador no puede procesar fotos HEIC. Cambia la cámara a formato "Más compatible" (JPG) o toma la foto de nuevo.'
-            : 'No se pudo leer la imagen. Intenta con otra foto en JPG, PNG o WebP.')
-        }
-        contentType = original.type
-        ext = okExt
-      }
+      const compressed = await compressImage(selectedFile.current)
 
       // 2. Definir path único en el bucket
+      const ext  = 'jpg'
       const path = `${userId}/${taskId}/${Date.now()}.${ext}`
 
       // 3. Subir a Supabase Storage
@@ -136,17 +117,22 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
       const { error: uploadError } = await supabase.storage
         .from('task-evidence')
         .upload(path, compressed, {
-          contentType,
+          contentType: 'image/jpeg',
           upsert:      false,
         })
       if (uploadError) throw uploadError
 
-      // 4. Llamar función atómica: inserta evidencia + completa tarea.
-      // El bucket es privado: se guarda el PATH del objeto (no una URL pública); al mostrarla se firma.
+      // 4. Obtener URL pública
+      setProgress(75)
+      const { data: { publicUrl } } = supabase.storage
+        .from('task-evidence')
+        .getPublicUrl(path)
+
+      // 5. Llamar función atómica: inserta evidencia + completa tarea
       setProgress(90)
       const { error: rpcError } = await supabase.rpc('complete_task_with_evidence', {
         p_task_id:      taskId,
-        p_photo_url:    path,
+        p_photo_url:    publicUrl,
         p_storage_path: path,
         p_notes:        notes.trim() || null,
       })

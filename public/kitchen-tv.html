@@ -1206,11 +1206,7 @@ function advance(orderId, nextStatus) {
 function cancelOrder(orderId) {
   if (!confirm('¿Cancelar todo el pedido?')) return
   rpc('tv_cocina_cancelar', { p_token: TV_TOKEN, p_order_id: orderId },
-    function(r) {
-      // Un pedido ya pagado no se cancela desde la TV: sacaría el dinero recibido del corte de caja.
-      if (r && r.status === 'pagado') alert('Este pedido ya está pagado. Pídele a caja que lo anule.')
-      fetchOrders()
-    },
+    function() { fetchOrders() },
     function() { alert('Error al cancelar') })
 }
 

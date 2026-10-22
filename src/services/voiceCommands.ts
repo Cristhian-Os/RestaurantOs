@@ -26,6 +26,7 @@ export interface RawAction {
   lineas?: { nombre?: string; cantidad?: number; unidad?: string; precio_unitario?: number }[]
   concepto?: string; monto?: number; categoria?: string
   pagado_por?: string   // gasto adelantado con dinero propio de esta persona ("lo pagó Angela")
+  lista?: string; item?: string   // option_availability: nombre de la lista (opcional) y del ítem ("fresa", "leche de avena")
   proveedor?: string; telefono?: string; producto?: string; email?: string; notas?: string
 }
 
@@ -67,9 +68,12 @@ export interface CommandContext {
   /** Lista de Proveedores del restaurante (para enlazar gastos y compras). */
   suppliers: Supplier[]
   mesas: { id: string; numero: number; capacidad: number; estado: string }[]
+  /** Listas de opciones (sabores, leches, salsas…). Con las opciones nuevas apagadas son los sabores heredados (key "legacy:helado" / "legacy:jugo"). */
+  listas?: { key: string; nombre: string; items: { label: string; activo: boolean }[] }[]
 }
 
 export type Change =
+  | { op: 'option_availability'; key: string; label: string; available: boolean }
   | { op: 'dish_price'; dishId: string; price: number; sizes?: Size[] }
   | { op: 'dish_availability'; dishId: string; available: boolean }
   | { op: 'ingredient_stock'; ingredientId: string; stock: number }
@@ -83,6 +87,23 @@ export type Change =
   | { op: 'purchase_add'; concepto: string; items: PurchaseLine[] }
   | { op: 'supplier_add'; nombre: string; telefono: string | null; email: string | null; producto: string | null; notas: string | null }
   | { op: 'supplier_update'; supplierId: string; patch: SupplierPatch }
+  | { op: 'dish_patch'; dishId: string; patch: Record<string, unknown> }   // cambios del menú que propone Resti (toppings, bolas, tamaños, textos, quitar)
+  | { op: 'dish_insert'; row: Record<string, unknown> }
+  | { op: 'flavors_set'; clave: 'helado_flavors' | 'jugo_flavors'; lista: string[] }
+  | { op: 'order_status'; orderId: string; status: 'pending' | 'cooking' | 'ready' }   // pedidos, equipo y nombre del restaurante que propone Resti
+  | { op: 'order_cancel'; orderId: string }
+  | { op: 'staff_active'; profileId: string; active: boolean }
+  | { op: 'biz_name'; name: string }
+  | { op: 'expense_patch'; gastoId: string; patch: { concepto?: string; monto?: number; categoria?: string | null } }   // operación que propone Resti: gastos, proveedores, equipo, tareas, ingredientes, mesas
+  | { op: 'expense_delete'; gastoId: string }
+  | { op: 'supplier_delete'; supplierId: string }
+  | { op: 'staff_create'; email: string; nombre: string; rol: string; telefono: string | null; password: string }
+  | { op: 'staff_update'; profileId: string; nombre?: string; telefono?: string; rol?: string }
+  | { op: 'task_patch'; taskId: string; patch: Record<string, unknown> }
+  | { op: 'ingredient_insert'; row: Record<string, unknown> }
+  | { op: 'ingredient_patch'; ingredientId: string; patch: Record<string, unknown> }
+  | { op: 'table_insert'; numero: number; capacidad: number }
+  | { op: 'table_disable'; mesaId: string }
 
 export interface Proposal {
   /** Posición de la acción cruda de la que salió (para poder quitarla). */
@@ -92,14 +113,16 @@ export interface Proposal {
   /** null cuando hay un problema: no se puede aplicar hasta que se corrija dictando de nuevo. */
   change:  Change | null
   problem?: string
+  /** Cambio delicado (cancelar un pedido, desactivar a alguien): Resti pide confirmación reforzada. */
+  riesgo?: 'alto'
 }
 
 export type VoiceRole = 'admin' | 'cashier'
 
 /** Qué puede dictar cada rol. El cajero solo toca lo operativo; precios, tareas y turnos son del admin. */
 export const ALLOWED_ACTIONS: Record<VoiceRole, readonly string[]> = {
-  admin:   ['dish_price', 'dish_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add', 'supplier_add', 'supplier_update'],
-  cashier: ['dish_availability', 'ingredient_stock', 'table_status', 'expense_add', 'purchase_add'],
+  admin:   ['dish_price', 'dish_availability', 'option_availability', 'ingredient_stock', 'task_create', 'shift_set', 'shift_delete', 'table_status', 'table_capacity', 'recipe_set', 'expense_add', 'purchase_add', 'supplier_add', 'supplier_update'],
+  cashier: ['dish_availability', 'option_availability', 'ingredient_stock', 'table_status', 'expense_add', 'purchase_add'],
 }
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent'
@@ -145,6 +168,7 @@ export function toPromptContext(ctx: CommandContext) {
     today: ctx.today, weekday: ctx.weekday,
     dishes:      ctx.dishes.map(d => ({ name: d.name, sizes: d.has_sizes ? d.sizes.map(s => s.nombre) : [] })),
     ingredients: ctx.ingredients.map(i => ({ name: i.nombre, unit: i.unidad_medida })),
+    listas:      (ctx.listas ?? []).map(l => ({ name: l.nombre, items: l.items.map(i => i.label) })),
     employees:   ctx.employees.map(e => e.full_name),
     suppliers:   ctx.suppliers.map(x => x.nombre),
     mesas:       ctx.mesas.map(m => m.numero),
@@ -168,6 +192,18 @@ export function buildProposals(actions: RawAction[], base: CommandContext, userI
 }
 
 const normTxt = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+
+/** El elemento cuyas palabras están todas dentro de lo dicho (el de nombre más largo si hay varios). */
+function contenido<T>(spoken: string | undefined, items: T[], getName: (t: T) => string): T | null {
+  const stem = (w: string) => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w)
+  const dicho = new Set(normTxt(spoken ?? '').split(' ').filter(Boolean).map(stem))
+  if (dicho.size === 0) return null
+  const cands = items.filter(it => {
+    const w = normTxt(getName(it)).split(' ').filter(Boolean).map(stem)
+    return w.length > 0 && w.every(x => dicho.has(x))
+  })
+  return cands.sort((x, y) => getName(y).length - getName(x).length)[0] ?? null
+}
 
 /** Empareja el proveedor dictado con la lista de Proveedores. Sin coincidencia, se conserva lo dictado y se avisa. */
 function resolveSupplier(spoken: string | undefined, ctx: CommandContext): { name: string; linked: boolean } | null {
@@ -204,7 +240,7 @@ function readContact(a: RawAction): Contact {
 }
 
 /** Cambia datos de contacto de un proveedor que ya está en la lista (y deja la lista simulada al día). */
-function updateSupplier(sup: Supplier, c: Contact): Built {
+function updateSupplier(sup: Supplier, c: Contact, ctx: CommandContext): Built {
   const title = `Proveedor: ${sup.nombre}`
   if (c.problem) return bad(title, c.problem)
   const patch: SupplierPatch = {}
@@ -267,6 +303,28 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       const old = d.available
       d.available = a.available
       return { title: `${d.name} · disponibilidad`, detail: `${label(old)} → ${label(a.available)}`, change: { op: 'dish_availability', dishId: d.id, available: a.available } }
+    }
+
+    case 'option_availability': {
+      const listas = ctx.listas ?? []
+      if (typeof a.available !== 'boolean') return bad(`Opción "${a.item ?? '?'}"`, 'No entendí si está disponible o agotada.')
+      // Si dijeron de qué lista ("el sabor fresa", "la leche de avena"), se busca solo ahí.
+      const dicha = a.lista ? matchName(a.lista, listas, l => l.nombre) : null
+      const entradas = (dicha ? [dicha] : listas).flatMap(l => l.items.map(it => ({ l, it })))
+      // Dictado libre ("leche de avena", "sabor fresa"): si no hay parecido directo, vale el ítem cuyo nombre completo está dentro de lo dicho.
+      const hit = matchName(a.item, entradas, e => e.it.label) ?? contenido(a.item, entradas, e => e.it.label)
+      if (!hit) return bad(`Opción "${a.item ?? '?'}"`, `No encontré "${a.item ?? ''}" en tus listas de opciones${dicha ? ` (${dicha.nombre})` : ''}.`)
+      // El mismo nombre en dos listas ("Fresa" en sabores y en salsas): hay que decir de cuál.
+      const repetidas = entradas.filter(e => normTxt(e.it.label) === normTxt(hit.it.label) && e.l.key !== hit.l.key)
+      if (!dicha && repetidas.length > 0) {
+        const donde = [hit, ...repetidas].map(e => e.l.nombre).join(', ')
+        return bad(`Opción "${hit.it.label}"`, `"${hit.it.label}" está en varias listas (${donde}). Di de cuál, por ejemplo “el sabor ${hit.it.label}”.`)
+      }
+      const title = `${hit.it.label} · ${hit.l.nombre}`
+      const label = (v: boolean) => (v ? 'Disponible' : 'Agotado')
+      const old = hit.it.activo
+      hit.it.activo = a.available
+      return { title, detail: `${label(old)} → ${label(a.available)}`, change: { op: 'option_availability', key: hit.l.key, label: hit.it.label, available: a.available } }
     }
 
     case 'ingredient_stock': {
@@ -488,7 +546,7 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       const dup = matchName(nombre, ctx.suppliers, x => x.nombre)
       const c = readContact(a)
       // Ya está en la lista: lo dictado completa o corrige sus datos en vez de duplicarlo.
-      if (dup && normTxt(dup.nombre) === normTxt(nombre)) return updateSupplier(dup, c)
+      if (dup && normTxt(dup.nombre) === normTxt(nombre)) return updateSupplier(dup, c, ctx)
       if (c.problem) return bad(title, c.problem)
       const row = {
         nombre: nombre.slice(0, 120), telefono: c.telefono ?? null, email: c.email ?? null,
@@ -511,7 +569,7 @@ function propose(a: RawAction, ctx: CommandContext, userId: string): Built {
       const said = (a.proveedor ?? '').trim()
       const sup = matchName(said, ctx.suppliers, x => x.nombre)
       if (!sup) return bad(`Proveedor “${said || '?'}”`, `No encontré a “${said}” en tu lista de Proveedores. Di “agrega al proveedor ${said || 'Nombre'}” para crearlo.`)
-      return updateSupplier(sup, readContact(a))
+      return updateSupplier(sup, readContact(a), ctx)
     }
 
     default:

@@ -15,7 +15,10 @@ import message from 'antd/es/message'
 import { VoiceButton } from '../VoiceButton'
 import { VoiceMenuModal } from './VoiceMenuModal'
 import { limpiarTranscripcion } from '../../services/voiceText'
-import type { Dish, DishCategory, DishOptionGroup } from '../../types'
+import type { Dish, DishCategory, DishOptionGroup, OptionGroupV2 } from '../../types'
+import { useMenuConfig } from '../../hooks/useMenuConfig'
+import { gruposDe } from '../../services/menuOptions'
+import { DishGroupsEditor, validarGrupos } from './DishGroupsEditor'
 
 const S = {
   neoOut:  { boxShadow: 'var(--shadow-out)' },
@@ -112,6 +115,7 @@ interface DishForm {
   quesoHeladoMulti: boolean  // permite elegir los dos a la vez (ej: el Salpicrem)
   jugoCount:     string   // nº de sabores de jugo a elegir (0/'' = ninguno)
   toppings:      ToppingRow[]   // toppings opcionales (precio 0 = gratis)
+  gruposV2:      OptionGroupV2[]  // opciones universales (solo con options_v2 encendido)
   image_file?:   File | null
   image_preview? :string | null
 }
@@ -120,7 +124,7 @@ const FORM_EMPTY: DishForm = {
   name:'', description:'', price:'', category:'principal',
   tags:'', available:true, has_sizes:false, sizes:[{ nombre:'', precio:'' }],
   heladoCount:'', quesoHelado:false, quesoHeladoMulti:false, jugoCount:'',
-  toppings:[],
+  toppings:[], gruposV2:[],
   image_file:null, image_preview:null,
 }
 
@@ -165,6 +169,7 @@ function dishToForm(d: Dish): DishForm {
     quesoHeladoMulti: !!quesoHeladoGroup?.multiple,
     jugoCount:     jugoGroup?.cantidad ? String(jugoGroup.cantidad) : '',
     toppings:      (d.toppings ?? []).map(t => ({ nombre: t.nombre, precio: String(t.precio ?? 0) })),
+    gruposV2:      gruposDe(d),
     image_file:    null,
     image_preview: d.image_url ?? null,
   }
@@ -174,31 +179,16 @@ function parseTags(raw: string): string[] {
   return raw.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0)
 }
 
-const IMAGE_MIMES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-
 async function uploadDishImage(dishId: string, file: File): Promise<string | null> {
-  const ext = IMAGE_MIMES[file.type]
-  if (!ext) { message.error('Formato de imagen no permitido (usa JPG, PNG o WebP)'); return null }
-  if (file.size > MAX_IMAGE_BYTES) { message.error('La imagen debe pesar 5 MB o menos'); return null }
-  const { data: rid, error: ridErr } = await supabase.rpc('current_restaurant_id')
-  if (ridErr || !rid) { message.error('No se pudo subir la foto: no se identificó el restaurante'); return null }
-  // El 2º segmento del path debe ser el restaurant_id (política del bucket); sin upsert: cada subida es un archivo nuevo.
-  const path = `dishes/${rid}/${dishId}-${Date.now()}.${ext}`
+  const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `dishes/${dishId}.${ext}`
   const { error } = await supabase.storage
     .from('restaurant-assets')
-    .upload(path, file, { contentType: file.type })
+    .upload(path, file, { upsert: true, contentType: file.type })
   if (error) { message.error(`No se pudo subir la foto: ${error.message}`); return null }
   const { data: { publicUrl } } = supabase.storage
     .from('restaurant-assets').getPublicUrl(path)
-  return publicUrl
-}
-
-/** Guarda una clave de restaurant_config.modules_enabled de forma atómica (función admin de la base). */
-async function setModuleConfig(key: string, value: unknown): Promise<boolean> {
-  const { error } = await supabase.rpc('set_module_config', { p_key: key, p_value: value })
-  if (error) { message.error(`No se pudo guardar: ${error.message}`); return false }
-  return true
+  return publicUrl + `?v=${Date.now()}`
 }
 
 // ── Portal para el emoji picker (evita overflow-hidden) ──────
@@ -346,6 +336,8 @@ function ColorPortal({ anchorRef, onSelect, onClose }: ColorPortalProps) {
 }
 
 export const MenuManager = memo(() => {
+  const menuCfg = useMenuConfig()
+  const v2 = menuCfg.optionsV2   // opciones universales (interruptor por restaurante)
   const [dishes,      setDishes]      = useState<Dish[]>([])
   const [loading,     setLoading]     = useState(true)
   const [showForm,    setShowForm]    = useState(false)
@@ -395,15 +387,14 @@ export const MenuManager = memo(() => {
   const [reportedComments,setReportedComments]= useState<ReportedComment[]>([])
 
   const fetchDishes = useCallback(async () => {
-    const { data, error } = await supabase.from('dishes').select('*').order('category').order('sort_order').order('name')
-    if (error) message.error('No se pudo cargar el menú: ' + error.message)
-    else setDishes(data || [])
+    const { data } = await supabase.from('dishes').select('*').order('category').order('sort_order').order('name')
+    setDishes(data || [])
     setLoading(false)
   }, [])
 
   useEffect(() => {
     fetchDishes()
-    supabase.from('restaurant_config').select('display_name, modules_enabled').maybeSingle()
+    supabase.from('restaurant_config').select('display_name, modules_enabled').single()
       .then(({ data }) => {
         if (data?.display_name) setBizName(data.display_name)
         const modules = data?.modules_enabled as Record<string, unknown> | null
@@ -437,21 +428,14 @@ export const MenuManager = memo(() => {
         .select('id, cliente_nombre, texto, reportado_count, created_at, dishes(name)')
         .eq('estado', 'visible').gt('reportado_count', 0).order('reportado_count', { ascending: false }),
     ])
-    const rvErr = pendRes.error || reportedRes.error
-    if (rvErr) message.error('No se pudieron cargar las reseñas: ' + rvErr.message)
     setPendingReviews((pendRes.data as unknown as PendingResena[] | null) ?? [])
     setSocialOverview(((overviewRes.data as InteraccionRow[] | null) ?? []).filter(r => r.likes_count > 0 || r.dislikes_count > 0 || r.rating_count > 0 || r.comentarios_count > 0))
     setReportedComments((reportedRes.data as unknown as ReportedComment[] | null) ?? [])
     setLoadingReviews(false)
   }, [])
 
-  // Una sola carga al montar (para el contador del botón) y otra al abrir el panel; al cerrarlo no se recarga.
-  const reviewsLoadedRef = useRef(false)
-  useEffect(() => {
-    if (reviewsLoadedRef.current && !showReviews) return
-    reviewsLoadedRef.current = true
-    fetchReviews()
-  }, [showReviews, fetchReviews])
+  useEffect(() => { fetchReviews() }, [fetchReviews])
+  useEffect(() => { if (showReviews) fetchReviews() }, [showReviews, fetchReviews])
 
   const moderarResena = async (id: string, estado: 'aprobada' | 'rechazada') => {
     setModeratingId(id)
@@ -487,8 +471,7 @@ export const MenuManager = memo(() => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!IMAGE_MIMES[file.type]) { message.error('Formato no permitido: usa JPG, PNG o WebP'); e.target.value = ''; return }
-    if (file.size > MAX_IMAGE_BYTES) { message.error('La imagen debe pesar 5 MB o menos'); e.target.value = ''; return }
+    if (file.size > 4 * 1024 * 1024) { message.error('La imagen debe ser menor a 4MB'); return }
     const preview = URL.createObjectURL(file)
     setForm(p => ({ ...p, image_file: file, image_preview: preview }))
     e.target.value = ''
@@ -496,6 +479,10 @@ export const MenuManager = memo(() => {
 
   const handleSave = useCallback(async () => {
     if (!form.name.trim())    { setFormError('El nombre es requerido'); return }
+    if (v2) {
+      const problema = validarGrupos(form.gruposV2, menuCfg.listas)
+      if (problema) { setFormError(problema); return }
+    }
 
     // Precio: por tamaños (cada uno con su precio) o precio único
     let price = parseFloat(form.price)
@@ -524,21 +511,12 @@ export const MenuManager = memo(() => {
         available:           form.available,
         has_sizes:           form.has_sizes,
         sizes:               sizesPayload,
-        // Se conservan los grupos que este formulario no sabe armar (p. ej. cargados por voz o importación)
-        options:             [
-          ...buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
-          ...(editing?.options ?? []).filter(o =>
-            o.tipo !== 'helado' && o.tipo !== 'jugo' &&
-            !(o.tipo === 'opcion' && (o.opciones ?? []).some(c => c.helado))),
-        ],
+        options:             v2 ? form.gruposV2 : buildOptions(form.heladoCount, form.quesoHelado, form.quesoHeladoMulti, form.jugoCount),
         toppings:            form.toppings
           .map(t => ({ nombre: t.nombre.trim(), precio: Math.max(0, parseFloat(t.precio) || 0) }))
           .filter((t, i, arr) => t.nombre !== '' && arr.findIndex(x => x.nombre === t.nombre) === i),
+        availability_status: form.available ? 'available' : 'out_of_stock',
         updated_at:          new Date().toISOString(),
-      }
-      // Un plato descontinuado no se reactiva al editarlo
-      if (!(editing && editing.availability_status === 'discontinued')) {
-        payload.availability_status = form.available ? 'available' : 'out_of_stock'
       }
 
       let dishId: string
@@ -557,8 +535,7 @@ export const MenuManager = memo(() => {
       if (form.image_file) {
         const imgUrl = await uploadDishImage(dishId, form.image_file)
         if (imgUrl) {
-          const { error: imgErr } = await supabase.from('dishes').update({ image_url: imgUrl }).eq('id', dishId)
-          if (imgErr) message.error('El plato se guardó, pero no se pudo asociar la foto: ' + imgErr.message)
+          await supabase.from('dishes').update({ image_url: imgUrl }).eq('id', dishId)
         }
       }
 
@@ -570,7 +547,7 @@ export const MenuManager = memo(() => {
     } finally {
       setSaving(false)
     }
-  }, [form, editing, fetchDishes])
+  }, [form, editing, fetchDishes, v2, menuCfg.listas])
 
   const handleToggle = useCallback(async (d: Dish) => {
     const newAvail = !d.available
@@ -606,7 +583,14 @@ export const MenuManager = memo(() => {
     }
   }, [])
 
-  const persistCategories = (cats: Category[]) => setModuleConfig('categories', cats)
+  const persistCategories = async (cats: Category[]) => {
+    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
+    if (!cfg) return
+    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
+    await supabase.from('restaurant_config')
+      .update({ modules_enabled: { ...modules, categories: cats } })
+      .eq('id', cfg.id)
+  }
 
   const handleAddCategory = async () => {
     if (!newCatLabel.trim()) return
@@ -622,7 +606,7 @@ export const MenuManager = memo(() => {
     const newCat: Category = { value, label: newCatLabel.trim(), emoji: newCatEmoji, color: newCatColor }
     const updated = [...categories, newCat]
     setCategories(updated)
-    if (!(await persistCategories(updated))) { setCategories(categories); setSavingCat(false); return }
+    await persistCategories(updated)
     setNewCatLabel(''); setNewCatEmoji('🍽️'); setNewCatColor('#FF6B4A'); setSavingCat(false)
     message.success(`Categoría "${newCat.label}" creada`)
   }
@@ -643,7 +627,7 @@ export const MenuManager = memo(() => {
       }
       const updated = categories.filter(c => c.value !== value)
       setCategories(updated)
-      if (!(await persistCategories(updated))) { setCategories(categories); return }
+      await persistCategories(updated)
       message.success('Categoría eliminada')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al eliminar categoría'
@@ -658,18 +642,16 @@ export const MenuManager = memo(() => {
     if (to < 0 || to >= categories.length) return
     const updated = [...categories]
     ;[updated[index], updated[to]] = [updated[to], updated[index]]
-    const prev = categories
     setCategories(updated)
-    if (!(await persistCategories(updated))) setCategories(prev)
+    await persistCategories(updated)
   }
 
   // Guardar label de categoría
   const handleSaveCatLabel = async (catValue: string) => {
     if (!catLabel.trim()) return
     const updated = categories.map(c => c.value === catValue ? { ...c, label: catLabel.trim() } : c)
-    const prev = categories
     setCategories(updated)
-    if (!(await persistCategories(updated))) { setCategories(prev); return }
+    await persistCategories(updated)
     setEditingCat(null)
     message.success('Categoría actualizada')
   }
@@ -677,9 +659,8 @@ export const MenuManager = memo(() => {
   // Guardar emoji de categoría existente
   const handleSaveCatEmoji = async (catValue: string, emoji: string) => {
     const updated = categories.map(c => c.value === catValue ? { ...c, emoji } : c)
-    const prev = categories
     setCategories(updated)
-    if (!(await persistCategories(updated))) { setCategories(prev); return }
+    await persistCategories(updated)
     setEditEmojiForCat(null)
     message.success('Emoji actualizado')
   }
@@ -687,15 +668,21 @@ export const MenuManager = memo(() => {
   // Guardar color de categoría existente
   const handleSaveCatColor = async (catValue: string, color: string) => {
     const updated = categories.map(c => c.value === catValue ? { ...c, color } : c)
-    const prev = categories
     setCategories(updated)
-    if (!(await persistCategories(updated))) { setCategories(prev); return }
+    await persistCategories(updated)
     setEditColorForCat(null)
     message.success('Color actualizado')
   }
 
   // ── Sabores de helado (config.helado_flavors) ──────────────
-  const persistFlavors = (list: string[]) => setModuleConfig('helado_flavors', list)
+  const persistFlavors = async (list: string[]) => {
+    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
+    if (!cfg) return
+    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
+    await supabase.from('restaurant_config')
+      .update({ modules_enabled: { ...modules, helado_flavors: list } })
+      .eq('id', cfg.id)
+  }
 
   const handleAddFlavor = async () => {
     const name = newFlavor.trim()
@@ -705,19 +692,26 @@ export const MenuManager = memo(() => {
     }
     const updated = [...flavors, name]
     setFlavors(updated); setNewFlavor('')
-    if (!(await persistFlavors(updated))) { setFlavors(flavors); setNewFlavor(name); return }
+    await persistFlavors(updated)
     message.success(`Sabor "${name}" agregado`)
   }
 
   const handleDeleteFlavor = async (name: string) => {
     const updated = flavors.filter(f => f !== name)
     setFlavors(updated)
-    if (!(await persistFlavors(updated))) { setFlavors(flavors); return }
+    await persistFlavors(updated)
     message.success('Sabor eliminado')
   }
 
   // ── Sabores de jugos (config.jugo_flavors) ──────────────────
-  const persistJugoFlavors = (list: string[]) => setModuleConfig('jugo_flavors', list)
+  const persistJugoFlavors = async (list: string[]) => {
+    const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').single()
+    if (!cfg) return
+    const modules = (cfg.modules_enabled as Record<string, unknown>) ?? {}
+    await supabase.from('restaurant_config')
+      .update({ modules_enabled: { ...modules, jugo_flavors: list } })
+      .eq('id', cfg.id)
+  }
 
   const handleAddJugoFlavor = async () => {
     const name = newJugoFlavor.trim()
@@ -727,14 +721,14 @@ export const MenuManager = memo(() => {
     }
     const updated = [...jugoFlavors, name]
     setJugoFlavors(updated); setNewJugoFlavor('')
-    if (!(await persistJugoFlavors(updated))) { setJugoFlavors(jugoFlavors); setNewJugoFlavor(name); return }
+    await persistJugoFlavors(updated)
     message.success(`Sabor "${name}" agregado`)
   }
 
   const handleDeleteJugoFlavor = async (name: string) => {
     const updated = jugoFlavors.filter(f => f !== name)
     setJugoFlavors(updated)
-    if (!(await persistJugoFlavors(updated))) { setJugoFlavors(jugoFlavors); return }
+    await persistJugoFlavors(updated)
     message.success('Sabor eliminado')
   }
 
@@ -742,49 +736,31 @@ export const MenuManager = memo(() => {
     if (!bizName.trim()) return
     setSavingName(true)
     try {
-      const { data: cfg, error: cfgErr } = await supabase.from('restaurant_config').select('id').maybeSingle()
-      if (cfgErr) throw cfgErr
-      if (!cfg) throw new Error('No hay configuración del restaurante')
-      const { error } = await supabase.from('restaurant_config').update({ display_name: bizName.trim() }).eq('id', cfg.id)
-      if (error) throw error
+      const { data: cfg } = await supabase.from('restaurant_config').select('id').single()
+      if (cfg) {
+        await supabase.from('restaurant_config').update({ display_name: bizName.trim() }).eq('id', cfg.id)
+      }
       message.success('Nombre actualizado')
-    } catch (e) {
-      message.error('Error al guardar nombre' + (e instanceof Error && e.message ? `: ${e.message}` : ''))
-    } finally { setSavingName(false) }
+    } catch { message.error('Error al guardar nombre') }
+    finally { setSavingName(false) }
   }
 
   const handleSaveTables = async () => {
     const n = parseInt(tableCount)
     if (isNaN(n) || n < 1) { message.error('Ingresa un número válido'); return }
-    if (n > 100) { message.error('El máximo es 100 mesas'); return }
     setSavingTables(true)
     try {
-      const { data: existing, error: exErr } = await supabase.from('mesas').select('numero').order('numero')
-      if (exErr) throw exErr
+      const { data: existing } = await supabase.from('mesas').select('numero').order('numero')
       const existingNums  = (existing || []).map((m: { numero: number }) => m.numero)
       const toInsert      = Array.from({ length: n }, (_, i) => i + 1)
         .filter(x => !existingNums.includes(x))
         .map(numero => ({ numero, capacidad: 4, estado: 'libre', zona: 'principal', activa: true }))
-      if (toInsert.length > 0) {
-        const { error } = await supabase.from('mesas').insert(toInsert)
-        if (error) throw error
-      }
-      // Al subir el número se reactivan las mesas que habían sido desactivadas antes
-      const toEnable = existingNums.filter(x => x <= n)
-      if (toEnable.length > 0) {
-        const { error } = await supabase.from('mesas').update({ activa: true }).in('numero', toEnable)
-        if (error) throw error
-      }
+      if (toInsert.length > 0) await supabase.from('mesas').insert(toInsert)
       const toDisable = existingNums.filter(x => x > n)
-      if (toDisable.length > 0) {
-        const { error } = await supabase.from('mesas').update({ activa: false }).in('numero', toDisable)
-        if (error) throw error
-      }
-      if (!(await setModuleConfig('table_count', n))) return
+      if (toDisable.length > 0) await supabase.from('mesas').update({ activa: false }).in('numero', toDisable)
       message.success(`Mesas actualizadas (${n} mesas activas)`)
-    } catch (e) {
-      message.error('Error al actualizar mesas' + (e instanceof Error && e.message ? `: ${e.message}` : ''))
-    } finally { setSavingTables(false) }
+    } catch { message.error('Error al actualizar mesas') }
+    finally { setSavingTables(false) }
   }
 
   const filtered = dishes.filter(d => {
@@ -1047,6 +1023,15 @@ export const MenuManager = memo(() => {
                 </div>
               </div>
 
+              {v2 && (
+                <div className="rounded-xl p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: txtLt }}>Sabores y opciones</p>
+                  <p className="text-xs" style={{ color: txt }}>
+                    Tus sabores, leches, salsas y demás opciones ahora se administran en <strong>Listas y opciones</strong> (menú de la izquierda). Los cambios que hagas ahí valen para todos los platos que usan cada lista.
+                  </p>
+                </div>
+              )}
+              {!v2 && (<>
               {/* Sabores de helado */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
@@ -1132,6 +1117,7 @@ export const MenuManager = memo(() => {
                   </div>
                 </div>
               </div>
+              </>)}
             </div>
           </motion.div>
         )}
@@ -1445,6 +1431,13 @@ export const MenuManager = memo(() => {
                       Los sabores de helado y de jugos se gestionan en ⚙️ Ajustes → “Sabores de helado” / “Sabores de jugos”.
                     </p>
 
+                    {v2 && (
+                      <div className="mb-3">
+                        <DishGroupsEditor groups={form.gruposV2} onChange={g => setForm(p => ({ ...p, gruposV2: g }))}
+                          listas={menuCfg.listas} listaNombres={menuCfg.listaNombres} theme={{ bg, bgSurf, acc, txt, txtLt }} />
+                      </div>
+                    )}
+                    {!v2 && (<>
                     {/* Opción Queso / Helado */}
                     <label className="flex items-center gap-3 cursor-pointer mb-3">
                       <div className="relative w-11 h-6 rounded-full transition-colors shrink-0"
@@ -1493,6 +1486,7 @@ export const MenuManager = memo(() => {
                           style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                       </div>
                     )}
+                    </>)}
 
                     {/* Toppings opcionales del plato (el cliente marca los que quiera) */}
                     <div className="mt-3 mb-3 rounded-2xl p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
@@ -1527,6 +1521,7 @@ export const MenuManager = memo(() => {
                     </div>
 
                     {/* Sabores de jugo a elegir (ej: jugos naturales) */}
+                    {!v2 && (
                     <div className="flex items-center gap-3 mt-3">
                       <div className="flex-1">
                         <span className="text-sm font-medium" style={{ color: txt }}>Sabores de jugo a elegir</span>
@@ -1540,6 +1535,7 @@ export const MenuManager = memo(() => {
                         className="w-20 rounded-xl px-3 py-2 text-sm outline-none text-center shrink-0"
                         style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                     </div>
+                    )}
                   </div>
                 </div>
               </div>

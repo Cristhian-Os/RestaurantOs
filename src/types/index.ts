@@ -41,6 +41,35 @@ export interface DishOptionGroup {
   multiple?: boolean             // tipo 'opcion': permite elegir más de una (ej: queso Y helado)
 }
 
+// ─── Opciones universales (Anexo B, modelo v2) ───────────────
+// Un ítem de una lista de opciones. `sub` es una sub-elección que dispara el ítem
+// (ej. "Con helado" pide 1 sabor de la lista sabores_helado): cubre el caso heredado.
+export interface OptionItem {
+  label:             string
+  activo?:           boolean            // false = agotado (reemplaza a las listas *_off)
+  precio_extra?:     number
+  ingrediente_id?:   string | null      // descuenta inventario al venderlo
+  cantidad_consumo?: number | null
+  sub?:              { lista: string; cantidad: number }
+}
+export interface OptionList {
+  key:         string
+  nombre:      string
+  items:       OptionItem[]
+  sort_order?: number
+}
+export type OptionSource = { lista: string } | { items: OptionItem[] }
+export interface OptionGroupV2 {
+  v:         2
+  id:        string
+  nombre:    string
+  modo:      'single' | 'multi'
+  min:       number
+  max:       number | 'cantidad'
+  requerido: boolean
+  fuente:    OptionSource
+}
+
 // Topping opcional del plato (el servidor recalcula su precio por nombre)
 export interface DishTopping {
   nombre: string
@@ -55,6 +84,7 @@ export interface ItemSel {
   helado?:      Record<string, string[]>  // sabores elegidos por grupo (helado/jugo o submenú de 'opcion')
   opcion?:      Record<string, string>    // grupos 'opcion' de una sola elección
   opcionMulti?: Record<string, string[]>  // grupos 'opcion' con multiple:true
+  grupos?:      Record<string, string[]>  // modelo v2: ítems elegidos por id de grupo ("<grupo>>"+ítem = sub-elección)
   extras?:      string[]
   toppings?:    string[]
   swaps?:       string[]                  // cambios por ingrediente agotado (ingrediente_id)
@@ -112,15 +142,12 @@ export interface TaskEvidence {
   uploader?:    { full_name: string | null }
 }
 
-export type Role = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-
 export interface Profile {
   id:          string
-  role:        Role
+  role:        'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
   full_name:   string | null
   email?:      string
   phone?:      string | null
   avatar_url?: string | null
   active?:     boolean
-  must_change_password?: boolean
 }
