@@ -33,12 +33,12 @@ La última copia es del 19 de octubre. Recomiendo una nueva (hay más pedidos y 
 
 | # | Archivo | Qué hace | Reversa |
 |---|---|---|---|
-| 1 | `20261021200000_planes_sin_prueba` | Actualiza 3 filas de `planes` | `rollback/…200000_*_down.sql` |
-| 2 | `20261021210000_multi_sede` | Tablas `cuentas`, `sede_cargos`; columnas `restaurants.cuenta_id`, `planes.max_sedes`; `mis_sedes`, `cambiar_sede`, `crear_sede` | `rollback/…210000_*_down.sql` |
-| 3 | `20261021220000_tope_mesas_plan` | Disparador `mesas_limite_plan` (**después de la 1**) | `rollback/…220000_*_down.sql` |
-| 4 | `20261021230000_leads_landing` | Tabla `leads` (RLS sin políticas) y `registrar_lead`, `plataforma_leads`, `plataforma_marcar_lead` | `rollback/…230000_*_down.sql` (borra los leads: exportar antes si ya hay) |
-| 5 | `20261021240000_mascota_menu` | Columna `restaurant_config.mascota_url` | `rollback/…240000_*_down.sql` |
-| 6 | `20261021250000_interruptor_resti` | `plataforma_activar_resti`, `plataforma_resti_estado` | `rollback/…250000_*_down.sql` |
+| 1 | `20261022004511_planes_sin_prueba` | Actualiza 3 filas de `planes` | `rollback/…200000_*_down.sql` |
+| 2 | `20261022004544_multi_sede` | Tablas `cuentas`, `sede_cargos`; columnas `restaurants.cuenta_id`, `planes.max_sedes`; `mis_sedes`, `cambiar_sede`, `crear_sede` | `rollback/…210000_*_down.sql` |
+| 3 | `20261022004625_tope_mesas_plan` | Disparador `mesas_limite_plan` (**después de la 1**) | `rollback/…220000_*_down.sql` |
+| 4 | `20261022004702_leads_landing` | Tabla `leads` (RLS sin políticas) y `registrar_lead`, `plataforma_leads`, `plataforma_marcar_lead` | `rollback/…230000_*_down.sql` (borra los leads: exportar antes si ya hay) |
+| 5 | `20261022004709_mascota_menu` | Columna `restaurant_config.mascota_url` | `rollback/…240000_*_down.sql` |
+| 6 | `20261022004716_interruptor_resti` | `plataforma_activar_resti`, `plataforma_resti_estado` | `rollback/…250000_*_down.sql` |
 
 Al aplicar, Supabase asigna su propia versión: renombro cada archivo del repo a la versión real (como en los bloques anteriores).
 Después de cada una corro su **prueba revertida** (se deshace sola, no deja datos): `tests/multi_sede_aislamiento.sql` (2), `tests/tope_mesas_plan.sql` (3), `tests/leads_landing.sql` (4), `tests/interruptor_resti.sql` (6). Para la 1 y la 5 compruebo los valores leyendo.

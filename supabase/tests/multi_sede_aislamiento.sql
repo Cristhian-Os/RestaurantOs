@@ -1,4 +1,4 @@
--- Prueba del Módulo G (multi-sede), migración 20261021210000. SOLO para un proyecto de PRUEBA.
+-- Prueba del Módulo G (multi-sede), migración 20261022004544. SOLO para un proyecto de PRUEBA.
 -- Comprueba: (1) el dueño ve la sede 1 y la 2; (2) el administrador de la sede 2 no ve la sede 1 ni puede cambiar o crear
 -- sedes; (3) el dueño de la cuenta A no ve ni cambia a sedes de la cuenta B; (4) un plan Pro no crea una segunda sede;
 -- (5) Premium no crea la sede 3 sin registrar el cobro adicional; (6) al cambiar de sede los datos de la otra dejan de verse;

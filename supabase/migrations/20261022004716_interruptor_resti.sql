@@ -1,6 +1,6 @@
 -- Interruptor de Resti por restaurante (Módulo B6): solo el dueño de la plataforma, con su código de 2 pasos.
 -- Cambia únicamente la clave resti_agent dentro de restaurant_config.modules_enabled (el resto del jsonb no se toca) y queda en el registro.
--- Resti sigue APAGADO por defecto: esta migración no enciende nada. Aditiva (2 funciones). Reversa: supabase/rollback/20261021250000_interruptor_resti_down.sql
+-- Resti sigue APAGADO por defecto: esta migración no enciende nada. Aditiva (2 funciones). Reversa: supabase/rollback/20261022004716_interruptor_resti_down.sql
 
 CREATE OR REPLACE FUNCTION public.plataforma_resti_estado()
  RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public'

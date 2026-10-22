@@ -2,7 +2,7 @@
 -- Hoy crear_mesas acepta hasta 100 y "+ Agregar mesa" inserta directo en la tabla: un trigger en mesas cubre los dos caminos.
 -- El límite sale de planes.max_mesas (NULL = sin tope) según la suscripción del restaurante. No toca mesas ya creadas:
 -- un restaurante que hoy supera el tope sigue como está, solo no puede agregar más.
--- Aditiva: función nueva + trigger. Reversa: supabase/rollback/20261021220000_tope_mesas_plan_down.sql
+-- Aditiva: función nueva + trigger. Reversa: supabase/rollback/20261022004625_tope_mesas_plan_down.sql
 
 CREATE OR REPLACE FUNCTION public._limite_mesas_plan()
  RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'

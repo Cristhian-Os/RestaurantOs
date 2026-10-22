@@ -1,4 +1,4 @@
--- Prueba del interruptor de Resti (migración 20261021250000). SOLO para un proyecto de PRUEBA (o producción: se revierte sola).
+-- Prueba del interruptor de Resti (migración 20261022004716). SOLO para un proyecto de PRUEBA (o producción: se revierte sola).
 -- Comprueba: solo el dueño con 2 pasos lo mueve; cambia solo resti_agent y conserva el resto del jsonb; queda en el registro;
 -- un administrador de restaurante y un dueño sin 2 pasos no pueden. Termina con RAISE EXCEPTION a propósito: todo se revierte.
 DO $$

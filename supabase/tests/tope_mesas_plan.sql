@@ -1,4 +1,4 @@
--- Prueba del tope de mesas por plan (migración 20261021220000). SOLO para un proyecto de PRUEBA.
+-- Prueba del tope de mesas por plan (migración 20261022004625). SOLO para un proyecto de PRUEBA.
 -- Comprueba: crear_mesas hasta el tope funciona y es repetible; una mesa más se rechaza (por crear_mesas y por INSERT directo);
 -- un plan sin tope (Pro) crea más del tope de Esencial; un restaurante ajeno no se afecta.
 -- Termina con RAISE EXCEPTION a propósito: todo se revierte.

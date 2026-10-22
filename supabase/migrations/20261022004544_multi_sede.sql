@@ -4,7 +4,7 @@
 -- que el usuario posee; el trigger prevent_self_role_escalation sigue impidiendo cambiarla por UPDATE directo.
 -- Aditiva: tablas nuevas, una columna nueva en restaurants y otra en planes. No toca filas existentes.
 -- Premium sigue NO disponible (planes.disponible = false) hasta que este módulo esté en producción y probado.
--- Reversa: supabase/rollback/20261021210000_multi_sede_down.sql
+-- Reversa: supabase/rollback/20261022004544_multi_sede_down.sql
 
 CREATE TABLE IF NOT EXISTS public.cuentas (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),

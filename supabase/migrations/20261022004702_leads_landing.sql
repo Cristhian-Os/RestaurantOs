@@ -2,7 +2,7 @@
 -- * leads: RLS activa y SIN políticas: nadie la toca directo. Se inserta solo con registrar_lead (la ejecuta únicamente la
 --   Edge Function con service_role) y se lee solo con plataforma_leads (dueño de la plataforma con 2 pasos, aal2).
 -- * registrar_lead: un mismo WhatsApp en 24 h actualiza el lead en vez de duplicarlo; límite por IP (hash) dentro de la función.
--- Aditiva: tabla y funciones nuevas. Reversa: supabase/rollback/20261021230000_leads_landing_down.sql
+-- Aditiva: tabla y funciones nuevas. Reversa: supabase/rollback/20261022004702_leads_landing_down.sql
 
 CREATE TABLE IF NOT EXISTS public.leads (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),

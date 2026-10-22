@@ -1,4 +1,4 @@
--- Prueba de leads de la landing (migración 20261021230000). SOLO para un proyecto de PRUEBA.
+-- Prueba de leads de la landing (migración 20261022004702). SOLO para un proyecto de PRUEBA.
 -- Comprueba: anon no lee ni inserta leads ni ejecuta registrar_lead; un administrador de restaurante no los lee;
 -- registrar_lead (service_role) crea y deduplica por WhatsApp en 24 h y valida datos; el dueño con 2 pasos los lee sin la IP;
 -- el límite por IP corta el abuso. Termina con RAISE EXCEPTION a propósito: todo se revierte.

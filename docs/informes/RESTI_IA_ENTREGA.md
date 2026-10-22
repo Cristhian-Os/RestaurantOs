@@ -20,7 +20,7 @@ Rama: `feature/resti-ia` (un commit por módulo). **Nada de esto está aplicado 
 ## Orden para llevarlo a producción (necesita copia manual y el "apruebo" del dueño)
 
 1. Copia manual de la base (`Backups-RestaurantOS`).
-2. Migraciones, en este orden: `20261021200000_planes_sin_prueba` (A) → `20261021210000_multi_sede` (G) → `20261021220000_tope_mesas_plan` (C) → `20261021230000_leads_landing` (D) → `20261021240000_mascota_menu` (E). Cada una tiene su reversa en `supabase/rollback/`. **La de planes (A) debe ir antes que la de mesas (C)**: si no, Esencial queda con tope 15 en vez de 22. Al aplicar, renombrar el archivo a la versión real que asigne Supabase.
+2. Migraciones, en este orden: `20261022004511_planes_sin_prueba` (A) → `20261022004544_multi_sede` (G) → `20261022004625_tope_mesas_plan` (C) → `20261022004702_leads_landing` (D) → `20261022004709_mascota_menu` (E). Cada una tiene su reversa en `supabase/rollback/`. **La de planes (A) debe ir antes que la de mesas (C)**: si no, Esencial queda con tope 15 en vez de 22. Al aplicar, renombrar el archivo a la versión real que asigne Supabase.
 3. Publicar la app (en este proyecto Vercel no despliega solo: despliegue manual).
 4. Desplegar las Edge Functions: `chat-support` (modos landing y soporte), `resti-brain` (nueva), `menu-asistente` (nueva).
 5. Premium sigue marcado "no disponible" hasta que multi-sede pase a producción y se pruebe con Cholaos Dany (fecha de entrega comprometida: 15 de noviembre de 2026).

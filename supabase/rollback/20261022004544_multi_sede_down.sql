@@ -1,4 +1,4 @@
--- Reversa de 20261021210000_multi_sede.
+-- Reversa de 20261022004544_multi_sede.
 -- Antes de borrar el vínculo, devuelve a cada dueño a su sede principal (la más antigua de su cuenta) para que no
 -- quede apuntando a una sede que ya no tiene cómo cambiar. Las sedes creadas NO se borran (son restaurantes con datos).
 UPDATE public.profiles p SET restaurant_id = s.principal
