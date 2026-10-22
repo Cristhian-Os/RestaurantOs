@@ -5,7 +5,7 @@
  * hero (useScroll), reveals al hacer scroll (ScrollReveal) y un
  * selector de mesas en el plan Emprende.
  */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion, useScroll, useTransform, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { ScrollReveal, ScrollRevealList, ScrollRevealItem } from '../components/ScrollReveal'
 import { PLANS, type PlanTexto } from '../config/plans'
@@ -44,48 +44,39 @@ function Hero() {
   const opacity = useTransform(scrollYProgress, [0, 0.8], [1, reduce ? 1 : 0])
 
   return (
-    <section ref={ref} style={{
-      position: 'relative', minHeight: '92vh', display: 'flex',
-      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-      padding: '6rem 1.5rem 4rem', textAlign: 'center',
-    }}>
-      {/* Blobs decorativos con parallax */}
+    <section ref={ref} className="landing-hero">
+      {/* Blobs decorativos con parallax (el contenedor los desvanece abajo para evitar un corte duro) */}
+      <div className="landing-hero-bg" aria-hidden="true">
       <motion.div style={{
-        position: 'absolute', top: '-8%', left: '-10%', width: 420, height: 420,
+        position: 'absolute', top: '-8%', left: '-10%', width: 'min(420px, 90vw)', height: 'min(420px, 90vw)',
         borderRadius: '50%', y: yBlob1, filter: 'blur(70px)', zIndex: 0,
         background: 'radial-gradient(circle, color-mix(in oklch, var(--w-terra) 40%, transparent), transparent 70%)',
       }} />
       <motion.div style={{
-        position: 'absolute', bottom: '-12%', right: '-8%', width: 480, height: 480,
+        position: 'absolute', bottom: '-12%', right: '-8%', width: 'min(480px, 100vw)', height: 'min(480px, 100vw)',
         borderRadius: '50%', y: yBlob2, filter: 'blur(80px)', zIndex: 0,
         background: 'radial-gradient(circle, color-mix(in oklch, var(--w-saffron) 45%, transparent), transparent 70%)',
       }} />
+      </div>
 
-      <motion.div style={{ position: 'relative', zIndex: 1, maxWidth: 780, y: yText, opacity }}>
+      <motion.div className="landing-hero-inner" style={{ y: yText, opacity }}>
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-          <span className="lg" style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.4rem 0.9rem', borderRadius: '2rem', fontSize: '0.8rem',
-            fontWeight: 600, color: 'var(--w-terra)', marginBottom: '1.5rem',
-            fontFamily: 'var(--w-sans)',
-          }}>
+          <span className="lg landing-badge">
             ✦ Instalación acompañada — activamos tu restaurante
           </span>
         </motion.div>
 
-        <motion.h1 className="ed-display"
+        <motion.h1 className="ed-display landing-hero-title"
           initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-          style={{ fontSize: 'clamp(2.6rem, 7vw, 4.75rem)', fontWeight: 600, lineHeight: 1.02, margin: 0, letterSpacing: '-0.02em' }}>
-          El sistema que tu<br />restaurante merece
+          transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}>
+          El sistema que tu<br className="landing-br" /> restaurante merece
         </motion.h1>
 
-        <motion.p className="ed-body"
+        <motion.p className="ed-body landing-hero-sub"
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
-          style={{ fontSize: 'clamp(1rem, 2.5vw, 1.2rem)', color: 'var(--w-ink-mut)', maxWidth: 560, margin: '1.25rem auto 2.25rem', lineHeight: 1.6 }}>
+          transition={{ duration: 0.7, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}>
           Pedidos, mesas, inventario, cocina y caja en un solo lugar.
           Moderno, rápido y hecho para el día a día de tu negocio.
         </motion.p>
@@ -93,7 +84,7 @@ function Hero() {
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.28 }}
-          style={{ display: 'flex', gap: '0.875rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          className="landing-cta-row">
           <button onClick={() => go('/registro')} className="lg-accent w-press"
             style={{ padding: '1rem 1.75rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}>
             Solicitar acceso
@@ -117,7 +108,7 @@ const STEPS = [
 
 function HowItWorks() {
   return (
-    <section style={{ padding: '5rem 1.5rem', maxWidth: 1100, margin: '0 auto' }}>
+    <section className="landing-section">
       <ScrollReveal>
         <p className="ed-kicker" style={{ textAlign: 'center', color: 'var(--w-terra)', marginBottom: '0.75rem' }}>Simple de verdad</p>
         <h2 className="ed-display" style={{ textAlign: 'center', fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 600, margin: '0 0 3.5rem' }}>
@@ -127,7 +118,7 @@ function HowItWorks() {
       <ScrollRevealList stagger={0.12} className="landing-steps">
         {STEPS.map(s => (
           <ScrollRevealItem key={s.n}>
-            <div className="lg" style={{ padding: '2rem', borderRadius: '1.5rem', height: '100%' }}>
+            <div className="lg" style={{ padding: 'clamp(1.25rem, 4vw, 2rem)', borderRadius: '1.5rem', height: '100%' }}>
               <div className="ed-display" style={{ fontSize: '2.75rem', color: 'var(--w-terra)', fontWeight: 600, lineHeight: 1, marginBottom: '1rem' }}>{s.n}</div>
               <h3 className="ed-display" style={{ fontSize: '1.375rem', fontWeight: 600, margin: '0 0 0.5rem' }}>{s.t}</h3>
               <p className="ed-body" style={{ fontSize: '0.9375rem', color: 'var(--w-ink-mut)', lineHeight: 1.6, margin: 0 }}>{s.d}</p>
@@ -151,8 +142,8 @@ const FEATURES = [
 
 function Features() {
   return (
-    <section style={{ padding: '5rem 1.5rem', background: 'color-mix(in oklch, var(--w-terra) 5%, var(--w-bg))' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+    <section style={{ background: 'color-mix(in oklch, var(--w-terra) 5%, var(--w-bg))' }}>
+      <div className="landing-section">
         <ScrollReveal>
           <p className="ed-kicker" style={{ textAlign: 'center', color: 'var(--w-terra)', marginBottom: '0.75rem' }}>Todo lo que necesitas</p>
           <h2 className="ed-display" style={{ textAlign: 'center', fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 600, margin: '0 0 3.5rem' }}>
@@ -183,8 +174,8 @@ function PlanCard({ plan, db }: { plan: PlanTexto; db: PlanDB | null }) {
 
   return (
     <div className="lg" style={{
-      padding: '2rem', borderRadius: '1.75rem', height: '100%',
-      display: 'flex', flexDirection: 'column',
+      padding: 'clamp(1.5rem, 4vw, 2rem)', borderRadius: '1.75rem', height: '100%',
+      display: 'flex', flexDirection: 'column', overflow: 'visible',
       border: plan.featured ? '2px solid var(--w-terra)' : '1px solid var(--w-line)',
       position: 'relative',
     }}>
@@ -203,7 +194,7 @@ function PlanCard({ plan, db }: { plan: PlanTexto; db: PlanDB | null }) {
 
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem 0.5rem', flexWrap: 'wrap' }}>
-          <span className="ed-display" style={{ fontSize: '3rem', fontWeight: 600, lineHeight: 1 }}>{db ? fmtCOP(db.mensual.base_cop) : '…'}</span>
+          <span className="ed-display" style={{ fontSize: 'clamp(2.25rem, 8vw, 3rem)', fontWeight: 600, lineHeight: 1 }}>{db ? fmtCOP(db.mensual.base_cop) : '…'}</span>
           <span className="ed-body" style={{ fontSize: '0.9rem', color: 'var(--w-ink-mut)', whiteSpace: 'nowrap' }}>+ IVA / mes</span>
         </div>
         {db && (
@@ -240,7 +231,7 @@ function PlanCard({ plan, db }: { plan: PlanTexto; db: PlanDB | null }) {
 function Plans() {
   const { planes } = usePlanes()
   return (
-    <section id="planes" style={{ padding: '5rem 1.5rem', maxWidth: 1150, margin: '0 auto', scrollMarginTop: '5rem' }}>
+    <section id="planes" className="landing-section landing-section--wide">
       <ScrollReveal>
         <p className="ed-kicker" style={{ textAlign: 'center', color: 'var(--w-terra)', marginBottom: '0.75rem' }}>Planes claros, sin sorpresas</p>
         <h2 className="ed-display" style={{ textAlign: 'center', fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 600, margin: '0 0 0.75rem' }}>
@@ -264,17 +255,17 @@ function Plans() {
 /* ═══════════════════ RESEÑAS ═══════════════════ */
 function Testimonials() {
   return (
-    <section style={{ padding: '5rem 1.5rem', maxWidth: 1100, margin: '0 auto' }}>
+    <section className="landing-section">
       <ScrollReveal>
         <p className="ed-kicker" style={{ textAlign: 'center', color: 'var(--w-terra)', marginBottom: '0.75rem' }}>Lo que dicen los restaurantes</p>
         <h2 className="ed-display" style={{ textAlign: 'center', fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 600, margin: '0 0 3.5rem' }}>
           Historias que saben bien
         </h2>
       </ScrollReveal>
-      <ScrollRevealList stagger={0.1} className="landing-features">
+      <ScrollRevealList stagger={0.1} className="landing-features landing-testimonials">
         {TESTIMONIALS.map(t => (
           <ScrollRevealItem key={t.name}>
-            <div className="lg" style={{ padding: '2rem', borderRadius: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div className="lg" style={{ padding: 'clamp(1.25rem, 4vw, 2rem)', borderRadius: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
               <div style={{ color: 'var(--w-saffron)', fontSize: '1.1rem', marginBottom: '0.875rem', letterSpacing: '0.1em' }}>★★★★★</div>
               <p className="ed-body" style={{ fontSize: '1rem', color: 'var(--w-ink)', lineHeight: 1.6, margin: '0 0 1.5rem', flex: 1, fontStyle: 'italic' }}>
                 «{t.quote}»
@@ -319,7 +310,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 function Faqs() {
   return (
-    <section style={{ padding: '5rem 1.5rem', maxWidth: 760, margin: '0 auto' }}>
+    <section className="landing-section landing-section--narrow">
       <ScrollReveal>
         <p className="ed-kicker" style={{ textAlign: 'center', color: 'var(--w-terra)', marginBottom: '0.75rem' }}>¿Dudas?</p>
         <h2 className="ed-display" style={{ textAlign: 'center', fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 600, margin: '0 0 3rem' }}>
@@ -336,10 +327,10 @@ function Faqs() {
 /* ═══════════════════ CTA FINAL ═══════════════════ */
 function ActivaCTA() {
   return (
-    <section style={{ padding: '2rem 1.5rem 6rem' }}>
+    <section style={{ padding: '2rem 1.25rem 6rem' }}>
       <ScrollReveal y={32}>
-        <div className="lg" style={{
-          maxWidth: 900, margin: '0 auto', padding: 'clamp(2.5rem, 6vw, 4.5rem) 2rem',
+        <div className="lg landing-cta-box" style={{
+          padding: 'clamp(2.25rem, 6vw, 4.5rem) clamp(1.25rem, 4vw, 2rem)',
           borderRadius: '2rem', textAlign: 'center',
           background: 'linear-gradient(135deg, color-mix(in oklch, var(--w-terra) 12%, var(--w-surface)), color-mix(in oklch, var(--w-saffron) 12%, var(--w-surface)))',
         }}>
@@ -359,39 +350,76 @@ function ActivaCTA() {
   )
 }
 
-/* ═══════════════════ LANDING ═══════════════════ */
-export default function Landing() {
+/* ═══════════════════ HEADER (escritorio + menú móvil) ═══════════════════ */
+const navBtn: CSSProperties = {
+  padding: '0.6rem 1rem', border: 'none',
+  fontFamily: 'var(--w-sans)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+}
+// Botones "fantasma" (texto); los de acento conservan el degradado de .lg-accent
+const navGhost: CSSProperties = { ...navBtn, background: 'transparent' }
+
+function Header() {
+  const [open, setOpen] = useState(false)
+  const close = (fn: () => void) => () => { setOpen(false); fn() }
+
   return (
-    <div style={{ background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', minHeight: '100vh' }}>
-      {/* Header */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 50, display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', padding: '0.875rem 1.5rem',
-        backdropFilter: 'blur(12px)', background: 'color-mix(in oklch, var(--w-bg) 78%, transparent)',
-        borderBottom: '1px solid var(--w-line)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-          <div style={{ width: 36, height: 36, borderRadius: '0.625rem', overflow: 'hidden', border: '1px solid var(--w-line)' }}>
+    <header className="landing-header">
+      <div className="landing-header-inner">
+        <div className="landing-brand">
+          <div className="landing-brand-logo">
             <img src="/logo.jpg" alt="RestaurantOS" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
           </div>
-          <span className="ed-display" style={{ fontSize: '1.25rem', fontWeight: 600 }}>RestaurantOS</span>
+          <span className="ed-display landing-brand-name">RestaurantOS</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button onClick={enterDemo} className="w-press"
-            style={{ padding: '0.6rem 1rem', border: 'none', background: 'transparent', color: 'var(--w-terra)', fontFamily: 'var(--w-sans)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-            Ver demo
-          </button>
-          <button onClick={() => go('/login')} className="w-press"
-            style={{ padding: '0.6rem 1rem', border: 'none', background: 'transparent', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-            Iniciar sesión
-          </button>
-          <button onClick={() => go('/registro')} className="lg-accent w-press"
-            style={{ padding: '0.6rem 1.1rem', border: 'none', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+
+        {/* ≥768px: acciones en línea */}
+        <nav className="landing-nav-desktop" aria-label="Principal">
+          <button onClick={enterDemo} className="w-press" style={{ ...navGhost, color: 'var(--w-terra)' }}>Ver demo</button>
+          <button onClick={() => go('/login')} className="w-press" style={{ ...navGhost, color: 'var(--w-ink)' }}>Iniciar sesión</button>
+          <button onClick={() => go('/registro')} className="lg-accent w-press" style={{ ...navBtn, padding: '0.6rem 1.1rem', fontWeight: 700 }}>Solicitar acceso</button>
+        </nav>
+
+        {/* <768px: CTA compacto (≥480px) + botón de menú */}
+        <div className="landing-nav-mobile">
+          <button onClick={() => go('/registro')} className="lg-accent w-press landing-nav-cta"
+            style={{ ...navBtn, padding: '0.65rem 1rem', fontWeight: 700, minHeight: 44, alignItems: 'center', whiteSpace: 'nowrap' }}>
             Solicitar acceso
           </button>
+          <button type="button" className="landing-menu-btn w-press" aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
+            aria-expanded={open} aria-controls="landing-menu" onClick={() => setOpen(o => !o)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 22, height: 22 }} aria-hidden="true">
+              {open
+                ? <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+                : <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />}
+            </svg>
+          </button>
         </div>
-      </header>
+      </div>
+
+      {open && (
+        <div id="landing-menu" className="landing-menu">
+          <button className="landing-menu-item landing-menu-item--accent" onClick={close(enterDemo)}>Ver demo</button>
+          <button className="landing-menu-item" onClick={close(() => go('/login'))}>Iniciar sesión</button>
+          <button className="lg-accent landing-menu-cta" onClick={close(() => go('/registro'))}>Solicitar acceso</button>
+        </div>
+      )}
+    </header>
+  )
+}
+
+/* ═══════════════════ LANDING ═══════════════════ */
+export default function Landing() {
+  // Escala tipográfica para PC/TV: solo mientras la landing está visible
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.add('landing-active')
+    return () => root.classList.remove('landing-active')
+  }, [])
+
+  return (
+    <div style={{ background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', minHeight: '100vh', overflowX: 'clip' }}>
+      <Header />
 
       <Hero />
       <HowItWorks />

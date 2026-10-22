@@ -102,7 +102,14 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
     try { visto = sessionStorage.getItem(GLOBO_VISTO) === '1' } catch { /* sin almacenamiento: se muestra una vez por carga */ }
     if (visto) return
     const mostrar = () => setGlobo(g => { try { sessionStorage.setItem(GLOBO_VISTO, '1') } catch { /* nada */ } return g || !open })
-    const t = setTimeout(mostrar, 9000)
+    // A los 9 s el globo no sale si taparía el bloque principal del hero (celulares bajos / horizontal): saldrá al llegar a los precios.
+    const taparia = () => {
+      const vw = window.innerWidth, vh = window.innerHeight
+      const globo = { l: vw - 280, r: vw - 20, t: vh - 162, b: vh - 90 }
+      return Array.from(document.querySelectorAll('.landing-hero-inner h1, .landing-hero-inner p, .landing-badge, .landing-cta-row button'))
+        .some(el => { const r = el.getBoundingClientRect(); return r.right > globo.l && r.left < globo.r && r.bottom > globo.t && r.top < globo.b })
+    }
+    const t = setTimeout(() => { if (!taparia()) mostrar() }, 9000)
     const planes = document.getElementById('planes')
     const io = planes ? new IntersectionObserver(([e]) => { if (e.isIntersecting) { mostrar(); io?.disconnect() } }, { threshold: 0.3 }) : null
     if (planes && io) io.observe(planes)
