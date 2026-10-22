@@ -1,7 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
   validarPeticion, pedidoTranscribir, leerTranscripcion, pedidoHablar, leerAudio,
-  MODELO_STT_POR_DEFECTO, MODELO_TTS_POR_DEFECTO, VOZ_POR_DEFECTO,
+  MODELOS_STT_POR_DEFECTO, MODELOS_TTS_POR_DEFECTO, VOZ_POR_DEFECTO, listaModelos, esReintentable,
 } from './voz.ts'
 
 const cors = {
@@ -19,6 +19,20 @@ async function gemini(modelo: string, clave: string, cuerpo: unknown, ms: number
     })
     return { ok: resp.ok, status: resp.status, data: await resp.json().catch(() => null) }
   } finally { clearTimeout(t) }
+}
+
+/** Prueba los modelos en orden hasta que uno responda; solo pasa al siguiente si el fallo es de disponibilidad (404, cupo, 5xx o tiempo agotado). */
+async function conRespaldo(modelos: string[], clave: string, cuerpo: unknown, ms: number) {
+  let ultimo: { ok: boolean; status: number; data: unknown } = { ok: false, status: 0, data: null }
+  for (const m of modelos) {
+    try {
+      const r = await gemini(m, clave, cuerpo, ms)
+      if (r.ok) return r
+      ultimo = r; console.error('voz modelo', m, r.status)
+      if (!esReintentable(r.status)) break
+    } catch { console.error('voz modelo', m, 'sin respuesta a tiempo') }
+  }
+  return ultimo
 }
 
 Deno.serve(async (req: Request) => {
@@ -43,17 +57,17 @@ Deno.serve(async (req: Request) => {
     if (peticion.accion === 'estado') return json({ stt: true, tts: true })
 
     // Topes por usuario (costo): ráfaga y día, aparte de los del cerebro.
-    for (const [key, max, secs] of [[`rv:${user.id}`, 40, 600], [`rvd:${user.id}`, 400, 86400]] as const) {
+    for (const [key, max, secs] of [[`rv:${user.id}`, 80, 600], [`rvd:${user.id}`, 600, 86400]] as const) {
       const { data: ok } = await admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs })
       if (ok === false) return json({ error: 'limite' }, 429)
     }
 
     if (peticion.accion === 'transcribir') {
-      const r = await gemini(s.voz_modelo_stt || MODELO_STT_POR_DEFECTO, clave, pedidoTranscribir(peticion.audio), 12_000)
+      const r = await conRespaldo(listaModelos(s.voz_modelo_stt, MODELOS_STT_POR_DEFECTO), clave, pedidoTranscribir(peticion.audio), 10_000)
       if (!r.ok) { console.error('stt', r.status); return json({ error: 'proveedor' }, 502) }
       return json({ texto: leerTranscripcion(r.data) })
     }
-    const r = await gemini(s.voz_modelo_tts || MODELO_TTS_POR_DEFECTO, clave, pedidoHablar(peticion.texto, s.voz_nombre || VOZ_POR_DEFECTO), 20_000)
+    const r = await conRespaldo(listaModelos(s.voz_modelo_tts, MODELOS_TTS_POR_DEFECTO), clave, pedidoHablar(peticion.texto, s.voz_nombre || VOZ_POR_DEFECTO), 14_000)
     if (!r.ok) { console.error('tts', r.status); return json({ error: 'proveedor' }, 502) }
     const audio = leerAudio(r.data)
     return audio ? json(audio) : json({ error: 'sin_audio' }, 502)

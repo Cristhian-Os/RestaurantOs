@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { bajarMuestreo, aWavBase64, pcm16Base64AMuestras, rms } from './pcm.ts'
 import { crearVad } from './vad.ts'
+import { partirFrases } from './frases.ts'
 import { crearConversacion, MSG_NO_ENTENDI, MSG_ERROR, type DepsConv, type Frase, type EstadoConv } from './conversacion.ts'
 
 // --- PCM / WAV ---
@@ -12,6 +13,15 @@ import { crearConversacion, MSG_NO_ENTENDI, MSG_ERROR, type DepsConv, type Frase
   const pcm = btoa(String.fromCharCode(0x00, 0x40, 0x00, 0xc0)), m = pcm16Base64AMuestras(pcm)   // +0.5 y -0.5
   assert.ok(Math.abs(m[0] - 0.5) < 1e-3 && Math.abs(m[1] + 0.5) < 1e-3)
   assert.ok(Math.abs(rms(Float32Array.from([0.5, -0.5, 0.5, -0.5])) - 0.5) < 1e-6)
+}
+
+// --- Frases ---
+{
+  assert.deepEqual(partirFrases('Hoy llevas un millón doscientos mil en ventas. Vas un doce por ciento arriba de ayer.'), ['Hoy llevas un millón doscientos mil en ventas.', 'Vas un doce por ciento arriba de ayer.'])
+  assert.deepEqual(partirFrases('Listo. Ya quedó guardado en el sistema.'), ['Listo. Ya quedó guardado en el sistema.'], 'una frase muy corta se une')
+  assert.deepEqual(partirFrases('  '), []); assert.deepEqual(partirFrases('Hola, ¿cómo vas?'), ['Hola, ¿cómo vas?'])
+  assert.equal(partirFrases('Una frase larga uno. Una frase larga dos. Una frase larga tres. Una frase larga cuatro.').length, 3, 'máximo 3 audios')
+  assert.equal(partirFrases('A. B. C. D.').join(' ').replace(/\s+/g, ' '), 'A. B. C. D.', 'no se pierde texto')
 }
 
 // --- VAD ---

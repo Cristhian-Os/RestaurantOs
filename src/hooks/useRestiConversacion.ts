@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { crearConversacion, type EstadoConv } from '../lib/resti/voz/conversacion'
 import { iniciarCapturaVad, iniciarCapturaNavegador } from '../lib/resti/voz/captura'
 import { crearReproductor, hablarConNavegador, callarNavegador } from '../lib/resti/voz/reproductor'
+import { partirFrases } from '../lib/resti/voz/frases'
 import { vozDelServidorDisponible, transcribirAudio, sintetizarVoz } from '../lib/resti/voz/servicio'
 
 export type ModoVoz = 'servidor' | 'navegador'
@@ -48,9 +49,16 @@ export function useRestiConversacion(opts: { responder: (texto: string) => Promi
         const mi = ++tokenVoz.current
         if (modoRef.current === 'servidor') {
           try {
-            const a = await sintetizarVoz(texto)
-            if (mi !== tokenVoz.current) return   // la persona interrumpió mientras se generaba el audio
-            await reproductor.current!.reproducir(a.pcm, a.rate); return
+            // La voz tarda varios segundos en generar el audio completo: se piden las frases a la vez y se reproducen en orden,
+            // así la primera se oye sin esperar a las demás.
+            const audios = partirFrases(texto).map(f => { const p = sintetizarVoz(f); p.catch(() => {}); return p })
+            for (const p of audios) {
+              const a = await p
+              if (mi !== tokenVoz.current) return   // la persona interrumpió mientras se generaba el audio
+              await reproductor.current!.reproducir(a.pcm, a.rate)
+              if (mi !== tokenVoz.current) return
+            }
+            return
           } catch { if (mi !== tokenVoz.current) return /* sin voz del servidor: se usa la del navegador */ }
         }
         await hablarConNavegador(texto)
