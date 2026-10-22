@@ -2,12 +2,16 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { validar, SIN_RESPUESTA, limpiarHistorial, extraerJson } from './brain.ts'
 import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
 import { validarSugerencia, ANOTADO } from './sugerencia.ts'
+import { resumirDatos } from './datos.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
+
+// Datos de consulta (ventas por día, más vendidos, stock bajo…): se calculan con lo que devuelve la base y se reutilizan 60 s por usuario.
+const cache = new Map<string, { t: number; datos: unknown }>()
 
 const DESTINOS = `- card-ventas-hoy: tarjeta de ventas de hoy
 - card-pendientes: pedidos pendientes
@@ -22,8 +26,10 @@ const DESTINOS = `- card-ventas-hoy: tarjeta de ventas de hoy
 const SYSTEM = (nombre: string, datos: string) => `Eres Resti, el chef ejecutivo y mano derecha del administrador de "${nombre}" en RestaurantOS. Hablas en español colombiano, cálido y directo, con máximo 2 oraciones.
 
 Reglas:
+- Puedes responder consultas del negocio con el bloque DATOS: ventas de hoy y de ayer, de los últimos 7 días, platos más vendidos, qué se está acabando (stock bajo), mesas ocupadas y tareas pendientes. Dilo en una o dos frases con las cifras; si piden algo que no está en DATOS (otro periodo, otro dato), di que de eso no tienes el dato.
 - Solo usas las cifras del bloque DATOS. Si no tienes el dato que te piden, dices que no lo tienes. Nunca inventas cifras.
 - No puedes cambiar datos, cobrar, cancelar, borrar ni guardar nada. Si piden cambiar precios, inventario o gastos, responde con action OPEN_VOICE_COMMANDS (ahí el administrador revisa y aprueba cada cambio).
+- Las tarjetas de arriba son de PEDIDOS y de mesas; las tareas del equipo, el inventario y la carta no tienen tarjeta: para eso responde con la cifra de DATOS y action NONE.
 - Para llevar al administrador a una pantalla usa action WALK_AND_POINT con uno de estos targetId:
 ${DESTINOS}
 - También eres el soporte de la app (haces lo mismo que el chatbot de ayuda, más lo de arriba): si el administrador pregunta cómo se usa algo, explícalo con el conocimiento de abajo y, si ayuda, llévalo a la pantalla con WALK_AND_POINT. Si no sabes algo o es un problema técnico avanzado, di que escriba al correo de soporte; no inventes funciones. No pidas ni manejes contraseñas ni datos de tarjetas. De precios y planes no inventes: di que lo confirma el equipo.
@@ -38,7 +44,7 @@ Responde SIEMPRE y únicamente con un objeto JSON con estos campos:
 {"speech": "lo que dices (máximo 2 oraciones)", "action": "NONE | WALK_AND_POINT | OPEN_VOICE_COMMANDS | SLEEP | START_FEEDBACK", "targetId": "solo si action es WALK_AND_POINT", "sugerencia": {"summary": "...", "category": "pedidos | cocina | caja | inventario | menu | menu_publico | equipo | pagos | otro"}}
 (sugerencia solo cuando el administrador cuenta una idea de mejora.)
 
-DATOS (ventas y pedidos de hoy, calculados por el sistema):
+DATOS (calculados por el sistema; "hoy" = ventas y pedidos de hoy; "consulta" = ayer, últimos 7 días, platos más vendidos, stock bajo, mesas y tareas pendientes):
 ${datos}`
 
 Deno.serve(async (req: Request) => {
@@ -60,13 +66,22 @@ Deno.serve(async (req: Request) => {
     // Todo lo que necesita la respuesta se pide a la vez (antes era uno tras otro y sumaba ~1 s): perfil, topes, métricas, nombre y proveedor de IA.
     // Las métricas se leen con el JWT del usuario: la RLS decide qué restaurante ve.
     const userDb = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } })
-    const [{ data: prof }, topes, { data: metricas }, { data: cfgRest }, cfg] = await Promise.all([
+    const hace7 = new Date(Date.now() - 7 * 86400_000).toISOString()
+    const enCache = cache.get(user.id)
+    const [{ data: prof }, topes, { data: metricas }, { data: cfgRest }, cfg, consulta] = await Promise.all([
       admin.from('profiles').select('role, active, restaurant_id').eq('id', user.id).maybeSingle(),
       Promise.all([[`rb:${user.id}`, 20, 600], [`rbd:${user.id}`, 80, 86400]].map(([key, max, secs]) => admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs }))),
       userDb.rpc('get_admin_metrics'),
       userDb.from('restaurant_config').select('display_name').maybeSingle(),
       cargarProveedor(admin),
+      enCache && Date.now() - enCache.t < 60_000 ? Promise.resolve(enCache.datos) : Promise.all([
+        userDb.from('orders').select('total, created_at, items, tipo_pedido, payment_method').eq('status', 'completed').gte('created_at', hace7).order('created_at', { ascending: false }).limit(600),
+        userDb.from('ingredientes').select('nombre, unidad_medida, stock_actual, stock_minimo').limit(400),
+        userDb.from('mesas').select('estado').eq('activa', true).limit(200),
+        userDb.from('tasks').select('id', { count: 'exact', head: true }).in('status', ['pending', 'in_progress']),
+      ]).then(([o, i, m, t]) => resumirDatos({ ordenes: o.data ?? [], ingredientes: i.data ?? [], mesas: m.data ?? [], tareasPendientes: t.count ?? 0 })).catch(() => null),
     ])
+    if (consulta && !(enCache && Date.now() - enCache.t < 60_000)) cache.set(user.id, { t: Date.now(), datos: consulta })
     if (!prof || prof.active === false || prof.role !== 'admin') return json({ speech: 'Solo trabajo con el administrador del restaurante.', action: 'NONE' }, 403)
     // Tope por usuario (ráfaga y día): controla el costo. Se responde 200 para que Resti lo diga en voz alta.
     if (topes.some(({ data: ok }) => ok === false)) return json({ speech: 'Hoy ya hablamos bastante. Mañana seguimos, o escríbeme algo corto.', action: 'NONE' })
@@ -75,7 +90,7 @@ Deno.serve(async (req: Request) => {
     let crudo: unknown = null
     try {
       const r = await callModel(cfg, {
-        sistema: SYSTEM(String(cfgRest?.display_name ?? 'tu restaurante'), JSON.stringify(metricas ?? 'sin datos disponibles')),
+        sistema: SYSTEM(String(cfgRest?.display_name ?? 'tu restaurante'), JSON.stringify({ hoy: metricas ?? 'sin datos disponibles', consulta: consulta ?? 'no disponible' })),
         usuario: text, mensajes: historial, maxTokens: 350, temperatura: 0.3, timeoutMs: 9000,
       }, fetch as unknown as Fetch)
       crudo = extraerJson(r.texto)

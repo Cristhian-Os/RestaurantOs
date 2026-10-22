@@ -12,10 +12,13 @@ import { RestiSprite, RestiHat } from './RestiSprite'
 import { isRestiTarget, type RestiBrainResponse } from '../../lib/resti/targets'
 import { parseBrainResponse } from '../../lib/resti/brain'
 import { intencionLocal } from '../../lib/resti/intents'
-import { esOrdenDeCambio, esConfirmacion, esCancelacion, resumenParaDecir, resumenAplicado } from '../../lib/resti/agente'
+import { esOrdenDeCambio, ambitoDe, esConfirmacion, esConfirmacionReforzada, esCancelacion, resumenParaDecir, resumenAplicado } from '../../lib/resti/agente'
 import { loadCommandContext, applyChange } from '../../services/voiceCommandsApi'
 import { buildProposals, toPromptContext, type Proposal, type RawAction } from '../../services/voiceCommands'
 import { parseVoiceText } from '../../services/voiceService'
+import { interpretarMenu, interpretarPedidos, interpretarEquipo, cargarMenu, cargarPedidosAbiertos, cargarEquipo } from '../../services/restiMenu'
+import { proponerCambiosMenu } from '../../lib/resti/menuCambios'
+import { proponerCambiosPedidos, proponerCambiosEquipo } from '../../lib/resti/pedidosEquipoCambios'
 import { EVENTO_ABRIR_OPINION, EVENTO_OPINION_GUARDADA, type AtajoOpinion } from '../feedback/OpinionSection'
 import type { RestiEstado3D } from './rig/restiAnim.ts'
 
@@ -218,21 +221,53 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
 
   const descartar = useCallback(() => { propuesta.current = null; setTarjeta(null) }, [])
 
-  /** Agente: entiende la orden de cambio, la prepara con las mismas reglas del modal de comandos y espera la confirmación. */
+  /** Agente: entiende la orden de cambio, la prepara con las reglas de siempre (propuestas validadas, RLS al escribir) y espera la confirmación. */
   const proponer = useCallback(async (dicho: string): Promise<RestiBrainResponse> => {
-    const abrirEditor = (speech: string): RestiBrainResponse => ({ speech, action: 'OPEN_VOICE_COMMANDS' })
-    try {
-      const { role: rol, userId: uid } = propsRef.current
+    const { role: rol, userId: uid } = propsRef.current
+    // Datos (platos, sabores agotados, inventario, mesas, tareas, gastos…): las mismas propuestas del modal de comandos.
+    const porComando = async (): Promise<Proposal[]> => {
       const ctx = await loadCommandContext(rol)
       const r = await parseVoiceText<{ transcript: string; actions: RawAction[] }>('command', dicho, toPromptContext(ctx))
-      const proposals = buildProposals(r.actions ?? [], ctx, uid, rol)
-      if (proposals.length === 0) return abrirEditor('No entendí qué cambiar. Te abro el editor para que lo escribas.')
-      if (!proposals.some(p => p.change)) return abrirEditor(`${proposals[0].problem ?? 'No pude preparar ese cambio'}. Te abro el editor.`)
-      const nueva = { proposals, dicho }
-      propuesta.current = nueva; setTarjeta(nueva)
-      setTimeout(() => { if (propuesta.current === nueva) descartar() }, 90_000)   // si nadie confirma, se descarta
-      return { speech: resumenParaDecir(proposals), action: 'NONE' }
-    } catch { return abrirEditor('No pude preparar el cambio. Te abro el editor.') }
+      return buildProposals(r.actions ?? [], ctx, uid, rol)
+    }
+    const aProposal = (ps: { index: number; title: string; detail: string; change: unknown; problem?: string; riesgo?: 'alto' }[]) => ps as unknown as Proposal[]
+    // Carta: toppings, bolas de helado, tamaños, textos, sabores, platos nuevos o quitados.
+    const porMenu = async (): Promise<Proposal[]> => {
+      const [acciones, menu] = await Promise.all([interpretarMenu(dicho), cargarMenu()])
+      return aProposal(proponerCambiosMenu(acciones, menu.platos, menu.categorias, menu.sabores))
+    }
+    const porPedidos = async (): Promise<Proposal[]> => {
+      const [acciones, abiertos] = await Promise.all([interpretarPedidos(dicho), cargarPedidosAbiertos()])
+      return aProposal(proponerCambiosPedidos(acciones, abiertos))
+    }
+    const porEquipo = async (): Promise<Proposal[]> => {
+      const [acciones, eq] = await Promise.all([interpretarEquipo(dicho), cargarEquipo()])
+      return aProposal(proponerCambiosEquipo(acciones, eq.gente, eq.nombreRestaurante))
+    }
+    const caminos = { comando: porComando, menu: porMenu, pedidos: porPedidos, equipo: porEquipo }
+    const primero = ambitoDe(dicho)
+    // Primero el camino que corresponde; si no entiende nada, se prueba el de la carta o el de comandos (el otro «comodín»).
+    let origen: keyof typeof caminos = primero
+    let proposals: Proposal[] = []
+    try { proposals = await caminos[primero]() } catch { /* se prueba otro camino */ }
+    if (proposals.length === 0) {
+      const alterno: keyof typeof caminos = primero === 'comando' ? 'menu' : 'comando'
+      origen = alterno
+      try { proposals = await caminos[alterno]() } catch { /* sin propuestas */ }
+    }
+
+    const abrirEditor = (speech: string): RestiBrainResponse => ({ speech, action: 'OPEN_VOICE_COMMANDS' })
+    const solo = origen !== 'comando'   // lo que no es de comandos no tiene editor: se le pide que lo diga de otra forma
+    if (proposals.length === 0) return solo ? { speech: 'No entendí qué cambiar. Dímelo de otra forma, por ejemplo: agrégale topping de oreo al cholao, o cancela el pedido de la mesa 4.', action: 'NONE' } : abrirEditor('No entendí qué cambiar. Te abro el editor para que lo escribas.')
+    if (!proposals.some(p => p.change)) {
+      const problema = proposals[0].problem ?? 'No pude preparar ese cambio'
+      return solo ? { speech: problema, action: 'NONE' } : abrirEditor(`${problema}. Te abro el editor.`)
+    }
+    const nueva = { proposals, dicho }
+    propuesta.current = nueva; setTarjeta(nueva)
+    setTimeout(() => { if (propuesta.current === nueva) descartar() }, 90_000)   // si nadie confirma, se descarta
+    const delicado = proposals.some(p => p.change && p.riesgo === 'alto')
+    return { speech: resumenParaDecir(proposals) + (delicado ? ' Es delicado.' : ''), action: 'NONE' }
   }, [descartar])
 
   const aplicar = useCallback(async (): Promise<RestiBrainResponse> => {
@@ -269,6 +304,8 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
     }
     // Un cambio preparado espera tu respuesta: «sí» lo aplica, «no» lo descarta; otra cosa lo descarta y se atiende lo nuevo.
     if (propuesta.current) {
+      const delicado = propuesta.current.proposals.some(p => p.change && p.riesgo === 'alto')
+      if (esConfirmacion(frase) && delicado && !esConfirmacionReforzada(frase)) return { speech: 'Es delicado. Toca Aplicar, o dime «sí, cancélalo» o «sí, desactívalo».', action: 'NONE' }
       if (esConfirmacion(frase)) { if (!convRef.current.activa) ir('THINKING'); const r = await aplicar(); recordar('user', frase); recordar('assistant', r.speech); return r }
       if (esCancelacion(frase)) { descartar(); return { speech: 'Listo, no hice ningún cambio.', action: 'NONE' } }
       descartar()
@@ -412,7 +449,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
             ...(mov ? { left: 12, right: 12 } : { right: 16, width: 360 }),
             background: 'var(--w-surface)', color: 'var(--w-ink)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', boxShadow: '0 14px 36px rgba(0,0,0,.3)',
             fontFamily: 'var(--w-sans)', animation: 'resti-globo 220ms ease-out both' }}>
-          <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--w-terra)' }}>Resti propone</p>
+          <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: tarjeta.proposals.some(p => p.change && p.riesgo === 'alto') ? '#d6453a' : 'var(--w-terra)' }}>{tarjeta.proposals.some(p => p.change && p.riesgo === 'alto') ? 'Resti propone · cambio delicado' : 'Resti propone'}</p>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 132, overflowY: 'auto' }}>
             {tarjeta.proposals.map(p => (
               <li key={p.index} style={{ padding: '0.5rem 0.7rem', borderRadius: '0.8rem', background: 'var(--w-bg)', border: `1px solid ${p.problem ? 'var(--w-wine, #b0341d)' : 'var(--w-line)'}` }}>
@@ -427,12 +464,12 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
               style={{ flex: 1, minHeight: 44, border: 'none', borderRadius: '0.9rem', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', background: 'var(--w-bg)', color: 'var(--w-ink-soft, var(--w-ink))' }}>Cancelar</button>
             <button type="button" disabled={tarjeta.aplicando}
               onClick={() => { void aplicar().then(r => { decir(r.speech); if (!convRef.current.activa) void convRef.current.hablarSuelto(r.speech) }) }}
-              style={{ flex: 2, minHeight: 44, border: 'none', borderRadius: '0.9rem', cursor: tarjeta.aplicando ? 'wait' : 'pointer', fontWeight: 800, fontFamily: 'inherit', background: 'var(--w-terra)', color: '#fff', opacity: tarjeta.aplicando ? 0.7 : 1 }}>
+              style={{ flex: 2, minHeight: 44, border: 'none', borderRadius: '0.9rem', cursor: tarjeta.aplicando ? 'wait' : 'pointer', fontWeight: 800, fontFamily: 'inherit', background: tarjeta.proposals.some(p => p.change && p.riesgo === 'alto') ? '#d6453a' : 'var(--w-terra)', color: '#fff', opacity: tarjeta.aplicando ? 0.7 : 1 }}>
               {tarjeta.aplicando ? 'Aplicando…' : 'Aplicar'}
             </button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: '0.72rem', color: 'var(--w-ink-mut)' }}>
-            <span>También puedes decir «sí» o «cancela».</span>
+            <span>{tarjeta.proposals.some(p => p.change && p.riesgo === 'alto') ? 'Por voz di «sí, cancélalo» o «sí, desactívalo».' : 'También puedes decir «sí» o «cancela».'}</span>
             <button type="button" onClick={() => { const d = tarjeta.dicho; descartar(); propsRef.current.onOpenVoiceCommands(d) }}
               style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'underline', fontFamily: 'inherit', fontSize: 'inherit' }}>Revisar en el editor</button>
           </div>
