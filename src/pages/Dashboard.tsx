@@ -329,6 +329,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [pendingSocial, setPendingSocial] = useState(0)
   const [opinionesListas, setOpinionesListas] = useState(0)
   const [voiceCmdOpen, setVoiceCmdOpen] = useState(false)
+  const [voiceCmdTexto, setVoiceCmdTexto] = useState<string | undefined>(undefined)   // lo que el administrador le dijo a Resti
   const [refreshKey,   setRefreshKey]   = useState(0)
   const { theme, setTheme } = useTheme()
 
@@ -711,16 +712,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
       {restiOn && profile!.role === 'admin'
         // Resti no aparece en caja, cocina, mesero (nueva orden), pagos ni en el panel de plataforma.
-        ? (['cashier', 'kitchen', 'orders', 'billing', 'platform'].includes(activeNav) ? null : <Resti onOpenVoiceCommands={() => setVoiceCmdOpen(true)} onGoHome={() => setActiveNav('dashboard')} />)
+        ? (['cashier', 'kitchen', 'orders', 'billing', 'platform'].includes(activeNav) ? null : <Resti onOpenVoiceCommands={t => { setVoiceCmdTexto(t); setVoiceCmdOpen(true) }} onGoHome={() => setActiveNav('dashboard')} />)
         : <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />}
       {(profile?.role === 'admin' || profile?.role === 'cashier') && !(restiOn && profile.role === 'admin') && (
-        <VoiceCommandFab onClick={() => setVoiceCmdOpen(true)} />
+        <VoiceCommandFab onClick={() => { setVoiceCmdTexto(undefined); setVoiceCmdOpen(true) }} />
       )}
       {voiceCmdOpen && (profile?.role === 'admin' || profile?.role === 'cashier') && (
         <VoiceCommandModal
           userId={profile.id}
           role={profile.role}
-          onClose={() => setVoiceCmdOpen(false)}
+          textoInicial={voiceCmdTexto}
+          onClose={() => { setVoiceCmdOpen(false); setVoiceCmdTexto(undefined) }}
           onApplied={() => { void queryClient.invalidateQueries(); setRefreshKey(k => k + 1) }} />
       )}
     </div>

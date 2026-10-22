@@ -9,6 +9,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../services/supabaseClient'
 import { EVENTO_ABRIR_OPINION, EVENTO_OPINION_GUARDADA, type AtajoOpinion } from './feedback/OpinionSection'
 import { WHATSAPP_VENTAS } from '../config/content'
+import { RestiSprite } from './resti/RestiSprite'
+import { hablarConNavegador, callarNavegador } from '../lib/resti/voz/reproductor'
 
 interface Msg { role: 'user' | 'assistant'; text: string }
 
@@ -38,6 +40,14 @@ const ATAJOS: { id: AtajoOpinion; texto: string; semilla: string }[] = [
 ]
 const BORRADOR = 'ros_opinion_borrador'
 
+// Voz de la landing: SOLO la del navegador (texto + dictado del navegador). La voz de Gemini cuesta por llamada y aquí el visitante es anónimo.
+type Reconocedor = { lang: string; interimResults: boolean; maxAlternatives: number; onresult: ((e: any) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start(): void; stop(): void }
+const crearReconocedor = (): Reconocedor | null => {
+  const C = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
+  return C ? new C() : null
+}
+const hayDictado = () => typeof window !== 'undefined' && !!((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition)
+
 const leerBorrador = (): string => { try { return localStorage.getItem(BORRADOR) ?? '' } catch { return '' } }
 const guardarBorrador = (t: string) => { try { if (t) localStorage.setItem(BORRADOR, t); else localStorage.removeItem(BORRADOR) } catch { /* sin almacenamiento: no se conserva el borrador */ } }
 const dispositivo = () => `${/Mobi|Android/i.test(navigator.userAgent) ? 'móvil' : 'computador'} ${window.innerWidth}px`
@@ -52,6 +62,11 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
   const [input,   setInput]   = useState(opinion ? leerBorrador() : '')
   const [loading, setLoading] = useState(false)
   const [aviso,   setAviso]   = useState<string | null>(null)
+  const [vozOn,   setVozOn]   = useState(false)        // landing: Resti lee sus respuestas con la voz del navegador (apagada hasta que la persona la pida)
+  const [hablando, setHablando] = useState(false)
+  const [oyendo,  setOyendo]  = useState(false)
+  const vozRef = useRef(vozOn); vozRef.current = vozOn
+  const reco = useRef<Reconocedor | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const msgsRef = useRef(msgs); msgsRef.current = msgs
   const loadingRef = useRef(loading); loadingRef.current = loading
@@ -76,7 +91,9 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
       })
       if (error) throw error
       if (landing && data?.lead?.saved) setGuardado(true)
-      setMsgs(m => [...m, { role: 'assistant', text: (data?.reply as string) ?? 'No pude responder ahora.' }])
+      const respuesta = (data?.reply as string) ?? 'No pude responder ahora.'
+      setMsgs(m => [...m, { role: 'assistant', text: respuesta }])
+      if (landing && vozRef.current) { setHablando(true); void hablarConNavegador(clean(respuesta).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').trim()).finally(() => setHablando(false)) }
       if (opinion) {
         guardarBorrador('')
         if (data?.saved) window.dispatchEvent(new CustomEvent(EVENTO_OPINION_GUARDADA))
@@ -94,6 +111,21 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
       setLoading(false)
     }
   }, [opinion, landing, pantalla])
+
+  useEffect(() => () => { callarNavegador(); reco.current?.stop() }, [])
+  const alternarVoz = () => { if (vozOn) { callarNavegador(); setHablando(false) } setVozOn(v => !v) }
+  const dictar = () => {
+    if (oyendo) { reco.current?.stop(); return }
+    const r = crearReconocedor(); if (!r) return
+    callarNavegador(); setHablando(false); setVozOn(true)   // quien habla espera que le contesten hablando
+    r.lang = 'es-CO'; r.interimResults = false; r.maxAlternatives = 1
+    r.onresult = e => { const t = String(e.results?.[0]?.[0]?.transcript ?? '').trim(); if (t) void enviar(t) }
+    r.onerror = () => { setOyendo(false); setAviso('No pude oírte. Revisa el permiso del micrófono o escribe tu pregunta.') }
+    r.onend = () => setOyendo(false)
+    reco.current = r; setAviso(null); setOyendo(true)
+    try { r.start() } catch { setOyendo(false) }
+  }
+  const poseResti = loading ? 'pensar' : hablando ? 'explicar' : oyendo ? 'escuchar' : 'reposo'
 
   // Landing: un globo "¿Qué tipo de restaurante tienes?" UNA sola vez, a los 9 s o al llegar a los precios. Sin voz.
   useEffect(() => {
@@ -137,18 +169,20 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
         whileTap={{ scale: 0.92 }}
         style={{
           position: 'fixed', bottom: 20, right: 20, zIndex: 90,
-          width: 58, height: 58, borderRadius: '50%', border: 'none', cursor: 'pointer',
-          background: 'var(--w-terra)', color: '#fff', boxShadow: 'var(--w-shadow-md, 0 8px 24px rgba(0,0,0,0.2))',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          ...(landing && !open
+            ? { padding: 0, background: 'transparent', boxShadow: 'none', width: 64, height: 'auto', borderRadius: 0, border: 'none', cursor: 'pointer', filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.25))' }
+            : { width: 58, height: 58, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'var(--w-terra)', color: '#fff', boxShadow: 'var(--w-shadow-md, 0 8px 24px rgba(0,0,0,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center' }),
         }}
-        aria-label={opinion ? 'Opinión y sugerencias' : 'Soporte'}>
-        {open
+        aria-label={opinion ? 'Opinión y sugerencias' : landing ? 'Hablar con Resti' : 'Soporte'}>
+        {landing && !open
+          ? <RestiSprite estado={globo ? 'saludo' : 'reposo'} width={64} />
+          : open
           ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 24, height: 24 }}><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" /></svg>
           : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 26, height: 26 }}><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" strokeLinecap="round" strokeLinejoin="round" /></svg>}
       </motion.button>
 
       {landing && globo && !open && (
-        <div role="status" style={{ position: 'fixed', bottom: 90, right: 20, zIndex: 90, maxWidth: 'min(260px, calc(100vw - 40px))', display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
+        <div role="status" style={{ position: 'fixed', bottom: 130, right: 20, zIndex: 90, maxWidth: 'min(260px, calc(100vw - 40px))', display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
           padding: '0.7rem 0.9rem', borderRadius: '1rem', background: 'var(--w-surface)', border: '1px solid var(--w-line)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)', fontFamily: 'var(--w-sans)' }}>
           <button onClick={() => { setOpen(true); setGlobo(false) }} style={{ border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: 'var(--w-ink)', fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: 1.4 }}>
             <b>Resti:</b> ¿Qué tipo de restaurante tienes?
@@ -174,9 +208,18 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
             }}>
 
             {/* Header */}
-            <div style={{ padding: '1rem 1.25rem', background: 'var(--w-terra)', color: '#fff' }}>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{opinion ? 'Opinión y sugerencias' : 'Soporte RestaurantOS'}</p>
-              <p style={{ margin: 0, fontSize: '0.75rem', opacity: 0.85 }}>Resti · asistente con IA</p>
+            <div style={{ padding: landing ? '0.6rem 1rem' : '1rem 1.25rem', background: 'var(--w-terra)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              {landing && <div style={{ width: 40, height: 63, flexShrink: 0, overflow: 'hidden' }}><RestiSprite estado={poseResti} width={40} luz={loading ? 'procesando' : 'disponible'} /></div>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{opinion ? 'Opinión y sugerencias' : landing ? 'Resti' : 'Soporte RestaurantOS'}</p>
+                <p style={{ margin: 0, fontSize: '0.75rem', opacity: 0.85 }}>{landing ? 'Tu asistente de RestaurantOS' : 'Resti · asistente con IA'}</p>
+              </div>
+              {landing && (
+                <button onClick={alternarVoz} aria-pressed={vozOn} aria-label={vozOn ? 'Silenciar a Resti' : 'Que Resti lea sus respuestas en voz alta'}
+                  style={{ border: '1px solid rgba(255,255,255,0.6)', background: vozOn ? 'rgba(255,255,255,0.25)' : 'transparent', color: '#fff', borderRadius: '999px', minHeight: '2.25rem', padding: '0 0.7rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, fontFamily: 'inherit' }}>
+                  {vozOn ? 'Voz activada' : 'Activar voz'}
+                </button>
+              )}
             </div>
 
             {/* Mensajes */}
@@ -239,8 +282,14 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
                 value={input}
                 onChange={e => { setInput(e.target.value); if (opinion) guardarBorrador(e.target.value) }}
                 onKeyDown={e => { if (e.key === 'Enter') void enviar(input) }}
-                placeholder={opinion ? 'Cuéntame tu idea o el problema…' : 'Escribe tu pregunta…'}
+                placeholder={oyendo ? 'Te escucho…' : opinion ? 'Cuéntame tu idea o el problema…' : 'Escribe tu pregunta…'}
                 style={{ flex: 1, border: '1px solid var(--w-line)', borderRadius: '0.75rem', padding: '0.6rem 0.85rem', fontSize: '0.875rem', outline: 'none', fontFamily: 'var(--w-sans)', background: 'var(--w-bg)', color: 'var(--w-ink)' }} />
+              {landing && hayDictado() && (
+                <button onClick={dictar} disabled={loading} aria-label={oyendo ? 'Dejar de escuchar' : 'Hablarle a Resti'} aria-pressed={oyendo}
+                  style={{ border: '1px solid var(--w-terra)', borderRadius: '0.75rem', padding: '0 0.75rem', background: oyendo ? 'var(--w-terra)' : 'var(--w-surface)', color: oyendo ? '#fff' : 'var(--w-terra)', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 18, height: 18 }}><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v3" strokeLinecap="round" /></svg>
+                </button>
+              )}
               <button onClick={() => void enviar(input)} disabled={loading || !input.trim()}
                 style={{ border: 'none', borderRadius: '0.75rem', padding: '0 0.9rem', background: 'var(--w-terra)', color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading || !input.trim() ? 0.6 : 1, fontWeight: 700 }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 18, height: 18 }}><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" /></svg>
