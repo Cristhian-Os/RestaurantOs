@@ -86,3 +86,11 @@ Volver a Gemini para el cerebro: borrar `ai_proveedor` (o ponerlo distinto de `c
 - No hay claves en el código: siguen en `platform_secrets` (`gemini_api_key`, `ai_*`). Nada que migrar en la base.
 - **Antes de desplegar a producción** comprueba que la clave de producción acepta los modelos 3.x (si no, el respaldo cae a 2.5 y sigue funcionando mientras Google no lo retire): `curl -s -o /dev/null -w "%{http_code}" -H "x-goog-api-key: $CLAVE" -H 'Content-Type: application/json' -d '{"contents":[{"parts":[{"text":"hola"}]}]}' https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent` debe dar 200.
 - Funciones a desplegar en producción para esto: `resti-brain`, `resti-voz`, `chat-support`, `menu-asistente`, `feedback-resumen`, `ai-report`, `voice-parse` (las que importan `_shared/modelo.ts` necesitan ese archivo incluido).
+
+## Estado de producción (2026-10-22, tras la copia manual)
+
+Desplegadas en `RestaurantOs` (versión del adaptador con respaldo de modelos de Gemini): `chat-support` (v19), `resti-brain` (v5), `menu-asistente` (v5), `feedback-resumen` (v5), `ai-report` (v5) y `resti-voz` (v1, nueva). Se desplegaron con la herramienta MCP (código pegado en cada función, con el adaptador como `modelo.ts` al lado, sin comentarios largos); el código de referencia sigue siendo el del repo.
+- Verificado con llamadas reales: `chat-support` modo landing (precio de la tabla de planes y el filtro frena "plan gratis") y `menu-asistente` con el restaurante demo. `resti-brain`, `resti-voz`, `ai-report` y `feedback-resumen` exigen sesión de administrador/dueño: no se probaron de punta a punta.
+- **No desplegada: `voice-parse`** (sigue con `gemini-2.5-flash`, que hoy funciona con la clave de producción). El cambio del repo se despliega con la CLI: `npx supabase functions deploy voice-parse --project-ref ifypeslrcdebvdqglywt` desde la rama.
+- Quedaron 2 filas de prueba en `platform_chat_logs` (mensajes "Tengo una heladería con 12 mesas…" y "Dame el plan gratis…"); el borrado desde aquí dio timeout.
+- Front: PR #6; Resti sigue apagado por restaurante (`modules_enabled.resti_agent`).
