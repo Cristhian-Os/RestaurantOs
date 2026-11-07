@@ -1,0 +1,21 @@
+// Prueba del intérprete de operaciones. Correr con:  node supabase/functions/resti-acciones/operaciones.test.ts
+import assert from 'node:assert/strict'
+import { validarAccionesOp, contextoOp, SISTEMA_OP } from './operaciones.ts'
+const v = (a: unknown[]) => validarAccionesOp({ actions: a })
+assert.deepEqual(v([{ type: 'expense_edit', ref: { concepto: 'gas' }, set: { monto: 60000 } }]), [{ type: 'expense_edit', ref: { concepto: 'gas' }, set: { monto: 60000 } }])
+assert.equal(v([{ type: 'expense_edit', ref: {}, set: { monto: 1 } }]).length, 0, 'sin referencia no se edita'); assert.equal(v([{ type: 'expense_edit', ref: { concepto: 'gas' }, set: {} }]).length, 0, 'sin cambios no hay acción')
+assert.deepEqual(v([{ type: 'expense_delete', ref: { monto: 50000 } }]), [{ type: 'expense_delete', ref: { monto: 50000 } }]); assert.equal(v([{ type: 'expense_edit', ref: { concepto: 'gas' }, set: { monto: -5 } }]).length, 0)
+assert.deepEqual(v([{ type: 'supplier_delete', proveedor: 'Frutas Pérez' }]), [{ type: 'supplier_delete', proveedor: 'Frutas Pérez' }])
+assert.deepEqual(v([{ type: 'staff_add', nombre: 'Ana Ruiz', email: 'ANA@mail.com', rol: 'waiter', telefono: '300 123 4567' }]), [{ type: 'staff_add', nombre: 'Ana Ruiz', email: 'ana@mail.com', rol: 'waiter', telefono: '300 123 4567' }])
+assert.equal(v([{ type: 'staff_add', nombre: 'Ana', email: 'no es correo', rol: 'waiter' }]).length, 0); assert.equal(v([{ type: 'staff_add', nombre: 'Ana', email: 'a@b.co', rol: 'admin' }]).length, 0, 'nunca admin')
+assert.equal(v([{ type: 'staff_add', nombre: 'Ana', email: 'a@b.co', rol: 'waiter', password: '1234' }])[0].hasOwnProperty('password'), false, 'una contraseña dicha se ignora')
+assert.deepEqual(v([{ type: 'staff_edit', nombre: 'Ana', field: 'rol', value: 'cashier' }]).length, 1); assert.equal(v([{ type: 'staff_edit', nombre: 'Ana', field: 'rol', value: 'admin' }]).length, 0)
+assert.equal(v([{ type: 'task_status', tarea: 'Limpiar', status: 'completed' }]).length, 1); assert.equal(v([{ type: 'task_status', tarea: 'Limpiar', status: 'borrada' }]).length, 0)
+assert.equal(v([{ type: 'task_edit', tarea: 'Limpiar', field: 'priority', value: 'urgent' }]).length, 1); assert.equal(v([{ type: 'task_edit', tarea: 'Limpiar', field: 'priority', value: 'altísima' }]).length, 0)
+assert.deepEqual(v([{ type: 'ingredient_add', nombre: 'Mora', unidad_medida: 'kg', stock_actual: 3, costo_unitario: 9000 }]), [{ type: 'ingredient_add', nombre: 'Mora', unidad_medida: 'kg', stock_actual: 3, costo_unitario: 9000 }]); assert.equal(v([{ type: 'ingredient_add', nombre: 'Mora', unidad_medida: 'cucharada' }]).length, 0)
+assert.equal(v([{ type: 'ingredient_edit', ingrediente: 'Fresa', field: 'costo', value: '8500' }]).length, 1); assert.equal(v([{ type: 'ingredient_edit', ingrediente: 'Fresa', field: 'costo', value: 'caro' }]).length, 0)
+assert.deepEqual(v([{ type: 'table_add', numero: 13 }]), [{ type: 'table_add', numero: 13, capacidad: 4 }]); assert.deepEqual(v([{ type: 'table_remove', numero: 13 }]), [{ type: 'table_remove', numero: 13 }]); assert.equal(v([{ type: 'table_add', numero: 0 }]).length, 0)
+assert.equal(v([{ type: 'drop_all' }, null, 3]).length, 0)
+const ctx = contextoOp({ gastos: [{ concepto: 'Gas', monto: 50000, categoria: 'otro' }], proveedores: ['Frutas Pérez'], equipo: [{ nombre: 'Ana', rol: 'waiter', activo: true }], tareas: [{ titulo: 'Limpiar', status: 'pending' }], ingredientes: [{ nombre: 'Fresa', unidad: 'kg', stock: 3, costo: 8000, minimo: 2 }], mesas: [1, 2] })
+assert.match(ctx, /Gas · \$50000 · otro/); assert.match(ctx, /Fresa \(kg; stock 3; costo 8000; mínimo 2\)/); assert.match(SISTEMA_OP(ctx), /NUNCA incluyas contraseñas/)
+console.log('operaciones.test OK')

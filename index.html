@@ -29,8 +29,17 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="RestaurantOS" />
     <meta property="og:description" content="Sistema de gestión para restaurantes — punto de venta multi-rol." />
-    <meta property="og:image" content="/icon-512x512.png" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:url" content="https://restaurantos-zeta.vercel.app/" />
+    <meta property="og:site_name" content="RestaurantOS" />
+    <meta property="og:locale" content="es_CO" />
+    <meta property="og:image" content="https://restaurantos-zeta.vercel.app/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://restaurantos-zeta.vercel.app/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="628" />
+    <meta property="og:image:alt" content="RestaurantOS — Toda tu operación. Un solo sistema." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://restaurantos-zeta.vercel.app/og-image.jpg" />
     <meta name="twitter:title" content="RestaurantOS" />
     <meta name="twitter:description" content="Sistema de gestión para restaurantes." />
 
@@ -38,14 +47,17 @@
     <!-- Estilos críticos inline — previenen flash blanco en móvil -->
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html { background: #FAFAF8; }
+      /* El fondo sigue el tema (--w-bg); el crema es solo el valor previo a que cargue el CSS */
+      html { background: var(--w-bg, #F4EEE4); overflow-x: hidden; overflow-x: clip; }
       body {
-        background-color: #FAFAF8 !important;
+        background-color: var(--w-bg, #F4EEE4);
         font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
         min-height: 100vh;
         min-height: 100dvh;
         -webkit-font-smoothing: antialiased;
         overflow-x: hidden;
+        overflow-x: clip;
+        max-width: 100%;
         /* Safe area para notch iOS */
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
@@ -53,7 +65,7 @@
       #root {
         min-height: 100vh;
         min-height: 100dvh;
-        background-color: #FAFAF8;
+        background-color: var(--w-bg, #F4EEE4);
       }
       /* Prevenir tap highlight azul en mobile */
       * { -webkit-tap-highlight-color: transparent; }

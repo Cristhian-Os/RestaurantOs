@@ -103,13 +103,75 @@ function expectRows(res: { data: unknown[] | null; error: { message: string } | 
   if (!res.data || res.data.length === 0) throw new Error(`${what}: no se pudo modificar (¿ya no existe o no tienes permiso?)`)
 }
 
-export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise<void> {
+/** Aplica un cambio ya confirmado. Devuelve un aviso opcional para mostrar al administrador (p. ej. la clave temporal de un alta). */
+export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise<string | void> {
   const now = new Date().toISOString()
   switch (c.op) {
     case 'dish_price': {
       const patch: Record<string, unknown> = { price: c.price, updated_at: now }
       if (c.sizes) patch.sizes = c.sizes
       return expectRows(await supabase.from('dishes').update(patch).eq('id', c.dishId).select('id'), 'Plato')
+    }
+    case 'dish_patch':
+      return expectRows(await supabase.from('dishes').update({ ...c.patch, updated_at: now }).eq('id', c.dishId).select('id'), 'Plato')
+    case 'order_status':
+      return expectRows(await supabase.from('orders').update({ status: c.status, updated_at: now }).eq('id', c.orderId).in('status', ['pending', 'cooking', 'ready']).select('id'), 'Pedido')
+    case 'order_cancel': {
+      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: c.orderId })
+      if (error) throw new Error(error.message)
+      return
+    }
+    case 'staff_active':
+      return expectRows(await supabase.from('profiles').update({ active: c.active }).eq('id', c.profileId).neq('role', 'admin').select('id'), 'Empleado')
+    case 'expense_patch':
+      return expectRows(await supabase.from('gastos').update(c.patch).eq('id', c.gastoId).select('id'), 'Gasto')
+    case 'expense_delete':
+      return expectRows(await supabase.from('gastos').delete().eq('id', c.gastoId).select('id'), 'Gasto')
+    case 'supplier_delete':
+      return expectRows(await supabase.from('proveedores').delete().eq('id', c.supplierId).select('id'), 'Proveedor')
+    case 'staff_create': {
+      const { error } = await supabase.rpc('create_employee_profile', { p_email: c.email, p_full_name: c.nombre, p_role: c.rol, p_password: c.password, p_recovery_email: null, p_phone: c.telefono })
+      if (error) throw new Error(error.message.includes('duplicate') ? 'Ya existe una cuenta con ese correo.' : error.message)
+      return `${c.nombre} · ${c.email} · clave temporal: ${c.password}`
+    }
+    case 'staff_update': {
+      const { error } = await supabase.rpc('admin_update_employee', { p_user_id: c.profileId, p_email: null, p_password: null, p_full_name: c.nombre ?? null, p_phone: c.telefono ?? null, p_role: c.rol ?? null })
+      if (error) throw new Error(error.message)
+      return
+    }
+    case 'task_patch':
+      return expectRows(await supabase.from('tasks').update({ ...c.patch, updated_at: now }).eq('id', c.taskId).select('id'), 'Tarea')
+    case 'ingredient_insert': {
+      const { error } = await supabase.from('ingredientes').insert(c.row)
+      if (error) throw new Error(error.message)
+      return
+    }
+    case 'ingredient_patch':
+      return expectRows(await supabase.from('ingredientes').update({ ...c.patch, updated_at: now }).eq('id', c.ingredientId).select('id'), 'Ingrediente')
+    case 'table_insert': {
+      const { error } = await supabase.from('mesas').insert({ numero: c.numero, capacidad: c.capacidad, zona: 'principal', estado: 'libre', activa: true })
+      if (error) throw new Error(error.code === '23505' ? `Ya existe la mesa ${c.numero}.` : error.message)
+      return
+    }
+    case 'table_disable':
+      return expectRows(await supabase.from('mesas').update({ activa: false, updated_at: now }).eq('id', c.mesaId).select('id'), 'Mesa')
+    case 'biz_name': {
+      const { data: cfg } = await supabase.from('restaurant_config').select('id').maybeSingle()
+      if (!cfg?.id) throw new Error('No encontré la configuración del restaurante.')
+      return expectRows(await supabase.from('restaurant_config').update({ display_name: c.name }).eq('id', cfg.id).select('id'), 'Restaurante')
+    }
+    case 'flavors_set': {
+      const { data: cfg } = await supabase.from('restaurant_config').select('id, modules_enabled').maybeSingle()
+      if (!cfg?.id) throw new Error('No encontré la configuración del restaurante.')
+      const mods = (cfg.modules_enabled ?? {}) as Record<string, unknown>
+      const off = c.clave === 'helado_flavors' ? 'helado_flavors_off' : 'jugo_flavors_off'
+      const apagados = Array.isArray(mods[off]) ? (mods[off] as string[]).filter(x => c.lista.includes(x)) : []   // un sabor quitado deja también de estar «agotado»
+      return expectRows(await supabase.from('restaurant_config').update({ modules_enabled: { ...mods, [c.clave]: c.lista, [off]: apagados } }).eq('id', cfg.id).select('id'), 'Sabores')
+    }
+    case 'dish_insert': {
+      const { error } = await supabase.from('dishes').insert(c.row)
+      if (error) throw new Error(error.message)
+      return
     }
     case 'dish_availability': {
       const { error } = await supabase.rpc('set_plato_disponible', { p_dish_id: c.dishId, p_disponible: c.available })

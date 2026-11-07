@@ -16,7 +16,7 @@ export type RestiTargetId = typeof RESTI_TARGETS[number]
 export const isRestiTarget = (id: unknown): id is RestiTargetId =>
   typeof id === 'string' && (RESTI_TARGETS as readonly string[]).includes(id)
 
-export type RestiAction = 'NONE' | 'WALK_AND_POINT' | 'OPEN_VOICE_COMMANDS' | 'SLEEP'
+export type RestiAction = 'NONE' | 'WALK_AND_POINT' | 'OPEN_VOICE_COMMANDS' | 'SLEEP' | 'START_FEEDBACK'
 
 export interface RestiBrainResponse {
   speech: string              // máximo 2 oraciones

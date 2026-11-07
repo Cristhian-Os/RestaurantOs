@@ -4,6 +4,7 @@
 // función exige ser dueño y tener el código de 2 pasos. Aquí no se confía en nada que venga del navegador.
 // A la IA solo se le manda texto de las opiniones con restaurantes anónimos (R1, R2...), nunca nombres de personas ni correos.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -42,20 +43,13 @@ Deno.serve(async (req: Request) => {
     const texto = semana.slice(0, 120).map((f: any) =>
       `- [${aR(f.restaurant_id)}] ${f.tipo} / ${f.modulo} / urgencia ${f.urgencia}: ${String(f.titulo).slice(0, 140)}. ${String(f.detalle).slice(0, 400)}`).join('\n')
 
-    const { data: secret } = await admin.from('platform_secrets').select('value').eq('key', 'gemini_api_key').single()
-    if (!secret?.value) return json({ error: 'Config faltante' }, 500)
-    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': String(secret.value) },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: INSTRUCCIONES }] },
-        contents: [{ role: 'user', parts: [{ text: `Opiniones de la última semana (${semana.length}):\n${texto}` }] }],
-        generationConfig: { maxOutputTokens: 1200, temperature: 0.3 },
-      }),
-    })
-    const data = await resp.json()
-    if (!resp.ok) { console.error('Gemini error', JSON.stringify(data)); return json({ error: 'IA no disponible' }, 502) }
-    const resumen = (data?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('').trim()
+    const cfg = await cargarProveedor(admin)
+    if (!cfg) return json({ error: 'Config faltante' }, 500)
+    let resumen = ''
+    try {
+      const r = await callModel(cfg, { sistema: INSTRUCCIONES, usuario: `Opiniones de la última semana (${semana.length}):\n${texto}`, maxTokens: 1200, temperatura: 0.3, json: false, timeoutMs: 40_000 }, fetch as unknown as Fetch)
+      resumen = r.texto
+    } catch (e) { console.error('IA no disponible:', e instanceof Error ? e.message : 'error'); return json({ error: 'IA no disponible' }, 502) }
     return json({ resumen: resumen || 'No pude generar el resumen.', total: semana.length })
   } catch (e) {
     console.error(e)

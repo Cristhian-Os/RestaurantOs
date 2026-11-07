@@ -151,8 +151,11 @@ Los campos dish, ingredient, assignee y employee deben ser el valor EXACTO de la
   },
 }
 
-const GEMINI_URL = (key: string) =>
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`
+// Modelos en orden de preferencia: Google retira modelos (gemini-2.5-flash ya da 404 con claves nuevas). Ante un 404 se pasa al siguiente
+// y se recuerda el que funcionó mientras viva esta instancia.
+const MODELOS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-flash']   // lite: ~1 s en pruebas reales; 3.6-flash "piensa" y tardó ~8 s
+let modeloVivo = 0
+const GEMINI_URL = (modelo: string) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`
 const MAX_WAIT_MS = 25_000 // lo máximo que esperamos si Gemini pide reintentar (límite por minuto)
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -160,13 +163,19 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 interface GeminiReply { status: number; data: { error?: { details?: { retryDelay?: string }[] }; candidates?: { content?: { parts?: { text?: string }[] } }[] } }
 
 async function callGemini(key: string, body: unknown): Promise<GeminiReply> {
-  try {
-    const resp = await fetch(GEMINI_URL(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const data = await resp.json().catch(() => ({}))
-    return { status: resp.status, data }
-  } catch {
-    return { status: 0, data: {} } // sin conexión con Gemini: se trata como error pasajero
+  let ultima: GeminiReply = { status: 0, data: {} }
+  for (let i = modeloVivo; i < MODELOS.length; i++) {
+    try {
+      const resp = await fetch(GEMINI_URL(MODELOS[i]), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) })
+      const data = await resp.json().catch(() => ({}))
+      ultima = { status: resp.status, data }
+    } catch {
+      return { status: 0, data: {} } // sin conexión con Gemini: se trata como error pasajero
+    }
+    if (ultima.status !== 404) { modeloVivo = i; return ultima }
+    console.error('modelo no disponible:', MODELOS[i])
   }
+  return ultima
 }
 
 /** "19s" / "19.6s" → milisegundos (0 si Gemini no dice cuánto esperar). */

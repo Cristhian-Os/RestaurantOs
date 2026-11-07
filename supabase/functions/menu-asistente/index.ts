@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { armarCarta, agotadosDeConfig, cerrarRespuesta, validarPregunta, mesaValida, sesionValida, diaBogota, SYSTEM, RESPUESTA_SCHEMA, FUERA_DE_TEMA, LIMITE_MESA, SIN_SERVICIO } from './carta.ts'
+import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
+import { armarCarta, agotadosDeConfig, cerrarRespuesta, validarPregunta, mesaValida, sesionValida, diaBogota, SYSTEM, FUERA_DE_TEMA, LIMITE_MESA, SIN_SERVICIO } from './carta.ts'
 
 // Asistente de la carta del menú QR (público, sin sesión). La carta sale de la base en el momento de la pregunta;
 // el modelo solo redacta con esos datos. No se guarda la conversación: solo contadores de uso para limitar el costo.
@@ -44,7 +45,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // La carta de AHORA: platos a la venta con su estado real, lo agotado por caja y los ingredientes registrados.
-    const [{ data: platos }, { data: cfg }, { data: recetas }, { data: ings }] = await Promise.all([
+    const [{ data: platos }, { data: cfgRest }, { data: recetas }, { data: ings }] = await Promise.all([
       admin.from('dishes').select('id, name, description, price, category, availability_status, tags, sizes')
         .eq('restaurant_id', rest.id).eq('available', true).neq('availability_status', 'discontinued').order('sort_order').order('name').limit(200),
       admin.from('restaurant_config').select('display_name, modules_enabled').eq('restaurant_id', rest.id).maybeSingle(),
@@ -57,27 +58,20 @@ Deno.serve(async (req: Request) => {
     for (const r of recetas ?? []) { const n = nombre.get(r.ingrediente_id as string); if (n) porPlato.set(r.producto_id as string, [...(porPlato.get(r.producto_id as string) ?? []), n]) }
     const carta = armarCarta(platos as never, porPlato)
 
-    const { data: secret } = await admin.from('platform_secrets').select('value').eq('key', 'gemini_api_key').single()
-    if (!secret?.value) return json({ respuesta: SIN_SERVICIO, tema: 'carta' })
+    const cfg = await cargarProveedor(admin)
+    if (!cfg) return json({ respuesta: SIN_SERVICIO, tema: 'carta' })
 
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 9000)
-    let resp: Response
-    try {
-      resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
-        method: 'POST', signal: ctl.signal,
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': String(secret.value) },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM(String(cfg?.display_name ?? rest.name), JSON.stringify(carta), agotadosDeConfig(cfg?.modules_enabled)) }] },
-          contents: [{ role: 'user', parts: [{ text: pregunta }] }],
-          generationConfig: { maxOutputTokens: 400, temperature: 0.2, responseMimeType: 'application/json', responseSchema: RESPUESTA_SCHEMA, thinkingConfig: { thinkingBudget: 0 } },   // sin "pensamiento" extra: no se come el límite y no corta el JSON
-        }),
-      })
-    } catch { return json({ respuesta: SIN_SERVICIO, tema: 'carta' }) } finally { clearTimeout(t) }
-    const data = await resp.json().catch(() => null)
-    if (!resp.ok) { console.error('Gemini error', resp.status); return json({ respuesta: SIN_SERVICIO, tema: 'carta' }) }
-
+    // La salida se pide en JSON {tema, respuesta} y se valida abajo: lo que no cumple se descarta (nunca se muestra tal cual).
+    const FORMATO = '\n\nResponde únicamente con un objeto JSON: {"tema": "carta" o "fuera", "respuesta": "tu respuesta"}.'
     let salida: { tema?: string; respuesta?: string } = {}
-    try { salida = JSON.parse(data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? '') } catch { /* no era JSON */ }
+    try {
+      const resp = await callModel(cfg, {
+        sistema: SYSTEM(String(cfgRest?.display_name ?? rest.name), JSON.stringify(carta), agotadosDeConfig(cfgRest?.modules_enabled)) + FORMATO,
+        usuario: pregunta, maxTokens: 400, temperatura: 0.2, timeoutMs: 9000,
+      }, fetch as unknown as Fetch)
+      const t = resp.texto
+      try { salida = JSON.parse(t) } catch { const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) { try { salida = JSON.parse(t.slice(a, b + 1)) } catch { /* no era JSON */ } } }
+    } catch (e) { console.error('proveedor de IA:', e instanceof Error ? e.message : 'error'); return json({ respuesta: SIN_SERVICIO, tema: 'carta' }) }
     if (salida.tema === 'fuera') return json({ respuesta: FUERA_DE_TEMA, tema: 'fuera' })
     if (salida.tema !== 'carta' || typeof salida.respuesta !== 'string') return json({ respuesta: SIN_SERVICIO, tema: 'carta' })
     return json({ respuesta: cerrarRespuesta(pregunta, salida.respuesta), tema: 'carta' })

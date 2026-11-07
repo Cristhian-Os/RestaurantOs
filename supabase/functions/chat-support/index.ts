@@ -1,4 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
 import { validarOpinion, contexto, conversacionGuardable, TIPOS, MODULOS, URGENCIAS } from './opinion.ts'
 import { SYSTEM_LANDING, GUARDAR_LEAD, MAX_MENSAJES_SESION, CIERRE_LARGO, planesTexto, filtrarRespuesta, validarLead, refValido, sesionValida, sinTelefonos, type PlanPublico } from './landing.ts'
 
@@ -111,11 +112,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const { data: secret } = await supabase
-      .from('platform_secrets').select('value').eq('key', 'gemini_api_key').single()
-    const apiKey = secret?.value
-    if (!apiKey) return json({ error: 'Config faltante' }, 500)
-
     let system: string
     if (modoOpinion) {
       const pantalla = contexto(body?.pantalla, 80), dispositivo = contexto(body?.dispositivo, 120)
@@ -141,30 +137,26 @@ Deno.serve(async (req: Request) => {
 
     if (contents.length === 0) return json({ reply: '¡Hola! Soy Resti 👋 ¿En qué te ayudo con RestaurantOS?' })
 
-    // La clave de Gemini va en un encabezado, no en la URL, para que no quede en registros.
-    const resp = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': String(apiKey) },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: system }] },
-          contents,
-          ...(modoOpinion ? { tools: [{ functionDeclarations: [GUARDAR_OPINION] }] } : modoLanding ? { tools: [{ functionDeclarations: [GUARDAR_LEAD] }] } : {}),
-          generationConfig: { maxOutputTokens: modoLanding ? 350 : 600, temperature: modoLanding ? 0.3 : 0.4 },
-        }),
-      },
-    )
-    const data = await resp.json()
-    if (!resp.ok) {
-      console.error('Gemini error', JSON.stringify(data))
+    // Proveedor de IA de texto (DeepSeek u otro, o Gemini): la clave y el modelo salen de platform_secrets, nunca del navegador.
+    const cfg = await cargarProveedor(supabase)
+    if (!cfg) return json({ error: 'Config faltante' }, 500)
+    const turnos = contents.map((c) => ({ rol: c.role === 'model' ? 'assistant' as const : 'user' as const, texto: c.parts[0].text }))
+    const ultimo = turnos.pop()!   // lo último que dijo la persona es el mensaje actual; lo anterior, la memoria
+    let r
+    try {
+      r = await callModel(cfg, {
+        sistema: system, usuario: ultimo.texto, mensajes: turnos, json: false, timeoutMs: 20_000,
+        maxTokens: modoLanding ? 350 : 600, temperatura: modoLanding ? 0.3 : 0.4,
+        herramientas: modoOpinion ? [GUARDAR_OPINION] : modoLanding ? [GUARDAR_LEAD] : undefined,
+      }, fetch as unknown as Fetch)
+    } catch (e) {
+      console.error('proveedor de IA:', e instanceof Error ? e.message : 'error')   // solo el mensaje: nunca la clave ni la conversación
       return json({ reply: 'Ahora mismo no puedo responder. Intenta de nuevo en un momento.' })
     }
-    const parts: Array<{ text?: string; functionCall?: { name?: string; args?: Record<string, unknown> } }> = data?.candidates?.[0]?.content?.parts ?? []
 
     // Modo opinión: si el modelo llamó a guardar_opinion, se valida y se guarda con los datos de la SESIÓN.
     if (modoOpinion && sesion) {
-      const llamada = parts.find((p) => p.functionCall?.name === 'guardar_opinion')?.functionCall
+      const llamada = r.llamadas.find((l) => l.nombre === 'guardar_opinion')
       if (llamada) {
         const textoPersona = messages.filter((m) => m.role === 'user').map((m) => String(m.text ?? '')).join('\n')
         const op = validarOpinion(llamada.args, textoPersona)
@@ -185,7 +177,7 @@ Deno.serve(async (req: Request) => {
 
     // Landing: si el modelo llamó a guardar_lead, se valida y se guarda (la función de la base limita por IP y deduplica).
     if (modoLanding) {
-      const llamada = parts.find((p) => p.functionCall?.name === 'guardar_lead')?.functionCall
+      const llamada = r.llamadas.find((l) => l.nombre === 'guardar_lead')
       if (llamada) {
         const lead = validarLead(llamada.args)
         if ('error' in lead) return json({ reply: 'Para pasarle tus datos al equipo necesito tu nombre y un WhatsApp válido. ¿Me los das?' })
@@ -198,8 +190,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const replyCrudo = parts.map((p) => p.text ?? '').join('').trim()
-      || 'No pude generar una respuesta. ¿Puedes reformular tu pregunta?'
+    const replyCrudo = r.texto || 'No pude generar una respuesta. ¿Puedes reformular tu pregunta?'
     // Landing: lo que Resti dice nunca trae precios fuera de la tabla, "gratis" ni promociones inventadas.
     const reply = modoLanding ? filtrarRespuesta(replyCrudo, planesLanding).texto : replyCrudo
 

@@ -87,6 +87,23 @@ export type Change =
   | { op: 'purchase_add'; concepto: string; items: PurchaseLine[] }
   | { op: 'supplier_add'; nombre: string; telefono: string | null; email: string | null; producto: string | null; notas: string | null }
   | { op: 'supplier_update'; supplierId: string; patch: SupplierPatch }
+  | { op: 'dish_patch'; dishId: string; patch: Record<string, unknown> }   // cambios del menú que propone Resti (toppings, bolas, tamaños, textos, quitar)
+  | { op: 'dish_insert'; row: Record<string, unknown> }
+  | { op: 'flavors_set'; clave: 'helado_flavors' | 'jugo_flavors'; lista: string[] }
+  | { op: 'order_status'; orderId: string; status: 'pending' | 'cooking' | 'ready' }   // pedidos, equipo y nombre del restaurante que propone Resti
+  | { op: 'order_cancel'; orderId: string }
+  | { op: 'staff_active'; profileId: string; active: boolean }
+  | { op: 'biz_name'; name: string }
+  | { op: 'expense_patch'; gastoId: string; patch: { concepto?: string; monto?: number; categoria?: string | null } }   // operación que propone Resti: gastos, proveedores, equipo, tareas, ingredientes, mesas
+  | { op: 'expense_delete'; gastoId: string }
+  | { op: 'supplier_delete'; supplierId: string }
+  | { op: 'staff_create'; email: string; nombre: string; rol: string; telefono: string | null; password: string }
+  | { op: 'staff_update'; profileId: string; nombre?: string; telefono?: string; rol?: string }
+  | { op: 'task_patch'; taskId: string; patch: Record<string, unknown> }
+  | { op: 'ingredient_insert'; row: Record<string, unknown> }
+  | { op: 'ingredient_patch'; ingredientId: string; patch: Record<string, unknown> }
+  | { op: 'table_insert'; numero: number; capacidad: number }
+  | { op: 'table_disable'; mesaId: string }
 
 export interface Proposal {
   /** Posición de la acción cruda de la que salió (para poder quitarla). */
@@ -96,6 +113,8 @@ export interface Proposal {
   /** null cuando hay un problema: no se puede aplicar hasta que se corrija dictando de nuevo. */
   change:  Change | null
   problem?: string
+  /** Cambio delicado (cancelar un pedido, desactivar a alguien): Resti pide confirmación reforzada. */
+  riesgo?: 'alto'
 }
 
 export type VoiceRole = 'admin' | 'cashier'
