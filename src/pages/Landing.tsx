@@ -94,7 +94,7 @@ function DashboardMock() {
         <div className="lp-mock-card" style={{ flex: 1 }}>
           <small>Evolución de ventas</small>
           <svg viewBox="0 0 200 60" preserveAspectRatio="none" style={{ width: '100%', height: 70 }}>
-            <polyline points="0,50 30,38 60,44 90,26 120,32 150,14 200,6" fill="none" stroke="var(--w-accent)" strokeWidth="2.5" strokeLinejoin="round" />
+            <polyline className="lp-draw" pathLength={1} points="0,50 30,38 60,44 90,26 120,32 150,14 200,6" fill="none" stroke="var(--w-accent)" strokeWidth="2.5" strokeLinejoin="round" />
           </svg>
         </div>
         <div className="lp-mock-note">Vista de ejemplo</div>
@@ -108,7 +108,7 @@ function Hero() {
     <section className="lp-hero">
       <div className="lp-hero-copy">
         <span className="lp-badge">✦ Sistema integral para restaurantes</span>
-        <h1 className="lp-h1">Todo tu restaurante,<br /><span style={{ color: 'var(--w-accent-text)' }}>conectado</span></h1>
+        <h1 className="lp-h1">Todo tu restaurante,<br /><span className="lp-conect" style={{ color: 'var(--w-accent-text)' }}>conectado</span></h1>
         <p className="lp-lead">Gestiona, controla y haz crecer tu negocio con una sola plataforma.</p>
         <ul className="lp-checks">
           {CHECKS.map(c => <li key={c}><Check />{c}</li>)}
@@ -151,6 +151,13 @@ const MODULOS = [
   { t: 'Inventario', i: ICONS.stock },
 ]
 function Modulos() {
+  // El módulo resaltado va rotando solo (cada 2,2 s) para dar vida; quieto si la persona pidió menos movimiento.
+  const [activo, setActivo] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const t = setInterval(() => setActivo(a => (a + 1) % MODULOS.length), 2200)
+    return () => clearInterval(t)
+  }, [])
   return (
     <section id="modulos" className="lp-sec lp-modulos">
       <div>
@@ -160,7 +167,7 @@ function Modulos() {
       </div>
       <div className="lp-mods">
         {MODULOS.map((m, i) => (
-          <div key={m.t} className={'lp-mod' + (i === 0 ? ' on' : '')}>{m.i}<span>{m.t}</span></div>
+          <div key={m.t} className={'lp-mod' + (i === activo ? ' on' : '')}>{m.i}<span>{m.t}</span></div>
         ))}
         <button className="lp-mod" onClick={() => go('/registro')}><span>Ver más →</span></button>
       </div>
@@ -405,7 +412,7 @@ const LP_CSS = `
 .lp-menu-p a,.lp-menu-p button{padding:0.75rem;min-height:var(--w-tap);color:var(--w-text);text-decoration:none;background:none;border:none;text-align:left;font:inherit;font-size:var(--w-fs-body);cursor:pointer}
 .lp-toggle{min-width:var(--w-tap);min-height:var(--w-tap);border-radius:var(--w-r-pill);background:transparent;border:none;cursor:pointer;color:var(--w-text);font-size:1.1rem}
 .lp-badge{display:inline-flex;align-items:center;gap:0.5rem;padding:0.4rem 0.9rem;border-radius:var(--w-r-pill);font-size:var(--w-fs-label);font-weight:600;color:var(--w-accent-text);background:var(--w-accent-soft);border:1px solid color-mix(in srgb,var(--w-accent) 40%,transparent)}
-.lp-hero{position:relative;padding:3rem 1.25rem;display:grid;grid-template-columns:1fr;gap:2rem;max-width:1200px;margin-inline:auto;align-items:center}
+.lp-hero{position:relative;padding:3rem 1.25rem;display:grid;grid-template-columns:minmax(0,1fr);gap:2rem;max-width:1200px;margin-inline:auto;align-items:center}
 .lp-bg{position:absolute;inset:0 0 auto 0;height:900px;z-index:0;pointer-events:none;background:none}
 .lp-hero,.lp-tabs,.lp-sec{position:relative;z-index:1}
 .lp-top{position:sticky;z-index:50}
@@ -413,7 +420,16 @@ const LP_CSS = `
 .lp-lead{font-size:clamp(1.05rem,2.4vw,1.35rem);color:var(--w-text-2);line-height:1.5;max-width:30rem;margin:0 0 1.5rem}
 .lp-checks{list-style:none;padding:0;margin:0 0 1.75rem;display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1.25rem;max-width:32rem}
 .lp-checks li{display:flex;gap:0.5rem;align-items:flex-start;font-size:var(--w-fs-label);color:var(--w-text-2)}
-.lp-mock{display:flex;border-radius:var(--w-r-xl);overflow:hidden;background:var(--w-surface);border:1px solid var(--w-border-strong);box-shadow:var(--w-shadow-lg),0 0 80px rgba(255,90,0,.18);min-height:260px;font-size:11px}
+.lp-mock{display:flex;border-radius:var(--w-r-xl);overflow:hidden;background:var(--w-surface);border:1px solid var(--w-border-strong);box-shadow:var(--w-shadow-lg);min-height:260px;font-size:11px;animation:lp-float 7s ease-in-out infinite}
+@keyframes lp-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes lp-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes lp-bar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.lp-draw{stroke-dasharray:1;animation:lp-draw 2.4s ease-out .5s both}
+.lp-conect{position:relative;display:inline-block}
+.lp-conect::after{content:'';position:absolute;left:0;right:0;bottom:.04em;height:.1em;border-radius:99px;background:var(--w-accent);transform-origin:left;animation:lp-bar .9s .4s ease-out both}
+.lp-fcard{transition:transform .2s ease,border-color .2s ease}
+.lp-fcard:hover{transform:translateY(-4px);border-color:var(--w-accent)}
+@media(prefers-reduced-motion:reduce){.lp-mock,.lp-draw,.lp-conect::after,.lp-mod,.lp-fcard{animation:none;transition:none}}
 .lp-mock-side{width:28%;padding:0.75rem 0.5rem;background:var(--w-surface-sunken);display:flex;flex-direction:column;gap:0.25rem;color:var(--w-text-3)}
 .lp-mock-side div{padding:0.4rem 0.5rem;border-radius:var(--w-r-sm)}
 .lp-mock-side .on{background:var(--w-accent);color:var(--w-on-accent);font-weight:600}
@@ -425,11 +441,14 @@ const LP_CSS = `
 .lp-tabs{display:flex;gap:0.25rem;overflow-x:auto;max-width:1160px;margin:0 1.25rem;padding:0.4rem;border-radius:var(--w-r-pill)}
 .lp-tabs a{flex:1 0 auto;text-align:center;padding:0.7rem 1.1rem;border-radius:var(--w-r-pill);color:var(--w-text);text-decoration:none;font-size:var(--w-fs-label);font-weight:500;white-space:nowrap}
 .lp-tabs a.on{background:var(--w-accent);color:var(--w-on-accent);font-weight:600}
-.lp-feat{display:grid;grid-template-columns:1fr;gap:2rem;align-items:center}
+.lp-feat{display:grid;grid-template-columns:minmax(0,1fr);gap:2rem;align-items:center}
 .lp-feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem}
 .lp-fcard{padding:1.1rem;border-radius:var(--w-r-lg);background:var(--w-surface);border:1px solid var(--w-border);box-shadow:var(--w-shadow-sm)}
-.lp-modulos{display:grid;grid-template-columns:1fr;gap:1.5rem;align-items:center}
-.lp-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:0.6rem}
+.lp-modulos{display:grid;grid-template-columns:minmax(0,1fr);gap:1.5rem;align-items:center}
+.lp-mods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0.6rem}
+@media(min-width:560px){.lp-mods{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.lp-mod{min-width:0;text-align:center;overflow-wrap:anywhere;transition:transform .2s ease,background-color .35s ease,color .35s ease,border-color .35s ease}
+.lp-mod:hover{transform:translateY(-3px);border-color:var(--w-accent)}
 .lp-mod{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.4rem;min-height:84px;padding:0.5rem;border-radius:var(--w-r-lg);background:var(--w-surface);border:1px solid var(--w-border);color:var(--w-text);font:inherit;font-size:var(--w-fs-label);font-weight:500;cursor:default}
 button.lp-mod{cursor:pointer}
 .lp-mod.on{background:var(--w-accent);color:var(--w-on-accent);border-color:var(--w-accent);font-weight:600;box-shadow:var(--w-shadow-terra)}
@@ -443,7 +462,7 @@ button.lp-mod{cursor:pointer}
 @media(min-width:900px){
  .lp-hero{grid-template-columns:1.1fr 1fr;padding-top:4rem}
  .lp-feat{grid-template-columns:1fr 1.6fr}.lp-feat-grid{grid-template-columns:repeat(3,1fr)}
- .lp-modulos{grid-template-columns:1fr 1.7fr}.lp-mods{grid-template-columns:repeat(8,1fr)}
+ .lp-modulos{grid-template-columns:minmax(0,1fr) minmax(0,1.7fr)}.lp-mods{grid-template-columns:repeat(8,minmax(0,1fr))}
  .lp-tabs{margin-inline:auto}
 }
 `

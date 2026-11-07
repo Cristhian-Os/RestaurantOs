@@ -138,7 +138,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
     // A los 9 s el globo no sale si taparía el bloque principal del hero (celulares bajos / horizontal): saldrá al llegar a los precios.
     const taparia = () => {
       const vw = window.innerWidth, vh = window.innerHeight
-      const globo = { l: vw - 280, r: vw - 20, t: vh - 162, b: vh - 90 }
+      const globo = { l: vw - 352, r: vw - 92, t: vh - 112, b: vh - 56 }
       return Array.from(document.querySelectorAll('.landing-hero-inner h1, .landing-hero-inner p, .landing-badge, .landing-cta-row button'))
         .some(el => { const r = el.getBoundingClientRect(); return r.right > globo.l && r.left < globo.r && r.bottom > globo.t && r.top < globo.b })
     }
@@ -163,7 +163,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
   }, [opinion, enviar])
 
   // En el celular hay una barra de navegación flotante abajo: los botones van por encima de ella
-  const movil = useNavFlotante()
+  const movil = useNavFlotante() && !landing   // la landing no tiene píldora: Resti va pegada abajo
 
   return (
     <>
@@ -186,7 +186,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
       </motion.button>
 
       {landing && globo && !open && (
-        <div role="status" style={{ position: 'fixed', bottom: 130, right: 20, zIndex: 90, maxWidth: 'min(260px, calc(100vw - 40px))', display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
+        <div role="status" style={{ position: 'fixed', bottom: 56, right: 92, zIndex: 90, maxWidth: 'min(260px, calc(100vw - 112px))', display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
           padding: '0.7rem 0.9rem', borderRadius: '1rem', background: 'var(--w-surface)', border: '1px solid var(--w-line)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)', fontFamily: 'var(--w-sans)' }}>
           <button onClick={() => { setOpen(true); setGlobo(false) }} style={{ border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: 'var(--w-ink)', fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: 1.4 }}>
             <b>Resti:</b> ¿Qué tipo de restaurante tienes?
