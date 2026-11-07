@@ -15,6 +15,8 @@ import { OpcionesRestaurantes } from './OpcionesRestaurantes'
 import { PlatformOpiniones } from './PlatformOpiniones'
 import { PlatformIA } from './PlatformIA'
 import { PlatformLeads } from './PlatformLeads'
+import { Tabs } from '../ui/Tabs'
+import { EncabezadoModulo } from './platformUi'
 
 const TABS = [
   { id: 'inicio', label: 'Inicio' },
@@ -35,14 +37,12 @@ export function PlatformPanel() {
   const [tab, setTab] = useState<TabId>('inicio')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div role="tablist" aria-label="Secciones del panel de plataforma" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        {TABS.map(t => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-            style={{ border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: '0.75rem', padding: '0.6rem 1rem', minHeight: '2.75rem',
-              background: tab === t.id ? 'var(--w-terra, #C2570C)' : 'var(--bg-surface, #CDD0DC)', color: tab === t.id ? '#fff' : 'var(--text-primary, #2D3561)' }}>
-            {t.label}
-          </button>
-        ))}
+      <EncabezadoModulo icono="★" titulo="Plataforma" subtitulo="Restaurantes, vendedores, dinero y uso de IA" />
+      {/* Las 11 pestañas se desplazan dentro de su propia franja: la página nunca se desborda */}
+      <div style={{ overflowX: 'auto', margin: '0 -1rem', padding: '0 1rem', scrollbarWidth: 'none' }}>
+        <div style={{ width: 'max-content' }}>
+          <Tabs label="Secciones del panel de plataforma" items={TABS.map(t => ({ key: t.id, label: t.label }))} value={tab} onChange={setTab} />
+        </div>
       </div>
       {tab === 'inicio' && <PlatformInicio />}
       {tab === 'restaurantes' && <PlatformOverview />}

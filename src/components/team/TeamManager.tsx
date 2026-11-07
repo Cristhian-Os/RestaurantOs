@@ -14,12 +14,20 @@ import { supabase } from '../../services/supabaseClient'
 import { ScheduleCalendar } from './ScheduleCalendar'
 import { ShiftCheckinsReview } from './ShiftCheckinsReview'
 import message from 'antd/es/message'
+import { ModuleHeader } from '../tasks/ModuleHeader'
+import { Badge } from '../ui/Badge'
+import { Tabs } from '../ui/Tabs'
+import { StatePanel } from '../ui/StatePanel'
+import type { Tone } from '../ui/Badge'
+
+const CARD = { background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', boxShadow: 'var(--w-shadow-sm)' } as const
+const ROLE_TONE: Record<Role, Tone> = { admin: 'accent', waiter: 'info', kitchen: 'warning', cashier: 'success', client: 'neutral' }
 
 const S = {
-  out:   { boxShadow: 'var(--shadow-out)' },
-  outSm: { boxShadow: 'var(--shadow-out)' },
-  in:    { boxShadow: 'var(--shadow-in)' },
-  coral: { boxShadow: 'var(--shadow-coral)' },
+  out:   { boxShadow: 'var(--w-shadow-sm)', border: '1px solid var(--w-border)' },
+  outSm: { boxShadow: 'var(--w-shadow-sm)', border: '1px solid var(--w-border)' },
+  in:    { boxShadow: 'inset 0 0 0 1px var(--w-border)' },
+  coral: { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
 type Role = 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
@@ -36,11 +44,11 @@ interface Profile {
 }
 
 const ROLE_CONFIG: Record<Role, { label: string; emoji: string; bg: string; txt: string }> = {
-  admin:   { label: 'Administrador', emoji: '', bg: 'var(--tag-purple-bg)', txt: 'var(--tag-purple-text)' },
-  waiter:  { label: 'Mesero',        emoji: '', bg: 'var(--tag-blue-bg)',   txt: 'var(--tag-blue-text)'  },
-  kitchen: { label: 'Cocina',        emoji: '', bg: 'var(--tag-orange-bg)', txt: 'var(--tag-orange-text)'},
-  cashier: { label: 'Caja',          emoji: '', bg: 'var(--tag-green-bg)',  txt: 'var(--tag-green-text)' },
-  client:  { label: 'Cliente',       emoji: '', bg: 'var(--tag-gray-bg)',   txt: 'var(--tag-gray-text)'  },
+  admin:   { label: 'Administrador', emoji: '', bg: 'var(--w-info-bg)', txt: 'var(--w-info-text)' },
+  waiter:  { label: 'Mesero',        emoji: '', bg: 'var(--w-info-bg)',   txt: 'var(--w-info-text)'  },
+  kitchen: { label: 'Cocina',        emoji: '', bg: 'var(--w-warning-bg)', txt: 'var(--w-warning-text)'},
+  cashier: { label: 'Caja',          emoji: '', bg: 'var(--w-success-bg)',  txt: 'var(--w-success-text)' },
+  client:  { label: 'Cliente',       emoji: '', bg: 'var(--w-surface-sunken)',   txt: 'var(--w-text-2)'  },
 }
 
 interface NewEmployeeForm {
@@ -58,6 +66,20 @@ const FORM_INITIAL: NewEmployeeForm = {
 
 const DELETED_NAME = '[Cuenta eliminada]'
 
+type StatusFilter = 'all' | 'active' | 'inactive'
+
+const initials = (name: string | null | undefined) =>
+  (name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('') || '?'
+
+/** Avatar circular: foto o iniciales sobre naranja suave. */
+function Avatar({ url, name, size }: { url?: string | null; name: string | null; size: number }) {
+  return (
+    <div aria-hidden={!url} style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--w-accent-soft)', color: 'var(--w-accent-text)', fontWeight: 700, fontSize: size * 0.36, boxShadow: 'inset 0 0 0 2px var(--w-border)' }}>
+      {url ? <img src={url} alt={name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials(name)}
+    </div>
+  )
+}
+
 async function uploadAvatar(profileId: string, file: File): Promise<string | null> {
   const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
   const path = `avatars/${profileId}.${ext}`
@@ -72,12 +94,12 @@ async function uploadAvatar(profileId: string, file: File): Promise<string | nul
 
 export const TeamManager = memo(() => {
   // ── theme vars ────────────────────────────────────────────────
-  const bg     = 'var(--bg, #D8DAE4)'
-  const bgSurf = 'var(--bg-surface, #CDD0DC)'
-  const txt    = 'var(--text-primary, #2D3561)'
-  const txtSec = 'var(--text-secondary, #5A617A)'
-  const txtMut = 'var(--text-muted, #8B92AA)'
-  const acc    = 'var(--accent, #FF5722)'
+  const bg     = 'var(--w-surface)'
+  const bgSurf = 'var(--w-surface-sunken)'
+  const txt    = 'var(--w-text)'
+  const txtSec = 'var(--w-text-2)'
+  const txtMut = 'var(--w-text-3)'
+  const acc    = 'var(--w-accent)'
 
   // ── state ─────────────────────────────────────────────────────
   const [profiles,    setProfiles]  = useState<Profile[]>([])
@@ -87,6 +109,7 @@ export const TeamManager = memo(() => {
   const [creating,    setCreating]  = useState(false)
   const [formError,   setFormError] = useState<string | null>(null)
   const [search,      setSearch]    = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [avatarFile,  setAvatarFile]= useState<File | null>(null)
   const [avatarPreview, setPreview] = useState<string | null>(null)
 
@@ -296,6 +319,8 @@ export const TeamManager = memo(() => {
   // ── filter (hide deleted accounts) ───────────────────────────
   const filtered = profiles.filter(p => {
     if (p.full_name === DELETED_NAME) return false
+    if (statusFilter === 'active' && !p.active) return false
+    if (statusFilter === 'inactive' && p.active) return false
     if (!search.trim()) return true
     const q = search.toLowerCase()
     return p.full_name?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q) || p.role.includes(q)
@@ -312,36 +337,36 @@ export const TeamManager = memo(() => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <ShiftCheckinsReview />
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div>
-          <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: 0 }}>Equipo</h2>
-          <p style={{ fontSize: '0.875rem', color: txtMut, marginTop: '0.125rem' }}>
-            {profiles.filter(p => p.active && p.full_name !== DELETED_NAME).length} activos · {profiles.filter(p => p.full_name !== DELETED_NAME).length} total
-          </p>
-        </div>
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>}
+        title="Equipo"
+        subtitle={`${profiles.filter(p => p.active && p.full_name !== DELETED_NAME).length} activos · ${profiles.filter(p => p.full_name !== DELETED_NAME).length} total`}
+        actions={
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button onClick={() => setShowEditMe(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 700, padding: '0.625rem 1rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', backgroundColor: bg, color: txtSec, fontFamily: 'inherit', ...S.outSm }}>
-            {myProfile?.avatar_url
-              ? <img src={myProfile.avatar_url} alt="" style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
-              : ''
-            }
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600, minHeight: 44, padding: '0 1rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', backgroundColor: bg, color: txtSec, fontFamily: 'inherit', ...S.outSm }}>
+            <Avatar url={myProfile?.avatar_url} name={myProfile?.full_name ?? null} size={24} />
             Mi perfil
           </button>
           <motion.button whileTap={{ scale: 0.96 }}
             onClick={() => { setShowForm(true); setFormError(null) }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.875rem', fontWeight: 700, padding: '0.625rem 1rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', backgroundColor: acc, color: '#fff', fontFamily: 'inherit', ...S.coral }}>
-            + Agregar
+            style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.875rem', fontWeight: 600, minHeight: 44, padding: '0 1rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', backgroundColor: acc, color: 'var(--w-on-accent)', fontFamily: 'inherit', ...S.coral }}>
+            + Nuevo empleado
           </motion.button>
         </div>
-      </div>
+        }
+      />
 
       {/* ── Search ── */}
-      <div style={{ borderRadius: '1rem', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: bg, ...S.in }}>
-        <span style={{ color: txtMut }}></span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
+      <div style={{ ...CARD, flex: '1 1 260px', borderRadius: 'var(--w-r-md)', minHeight: 48, padding: '0 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" style={{ width: 18, height: 18, color: txtMut }}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar por nombre, email o rol..."
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, fontFamily: 'inherit' }} />
+          style={{ flex: 1, background: 'transparent', border: 'none', fontSize: '0.875rem', color: txt, fontFamily: 'inherit' }} />
+      </div>
+      <Tabs label="Filtrar por estado" value={statusFilter} onChange={setStatusFilter}
+        items={[{ key: 'all', label: 'Todos' }, { key: 'active', label: 'Activos' }, { key: 'inactive', label: 'Inactivos' }]} />
       </div>
 
       {/* ── New employee form ── */}
@@ -350,13 +375,13 @@ export const TeamManager = memo(() => {
           <motion.div
             initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
-            <div className="glass-card no-hover" style={{ padding: '1.5rem' }}>
-              <h3 style={{ fontWeight: 700, color: txt, marginBottom: '1.25rem', margin: '0 0 1.25rem', fontFamily: 'DM Sans, sans-serif' }}>Nuevo empleado</h3>
+            <div style={{ ...CARD, padding: '1.5rem' }}>
+              <h3 style={{ fontWeight: 700, color: txt, marginBottom: '1.25rem', margin: '0 0 1.25rem', fontFamily: 'var(--w-font)' }}>Nuevo empleado</h3>
 
               {/* Avatar upload */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
                 <div onClick={() => avatarRef.current?.click()}
-                  style={{ width: 64, height: 64, borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0, backgroundColor: bgSurf, ...S.in }}>
+                  style={{ width: 64, height: 64, borderRadius: 'var(--w-r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0, backgroundColor: bgSurf, ...S.in }}>
                   {avatarPreview ? <img src={avatarPreview} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '1.5rem' }}></span>}
                 </div>
                 <div>
@@ -372,38 +397,38 @@ export const TeamManager = memo(() => {
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nombre completo *</label>
                   <input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))}
                     placeholder="Ej: María García"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Email de acceso *</label>
                   <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                     placeholder="acceso@restaurante.com"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Contraseña *</label>
                   <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
                     placeholder="Mínimo 6 caracteres"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Email recuperación</label>
                   <input type="email" value={form.recovery_email} onChange={e => setForm(p => ({ ...p, recovery_email: e.target.value }))}
                     placeholder="personal@gmail.com"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Teléfono</label>
                   <input type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
                     placeholder="+57 300 000 0000"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.5rem' }}>Rol *</label>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
                     {(['waiter', 'kitchen', 'cashier', 'admin'] as Role[]).map(r => (
                       <button key={r} onClick={() => setForm(p => ({ ...p, role: r }))}
-                        style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.8125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', ...(form.role === r ? { backgroundColor: acc, color: '#fff', ...S.coral } : { backgroundColor: bg, color: txtSec, ...S.outSm }) }}>
+                        style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.8125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', ...(form.role === r ? { backgroundColor: acc, color: 'var(--w-on-accent)', ...S.coral } : { backgroundColor: bg, color: txtSec, ...S.outSm }) }}>
                         {ROLE_CONFIG[r].emoji} {ROLE_CONFIG[r].label}
                       </button>
                     ))}
@@ -411,15 +436,15 @@ export const TeamManager = memo(() => {
                 </div>
               </div>
 
-              {formError && <p style={{ fontSize: '0.75rem', color: '#EF4444', fontWeight: 600, marginTop: '0.75rem' }}>{formError}</p>}
+              {formError && <p style={{ fontSize: '0.75rem', color: 'var(--w-danger-text)', fontWeight: 600, marginTop: '0.75rem' }}>{formError}</p>}
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
                 <button onClick={() => { setShowForm(false); setForm(FORM_INITIAL); setFormError(null); setAvatarFile(null); setPreview(null) }}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
+                  style={{ flex: 1, minHeight: 44, padding: '0.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
                   Cancelar
                 </button>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleCreate} disabled={creating}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: '#fff', opacity: creating ? 0.7 : 1, ...S.coral }}>
+                  style={{ flex: 1, minHeight: 44, padding: '0.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: 'var(--w-on-accent)', opacity: creating ? 0.7 : 1, ...S.coral }}>
                   {creating ? 'Creando...' : 'Crear empleado'}
                 </motion.button>
               </div>
@@ -429,89 +454,78 @@ export const TeamManager = memo(() => {
       </AnimatePresence>
 
       {/* ── Employee list ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-        {filtered.length === 0 && (
-          <div style={{ borderRadius: '1.5rem', padding: '3rem 1rem', textAlign: 'center', backgroundColor: bg, ...S.in }}>
-            <p style={{ fontSize: '2.5rem', margin: '0 0 0.5rem' }}></p>
-            <p style={{ fontWeight: 700, color: txt }}>Sin empleados</p>
-          </div>
-        )}
+      {filtered.length === 0 ? (
+        <StatePanel kind="empty" title="Sin empleados" text={search.trim() || statusFilter !== 'all' ? 'Ningún empleado coincide con el filtro.' : 'Agrega a tu primer empleado con el botón "+ Agregar".'} />
+      ) : (
+      <div style={{ display: 'grid', gap: '0.875rem', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))' }}>
         {filtered.map(profile => {
-          const roleCfg   = ROLE_CONFIG[profile.role]
+          const roleCfg   = (ROLE_CONFIG[profile.role] ?? ROLE_CONFIG.client)
+          const iconBtn = { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', backgroundColor: bgSurf, display: 'flex' } as const
           return (
             <motion.div key={profile.id} layout
-              className="glass-card-sm no-hover"
-              style={{ padding: '0.875rem 1rem', opacity: profile.active ? 1 : 0.6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                {/* Avatar */}
-                <div style={{ width: 44, height: 44, borderRadius: '1rem', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', backgroundColor: bgSurf, ...S.in }}>
-                  {profile.avatar_url
-                    ? <img src={profile.avatar_url} alt={profile.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : roleCfg.emoji
-                  }
-                </div>
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 700, color: txt, fontSize: '0.875rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {profile.full_name ?? 'Sin nombre'}
-                    {!profile.active && <span style={{ marginLeft: '0.5rem', fontSize: '0.5625rem', backgroundColor: 'var(--tag-red-bg)', color: 'var(--tag-red-text)', fontWeight: 700, padding: '0.0625rem 0.3125rem', borderRadius: '9999px' }}>INACTIVO</span>}
-                  </p>
-                  <p style={{ fontSize: '0.75rem', color: txtMut, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{profile.email}</p>
-                </div>
-                {/* Role badge */}
-                <span className="tag-sm shrink-0" style={{ backgroundColor: roleCfg.bg, color: roleCfg.txt }}>{roleCfg.label}</span>
-                {/* Actions */}
-                {profile.role !== 'admin' && (
-                  <div style={{ display: 'flex', gap: '0.3125rem' }}>
-                    {/* Edit employee (full) */}
-                    <button onClick={() => openEditEmp(profile)}
-                      style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: txtSec, backgroundColor: bg, display: 'flex', ...S.outSm }}
-                      title="Editar empleado" aria-label="Editar empleado">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 15, height: 15 }}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                    {/* Toggle active */}
-                    <button onClick={() => handleToggleActive(profile)}
-                      style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: profile.active ? 'var(--green)' : txtSec, backgroundColor: bg, display: 'flex', ...S.outSm }}
-                      title={profile.active ? 'Desactivar' : 'Activar'} aria-label={profile.active ? 'Desactivar' : 'Activar'}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 15, height: 15 }}><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
-                    </button>
-                    {/* Schedule */}
-                    <button onClick={() => setScheduleEmp({ id: profile.id, name: profile.full_name ?? 'Empleado' })}
-                      style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: txtSec, backgroundColor: bg, display: 'flex', ...S.outSm }}
-                      title="Ver horario" aria-label="Ver horario">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 15, height: 15 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                    </button>
-                    {/* Delete */}
-                    <button onClick={() => setConfirmDeleteId(profile.id)}
-                      style={{ padding: '0.375rem', borderRadius: '0.625rem', border: 'none', cursor: 'pointer', color: '#EF4444', backgroundColor: bg, display: 'flex', ...S.outSm }}
-                      title="Eliminar empleado" aria-label="Eliminar empleado">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 15, height: 15 }}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                    </button>
-                  </div>
-                )}
+              style={{ ...CARD, padding: '1.25rem 1rem 1rem', opacity: profile.active ? 1 : 0.65, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', textAlign: 'center', minWidth: 0 }}>
+              <Avatar url={profile.avatar_url} name={profile.full_name} size={72} />
+              <div style={{ minWidth: 0, width: '100%' }}>
+                <p style={{ fontWeight: 700, color: txt, fontSize: 'var(--w-fs-body)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {profile.full_name ?? 'Sin nombre'}
+                </p>
+                <p style={{ fontSize: 'var(--w-fs-caption)', color: txtMut, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{profile.email}</p>
               </div>
+              <Badge tone={ROLE_TONE[profile.role]}>{roleCfg.label}</Badge>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', margin: 0, fontSize: 'var(--w-fs-caption)', fontWeight: 600, color: profile.active ? 'var(--w-success-text)' : 'var(--w-danger-text)' }}>
+                <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: profile.active ? 'var(--w-success)' : 'var(--w-danger)' }} />
+                {profile.active ? 'Activo' : 'Inactivo'}
+              </p>
+              {profile.role !== 'admin' && (
+                <div style={{ display: 'flex', gap: '0.375rem', marginTop: '0.25rem' }}>
+                  {/* Edit employee (full) */}
+                  <button onClick={() => openEditEmp(profile)}
+                    style={{ ...iconBtn, color: txtSec }}
+                    title="Editar empleado" aria-label="Editar empleado">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  {/* Toggle active */}
+                  <button onClick={() => handleToggleActive(profile)}
+                    style={{ ...iconBtn, color: profile.active ? 'var(--w-success-text)' : txtSec }}
+                    title={profile.active ? 'Desactivar' : 'Activar'} aria-label={profile.active ? 'Desactivar' : 'Activar'}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
+                  </button>
+                  {/* Schedule */}
+                  <button onClick={() => setScheduleEmp({ id: profile.id, name: profile.full_name ?? 'Empleado' })}
+                    style={{ ...iconBtn, color: txtSec }}
+                    title="Ver horario" aria-label="Ver horario">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  </button>
+                  {/* Delete */}
+                  <button onClick={() => setConfirmDeleteId(profile.id)}
+                    style={{ ...iconBtn, color: 'var(--w-danger-text)' }}
+                    title="Eliminar empleado" aria-label="Eliminar empleado">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  </button>
+                </div>
+              )}
             </motion.div>
           )
         })}
       </div>
+      )}
 
       {/* ── My profile modal ── */}
       <AnimatePresence>
         {showEditMe && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setShowEditMe(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(45,53,97,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'Nunito, sans-serif' }}>
+            style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'var(--w-overlay)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'var(--w-font)' }}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 480, damping: 32 }}
               onClick={e => e.stopPropagation()}
-              className="glass-modal"
-              style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', borderRadius: '1.75rem', padding: '1.5rem' }}>
-              <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1.25rem' }}>Mi perfil</h3>
+              style={{ ...CARD, background: 'var(--w-surface-raised)', boxShadow: 'var(--w-shadow-lg)', width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', borderRadius: 'var(--w-r-xl)', padding: '1.5rem' }}>
+              <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1.25rem' }}>Mi perfil</h3>
 
               {/* Avatar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
                 <div onClick={() => meAvatarRef.current?.click()}
-                  style={{ width: 72, height: 72, borderRadius: '1.25rem', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: bgSurf, ...S.in }}>
+                  style={{ width: 72, height: 72, borderRadius: 'var(--w-r-lg)', overflow: 'hidden', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: bgSurf, ...S.in }}>
                   {meAvatarPreview ? <img src={meAvatarPreview} alt="me" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '2rem' }}></span>}
                 </div>
                 <div>
@@ -526,30 +540,30 @@ export const TeamManager = memo(() => {
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nombre completo</label>
                   <input value={myForm.full_name} onChange={e => setMyForm(p => ({ ...p, full_name: e.target.value }))}
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Teléfono</label>
                   <input type="tel" value={myForm.phone} onChange={e => setMyForm(p => ({ ...p, phone: e.target.value }))}
                     placeholder="+57 300 000 0000"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
 
                 {/* Separator */}
-                <div style={{ borderTop: `1px solid ${bgSurf}`, paddingTop: '0.875rem' }}>
+                <div style={{ borderTop: `1px solid var(--w-border)`, paddingTop: '0.875rem' }}>
                   <p style={{ fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, margin: '0 0 0.75rem' }}>Cambiar credenciales (dejar en blanco para no cambiar)</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nuevo email de acceso</label>
                       <input type="email" value={myForm.new_email} onChange={e => setMyForm(p => ({ ...p, new_email: e.target.value }))}
                         placeholder="nuevo@email.com"
-                        style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                        style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nueva contraseña</label>
                       <input type="password" value={myForm.new_password} onChange={e => setMyForm(p => ({ ...p, new_password: e.target.value }))}
                         placeholder="Mínimo 6 caracteres"
-                        style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                        style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                     </div>
                   </div>
                 </div>
@@ -557,11 +571,11 @@ export const TeamManager = memo(() => {
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
                 <button onClick={() => setShowEditMe(false)}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
+                  style={{ flex: 1, minHeight: 44, padding: '0.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
                   Cancelar
                 </button>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleSaveMe} disabled={savingMe}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: '#fff', opacity: savingMe ? 0.7 : 1, ...S.coral }}>
+                  style={{ flex: 1, minHeight: 44, padding: '0.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: 'var(--w-on-accent)', opacity: savingMe ? 0.7 : 1, ...S.coral }}>
                   {savingMe ? 'Guardando...' : 'Guardar'}
                 </motion.button>
               </div>
@@ -575,31 +589,30 @@ export const TeamManager = memo(() => {
         {editEmp && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => !savingEmp && setEditEmp(null)}
-            style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(45,53,97,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'Nunito, sans-serif' }}>
+            style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'var(--w-overlay)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'var(--w-font)' }}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 480, damping: 32 }}
               onClick={e => e.stopPropagation()}
-              className="glass-modal"
-              style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', borderRadius: '1.75rem', padding: '1.5rem' }}>
-              <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1.25rem' }}>Editar empleado</h3>
+              style={{ ...CARD, background: 'var(--w-surface-raised)', boxShadow: 'var(--w-shadow-lg)', width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', borderRadius: 'var(--w-r-xl)', padding: '1.5rem' }}>
+              <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: txt, fontSize: '1.125rem', margin: '0 0 1.25rem' }}>Editar empleado</h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nombre completo</label>
                   <input value={editForm.full_name} onChange={e => setEditForm(p => ({ ...p, full_name: e.target.value }))}
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Email de acceso</label>
                   <input type="email" value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))}
                     placeholder="acceso@restaurante.com"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Teléfono</label>
                   <input type="tel" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))}
                     placeholder="+57 300 000 0000"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
 
                 <div>
@@ -607,7 +620,7 @@ export const TeamManager = memo(() => {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
                     {(['waiter', 'kitchen', 'cashier', 'admin'] as Role[]).map(r => (
                       <button key={r} onClick={() => setEditForm(p => ({ ...p, role: r }))}
-                        style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.8125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', ...(editForm.role === r ? { backgroundColor: acc, color: '#fff', ...S.coral } : { backgroundColor: bg, color: txtSec, ...S.outSm }) }}>
+                        style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.8125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', ...(editForm.role === r ? { backgroundColor: acc, color: 'var(--w-on-accent)', ...S.coral } : { backgroundColor: bg, color: txtSec, ...S.outSm }) }}>
                         {ROLE_CONFIG[r].label}
                       </button>
                     ))}
@@ -615,23 +628,23 @@ export const TeamManager = memo(() => {
                 </div>
 
                 {/* Cambiar contraseña */}
-                <div style={{ borderTop: `1px solid ${bgSurf}`, paddingTop: '0.875rem' }}>
+                <div style={{ borderTop: `1px solid var(--w-border)`, paddingTop: '0.875rem' }}>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: txtMut, marginBottom: '0.375rem' }}>Nueva contraseña (dejar en blanco para no cambiar)</label>
                   <input type="password" value={editForm.new_password} onChange={e => setEditForm(p => ({ ...p, new_password: e.target.value }))}
                     placeholder="Mínimo 6 caracteres"
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', outline: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: 'none', fontSize: '0.875rem', color: txt, backgroundColor: bgSurf, fontFamily: 'inherit', ...S.in, boxSizing: 'border-box' }} />
                 </div>
               </div>
 
-              {editErr && <p style={{ fontSize: '0.75rem', color: '#EF4444', fontWeight: 600, marginTop: '0.75rem' }}>{editErr}</p>}
+              {editErr && <p style={{ fontSize: '0.75rem', color: 'var(--w-danger-text)', fontWeight: 600, marginTop: '0.75rem' }}>{editErr}</p>}
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
                 <button onClick={() => setEditEmp(null)} disabled={savingEmp}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
+                  style={{ flex: 1, minHeight: 44, padding: '0.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
                   Cancelar
                 </button>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleSaveEmployee} disabled={savingEmp}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: '#fff', opacity: savingEmp ? 0.7 : 1, ...S.coral }}>
+                  style={{ flex: 1, minHeight: 44, padding: '0.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: acc, color: 'var(--w-on-accent)', opacity: savingEmp ? 0.7 : 1, ...S.coral }}>
                   {savingEmp ? 'Guardando...' : 'Guardar cambios'}
                 </motion.button>
               </div>
@@ -645,24 +658,23 @@ export const TeamManager = memo(() => {
         {confirmDeleteId && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => !hardDeleting && setConfirmDeleteId(null)}
-            style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(45,53,97,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'Nunito, sans-serif' }}>
+            style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'var(--w-overlay)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', fontFamily: 'var(--w-font)' }}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 480, damping: 32 }}
               onClick={e => e.stopPropagation()}
-              className="glass-modal"
-              style={{ width: '100%', maxWidth: 340, borderRadius: '1.75rem', padding: '1.5rem', textAlign: 'center' }}>
+              style={{ ...CARD, background: 'var(--w-surface-raised)', boxShadow: 'var(--w-shadow-lg)', width: '100%', maxWidth: 340, borderRadius: 'var(--w-r-xl)', padding: '1.5rem', textAlign: 'center' }}>
               <p style={{ fontSize: '2.5rem', margin: '0 0 0.75rem' }}></p>
-              <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: txt, fontSize: '1.0625rem', margin: '0 0 0.5rem' }}>¿Eliminar empleado?</h3>
+              <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: txt, fontSize: '1.0625rem', margin: '0 0 0.5rem' }}>¿Eliminar empleado?</h3>
               <p style={{ fontSize: '0.8125rem', color: txtSec, margin: '0 0 1.25rem', lineHeight: 1.5 }}>
                 Se anonimizará su cuenta y se eliminarán sus turnos. Esta acción no se puede deshacer fácilmente.
               </p>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button onClick={() => setConfirmDeleteId(null)} disabled={hardDeleting}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
+                  style={{ flex: 1, minHeight: 44, padding: '0.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: bg, color: txtSec, ...S.out }}>
                   Cancelar
                 </button>
                 <button onClick={() => handleHardDelete(confirmDeleteId)} disabled={hardDeleting}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: hardDeleting ? 'wait' : 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: '#EF4444', color: '#fff', boxShadow: 'var(--shadow-out)', opacity: hardDeleting ? 0.7 : 1 }}>
+                  style={{ flex: 1, minHeight: 44, padding: '0.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: hardDeleting ? 'wait' : 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', backgroundColor: 'var(--w-danger)', color: 'var(--w-on-accent)', boxShadow: 'var(--w-shadow-md)', opacity: hardDeleting ? 0.7 : 1 }}>
                   {hardDeleting ? 'Eliminando...' : 'Sí, eliminar'}
                 </button>
               </div>

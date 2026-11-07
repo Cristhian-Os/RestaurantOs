@@ -21,10 +21,10 @@ type UploadState = 'idle' | 'preview' | 'uploading' | 'done' | 'error'
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
-  green:   { boxShadow: 'var(--shadow-green)' },
+  neoOut:  { boxShadow: 'var(--w-shadow-sm)' },
+  neoIn:   { boxShadow: 'inset 0 0 0 1px var(--w-border)' },
+  coral:   { boxShadow: 'var(--w-shadow-terra)' },
+  green:   { boxShadow: 'var(--w-shadow-sm)' },
 } as const
 
 // Comprime imagen antes de subir (importante para fotos de cámara ~5MB)
@@ -165,25 +165,25 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.35, ease: EASE }}
-      className="bg-[#D8DAE4] rounded-3xl p-6"
+      className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] border border-[var(--w-border)] p-6"
       style={S.neoOut}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <p className="text-xs font-bold text-[#FF5722] uppercase tracking-wider mb-1">
+          <p className="text-xs font-bold text-[color:var(--w-accent-text)] uppercase tracking-wider mb-1">
             Evidencia requerida
           </p>
           <h3
-            className="font-bold text-[#2D3561] text-sm leading-snug"
-            style={{ fontFamily: 'DM Sans, sans-serif' }}
+            className="font-bold text-[color:var(--w-text)] text-sm leading-snug"
+            style={{ fontFamily: 'var(--w-font)' }}
           >
             {taskTitle}
           </h3>
         </div>
         <button
           onClick={onCancel}
-          className="text-[#9CA3AF] hover:text-[#6B7280] transition-colors p-1"
+          className="text-[color:var(--w-text-3)] hover:text-[color:var(--w-text-2)] transition-colors inline-flex h-11 w-11 items-center justify-center"
           aria-label="Cancelar"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
@@ -204,13 +204,13 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
             {/* Zona de carga */}
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-full h-40 rounded-2xl flex flex-col items-center justify-center gap-3 border-2 border-dashed border-[#C5CAD8] hover:border-[#FF5722] transition-colors"
+              className="w-full h-40 rounded-[var(--w-r-md)] flex flex-col items-center justify-center gap-3 border-2 border-dashed border-[var(--w-border-strong)] hover:border-[var(--w-accent)] transition-colors"
               style={S.neoIn}
             >
               <span className="text-4xl"></span>
               <div className="text-center">
-                <p className="text-sm font-bold text-[#2D3561]">Tomar foto o elegir de galería</p>
-                <p className="text-xs text-[#9CA3AF] mt-0.5">JPG, PNG, WebP · Máx 5MB</p>
+                <p className="text-sm font-bold text-[color:var(--w-text)]">Tomar foto o elegir de galería</p>
+                <p className="text-xs text-[color:var(--w-text-3)] mt-0.5">JPG, PNG, WebP · Máx 5MB</p>
               </div>
             </button>
 
@@ -225,7 +225,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
             />
 
             {error && (
-              <p className="text-xs text-red-500 font-medium flex items-center gap-1.5">
+              <p className="text-xs text-[color:var(--w-danger-text)] font-medium flex items-center gap-1.5">
                 <span></span> {error}
               </p>
             )}
@@ -240,7 +240,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
             className="flex flex-col gap-4"
           >
             {/* Preview de la foto */}
-            <div className="relative w-full rounded-2xl overflow-hidden" style={S.neoIn}>
+            <div className="relative w-full rounded-[var(--w-r-md)] overflow-hidden" style={S.neoIn}>
               <img
                 src={preview}
                 alt="Evidencia"
@@ -248,7 +248,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
               />
               <button
                 onClick={reset}
-                className="absolute top-2 right-2 w-8 h-8 rounded-xl bg-[#2D3561]/70 backdrop-blur-sm flex items-center justify-center text-white"
+                className="absolute top-2 right-2 w-8 h-8 rounded-[var(--w-r-md)] bg-[var(--w-overlay)] backdrop-blur-sm flex items-center justify-center text-[color:var(--w-on-accent)]"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
                   <path d="M18 6L6 18M6 6l12 12"/>
@@ -258,7 +258,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
 
             {/* Notas opcionales */}
             <div>
-              <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">
                 Nota adicional (opcional)
               </label>
               <textarea
@@ -267,13 +267,13 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
                 placeholder="Ej: Tarea completada, área limpia..."
                 maxLength={500}
                 rows={2}
-                className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] border-none outline-none resize-none placeholder-[#9CA3AF]"
+                className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-4 py-3 text-sm text-[color:var(--w-text)] border border-[var(--w-border)] resize-none placeholder:text-[color:var(--w-text-3)]"
                 style={S.neoIn}
               />
             </div>
 
             {error && (
-              <p className="text-xs text-red-500 font-medium flex items-center gap-1.5">
+              <p className="text-xs text-[color:var(--w-danger-text)] font-medium flex items-center gap-1.5">
                 <span></span> {error}
               </p>
             )}
@@ -282,7 +282,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
             <div className="flex gap-3">
               <button
                 onClick={reset}
-                className="flex-1 py-3 rounded-2xl text-sm font-bold text-[#6B7280] bg-[#D8DAE4]"
+                className="flex-1 min-h-[44px] rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-text-2)] bg-[var(--w-surface)] border border-[var(--w-border-strong)]"
                 style={S.neoOut}
               >
                 Repetir foto
@@ -290,7 +290,7 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleUpload}
-                className="flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-[#FF5722]"
+                className="flex-1 min-h-[44px] rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]"
                 style={S.coral}
               >
                 Enviar evidencia
@@ -306,23 +306,23 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="flex flex-col items-center gap-5 py-6"
           >
-            <div className="w-16 h-16 rounded-3xl bg-[#FF5722] flex items-center justify-center text-2xl" style={S.coral}>
+            <div className="w-16 h-16 rounded-[var(--w-r-lg)] bg-[var(--w-accent)] flex items-center justify-center text-2xl" style={S.coral}>
              
             </div>
             <div className="w-full">
-              <div className="flex justify-between text-xs font-bold text-[#6B7280] mb-2">
+              <div className="flex justify-between text-xs font-bold text-[color:var(--w-text-2)] mb-2">
                 <span>Subiendo evidencia...</span>
                 <span>{progress}%</span>
               </div>
-              <div className="w-full h-2 bg-[#CDD0DC] rounded-full overflow-hidden" style={S.neoIn}>
+              <div className="w-full h-2 bg-[var(--w-surface-sunken)] rounded-full overflow-hidden" style={S.neoIn}>
                 <motion.div
-                  className="h-full bg-[#FF5722] rounded-full"
+                  className="h-full bg-[var(--w-accent)] rounded-full"
                   animate={{ width: `${progress}%` }}
                   transition={{ duration: 0.4 }}
                 />
               </div>
             </div>
-            <p className="text-xs text-[#9CA3AF]">No cierres la aplicación</p>
+            <p className="text-xs text-[color:var(--w-text-3)]">No cierres la aplicación</p>
           </motion.div>
         )}
 
@@ -337,13 +337,13 @@ export const EvidenceUpload = memo<EvidenceUploadProps>(({
             className="flex flex-col items-center gap-3 py-8"
           >
             <div
-              className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl"
+              className="w-16 h-16 rounded-[var(--w-r-lg)] bg-[var(--w-success)] flex items-center justify-center text-3xl"
               style={S.green}
             >
              
             </div>
-            <p className="font-bold text-emerald-600 text-lg">¡Evidencia enviada!</p>
-            <p className="text-xs text-[#9CA3AF]">Tarea marcada como completada</p>
+            <p className="font-bold text-[color:var(--w-success-text)] text-lg">¡Evidencia enviada!</p>
+            <p className="text-xs text-[color:var(--w-text-3)]">Tarea marcada como completada</p>
           </motion.div>
         )}
 

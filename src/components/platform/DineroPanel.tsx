@@ -28,7 +28,7 @@ export function DineroPanel() {
   useEffect(() => {
     supabase.rpc('plataforma_dinero').then(({ data, error: e }) => { if (e) setError(e.message); else setD(data as Dinero) })
   }, [])
-  if (error) return <div style={{ ...tarjeta, color: 'var(--tag-red-text, #b91c1c)' }}>No se pudo cargar: {error}</div>
+  if (error) return <div style={{ ...tarjeta, color: 'var(--w-danger-text)' }}>No se pudo cargar: {error}</div>
   if (!d) return <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando…</div>
   const max = Math.max(1, ...d.serie.map(s => s.ingresos_base))
 
@@ -52,7 +52,7 @@ export function DineroPanel() {
           {d.serie.map(s => (
             <div key={s.mes} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%', fontSize: '0.6875rem' }}>
               <span>{s.ingresos_base > 0 ? cop(s.ingresos_base) : ''}</span>
-              <div style={{ width: '100%', maxWidth: '3rem', height: `${Math.max(2, (s.ingresos_base / max) * 100)}%`, background: 'var(--w-terra, #C2570C)', borderRadius: '0.375rem 0.375rem 0 0' }} />
+              <div style={{ width: '100%', maxWidth: '3rem', height: `${Math.max(2, (s.ingresos_base / max) * 100)}%`, background: 'var(--w-accent)', borderRadius: '0.375rem 0.375rem 0 0' }} />
               <span style={{ marginTop: '0.25rem' }}>{mesLargo(s.mes).split(' ')[0].slice(0, 3)}</span>
             </div>
           ))}

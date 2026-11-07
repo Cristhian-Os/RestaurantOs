@@ -97,8 +97,8 @@ export default {
         'neo-coral':  'var(--shadow-coral)',
       },
       fontFamily: {
-        display: ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        body:    ['"Nunito"',  'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['"Inter Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        body:    ['"Inter Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono:    ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       borderRadius: {

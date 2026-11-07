@@ -13,24 +13,40 @@ export const fechaCorta = (s: string | null | undefined) =>
 export const mesLargo = (s: string) => new Date(s.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
 
 export const campo: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '0.65rem 0.8rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)',
-  background: 'var(--w-bg)', color: 'var(--w-ink)', fontSize: '0.9375rem', minHeight: '2.75rem', fontFamily: 'inherit',
+  width: '100%', boxSizing: 'border-box', padding: '0.65rem 0.8rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)',
+  background: 'var(--w-surface)', color: 'var(--w-text)', fontSize: 'var(--w-fs-body)', minHeight: '2.75rem', fontFamily: 'inherit',
 }
 export const boton: React.CSSProperties = {
-  border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: '0.75rem', padding: '0.6rem 1rem', minHeight: '2.75rem', fontFamily: 'inherit',
+  border: '1px solid var(--w-border-strong)', cursor: 'pointer', fontWeight: 600, fontSize: 'var(--w-fs-body)', borderRadius: 'var(--w-r-md)', padding: '0.6rem 1rem', minHeight: '2.75rem', fontFamily: 'inherit',
 }
-export const botonPrimario: React.CSSProperties = { ...boton, background: 'var(--w-terra, #C2570C)', color: '#fff' }
-export const botonSuave: React.CSSProperties = { ...boton, background: 'var(--bg-surface, #CDD0DC)', color: 'var(--text-primary, #2D3561)' }
-export const etiqueta: React.CSSProperties = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary, #6b7280)', display: 'block', marginBottom: '0.25rem' }
-export const tarjeta: React.CSSProperties = { borderRadius: '1rem', padding: '1rem 1.25rem', background: 'var(--bg, #D8DAE4)', boxShadow: 'var(--shadow-out)', color: 'var(--text-primary, #2D3561)' }
-export const suave: React.CSSProperties = { color: 'var(--text-secondary, #6b7280)', fontSize: '0.8125rem' }
+export const botonPrimario: React.CSSProperties = { ...boton, border: 'none', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700 }
+export const botonSuave: React.CSSProperties = { ...boton, background: 'var(--w-surface)', color: 'var(--w-text)' }
+export const etiqueta: React.CSSProperties = { fontSize: 'var(--w-fs-label)', fontWeight: 600, color: 'var(--w-text-2)', display: 'block', marginBottom: '0.25rem' }
+export const tarjeta: React.CSSProperties = { borderRadius: 'var(--w-r-lg)', padding: '1rem 1.25rem', background: 'var(--w-surface)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)', color: 'var(--w-text)' }
+export const suave: React.CSSProperties = { color: 'var(--w-text-2)', fontSize: 'var(--w-fs-label)' }
+
+/** Encabezado de módulo de las láminas: icono naranja + título + subtítulo (+ acción a la derecha). */
+export function EncabezadoModulo({ icono, titulo, subtitulo, acciones }: { icono: React.ReactNode; titulo: string; subtitulo?: string; acciones?: React.ReactNode }) {
+  return (
+    <header style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <div aria-hidden style={{ width: 44, height: 44, borderRadius: 'var(--w-r-md)', background: 'var(--w-accent-soft)', color: 'var(--w-accent-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem', flexShrink: 0 }}>
+        {icono}
+      </div>
+      <div style={{ flex: '1 1 12rem', minWidth: 0 }}>
+        <h1 style={{ margin: 0, fontSize: 'var(--w-fs-screen)', fontWeight: 700, lineHeight: 1.15, color: 'var(--w-text)' }}>{titulo}</h1>
+        {subtitulo && <p style={{ margin: '0.125rem 0 0', fontSize: 'var(--w-fs-label)', color: 'var(--w-text-3)' }}>{subtitulo}</p>}
+      </div>
+      {acciones}
+    </header>
+  )
+}
 
 export function Modal({ children, onClose, ancho = '44rem' }: { children: React.ReactNode; onClose: () => void; ancho?: string }) {
   return (
     <div role="dialog" aria-modal="true" onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '1rem', overflowY: 'auto' }}>
+      style={{ position: 'fixed', inset: 0, background: 'var(--w-overlay)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '1rem', overflowY: 'auto' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: 'var(--bg, #D8DAE4)', color: 'var(--text-primary, #2D3561)', borderRadius: '1rem', width: '100%', maxWidth: ancho, padding: '1.25rem', margin: '1rem 0' }}>
+        style={{ background: 'var(--w-surface-raised)', color: 'var(--w-text)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-lg)', borderRadius: 'var(--w-r-xl)', width: '100%', maxWidth: ancho, padding: '1.25rem', margin: '1rem 0' }}>
         {children}
       </div>
     </div>

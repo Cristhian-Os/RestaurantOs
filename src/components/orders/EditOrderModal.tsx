@@ -6,7 +6,9 @@
  * vía editar_items_pedido; el servidor recalcula los precios.
  */
 import { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
+import { Modal } from '../ui/Modal'
+import { Button } from '../ui/Button'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { inventoryService } from '../../services/inventoryService'
@@ -106,59 +108,51 @@ export function EditOrderModal({ order, onClose, onSaved }: {
     onSaved()
   }
 
-  const btn: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, borderRadius: '0.75rem' }
-
-  return (
+    return (
     <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={() => !saving && onClose()}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '1rem' }}>
-        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-          onClick={e => e.stopPropagation()}
-          style={{ background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.5rem', maxWidth: 520, width: '100%', maxHeight: '85vh', overflow: 'auto', fontFamily: 'var(--w-sans)' }}>
-          <h3 className="ed-display" style={{ fontWeight: 600, fontSize: '1.375rem', margin: '0 0 0.25rem', color: 'var(--w-ink)' }}>Editar pedido</h3>
-          <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>
+      <Modal open onClose={() => !saving && onClose()} title="Editar pedido"
+        footer={<>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button onClick={save} loading={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</Button>
+        </>}>
+        <div>
+          <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>
             Toca <b>Editar</b> en un producto para cambiar cantidad, tamaño, sabores, toppings o comentario.
           </p>
           {order.paid_at && (
-            <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--w-wine)', background: 'var(--w-bg)', border: '1px solid var(--w-line)', borderRadius: '0.75rem', padding: '0.625rem 0.75rem' }}>
+            <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--w-warning-text)', background: 'var(--w-warning-bg)', borderRadius: 'var(--w-r-md)', padding: '0.625rem 0.75rem' }}>
               Este pedido ya está pagado: puedes cambiar opciones que no muevan el total (ej. el sabor). Si cambia el precio, cancélalo y crea uno nuevo.
             </p>
           )}
 
           {lines.length === 0 ? (
-            <p style={{ color: 'var(--w-ink-mut)', textAlign: 'center', padding: '1.5rem 0' }}>Sin productos</p>
+            <p style={{ color: 'var(--w-text-3)', textAlign: 'center', padding: '1.5rem 0' }}>Sin productos</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
               {lines.map(l => {
                 const d = l.dishId ? dishes[l.dishId] : undefined
                 return (
-                  <div key={l.idx} style={{ background: 'var(--w-bg)', border: '1px solid var(--w-line)', borderRadius: '0.875rem', padding: '0.75rem' }}>
+                  <div key={l.idx} style={{ background: 'var(--w-surface-sunken)', borderRadius: 'var(--w-r-md)', padding: '0.75rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
                       <div style={{ minWidth: 0 }}>
-                        <p style={{ margin: 0, fontWeight: 700, color: 'var(--w-ink)' }}>{l.quantity}× {l.name}</p>
-                        {l.notes && <p style={{ margin: '0.125rem 0 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>{l.notes}</p>}
+                        <p style={{ margin: 0, fontWeight: 700, color: 'var(--w-text)' }}>{l.quantity}× {l.name}</p>
+                        {l.notes && <p style={{ margin: '0.125rem 0 0', fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>{l.notes}</p>}
                       </div>
-                      <span style={{ fontWeight: 700, color: 'var(--w-ink)', whiteSpace: 'nowrap' }}>{fmt(l.unitPrice * l.quantity)}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--w-text)', whiteSpace: 'nowrap' }}>{fmt(l.unitPrice * l.quantity)}</span>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.625rem', alignItems: 'center' }}>
                       {d ? (
-                        <button onClick={() => setEditing(l.idx)} style={{ ...btn, flex: 1, padding: '0.55rem', background: 'var(--w-saffron)', color: '#fff' }}>
-                          Editar
-                        </button>
+                        <Button variant="secondary" className="flex-1" onClick={() => setEditing(l.idx)}>Editar</Button>
                       ) : l.dishId ? (
-                        <span style={{ flex: 1, fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Cargando…</span>
+                        <span style={{ flex: 1, fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>Cargando…</span>
                       ) : (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <button onClick={() => setQty(l.idx, l.quantity - 1)} style={{ ...btn, width: 34, height: 34, background: 'var(--w-surface)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>−</button>
-                          <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: 'var(--w-ink)' }}>{l.quantity}</span>
-                          <button onClick={() => setQty(l.idx, l.quantity + 1)} style={{ ...btn, width: 34, height: 34, background: 'var(--w-terra)', color: '#fff' }}>+</button>
+                          <Button variant="secondary" aria-label="Quitar uno" onClick={() => setQty(l.idx, l.quantity - 1)}>−</Button>
+                          <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: 'var(--w-text)' }}>{l.quantity}</span>
+                          <Button aria-label="Agregar uno" onClick={() => setQty(l.idx, l.quantity + 1)}>+</Button>
                         </div>
                       )}
-                      <button onClick={() => setLines(prev => prev.filter(x => x.idx !== l.idx))}
-                        style={{ ...btn, padding: '0.55rem 0.875rem', background: 'var(--w-wine)', color: '#fff' }}>
-                        Quitar
-                      </button>
+                      <Button variant="danger" onClick={() => setLines(prev => prev.filter(x => x.idx !== l.idx))}>Quitar</Button>
                     </div>
                   </div>
                 )
@@ -166,25 +160,15 @@ export function EditOrderModal({ order, onClose, onSaved }: {
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0.875rem 1rem', borderRadius: '0.875rem', background: 'var(--w-bg)', border: '1px solid var(--w-line)', marginBottom: '1.25rem' }}>
-            <span style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0.875rem 1rem', borderRadius: 'var(--w-r-md)', background: 'var(--w-surface-sunken)', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.875rem', color: 'var(--w-text-3)' }}>
               Total nuevo {Math.round(total) !== Math.round(order.total) && <span>(antes {fmt(order.total)})</span>}
             </span>
-            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-terra)' }}>{fmt(total)}</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-accent)' }}>{fmt(total)}</span>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button onClick={onClose} disabled={saving}
-              style={{ ...btn, flex: 1, padding: '0.9rem', background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>
-              Cancelar
-            </button>
-            <button onClick={save} disabled={saving}
-              style={{ ...btn, flex: 1, padding: '0.9rem', background: 'var(--w-terra)', color: '#fff', opacity: saving ? 0.7 : 1 }}>
-              {saving ? 'Guardando...' : 'Guardar cambios'}
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
+        </div>
+      </Modal>
 
       <AnimatePresence>
         {line && dish && (

@@ -30,16 +30,25 @@ import { CategoriasGastoEditor } from './CategoriasGastoEditor'
 import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
 import { CATEGORIA_DEFECTO, categoriaLabel, rangoGastosBogota } from '../../services/gastosResumen'
 import message from 'antd/es/message'
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Profile } from '../../pages/Dashboard'
 
-const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
-  green:   { boxShadow: 'var(--shadow-green)' },
+const FX = {
+  card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  soft:  { boxShadow: 'var(--w-shadow-sm)' },
+  field: { border: '1px solid var(--w-border)' },
+  cta:   { boxShadow: 'var(--w-shadow-terra)' },
 } as const
+
+const svg = (d: string) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+const IC = {
+  cash: svg('M2 6h20v12H2zM12 9a3 3 0 100 6 3 3 0 000-6z'),
+  card: svg('M2 5h20v14H2zM2 10h20'),
+  star: svg('M12 2l3 6.5 7 .9-5 4.8 1.3 7L12 17.8 5.7 21.2 7 14.2 2 9.4l7-.9z'),
+  up:   svg('M12 19V5M5 12l7-7 7 7'),
+  down: svg('M12 5v14M19 12l-7 7-7-7'),
+}
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 
@@ -91,10 +100,10 @@ const orderRef = (o: { id: string; order_number_today?: number | null }) =>
   `#${o.order_number_today ?? o.id.slice(0, 8)}`
 
 const PROGRESS_STEPS = [
-  { key: 'pending',   label: 'Pendiente',  color: '#9CA3AF' },
-  { key: 'cooking',   label: 'Cocinando',  color: '#F97316' },
-  { key: 'ready',     label: 'Listo',      color: '#10B981' },
-  { key: 'completed', label: 'Completado', color: '#3B82F6' },
+  { key: 'pending',   label: 'Pendiente',  color: 'var(--w-text-3)' },
+  { key: 'cooking',   label: 'Cocinando',  color: 'var(--w-warning)' },
+  { key: 'ready',     label: 'Listo',      color: 'var(--w-success-text)' },
+  { key: 'completed', label: 'Completado', color: 'var(--w-info)' },
 ] as const
 
 // Barra de etapas del pedido; se actualiza sola porque la lista se refresca por Realtime.
@@ -105,7 +114,7 @@ const OrderProgress = ({ status }: { status: string }) => {
     <div className="mb-3" aria-label={`Estado: ${current.label}`}>
       <div className="flex gap-1">
         {PROGRESS_STEPS.map((s, i) => (
-          <div key={s.key} className="flex-1 h-2 rounded-full bg-[#CDD0DC] overflow-hidden">
+          <div key={s.key} className="flex-1 h-2 rounded-full bg-[var(--w-surface-sunken)] overflow-hidden">
             <motion.div
               className="h-full rounded-full"
               initial={false}
@@ -115,7 +124,7 @@ const OrderProgress = ({ status }: { status: string }) => {
           </div>
         ))}
       </div>
-      <p className="text-[0.625rem] font-bold mt-1" style={{ color: current.color }}>{current.label}</p>
+      <p className="text-[length:var(--w-fs-caption)] font-bold mt-1" style={{ color: current.color }}>{current.label}</p>
     </div>
   )
 }
@@ -711,27 +720,33 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
   if (loading) return (
     <div className="flex justify-center py-20">
-      <div className="w-8 h-8 rounded-full border-4 border-[#FF5722] border-t-transparent animate-spin" />
+      <div className="w-8 h-8 rounded-full border-4 border-[var(--w-accent)] border-t-transparent animate-spin" />
     </div>
   )
 
   return (
     <div className="space-y-6">
+      {/* Encabezado de módulo */}
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 10v.01M18 15v.01"/></svg>}
+        title="Caja"
+        subtitle="Controla tus cobros y operaciones"
+      />
       {/* Pagos cobrados sin internet: siguen guardados aquí hasta que se envíen */}
       {colaPagos.length > 0 && (
-        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4" role="status">
-          <p className="text-sm font-bold text-amber-800">
+        <div className="bg-[var(--w-warning-bg)] border border-[var(--w-warning)] rounded-[var(--w-r-lg)] p-4" role="status">
+          <p className="text-sm font-bold text-[color:var(--w-warning-text)]">
             {colaPagos.filter(p => p.estado === 'pendiente').length > 0 &&
               `${colaPagos.filter(p => p.estado === 'pendiente').length} pago(s) guardados sin internet: se envían solos al volver la conexión.`}
             {colaPagos.some(p => p.estado === 'conflicto') &&
               ` ${colaPagos.filter(p => p.estado === 'conflicto').length} rechazado(s) por el servidor: revísalos con el administrador.`}
           </p>
-          <ul className="mt-1 text-xs text-amber-900 list-disc pl-4">
+          <ul className="mt-1 text-xs text-[color:var(--w-warning-text)] list-disc pl-4">
             {colaPagos.map(p => <li key={p.idem}>{p.resumen}{p.estado === 'conflicto' ? ` — ${p.motivo}` : ''}</li>)}
           </ul>
           {colaPagos.some(p => p.estado === 'pendiente') && (
             <button onClick={enviarCola} disabled={enviandoCola}
-              className="mt-2 min-h-[44px] px-4 rounded-xl text-sm font-bold text-white bg-amber-600">
+              className="mt-2 min-h-[44px] px-4 rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-warning-text)] bg-[var(--w-warning-bg)] border border-[var(--w-warning)]">
               {enviandoCola ? 'Enviando…' : 'Enviar ahora'}
             </button>
           )}
@@ -739,18 +754,18 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       )}
 
       {/* Base de caja: efectivo con el que arranca el cajón (punto de partida del corte) */}
-      <div className="bg-[#D8DAE4] rounded-2xl p-4 flex flex-wrap items-center gap-3 justify-between" style={S.neoOutSm}>
+      <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-4 flex flex-wrap items-center gap-3 justify-between" style={FX.soft}>
         <div>
-          <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">Base de caja de hoy</p>
+          <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider">Base de caja de hoy</p>
           {baseHoy !== null && !editandoBase ? (
-            <p className="text-2xl font-bold text-[#2D3561]">{fmt(baseHoy)}</p>
+            <p className="text-2xl font-bold text-[color:var(--w-text)]">{fmt(baseHoy)}</p>
           ) : (
-            <p className="text-sm text-[#6B7280]">¿Con cuánto efectivo arranca la caja hoy?</p>
+            <p className="text-sm text-[color:var(--w-text-2)]">¿Con cuánto efectivo arranca la caja hoy?</p>
           )}
         </div>
         {baseHoy !== null && !editandoBase ? (
           <button onClick={() => { setBaseInput(String(baseHoy)); setEditandoBase(true) }}
-            className="px-4 py-2 rounded-2xl text-sm font-bold text-[#2D3561]" style={S.neoOutSm}>
+            className="px-4 py-2 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-text)]" style={FX.soft}>
             Cambiar
           </button>
         ) : (
@@ -759,68 +774,60 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               onChange={e => setBaseInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleGuardarBase() }}
               placeholder="Ej: 100000" aria-label="Base de caja"
-              className="w-36 bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn} />
+              className="w-36 bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm font-bold text-[color:var(--w-text)] outline-none" style={FX.field} />
             <button onClick={handleGuardarBase} disabled={savingBase}
-              className="px-4 py-2 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingBase ? 0.6 : 1 }}>
+              className="px-4 py-2 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={{ ...FX.cta, opacity: savingBase ? 0.6 : 1 }}>
               {savingBase ? 'Guardando…' : 'Guardar base'}
             </button>
             {baseHoy !== null && (
-              <button onClick={() => setEditandoBase(false)} className="text-sm font-bold text-[#6B7280] px-2">Cancelar</button>
+              <button onClick={() => setEditandoBase(false)} className="min-h-[44px] text-sm font-bold text-[color:var(--w-text-2)] px-2">Cancelar</button>
             )}
           </div>
         )}
       </div>
 
       {/* Resumen del día (Rappi no cuenta: precios distintos al menú físico) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {[
-          { label: 'Efectivo hoy',       val: `$${Math.round(daySummary.total_efectivo).toLocaleString('es-CO')}`,     color: 'text-emerald-600' },
-          { label: 'Transferencias hoy', val: `$${Math.round(daySummary.total_transferencia).toLocaleString('es-CO')}`, color: 'text-blue-600'    },
-          ...(daySummary.total_tarjeta > 0 ? [{ label: 'Tarjeta hoy', val: `$${Math.round(daySummary.total_tarjeta).toLocaleString('es-CO')}`, color: 'text-indigo-600' }] : []),
-          { label: 'Propinas hoy',       val: `$${Math.round(daySummary.total_propinas).toLocaleString('es-CO')}`,      color: 'text-purple-500'  },
-          { label: 'Gastos hoy',         val: `$${Math.round(totalGastosHoy).toLocaleString('es-CO')}`,                 color: 'text-red-500'     },
-          { label: 'Neto del día',       val: `$${Math.round(netoDia).toLocaleString('es-CO')}`,                        color: 'text-[#FF5722]'   },
-        ].map(s => (
-          <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
-            <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
-            <p className="text-[0.625rem] text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
-            {s.label === 'Neto del día' && (
-              <p className="text-[0.625rem] text-[#9CA3AF]">{daySummary.total_ordenes} órdenes</p>
-            )}
-          </div>
-        ))}
+          { label: 'Efectivo hoy',       val: fmt(daySummary.total_efectivo),     tone: 'success' as const, icon: IC.cash },
+          { label: 'Transferencias hoy', val: fmt(daySummary.total_transferencia), tone: 'info' as const,    icon: IC.card },
+          ...(daySummary.total_tarjeta > 0 ? [{ label: 'Tarjeta hoy', val: fmt(daySummary.total_tarjeta), tone: 'info' as const, icon: IC.card }] : []),
+          { label: 'Propinas hoy',       val: fmt(daySummary.total_propinas),      tone: 'warning' as const, icon: IC.star },
+          { label: 'Gastos hoy',         val: fmt(totalGastosHoy),                 tone: 'danger' as const,  icon: IC.down },
+          { label: `Neto del día · ${daySummary.total_ordenes} órdenes`, val: fmt(netoDia), tone: 'accent' as const, icon: IC.up },
+        ].map(s => <StatCard key={s.label} label={s.label} value={s.val} tone={s.tone} icon={s.icon} />)}
       </div>
 
-      <p className="text-xs font-bold text-[#6B7280] -mt-3">
+      <p className="text-xs font-bold text-[color:var(--w-text-2)] -mt-3">
         Pedidos Rappi: {daySummary.ordenes_rappi} {daySummary.ordenes_rappi === 1 ? 'orden' : 'órdenes'} — $0 (dinero en Rappi app)
       </p>
 
       {/* Gastos del día */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <h2 className="text-xl font-bold text-[color:var(--w-text)]" style={{ fontFamily: 'var(--w-font)' }}>
             Gastos del día
-            <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({gastos.length})</span>
+            <span className="ml-2 text-sm font-normal text-[color:var(--w-text-3)]">({gastos.length})</span>
           </h2>
           <button onClick={() => setShowGastoForm(v => !v)}
-            className="px-4 py-2 rounded-2xl text-sm font-bold"
-            style={showGastoForm ? { background: 'var(--accent)', color: '#fff', ...S.coral } : { background: '#D8DAE4', color: '#2D3561', ...S.neoOutSm }}>
+            className="px-4 py-2 rounded-[var(--w-r-lg)] text-sm font-bold"
+            style={showGastoForm ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta } : { background: 'var(--w-surface)', color: 'var(--w-text)', ...FX.soft }}>
             + Agregar gasto
           </button>
         </div>
 
         {showGastoForm && (
-          <div className="bg-[#D8DAE4] rounded-2xl p-4 mb-4" style={S.neoOut}>
+          <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-4 mb-4" style={FX.card}>
             {/* Modo: gasto simple vs compra a proveedor con detalle */}
             <div className="flex gap-2 mb-3">
               <button onClick={() => setGastoModo('simple')}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold"
-                style={gastoModo === 'simple' ? { background: 'var(--accent)', color: '#fff' } : { background: '#CDD0DC', color: '#6B7280' }}>
+                className="px-3 py-1.5 rounded-[var(--w-r-md)] text-xs font-bold"
+                style={gastoModo === 'simple' ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)' } : { background: 'var(--w-surface-sunken)', color: 'var(--w-text-2)' }}>
                 Gasto simple
               </button>
               <button onClick={() => setGastoModo('proveedor')}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold"
-                style={gastoModo === 'proveedor' ? { background: 'var(--accent)', color: '#fff' } : { background: '#CDD0DC', color: '#6B7280' }}>
+                className="px-3 py-1.5 rounded-[var(--w-r-md)] text-xs font-bold"
+                style={gastoModo === 'proveedor' ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)' } : { background: 'var(--w-surface-sunken)', color: 'var(--w-text-2)' }}>
                 Compra a proveedor
               </button>
             </div>
@@ -830,16 +837,16 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 {/* ¿En qué se gastó? Permite sumar gastos por categoría en el corte diario y mensual. El admin edita la lista. */}
                 <div className="w-full">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase">¿En qué se gastó?</label>
+                    <label className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase">¿En qué se gastó?</label>
                     {profile.role === 'admin' && (
                       <button type="button" onClick={() => setShowCategorias(true)}
-                        className="text-[0.6875rem] font-bold text-[#FF5722] bg-transparent border-none cursor-pointer min-h-[32px]">
+                        className="text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-accent-text)] bg-transparent border-none cursor-pointer min-h-[32px]">
                         Editar categorías
                       </button>
                     )}
                   </div>
                   <select value={categoriaActual} onChange={e => setGastoCategoria(e.target.value)} disabled={categorias.length === 0}
-                    className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn}>
+                    className="w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm font-bold text-[color:var(--w-text)] outline-none" style={FX.field}>
                     {categorias.length === 0 && <option value="">Sin categorías (el gasto queda sin categoría)</option>}
                     {categorias.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                   </select>
@@ -847,37 +854,37 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 {/* ¿Con qué plata se pagó? Define si el gasto resta del efectivo de la caja o queda "por reembolsar". */}
                 <div className="w-full flex flex-wrap gap-3 items-end">
                   <div className="flex-1 min-w-[200px]">
-                    <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Se pagó con</label>
+                    <label className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase mb-1">Se pagó con</label>
                     <select value={gastoFuente} onChange={e => setGastoFuente(e.target.value as FuenteGasto)}
-                      className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn}>
+                      className="w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm font-bold text-[color:var(--w-text)] outline-none" style={FX.field}>
                       {(Object.keys(FUENTE_LABEL) as FuenteGasto[]).map(f => <option key={f} value={f}>{FUENTE_LABEL[f]}</option>)}
                     </select>
                   </div>
                   {gastoFuente === 'propio' && (
                     <div className="flex-1 min-w-[160px]">
-                      <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">¿Quién puso la plata?</label>
+                      <label className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase mb-1">¿Quién puso la plata?</label>
                       <input value={gastoPagadoPor} onChange={e => setGastoPagadoPor(e.target.value)} maxLength={80} placeholder="Ej: Angela"
-                        className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                        className="w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm text-[color:var(--w-text)] outline-none" style={FX.field} />
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-[160px]">
-                  <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Concepto</label>
+                  <label className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase mb-1">Concepto</label>
                   <div className="flex gap-2">
                     <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
                       placeholder="Ej: Domicilio de insumos"
-                      className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                      className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm text-[color:var(--w-text)] outline-none" style={FX.field} />
                     <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setGastoConcepto(limpiarTranscripcion(r.transcript))} />
                   </div>
                 </div>
                 <div className="w-32">
-                  <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Monto</label>
+                  <label className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase mb-1">Monto</label>
                   <input type="number" min={0} value={gastoMonto} onChange={e => setGastoMonto(e.target.value)}
                     placeholder="0"
-                    className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                    className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm text-[color:var(--w-text)] outline-none" style={FX.field} />
                 </div>
                 <button onClick={handleAgregarGasto} disabled={savingGasto}
-                  className="px-4 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingGasto ? 0.6 : 1 }}>
+                  className="px-4 py-2.5 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={{ ...FX.cta, opacity: savingGasto ? 0.6 : 1 }}>
                   {savingGasto ? 'Guardando…' : 'Guardar'}
                 </button>
               </div>
@@ -888,51 +895,51 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     context={() => ({ ingredients: ingredientesOpts.map(o => o.nombre) })} />
                 </div>
                 <div className="mb-3">
-                  <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Proveedor / concepto</label>
+                  <label className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase mb-1">Proveedor / concepto</label>
                   <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)}
                     placeholder="Ej: Distribuidora La Cosecha"
-                    className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                    className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm text-[color:var(--w-text)] outline-none" style={FX.field} />
                 </div>
 
-                <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-2">Productos que trajo</label>
+                <label className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase mb-2">Productos que trajo</label>
                 <div className="flex flex-col gap-2 mb-3">
                   {provItems.map((it, idx) => (
-                    <div key={idx} className="flex flex-wrap gap-2 items-center bg-[#CDD0DC] rounded-xl p-2" style={S.neoIn}>
+                    <div key={idx} className="flex flex-wrap gap-2 items-center bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] p-2" style={FX.field}>
                       <select
                         value={it.ingrediente_id}
                         onChange={e => {
                           const ing = ingredientesOpts.find(o => o.id === e.target.value)
                           updateProvItem(idx, { ingrediente_id: e.target.value, nombre_producto: ing?.nombre ?? it.nombre_producto, unidad: ing?.unidad_medida ?? it.unidad })
                         }}
-                        className="text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none">
+                        className="text-xs bg-[var(--w-surface-sunken)] rounded-lg px-2 py-1.5 text-[color:var(--w-text)] outline-none">
                         <option value="">Producto nuevo (escribir)…</option>
                         {ingredientesOpts.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                       </select>
                       {!it.ingrediente_id && (
                         <input value={it.nombre_producto} onChange={e => updateProvItem(idx, { nombre_producto: e.target.value })}
-                          placeholder="Nombre del producto" className="flex-1 min-w-[100px] text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                          placeholder="Nombre del producto" className="flex-1 min-w-[100px] text-xs bg-[var(--w-surface-sunken)] rounded-lg px-2 py-1.5 text-[color:var(--w-text)] outline-none" />
                       )}
                       <input type="number" min={0} step="0.01" value={it.cantidad} onChange={e => updateProvItem(idx, { cantidad: e.target.value })}
-                        placeholder="Cantidad" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                        placeholder="Cantidad" className="w-20 text-xs bg-[var(--w-surface-sunken)] rounded-lg px-2 py-1.5 text-[color:var(--w-text)] outline-none" />
                       <input value={it.unidad} onChange={e => updateProvItem(idx, { unidad: e.target.value })}
-                        placeholder="kg / litro / und" title="Obligatoria si el producto es nuevo: kg, gramo, litro, ml, pieza (und) o paquete" className="w-20 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
+                        placeholder="kg / litro / und" title="Obligatoria si el producto es nuevo: kg, gramo, litro, ml, pieza (und) o paquete" className="w-20 text-xs bg-[var(--w-surface-sunken)] rounded-lg px-2 py-1.5 text-[color:var(--w-text)] outline-none" />
                       <input type="number" min={0} step="0.01" value={it.precio_unitario} onChange={e => updateProvItem(idx, { precio_unitario: e.target.value })}
-                        placeholder="Precio unit." className="w-24 text-xs bg-white rounded-lg px-2 py-1.5 text-[#2D3561] outline-none" />
-                      <span className="text-xs font-bold text-[#2D3561] w-20 text-right">
+                        placeholder="Precio unit." className="w-24 text-xs bg-[var(--w-surface-sunken)] rounded-lg px-2 py-1.5 text-[color:var(--w-text)] outline-none" />
+                      <span className="text-xs font-bold text-[color:var(--w-text)] w-20 text-right">
                         ${Math.round((parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0)).toLocaleString('es-CO')}
                       </span>
                       <button onClick={() => setProvItems(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev)}
-                        className="text-[#9CA3AF] hover:text-red-500 text-sm px-1">✕</button>
+                        className="text-[color:var(--w-text-3)] hover:text-[color:var(--w-danger-text)] text-sm px-1">✕</button>
                     </div>
                   ))}
                 </div>
                 <button onClick={() => setProvItems(prev => [...prev, { ...PROV_ITEM_EMPTY }])}
-                  className="text-xs font-bold text-[#FF5722] mb-3">+ Agregar producto</button>
+                  className="text-xs font-bold text-[color:var(--w-accent-text)] mb-3">+ Agregar producto</button>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-[#2D3561]">Total: ${Math.round(provTotal).toLocaleString('es-CO')}</span>
+                  <span className="text-sm font-bold text-[color:var(--w-text)]">Total: ${Math.round(provTotal).toLocaleString('es-CO')}</span>
                   <button onClick={handleAgregarCompraProveedor} disabled={savingGasto}
-                    className="px-4 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={{ ...S.coral, opacity: savingGasto ? 0.6 : 1 }}>
+                    className="px-4 py-2.5 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={{ ...FX.cta, opacity: savingGasto ? 0.6 : 1 }}>
                     {savingGasto ? 'Guardando…' : 'Guardar compra · sube stock'}
                   </button>
                 </div>
@@ -942,16 +949,16 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         )}
 
         {gastos.length === 0 ? (
-          <div className="bg-[#D8DAE4] rounded-2xl p-6 text-center" style={S.neoIn}>
-            <p className="text-sm text-[#9CA3AF]">Sin gastos registrados hoy</p>
+          <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-6 text-center" style={FX.field}>
+            <p className="text-sm text-[color:var(--w-text-3)]">Sin gastos registrados hoy</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {gastos.map(g => (
-              <div key={g.id} className="flex items-center justify-between bg-[#D8DAE4] rounded-2xl px-4 py-3" style={S.neoOutSm}>
+              <div key={g.id} className="flex items-center justify-between bg-[var(--w-surface)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.soft}>
                 <div>
-                  <p className="font-semibold text-[#2D3561] text-sm">{g.concepto}</p>
-                  <p className="text-[0.6875rem] text-[#9CA3AF]">
+                  <p className="font-semibold text-[color:var(--w-text)] text-sm">{g.concepto}</p>
+                  <p className="text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">
                     {new Date(g.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                     {` · ${categoriaLabel(g.categoria, etiquetas)}`}
                     {g.fuente === 'propio' && ` · lo pagó ${g.pagado_por_nombre ?? 'otra persona'} (no sale del cajón)`}
@@ -960,8 +967,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-bold text-red-500">${Math.round(Number(g.monto)).toLocaleString('es-CO')}</span>
-                  <button onClick={() => handleEliminarGasto(g.id)} className="text-[#9CA3AF] hover:text-red-500 text-sm">✕</button>
+                  <span className="font-bold text-[color:var(--w-danger-text)]">${Math.round(Number(g.monto)).toLocaleString('es-CO')}</span>
+                  <button onClick={() => handleEliminarGasto(g.id)} className="min-h-[44px] text-[color:var(--w-text-3)] hover:text-[color:var(--w-danger-text)] text-sm">✕</button>
                 </div>
               </div>
             ))}
@@ -971,18 +978,18 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
       {/* Por reembolsar: gastos que alguien adelantó con su plata. El saldo se ve siempre para que nadie pierda la cuenta. */}
       {porReembolsar.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-          <p className="text-sm font-bold text-amber-800">
+        <div className="bg-[var(--w-warning-bg)] border border-[var(--w-warning)] rounded-[var(--w-r-lg)] p-4">
+          <p className="text-sm font-bold text-[color:var(--w-warning-text)]">
             Por reembolsar: {fmt(porReembolsar.reduce((s, g) => s + Number(g.monto), 0))}
             <span className="font-normal"> · {[...new Set(porReembolsar.map(g => g.pagado_por_nombre ?? 'Otra persona'))].join(', ')}</span>
           </p>
           <div className="flex flex-col gap-2 mt-2">
             {porReembolsar.map(g => (
-              <div key={g.id} className="flex flex-wrap items-center justify-between gap-2 bg-white/70 rounded-xl px-3 py-2">
-                <span className="text-sm text-[#2D3561]"><b>{g.concepto}</b> · {fmt(g.monto)} · {g.pagado_por_nombre ?? 'otra persona'}</span>
+              <div key={g.id} className="flex flex-wrap items-center justify-between gap-2 bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2">
+                <span className="text-sm text-[color:var(--w-text)]"><b>{g.concepto}</b> · {fmt(g.monto)} · {g.pagado_por_nombre ?? 'otra persona'}</span>
                 <span className="flex gap-2">
-                  <button onClick={() => handleReembolsar(g, 'caja')} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-white bg-amber-600">Pagar con efectivo de la caja</button>
-                  <button onClick={() => handleReembolsar(g, 'transferencia')} className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-amber-800 bg-amber-100">Por transferencia</button>
+                  <button onClick={() => handleReembolsar(g, 'caja')} className="min-h-[44px] px-3 rounded-[var(--w-r-md)] text-xs font-bold text-[color:var(--w-warning-text)] bg-[var(--w-warning-bg)] border border-[var(--w-warning)]">Pagar con efectivo de la caja</button>
+                  <button onClick={() => handleReembolsar(g, 'transferencia')} className="min-h-[44px] px-3 rounded-[var(--w-r-md)] text-xs font-bold text-[color:var(--w-warning-text)] bg-[var(--w-warning-bg)] border border-[var(--w-warning)]">Por transferencia</button>
                 </span>
               </div>
             ))}
@@ -991,26 +998,26 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       )}
 
       {/* Aporte a la caja: efectivo que alguien pone porque la base no alcanzó (suma al efectivo esperado) */}
-      <div className="bg-[#D8DAE4] rounded-2xl p-4 flex flex-wrap items-end gap-3" style={S.neoOutSm}>
+      <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-4 flex flex-wrap items-end gap-3" style={FX.soft}>
         <div className="flex-1 min-w-[140px]">
-          <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-1">Aporte a la caja</p>
+          <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-1">Aporte a la caja</p>
           <input type="number" min={0} inputMode="numeric" value={aporteMonto} onChange={e => setAporteMonto(e.target.value)} placeholder="Monto"
-            aria-label="Monto del aporte" className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn} />
+            aria-label="Monto del aporte" className="w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm font-bold text-[color:var(--w-text)] outline-none" style={FX.field} />
         </div>
         <div className="flex-1 min-w-[140px]">
           <input value={aportePor} onChange={e => setAportePor(e.target.value)} maxLength={80} placeholder="¿Quién lo puso? (opcional)"
-            aria-label="Quién aportó" className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+            aria-label="Quién aportó" className="w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm text-[color:var(--w-text)] outline-none" style={FX.field} />
         </div>
-        <button onClick={handleAporte} className="min-h-[44px] px-4 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={S.coral}>Registrar aporte</button>
+        <button onClick={handleAporte} className="min-h-[44px] px-4 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={FX.cta}>Registrar aporte</button>
       </div>
 
       {/* Pedidos esperando cobro ANTES de pasar a cocina (Plan B) */}
       {pendingPayment.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-amber-600" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            <h2 className="text-xl font-bold text-[color:var(--w-warning-text)]" style={{ fontFamily: 'var(--w-font)' }}>
               Pedidos por cobrar antes de cocina
-              <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({pendingPayment.length})</span>
+              <span className="ml-2 text-sm font-normal text-[color:var(--w-text-3)]">({pendingPayment.length})</span>
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -1018,40 +1025,40 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <motion.div
                 key={order.id}
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-[#D8DAE4] rounded-3xl p-5 border-2 border-amber-400" style={S.neoOut}
+                className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-5 border-2 border-[var(--w-warning)]" style={FX.card}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-bold text-[#2D3561] text-lg">
+                    <p className="font-bold text-[color:var(--w-text)] text-lg">
                       {destinoPedido(order)}
-                      {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
+                      {order.customer_name && <span className="text-[color:var(--w-accent-text)]"> · {order.customer_name}</span>}
                     </p>
-                    <p className="text-xs text-[#9CA3AF]">
+                    <p className="text-xs text-[color:var(--w-text-3)]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
-                    {order.notes && <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>}
+                    {order.notes && <p className="text-xs text-[color:var(--w-text-2)] italic mt-1">{order.notes}</p>}
                   </div>
-                  <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
+                  <span className="text-2xl font-bold text-[color:var(--w-accent-text)]">${Math.round(order.total).toLocaleString('es-CO')}</span>
                 </div>
                 <OrderProgress status={order.status} />
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.slice(0, 4).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
-                      <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
-                      <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
+                      <span className="text-[color:var(--w-text-2)]">{item.quantity}× {item.name}</span>
+                      <span className="text-[color:var(--w-text-3)]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                 </div>
                 {(pagadoPorOrden[order.id] ?? 0) > 0 && (
-                  <p className="text-xs font-bold text-amber-700 mb-2">
+                  <p className="text-xs font-bold text-[color:var(--w-warning-text)] mb-2">
                     Cobrado {fmt(pagadoPorOrden[order.id])} · falta {fmt(order.total - pagadoPorOrden[order.id])}
                   </p>
                 )}
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={() => (pagadoPorOrden[order.id] ?? 0) > 0 ? setSplitOrder({ order, kind: 'inicial' }) : openPay(order, 'inicial')}
-                  className="w-full py-3 rounded-2xl font-bold text-white text-sm"
-                  style={{ backgroundColor: '#D97706' }}
+                  className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] text-sm"
+                  style={{ backgroundColor: 'var(--w-warning)' }}
                 >
                   {(pagadoPorOrden[order.id] ?? 0) > 0
                     ? `Seguir cobrando · falta ${fmt(order.total - pagadoPorOrden[order.id])}`
@@ -1059,7 +1066,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 </motion.button>
                 {!(pagadoPorOrden[order.id] > 0) && (
                   <button onClick={() => setSplitOrder({ order, kind: 'inicial' })}
-                    className="w-full min-h-[44px] mt-2 rounded-2xl text-xs font-bold text-[#2D3561]" style={S.neoOutSm}>
+                    className="w-full min-h-[44px] mt-2 rounded-[var(--w-r-lg)] text-xs font-bold text-[color:var(--w-text)]" style={FX.soft}>
                     Dividir cuenta
                   </button>
                 )}
@@ -1067,7 +1074,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setEditingOrder(order)}
-                    className="flex-1 py-2 rounded-2xl font-bold text-white bg-amber-500 text-xs"
+                    className="flex-1 py-2 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-warning-text)] bg-[var(--w-warning-bg)] border border-[var(--w-warning)] text-xs"
                   >
                     ✏️ Editar
                   </motion.button>
@@ -1087,7 +1094,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                         setCancellingOrder(null)
                       }
                     }}
-                    className="flex-1 py-2 rounded-2xl font-bold text-white bg-red-600 text-xs"
+                    className="flex-1 py-2 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-danger-text)] bg-[var(--w-danger-bg)] border border-[var(--w-danger)] text-xs"
                   >
                     {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
                   </motion.button>
@@ -1102,9 +1109,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       {cookingOrders.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-amber-600" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            <h2 className="text-xl font-bold text-[color:var(--w-warning-text)]" style={{ fontFamily: 'var(--w-font)' }}>
               En cocina
-              <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({cookingOrders.length})</span>
+              <span className="ml-2 text-sm font-normal text-[color:var(--w-text-3)]">({cookingOrders.length})</span>
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -1112,27 +1119,27 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <motion.div
                 key={order.id}
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-[#D8DAE4] rounded-3xl p-5 border-2 border-amber-400" style={S.neoOut}
+                className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-5 border-2 border-[var(--w-warning)]" style={FX.card}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-bold text-[#2D3561] text-lg">
+                    <p className="font-bold text-[color:var(--w-text)] text-lg">
                       {destinoPedido(order)}
-                      {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
+                      {order.customer_name && <span className="text-[color:var(--w-accent-text)]"> · {order.customer_name}</span>}
                     </p>
-                    <p className="text-xs text-[#9CA3AF]">
+                    <p className="text-xs text-[color:var(--w-text-3)]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
-                    <p className="text-xs font-bold mt-0.5 text-amber-600">Preparándose en cocina</p>
+                    <p className="text-xs font-bold mt-0.5 text-[color:var(--w-warning-text)]">Preparándose en cocina</p>
                   </div>
-                  <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
+                  <span className="text-2xl font-bold text-[color:var(--w-accent-text)]">${Math.round(order.total).toLocaleString('es-CO')}</span>
                 </div>
                 <OrderProgress status={order.status} />
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.filter((it: any) => !it.cancelled).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
-                      <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
-                      <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
+                      <span className="text-[color:var(--w-text-2)]">{item.quantity}× {item.name}</span>
+                      <span className="text-[color:var(--w-text-3)]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                 </div>
@@ -1152,7 +1159,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                       setCancellingOrder(null)
                     }
                   }}
-                  className="w-full py-3 rounded-2xl font-bold text-white bg-red-600 text-sm"
+                  className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-danger-text)] bg-[var(--w-danger-bg)] border border-[var(--w-danger)] text-sm"
                 >
                   {cancellingOrder === order.id ? '⏳ Cancelando...' : '🗑️ Cancelar pedido'}
                 </motion.button>
@@ -1165,11 +1172,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       {/* Órdenes listas */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <h2 className="text-xl font-bold text-[color:var(--w-text)]" style={{ fontFamily: 'var(--w-font)' }}>
             Órdenes para cobrar
-            <span className="ml-2 text-sm font-normal text-[#9CA3AF]">({readyOrders.length})</span>
+            <span className="ml-2 text-sm font-normal text-[color:var(--w-text-3)]">({readyOrders.length})</span>
           </h2>
-          <button onClick={fetchData} className="p-2.5 rounded-2xl text-[#6B7280]" style={S.neoOutSm}>
+          <button onClick={fetchData} className="p-2.5 rounded-[var(--w-r-lg)] text-[color:var(--w-text-2)]" style={FX.soft}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
               <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
@@ -1177,10 +1184,10 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         </div>
 
         {readyOrders.length === 0 ? (
-          <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
+          <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-12 text-center" style={FX.field}>
             <p className="text-4xl mb-3"></p>
-            <p className="font-bold text-[#2D3561]">Todo al día</p>
-            <p className="text-sm text-[#9CA3AF] mt-1">Sin órdenes pendientes de cobro</p>
+            <p className="font-bold text-[color:var(--w-text)]">Todo al día</p>
+            <p className="text-sm text-[color:var(--w-text-3)] mt-1">Sin órdenes pendientes de cobro</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1188,23 +1195,23 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               <motion.div
                 key={order.id}
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-[#D8DAE4] rounded-3xl p-5" style={S.neoOut}
+                className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-5" style={FX.card}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-bold text-[#2D3561] text-lg">
+                    <p className="font-bold text-[color:var(--w-text)] text-lg">
                       {destinoPedido(order)}
-                      {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
+                      {order.customer_name && <span className="text-[color:var(--w-accent-text)]"> · {order.customer_name}</span>}
                     </p>
-                    <p className="text-xs text-[#9CA3AF]">
+                    <p className="text-xs text-[color:var(--w-text-3)]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
-                    <p className={`text-xs font-bold mt-0.5 ${order.delivered_at ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    <p className={`text-xs font-bold mt-0.5 ${order.delivered_at ? 'text-[color:var(--w-success-text)]' : 'text-[color:var(--w-warning-text)]'}`}>
                       {order.delivered_at ? '✓ Entregado al mesero' : 'Esperando que el mesero lo recoja'}
                     </p>
                   </div>
-                  <span className="text-2xl font-bold text-[#FF5722]">${Math.round(order.total).toLocaleString('es-CO')}</span>
+                  <span className="text-2xl font-bold text-[color:var(--w-accent-text)]">${Math.round(order.total).toLocaleString('es-CO')}</span>
                 </div>
 
                 <OrderProgress status={order.status} />
@@ -1213,20 +1220,20 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <div className="flex flex-col gap-1 mb-4">
                   {order.items.slice(0, 4).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm">
-                      <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
-                      <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
+                      <span className="text-[color:var(--w-text-2)]">{item.quantity}× {item.name}</span>
+                      <span className="text-[color:var(--w-text-3)]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                   {order.items.length > 4 && (
-                    <p className="text-xs text-[#9CA3AF]">+{order.items.length - 4} platos más</p>
+                    <p className="text-xs text-[color:var(--w-text-3)]">+{order.items.length - 4} platos más</p>
                   )}
                   {order.notes && (
-                    <p className="text-xs text-[#6B7280] italic mt-1">{order.notes}</p>
+                    <p className="text-xs text-[color:var(--w-text-2)] italic mt-1">{order.notes}</p>
                   )}
                 </div>
 
                 {order.paid_at && (
-                  <p className="text-xs font-bold text-[#6B7280] mb-2">
+                  <p className="text-xs font-bold text-[color:var(--w-text-2)] mb-2">
                     Pagado · {esRappi(order) ? 'Rappi' : order.payment_method === 'mixto' ? 'Mixto' : order.payment_method === 'transferencia' ? 'Transferencia' : order.payment_method === 'tarjeta' ? 'Tarjeta' : 'Efectivo'}
                   </p>
                 )}
@@ -1235,7 +1242,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     whileTap={{ scale: 0.97 }}
                     onClick={() => handleCompletarPagada(order)}
                     disabled={processing}
-                    className="w-full py-3 rounded-2xl font-bold text-white bg-emerald-600 text-sm"
+                    className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-success-text)] bg-[var(--w-success-bg)] border border-[var(--w-success)] text-sm"
                     style={{ opacity: processing ? 0.6 : 1 }}
                   >
                     ✓ Ya pagado · Completar pedido
@@ -1243,15 +1250,15 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 ) : (
                   <>
                     {(pagadoPorOrden[order.id] ?? 0) > 0 && (
-                      <p className="text-xs font-bold text-amber-700 mb-2">
+                      <p className="text-xs font-bold text-[color:var(--w-warning-text)] mb-2">
                         Cobrado {fmt(pagadoPorOrden[order.id])} · falta {fmt(order.total - pagadoPorOrden[order.id])}
                       </p>
                     )}
                     <motion.button
                       whileTap={{ scale: 0.97 }}
                       onClick={() => (pagadoPorOrden[order.id] ?? 0) > 0 ? setSplitOrder({ order, kind: 'final' }) : openPay(order)}
-                      className="w-full py-3 rounded-2xl font-bold text-white bg-[#FF5722] text-sm"
-                      style={S.coral}
+                      className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)] text-sm"
+                      style={FX.cta}
                     >
                       {(pagadoPorOrden[order.id] ?? 0) > 0
                         ? `Seguir cobrando · falta ${fmt(order.total - pagadoPorOrden[order.id])}`
@@ -1259,21 +1266,21 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     </motion.button>
                     {!(pagadoPorOrden[order.id] > 0) && (
                       <button onClick={() => setSplitOrder({ order, kind: 'final' })}
-                        className="w-full min-h-[44px] mt-2 rounded-2xl text-xs font-bold text-[#2D3561]" style={S.neoOutSm}>
+                        className="w-full min-h-[44px] mt-2 rounded-[var(--w-r-lg)] text-xs font-bold text-[color:var(--w-text)]" style={FX.soft}>
                         Dividir cuenta
                       </button>
                     )}
                   </>
                 )}
                 <button onClick={() => setTicket({ tipo: order.paid_at ? 'recibo' : 'precuenta', orderId: order.id })}
-                  className="w-full min-h-[44px] mt-2 rounded-2xl text-xs font-bold text-[#2D3561]" style={S.neoOutSm}>
+                  className="w-full min-h-[44px] mt-2 rounded-[var(--w-r-lg)] text-xs font-bold text-[color:var(--w-text)]" style={FX.soft}>
                   🖨 {order.paid_at ? 'Recibo' : 'Pre-cuenta'}
                 </button>
                 <div className="flex gap-2 mt-2">
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setEditingOrder(order)}
-                    className="flex-1 py-2 rounded-2xl font-bold text-white bg-amber-500 text-xs"
+                    className="flex-1 py-2 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-warning-text)] bg-[var(--w-warning-bg)] border border-[var(--w-warning)] text-xs"
                   >
                     ✏️ Editar
                   </motion.button>
@@ -1293,7 +1300,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                         setCancellingOrder(null)
                       }
                     }}
-                    className="flex-1 py-2 rounded-2xl font-bold text-white bg-red-600 text-xs"
+                    className="flex-1 py-2 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-danger-text)] bg-[var(--w-danger-bg)] border border-[var(--w-danger)] text-xs"
                   >
                     {cancellingOrder === order.id ? '⏳' : '🗑️ Cancelar'}
                   </motion.button>
@@ -1305,36 +1312,36 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
       </div>
 
       {/* Corte de caja: diario y mensual */}
-      <div className="pt-4 border-t border-[#D1D5E0] grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="pt-4 border-t border-[var(--w-border)] grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Para revisar qué se vendió y para quién ANTES de hacer el corte */}
         <button
           onClick={() => setShowHistory(true)}
-          className="w-full sm:col-span-2 py-3.5 rounded-2xl font-bold text-sm text-[#2D3561]"
-          style={S.neoOut}
+          className="w-full sm:col-span-2 py-3.5 rounded-[var(--w-r-lg)] font-bold text-sm text-[color:var(--w-text)]"
+          style={FX.card}
         >
           Historial de ventas de hoy · qué se vendió y para quién
         </button>
         {/* Cada pago de hoy: verificar transferencias, corregir el método o anular (admin) */}
         <button
           onClick={() => setShowPagos(true)}
-          className="w-full sm:col-span-2 py-3.5 rounded-2xl font-bold text-sm text-[#2D3561]"
-          style={S.neoOut}
+          className="w-full sm:col-span-2 py-3.5 rounded-[var(--w-r-lg)] font-bold text-sm text-[color:var(--w-text)]"
+          style={FX.card}
         >
           Pagos de hoy · verificar transferencias y corregir
         </button>
         <button
           onClick={handleCorte}
           disabled={cortingLoading || daySummary.total_ordenes === 0}
-          className={`w-full py-3.5 rounded-2xl font-bold text-sm text-[#2D3561] ${cortingLoading || daySummary.total_ordenes === 0 ? 'opacity-50' : ''}`}
-          style={S.neoOut}
+          className={`w-full py-3.5 rounded-[var(--w-r-lg)] font-bold text-sm text-[color:var(--w-text)] ${cortingLoading || daySummary.total_ordenes === 0 ? 'opacity-50' : ''}`}
+          style={FX.card}
         >
           {cortingLoading ? 'Generando corte...' : `Hacer corte de caja · ${daySummary.total_ordenes} órdenes`}
         </button>
         <button
           onClick={handleCorteMensual}
           disabled={loadingMensual}
-          className={`w-full py-3.5 rounded-2xl font-bold text-sm text-[#2D3561] ${loadingMensual ? 'opacity-50' : ''}`}
-          style={S.neoOut}
+          className={`w-full py-3.5 rounded-[var(--w-r-lg)] font-bold text-sm text-[color:var(--w-text)] ${loadingMensual ? 'opacity-50' : ''}`}
+          style={FX.card}
         >
           {loadingMensual ? 'Calculando...' : 'Corte mensual · ventas del mes'}
         </button>
@@ -1363,32 +1370,32 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         {payingOrder && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+            className="fixed inset-0 bg-[var(--w-overlay)] z-50 flex items-end sm:items-center justify-center p-4"
             onClick={() => !processing && setPayingOrder(null)}
           >
             <motion.div
               initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
               exit={{ y: 80, opacity: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm" style={S.neoOut}
+              className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-6 w-full max-w-sm" style={FX.card}
             >
               <div className="flex items-start justify-between mb-5">
                 <div>
-                  <p className="text-xs font-bold text-[#FF5722] uppercase tracking-wider">Cobrar orden</p>
-                  <h3 className="font-bold text-[#2D3561] text-lg mt-0.5">
+                  <p className="text-xs font-bold text-[color:var(--w-accent-text)] uppercase tracking-wider">Cobrar orden</p>
+                  <h3 className="font-bold text-[color:var(--w-text)] text-lg mt-0.5">
                     {destinoPedido(payingOrder)}
-                    {payingOrder.customer_name && <span className="text-[#FF5722]"> · {payingOrder.customer_name}</span>}
+                    {payingOrder.customer_name && <span className="text-[color:var(--w-accent-text)]"> · {payingOrder.customer_name}</span>}
                   </h3>
                 </div>
-                <span className="text-2xl font-bold text-[#FF5722]">${Math.round(payingOrder.total).toLocaleString('es-CO')}</span>
+                <span className="text-2xl font-bold text-[color:var(--w-accent-text)]">${Math.round(payingOrder.total).toLocaleString('es-CO')}</span>
               </div>
 
               {/* Items en el modal */}
-              <div className="bg-[#CDD0DC] rounded-2xl p-3 mb-4 max-h-32 overflow-y-auto" style={S.neoIn}>
+              <div className="bg-[var(--w-surface-sunken)] rounded-[var(--w-r-lg)] p-3 mb-4 max-h-32 overflow-y-auto" style={FX.field}>
                 {payingOrder.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-xs py-0.5">
-                    <span className="text-[#6B7280]">{item.quantity}× {item.name}</span>
-                    <span className="text-[#9CA3AF]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
+                    <span className="text-[color:var(--w-text-2)]">{item.quantity}× {item.name}</span>
+                    <span className="text-[color:var(--w-text-3)]">${Math.round(item.price * item.quantity).toLocaleString('es-CO')}</span>
                   </div>
                 ))}
               </div>
@@ -1396,7 +1403,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               {/* Varias personas pagan distinto: cada una con su método (efectivo, transferencia o tarjeta) */}
               <button type="button"
                 onClick={() => { setSplitOrder({ order: payingOrder, kind: payingKind }); setPayingOrder(null) }}
-                className="w-full min-h-[44px] mb-3 rounded-2xl text-sm font-bold text-[#2D3561]" style={S.neoOutSm}>
+                className="w-full min-h-[44px] mb-3 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-text)]" style={FX.soft}>
                 Dividir cuenta · varias personas
               </button>
 
@@ -1405,8 +1412,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 {(['efectivo', 'transferencia'] as PaymentMethod[]).map(m => (
                   <button key={m}
                     onClick={() => { setPayMethod(m); if (m === 'transferencia') setAmountPaid(String(Math.round(payingOrder.total))) }}
-                    className="py-3 rounded-2xl text-sm font-bold capitalize"
-                    style={payMethod === m ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
+                    className="py-3 rounded-[var(--w-r-lg)] text-sm font-bold capitalize"
+                    style={payMethod === m ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta } : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.soft }}
                   >
                     {m === 'efectivo' ? 'Efectivo' : 'Transferencia'}
                   </button>
@@ -1416,7 +1423,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               {/* Campo monto (solo efectivo) */}
               {payMethod === 'efectivo' && (
                 <div className="mb-4">
-                  <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
+                  <label className="block text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">
                     Monto recibido
                   </label>
                   <input
@@ -1425,22 +1432,22 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     onChange={e => setAmountPaid(e.target.value)}
                     min={payingOrder.total}
                     step="0.01"
-                    className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-lg font-bold text-[#2D3561] outline-none"
-                    style={S.neoIn}
+                    className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-4 py-3 text-lg font-bold text-[color:var(--w-text)] outline-none"
+                    style={FX.field}
                     autoFocus
                   />
                   {/* Cambio */}
                   {cambio > 0 && (
                     <motion.div
                       initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                      className="mt-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center justify-between"
+                      className="mt-3 bg-[var(--w-success-bg)] border border-[var(--w-success)] rounded-[var(--w-r-lg)] px-4 py-3 flex items-center justify-between"
                     >
-                      <span className="text-sm font-bold text-emerald-700">Cambio</span>
-                      <span className="text-2xl font-bold text-emerald-600">{fmt(cambio)}</span>
+                      <span className="text-sm font-bold text-[color:var(--w-success-text)]">Cambio</span>
+                      <span className="text-2xl font-bold text-[color:var(--w-success-text)]">{fmt(cambio)}</span>
                     </motion.div>
                   )}
                   {pagoInsuficiente && (
-                    <p className="mt-2 text-xs text-red-500 font-medium">
+                    <p className="mt-2 text-xs text-[color:var(--w-danger-text)] font-medium">
                       Falta {fmt(totalConPropina - parseFloat(amountPaid))}
                     </p>
                   )}
@@ -1448,9 +1455,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               )}
 
               {payMethod === 'transferencia' && (
-                <div className="mb-4 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
-                  <p className="text-sm font-bold text-blue-700">Confirmar transferencia</p>
-                  <p className="text-xs text-blue-600 mt-0.5">
+                <div className="mb-4 bg-[var(--w-info-bg)] border border-[var(--w-info)] rounded-[var(--w-r-lg)] px-4 py-3">
+                  <p className="text-sm font-bold text-[color:var(--w-info-text)]">Confirmar transferencia</p>
+                  <p className="text-xs text-[color:var(--w-info-text)] mt-0.5">
                     {propinaNum > 0
                       ? `Venta: ${fmt(payingOrder.total)} + Propina: ${fmt(propinaNum)} = ${fmt(totalConPropina)}`
                       : `Total: ${fmt(payingOrder.total)}`}
@@ -1462,18 +1469,18 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   al aire si el cliente dejó propina o no. Si dice que sí, se separa
                   del resto del dinero (columna aparte, no cuenta como venta). */}
               <div className="mb-4">
-                <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">¿El cliente dejó propina?</label>
+                <label className="block text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">¿El cliente dejó propina?</label>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <button type="button"
                     onClick={() => { setPropinaRespuesta('si'); if (!propinaInput || propinaInput === '0') setPropinaInput(propinaSugeridaPct ? Math.round(payingOrder.total * propinaSugeridaPct / 100).toString() : '') }}
-                    className="py-2.5 rounded-xl text-sm font-bold"
-                    style={propinaRespuesta === 'si' ? { background: 'var(--accent)', color: 'white' } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
+                    className="py-2.5 rounded-[var(--w-r-md)] text-sm font-bold"
+                    style={propinaRespuesta === 'si' ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)' } : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.soft }}>
                     Sí
                   </button>
                   <button type="button"
                     onClick={() => { setPropinaRespuesta('no'); setPropinaInput('0') }}
-                    className="py-2.5 rounded-xl text-sm font-bold"
-                    style={propinaRespuesta === 'no' ? { background: '#6B7280', color: 'white' } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
+                    className="py-2.5 rounded-[var(--w-r-md)] text-sm font-bold"
+                    style={propinaRespuesta === 'no' ? { background: 'var(--w-text-2)', color: 'var(--w-on-accent)' } : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.soft }}>
                     No
                   </button>
                 </div>
@@ -1482,13 +1489,13 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     {!!propinaSugeridaPct && (
                       <button type="button"
                         onClick={() => setPropinaInput(Math.round(payingOrder.total * propinaSugeridaPct / 100).toString())}
-                        className="text-xs font-bold text-[#FF5722] mb-2 block">
+                        className="text-xs font-bold text-[color:var(--w-accent-text)] mb-2 block">
                         Sugerida {propinaSugeridaPct}% · {fmt(payingOrder.total * propinaSugeridaPct / 100)}
                       </button>
                     )}
                     <input type="number" min={0} value={propinaInput} onChange={e => setPropinaInput(e.target.value)}
                       placeholder="Monto de la propina" autoFocus
-                      className="w-full bg-[#CDD0DC] rounded-xl px-4 py-2.5 text-sm font-bold text-[#2D3561] outline-none" style={S.neoIn} />
+                      className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-4 py-2.5 text-sm font-bold text-[color:var(--w-text)] outline-none" style={FX.field} />
                   </>
                 )}
               </div>
@@ -1498,8 +1505,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 <button
                   onClick={() => setPayingOrder(null)}
                   disabled={processing}
-                  className="flex-1 py-3 rounded-2xl text-sm font-bold text-[#6B7280]"
-                  style={S.neoOut}
+                  className="flex-1 py-3 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-text-2)]"
+                  style={FX.card}
                 >
                   Cancelar
                 </button>
@@ -1507,8 +1514,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   whileTap={{ scale: 0.97 }}
                   onClick={handleCobrar}
                   disabled={processing || !!pagoInsuficiente || !propinaRespuesta}
-                  className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-[#FF5722] ${processing || pagoInsuficiente || !propinaRespuesta ? 'opacity-60' : ''}`}
-                  style={S.coral}
+                  className={`flex-1 py-3 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)] ${processing || pagoInsuficiente || !propinaRespuesta ? 'opacity-60' : ''}`}
+                  style={FX.cta}
                 >
                   {processing ? 'Procesando...' : !propinaRespuesta ? 'Responde la propina' : 'Cobrar'}
                 </motion.button>
@@ -1523,21 +1530,21 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         {showCorte && corteResult && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-[var(--w-overlay)] z-50 flex items-center justify-center p-4"
             onClick={() => setShowCorte(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-sm overscroll-contain" style={{ ...S.neoOut, maxHeight: '90vh', overflowY: 'auto' }}
+              className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-6 w-full max-w-sm overscroll-contain" style={{ ...FX.card, maxHeight: '90vh', overflowY: 'auto' }}
             >
               <div className="text-center mb-5">
-                <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center text-3xl mx-auto mb-3" style={S.green}>
+                <div className="w-16 h-16 rounded-[var(--w-r-lg)] bg-[var(--w-success-bg)] border border-[var(--w-success)] flex items-center justify-center text-3xl mx-auto mb-3" style={FX.cta}>
                  
                 </div>
-                <h3 className="font-bold text-[#2D3561] text-xl">Corte de Caja</h3>
-                <p className="text-xs text-[#9CA3AF]">
+                <h3 className="font-bold text-[color:var(--w-text)] text-xl">Corte de Caja</h3>
+                <p className="text-xs text-[color:var(--w-text-3)]">
                   {new Date().toLocaleDateString('es', { dateStyle: 'full' })}
                 </p>
               </div>
@@ -1550,35 +1557,35 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   { label: 'Órdenes',       val: corteResult.total_ordenes, isCurrency: false },
                   { label: 'Pedidos Rappi', val: `${daySummary.ordenes_rappi} — $0 (dinero en Rappi app)`, isCurrency: false },
                 ].map(item => (
-                  <div key={item.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
-                    <span className="text-sm text-[#6B7280]">{item.label}</span>
-                    <span className="font-bold text-[#2D3561]">
+                  <div key={item.label} className="flex justify-between items-center bg-[var(--w-surface-sunken)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.field}>
+                    <span className="text-sm text-[color:var(--w-text-2)]">{item.label}</span>
+                    <span className="font-bold text-[color:var(--w-text)]">
                       {item.isCurrency === false ? item.val : fmt(item.val)}
                     </span>
                   </div>
                 ))}
-                <div className="flex justify-between items-center bg-[#FF5722] rounded-2xl px-4 py-3" style={S.coral}>
-                  <span className="text-sm font-bold text-white">Ganancias (ventas)</span>
-                  <span className="text-xl font-bold text-white">{fmt(corteResult.total_general)}</span>
+                <div className="flex justify-between items-center bg-[var(--w-accent)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.cta}>
+                  <span className="text-sm font-bold text-[color:var(--w-on-accent)]">Ganancias (ventas)</span>
+                  <span className="text-xl font-bold text-[color:var(--w-on-accent)]">{fmt(corteResult.total_general)}</span>
                 </div>
                 {Number(corteResult.total_propinas ?? 0) > 0 && (
-                  <div className="flex justify-between items-center bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3">
-                    <span className="text-sm font-bold text-purple-600">Propinas (no es venta)</span>
-                    <span className="font-bold text-purple-600">{fmt(corteResult.total_propinas)}</span>
+                  <div className="flex justify-between items-center bg-[var(--w-info-bg)] border border-[var(--w-info)] rounded-[var(--w-r-lg)] px-4 py-3">
+                    <span className="text-sm font-bold text-[color:var(--w-info-text)]">Propinas (no es venta)</span>
+                    <span className="font-bold text-[color:var(--w-info-text)]">{fmt(corteResult.total_propinas)}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
-                  <span className="text-sm font-bold text-red-600">Gastos del día</span>
-                  <span className="font-bold text-red-600">−{fmt(corteResult.total_gastos)}</span>
+                <div className="flex justify-between items-center bg-[var(--w-danger-bg)] border border-[var(--w-danger)] rounded-[var(--w-r-lg)] px-4 py-3">
+                  <span className="text-sm font-bold text-[color:var(--w-danger-text)]">Gastos del día</span>
+                  <span className="font-bold text-[color:var(--w-danger-text)]">−{fmt(corteResult.total_gastos)}</span>
                 </div>
                 <GastosDesglose gastos={gastos} periodo="dia" etiquetas={etiquetas} />
-                <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
-                  <span className="text-sm font-bold text-white">Beneficio neto</span>
-                  <span className="text-xl font-bold text-white">{fmt(corteResult.total_neto ?? corteResult.total_general)}</span>
+                <div className="flex justify-between items-center bg-[var(--w-success-bg)] border border-[var(--w-success)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.cta}>
+                  <span className="text-sm font-bold text-[color:var(--w-on-accent)]">Beneficio neto</span>
+                  <span className="text-xl font-bold text-[color:var(--w-on-accent)]">{fmt(corteResult.total_neto ?? corteResult.total_general)}</span>
                 </div>
-                <div className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
-                  <span className="text-sm text-[#6B7280]">Base de caja</span>
-                  <span className="font-bold text-[#2D3561]">{fmt(corteResult.base_caja)}</span>
+                <div className="flex justify-between items-center bg-[var(--w-surface-sunken)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.field}>
+                  <span className="text-sm text-[color:var(--w-text-2)]">Base de caja</span>
+                  <span className="font-bold text-[color:var(--w-text)]">{fmt(corteResult.base_caja)}</span>
                 </div>
                 {/* Explicación del efectivo esperado: cada renglón que entra o sale del cajón */}
                 {[
@@ -1586,43 +1593,43 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   { label: '− Gastos pagados con efectivo de la caja', val: corteResult.gastos_pagados_de_caja, sign: '−' },
                   { label: '− Reembolsos pagados de la caja', val: corteResult.reembolsos_de_caja, sign: '−' },
                 ].filter(x => Number(x.val ?? 0) > 0).map(x => (
-                  <div key={x.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-2" style={S.neoIn}>
-                    <span className="text-xs text-[#6B7280]">{x.label}</span>
-                    <span className="font-bold text-sm text-[#2D3561]">{x.sign}{fmt(x.val)}</span>
+                  <div key={x.label} className="flex justify-between items-center bg-[var(--w-surface-sunken)] rounded-[var(--w-r-lg)] px-4 py-2" style={FX.field}>
+                    <span className="text-xs text-[color:var(--w-text-2)]">{x.label}</span>
+                    <span className="font-bold text-sm text-[color:var(--w-text)]">{x.sign}{fmt(x.val)}</span>
                   </div>
                 ))}
                 {Number(corteResult.gastos_adelantados ?? 0) > 0 && (
-                  <p className="text-[0.6875rem] text-amber-700 px-1">
+                  <p className="text-[length:var(--w-fs-caption)] text-[color:var(--w-warning-text)] px-1">
                     Gastos adelantados con dinero propio: {fmt(corteResult.gastos_adelantados)} · cuentan como gasto del negocio pero no salen del cajón (quedan por reembolsar).
                   </p>
                 )}
-                <div className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
-                  <span className="text-sm text-[#6B7280]">Efectivo esperado en caja<br /><span className="text-[0.6875rem]">base + aportes + efectivo + propinas en efectivo − gastos de caja − reembolsos</span></span>
-                  <span className="font-bold text-[#2D3561]">{fmt(corteResult.efectivo_esperado_cajon)}</span>
+                <div className="flex justify-between items-center bg-[var(--w-surface-sunken)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.field}>
+                  <span className="text-sm text-[color:var(--w-text-2)]">Efectivo esperado en caja<br /><span className="text-[length:var(--w-fs-caption)]">base + aportes + efectivo + propinas en efectivo − gastos de caja − reembolsos</span></span>
+                  <span className="font-bold text-[color:var(--w-text)]">{fmt(corteResult.efectivo_esperado_cajon)}</span>
                 </div>
               </div>
 
               {/* Transferencias del día: se marcan una por una contra la app del banco */}
               {transferencias.length > 0 && (
                 <div className="mb-5">
-                  <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
+                  <p className="text-xs font-bold text-[color:var(--w-text-2)] uppercase tracking-wider mb-2">
                     Transferencias del día ({transferencias.filter(t => t.verificada).length}/{transferencias.length} verificadas)
                   </p>
                   <div className="flex flex-col gap-1.5">
                     {transferencias.map(t => (
-                      <label key={t.pago_id} className="flex items-center gap-3 bg-[#CDD0DC] rounded-xl px-3 min-h-[44px] cursor-pointer" style={S.neoIn}>
-                        <input type="checkbox" checked={t.verificada} className="w-5 h-5 accent-emerald-600"
+                      <label key={t.pago_id} className="flex items-center gap-3 bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 min-h-[44px] cursor-pointer" style={FX.field}>
+                        <input type="checkbox" checked={t.verificada} className="w-5 h-5 accent-[var(--w-success)]"
                           onChange={async e => {
                             const v = e.target.checked
                             setTransferencias(prev => prev.map(x => x.pago_id === t.pago_id ? { ...x, verificada: v } : x))
                             const { error } = await supabase.rpc('marcar_transferencia', { p_pago_id: t.pago_id, p_verificada: v })
                             if (error) { message.error(error.message); setTransferencias(prev => prev.map(x => x.pago_id === t.pago_id ? { ...x, verificada: !v } : x)) }
                           }} />
-                        <span className="flex-1 text-xs text-[#2D3561]">
+                        <span className="flex-1 text-xs text-[color:var(--w-text)]">
                           {t.mesa ? `Mesa ${t.mesa}` : t.tipo === 'LLEVAR' ? 'Llevar' : 'Domicilio'}{t.cliente ? ` · ${t.cliente}` : ''}{t.comensal ? ` · ${t.comensal}` : ''}
                           {t.referencia ? ` · ref ${t.referencia}` : ''}
                         </span>
-                        <span className="font-bold text-sm text-[#2D3561]">{fmt(t.monto)}</span>
+                        <span className="font-bold text-sm text-[color:var(--w-text)]">{fmt(t.monto)}</span>
                       </label>
                     ))}
                   </div>
@@ -1632,14 +1639,14 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               {/* Si el conteo físico no cuadra, estas son las mesas con varios pagos: ahí suele estar el error */}
               {mesasMixtas.length > 0 && (
                 <div className="mb-5">
-                  <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">Mesas con pagos mixtos hoy</p>
+                  <p className="text-xs font-bold text-[color:var(--w-text-2)] uppercase tracking-wider mb-2">Mesas con pagos mixtos hoy</p>
                   <div className="flex flex-col gap-1.5">
                     {mesasMixtas.map(m => (
-                      <div key={m.order_id} className="bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
-                        <p className="text-xs font-bold text-[#2D3561]">
+                      <div key={m.order_id} className="bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2" style={FX.field}>
+                        <p className="text-xs font-bold text-[color:var(--w-text)]">
                           {m.mesa ? `Mesa ${m.mesa}` : m.tipo}{m.cliente ? ` · ${m.cliente}` : ''} · {fmt(m.total)}
                         </p>
-                        <p className="text-[0.6875rem] text-[#6B7280]">
+                        <p className="text-[length:var(--w-fs-caption)] text-[color:var(--w-text-2)]">
                           {m.pagos.map(p => `${p.comensal ?? 'Pago'}: ${fmt(p.monto)} ${p.metodo}`).join(' · ')}
                         </p>
                       </div>
@@ -1652,25 +1659,25 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   El efectivo esperado en el cajón incluye las propinas pagadas en efectivo, no solo
                   las ventas — si no, el conteo "no cuadra" solo porque hay propinas de por medio. */}
               <div className="mb-5">
-                <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
+                <p className="text-xs font-bold text-[color:var(--w-text-2)] uppercase tracking-wider mb-2">
                   Conteo de efectivo (opcional)
                 </p>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   {DENOMINACIONES.map(valor => (
-                    <div key={valor} className="flex items-center gap-2 bg-[#CDD0DC] rounded-xl px-2 py-1.5" style={S.neoIn}>
-                      <span className="text-xs text-[#6B7280] w-14 shrink-0">${valor.toLocaleString('es-CO')}</span>
+                    <div key={valor} className="flex items-center gap-2 bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-2 py-1.5" style={FX.field}>
+                      <span className="text-xs text-[color:var(--w-text-2)] w-14 shrink-0">${valor.toLocaleString('es-CO')}</span>
                       <input
                         type="number" min={0} inputMode="numeric"
                         value={conteo[valor] ?? ''}
                         onChange={e => setConteo(prev => ({ ...prev, [valor]: e.target.value }))}
                         placeholder="0"
-                        className="w-full bg-transparent text-sm font-bold text-[#2D3561] outline-none text-right"
+                        className="w-full bg-transparent text-sm font-bold text-[color:var(--w-text)] outline-none text-right"
                       />
                     </div>
                   ))}
                 </div>
                 {Number(corteResult.total_propinas_efectivo ?? 0) > 0 && (
-                  <p className="text-[0.6875rem] text-[#9CA3AF] mb-2">
+                  <p className="text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)] mb-2">
                     Incluye {fmt(corteResult.total_propinas_efectivo)} de propinas en efectivo — recuerda separarlas, no son venta del restaurante.
                   </p>
                 )}
@@ -1678,9 +1685,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   const efectivoEsperado = Number(corteResult.efectivo_esperado_cajon ?? corteResult.total_efectivo)
                   const diferencia = totalContado - efectivoEsperado
                   return (
-                    <div className="flex justify-between items-center bg-[#CDD0DC] rounded-xl px-3 py-2 text-xs" style={S.neoIn}>
-                      <span className="text-[#6B7280]">Contado: {fmt(totalContado)} · Esperado: {fmt(efectivoEsperado)}</span>
-                      <span className={`font-bold ${Math.abs(diferencia) < 0.01 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    <div className="flex justify-between items-center bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-xs" style={FX.field}>
+                      <span className="text-[color:var(--w-text-2)]">Contado: {fmt(totalContado)} · Esperado: {fmt(efectivoEsperado)}</span>
+                      <span className={`font-bold ${Math.abs(diferencia) < 0.01 ? 'text-[color:var(--w-success-text)]' : 'text-[color:var(--w-danger-text)]'}`}>
                         {Math.abs(diferencia) < 0.01 ? '✓ Cuadra' : `Diferencia: ${diferencia < 0 ? '−' : ''}${fmt(Math.abs(diferencia))}`}
                       </span>
                     </div>
@@ -1689,17 +1696,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
               </div>
 
               {corteProductos.length > 0 && (
-                <p className="text-xs text-[#6B7280] text-center mb-3">
+                <p className="text-xs text-[color:var(--w-text-2)] text-center mb-3">
                   {corteProductos.length} productos vendidos hoy · se incluyen en el Excel
                 </p>
               )}
 
               {/* Botones fijos al fondo: siempre alcanzables aunque el corte sea largo */}
-              <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-[#D8DAE4] rounded-b-3xl">
+              <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-[var(--w-surface)] rounded-b-[var(--w-r-xl)]">
                 <button
                   onClick={handleDescargarExcel}
-                  className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#1D7A46', ...S.green }}
+                  className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] mb-3 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: 'var(--w-success)', ...FX.cta }}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
@@ -1709,16 +1716,16 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
                 <button
                   onClick={() => armarCierre(corteResult, denominacionesConteo.length > 0 ? totalContado : null).then(setCierreTicket).catch(e => message.error(`No se pudo preparar el cierre: ${e instanceof Error ? e.message : 'error'}`))}
-                  className="w-full py-3 rounded-2xl font-bold text-[#2D3561] mb-3"
-                  style={S.neoOut}
+                  className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-text)] mb-3"
+                  style={FX.card}
                 >
                   🖨 Imprimir cierre (con el conteo, si lo hiciste)
                 </button>
 
                 <button
                   onClick={() => setShowCorte(false)}
-                  className="w-full py-3 rounded-2xl font-bold text-[#2D3561]"
-                  style={S.neoOut}
+                  className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-text)]"
+                  style={FX.card}
                 >
                   Cerrar
                 </button>
@@ -1750,17 +1757,17 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         {corteMensual && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-[var(--w-overlay)] z-50 flex items-center justify-center p-4"
             onClick={() => setCorteMensual(null)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#D8DAE4] rounded-3xl p-6 w-full max-w-md" style={{ ...S.neoOut, maxHeight: '88vh', overflowY: 'auto' }}
+              className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-6 w-full max-w-md" style={{ ...FX.card, maxHeight: '88vh', overflowY: 'auto' }}
             >
               <div className="text-center mb-5">
-                <h3 className="font-bold text-[#2D3561] text-xl">Corte mensual</h3>
-                <p className="text-xs text-[#9CA3AF]">
+                <h3 className="font-bold text-[color:var(--w-text)] text-xl">Corte mensual</h3>
+                <p className="text-xs text-[color:var(--w-text-3)]">
                   {(m => m.charAt(0).toUpperCase() + m.slice(1))(new Date(corteMensual.desde + 'T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }))}
                   {' · '}del {Number(corteMensual.desde.slice(8))} al {Number(corteMensual.hasta.slice(8))} · sin Rappi
                 </p>
@@ -1772,46 +1779,46 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   ...(Number(corteMensual.total_tarjeta ?? 0) > 0 ? [{ label: 'Tarjeta', val: fmt(corteMensual.total_tarjeta) }] : []),
                   { label: 'Órdenes',       val: String(corteMensual.total_ordenes) },
                 ].map(it => (
-                  <div key={it.label} className="flex justify-between items-center bg-[#CDD0DC] rounded-2xl px-4 py-3" style={S.neoIn}>
-                    <span className="text-sm text-[#6B7280]">{it.label}</span>
-                    <span className="font-bold text-[#2D3561]">{it.val}</span>
+                  <div key={it.label} className="flex justify-between items-center bg-[var(--w-surface-sunken)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.field}>
+                    <span className="text-sm text-[color:var(--w-text-2)]">{it.label}</span>
+                    <span className="font-bold text-[color:var(--w-text)]">{it.val}</span>
                   </div>
                 ))}
-                <div className="flex justify-between items-center bg-[#FF5722] rounded-2xl px-4 py-3" style={S.coral}>
-                  <span className="text-sm font-bold text-white">Ventas del mes</span>
-                  <span className="text-xl font-bold text-white">{fmt(corteMensual.total_general)}</span>
+                <div className="flex justify-between items-center bg-[var(--w-accent)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.cta}>
+                  <span className="text-sm font-bold text-[color:var(--w-on-accent)]">Ventas del mes</span>
+                  <span className="text-xl font-bold text-[color:var(--w-on-accent)]">{fmt(corteMensual.total_general)}</span>
                 </div>
                 {Number(corteMensual.total_propinas) > 0 && (
-                  <div className="flex justify-between items-center bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3">
-                    <span className="text-sm font-bold text-purple-600">Propinas (no es venta)</span>
-                    <span className="font-bold text-purple-600">{fmt(corteMensual.total_propinas)}</span>
+                  <div className="flex justify-between items-center bg-[var(--w-info-bg)] border border-[var(--w-info)] rounded-[var(--w-r-lg)] px-4 py-3">
+                    <span className="text-sm font-bold text-[color:var(--w-info-text)]">Propinas (no es venta)</span>
+                    <span className="font-bold text-[color:var(--w-info-text)]">{fmt(corteMensual.total_propinas)}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
-                  <span className="text-sm font-bold text-red-600">Gastos del mes</span>
-                  <span className="font-bold text-red-600">−{fmt(corteMensual.total_gastos)}</span>
+                <div className="flex justify-between items-center bg-[var(--w-danger-bg)] border border-[var(--w-danger)] rounded-[var(--w-r-lg)] px-4 py-3">
+                  <span className="text-sm font-bold text-[color:var(--w-danger-text)]">Gastos del mes</span>
+                  <span className="font-bold text-[color:var(--w-danger-text)]">−{fmt(corteMensual.total_gastos)}</span>
                 </div>
                 <GastosDesglose gastos={gastosMes} periodo="mes" etiquetas={etiquetas} />
-                <div className="flex justify-between items-center bg-emerald-500 rounded-2xl px-4 py-3" style={S.green}>
-                  <span className="text-sm font-bold text-white">Beneficio neto del mes</span>
-                  <span className="text-xl font-bold text-white">{fmt(corteMensual.total_neto)}</span>
+                <div className="flex justify-between items-center bg-[var(--w-success-bg)] border border-[var(--w-success)] rounded-[var(--w-r-lg)] px-4 py-3" style={FX.cta}>
+                  <span className="text-sm font-bold text-[color:var(--w-on-accent)]">Beneficio neto del mes</span>
+                  <span className="text-xl font-bold text-[color:var(--w-on-accent)]">{fmt(corteMensual.total_neto)}</span>
                 </div>
               </div>
 
               {corteMensual.dias.length > 0 && (
                 <div className="mb-5">
-                  <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">Por día</p>
+                  <p className="text-xs font-bold text-[color:var(--w-text-2)] uppercase tracking-wider mb-2">Por día</p>
                   <div className="flex flex-col gap-1">
                     {corteMensual.dias.map(d => (
-                      <div key={d.fecha} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center text-sm bg-[#CDD0DC] rounded-xl px-3 py-2" style={S.neoIn}>
-                        <span className="text-[#2D3561] font-semibold capitalize">
+                      <div key={d.fecha} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center text-sm bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2" style={FX.field}>
+                        <span className="text-[color:var(--w-text)] font-semibold capitalize">
                           {new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
                           {Number(d.gastos) > 0 && (
-                            <span className="block text-[0.6875rem] font-normal normal-case text-red-500">Gastos −{fmt(Number(d.gastos))}</span>
+                            <span className="block text-[length:var(--w-fs-caption)] font-normal normal-case text-[color:var(--w-danger-text)]">Gastos −{fmt(Number(d.gastos))}</span>
                           )}
                         </span>
-                        <span className="text-[#9CA3AF] text-xs">{d.ordenes} órd.</span>
-                        <span className="font-bold text-[#2D3561] text-right">{fmt(d.total)}</span>
+                        <span className="text-[color:var(--w-text-3)] text-xs">{d.ordenes} órd.</span>
+                        <span className="font-bold text-[color:var(--w-text)] text-right">{fmt(d.total)}</span>
                       </div>
                     ))}
                   </div>
@@ -1820,8 +1827,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
 
               <button
                 onClick={handleDescargarExcelMensual}
-                className="w-full py-3 rounded-2xl font-bold text-white mb-3 flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#1D7A46', ...S.green }}
+                className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] mb-3 flex items-center justify-center gap-2"
+                style={{ backgroundColor: 'var(--w-success)', ...FX.cta }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: 18, height: 18 }}>
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" />
@@ -1829,7 +1836,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                 Descargar Excel
               </button>
 
-              <button onClick={() => setCorteMensual(null)} className="w-full py-3 rounded-2xl font-bold text-[#2D3561]" style={S.neoOut}>
+              <button onClick={() => setCorteMensual(null)} className="w-full py-3 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-text)]" style={FX.card}>
                 Cerrar
               </button>
             </motion.div>

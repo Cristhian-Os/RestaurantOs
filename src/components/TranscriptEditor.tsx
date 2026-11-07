@@ -20,13 +20,13 @@ export function TranscriptEditor({ value, onChange, onInterpret, busy, disabled,
   const empty = value.trim() === ''
   return (
     <div className="flex flex-col gap-1.5 rounded-xl bg-[var(--w-surface)] p-2.5">
-      <label className="text-[0.6875rem] font-bold uppercase text-[var(--w-ink-mut)]">Escuché (puedes corregirlo)</label>
+      <label className="text-[0.6875rem] font-bold uppercase text-[var(--w-text-3)]">Escuché (puedes corregirlo)</label>
       <textarea
         value={value} onChange={e => onChange(e.target.value.slice(0, MAX_TEXT_CHARS))} rows={2}
         disabled={busy || disabled} placeholder={placeholder ?? 'Escribe aquí lo que quieres hacer'}
-        className="w-full resize-y rounded-lg border border-[var(--w-line)] bg-[var(--w-bg)] p-2 text-sm text-[var(--w-ink)]" />
+        className="w-full resize-y rounded-lg border border-[var(--w-border)] bg-[var(--w-bg)] p-2 text-sm text-[var(--w-text)]" />
       <button type="button" onClick={onInterpret} disabled={busy || disabled || empty}
-        className="cursor-pointer self-end rounded-xl border-none bg-[var(--w-terra)] px-3.5 py-2 text-[0.8125rem] font-bold text-white disabled:opacity-50">
+        className="cursor-pointer self-end rounded-xl border-none bg-[var(--w-accent)] px-3.5 py-2 text-[0.8125rem] font-bold text-white disabled:opacity-50">
         {busy ? 'Interpretando…' : 'Interpretar de nuevo'}
       </button>
     </div>

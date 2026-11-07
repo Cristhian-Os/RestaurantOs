@@ -39,6 +39,21 @@ import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 import SedeSelector from '../components/SedeSelector'
 import Resti from '../components/resti/Resti'
+import { MobileNav } from '../components/shell/FloatingNav'
+import { ConfigHub } from '../components/settings/ConfigHub'
+import { TopBar } from '../components/shell/TopBar'
+import VentasView from '../components/ventas/VentasView'
+import { Tabs as UiTabs } from '../components/ui/Tabs'
+import { Card } from '../components/ui/Card'
+import { Badge, type Tone } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { ModuleHeader, StatCard } from '../components/tasks/ModuleHeader'
+import { hoyBogota } from '../services/menuOptions'
+import { formatCOP } from '../config/billing'
+import {
+  dayBoundsBogota, esRappi, forWhom, itemsSummary, parseItems, productTotals, summarize,
+  type ProductTotal, type SaleOrder,
+} from '../services/salesHistory'
 import { PlatformPanel } from '../components/platform/PlatformPanel'
 import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
@@ -53,7 +68,7 @@ import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'config' | 'platform'
 
 export interface Profile {
   id:          string
@@ -119,6 +134,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'tasks',     icon:<Icons.Tasks />,     label:'Tareas'     },
     { view:'inventory', icon:<Icons.Inventory />, label:'Inventario' },
     { view:'analytics', icon:<Icons.Analytics />, label:'Analytics'  },
+    { view:'ventas',    icon:<Icons.Receipt />,   label:'Ventas'     },
     { view:'team',      icon:<Icons.Team />,      label:'Equipo'     },
     { view:'menu',      icon:<Icons.Menu />,      label:'Menú'       },
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú'},
@@ -126,28 +142,25 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'   },
     { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'    },
-    { view:'impresion',    icon:<Icons.Printer />, label:'Impresión'  },
-    { view:'setup',        icon:<Icons.Toggles />, label:'Configuración guiada' },
-    { view:'branding',  icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="14" r="2.5"/><path d="M12 22a10 10 0 110-20"/></svg>, label:'Marca' },
-    { view:'billing',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:18,height:18 }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>, label:'Suscripción' },
+    { view:'config',       icon:<Icons.Toggles />, label:'Configuración' },
   ],
   waiter:  [
     { view:'orders', icon:<Icons.Orders />, label:'Pedidos' },
     { view:'tables', icon:<Icons.Tables />, label:'Mesas'   },
     { view:'tasks',  icon:<Icons.Tasks />,  label:'Tareas'  },
-    { view:'shifts', icon:<Icons.Team />,   label:'Mis turnos' },
+    { view:'shifts', icon:<Icons.Team />,   label:'Turnos' },
     { view:'opinion', icon:<Icons.Opinion />, label:'Opinión' },
   ],
   kitchen: [
     { view:'kitchen', icon:<Icons.Kitchen />, label:'Cocina' },
-    { view:'shifts',  icon:<Icons.Team />,    label:'Mis turnos' },
+    { view:'shifts',  icon:<Icons.Team />,    label:'Turnos' },
     { view:'opinion', icon:<Icons.Opinion />, label:'Opinión' },
   ],
   cashier: [
     { view:'cashier',      icon:<Icons.Cashier />, label:'Caja'         },
     { view:'orders',       icon:<Icons.Orders />,  label:'Pedidos'      },
     { view:'tasks',        icon:<Icons.Tasks />,   label:'Tareas'       },
-    { view:'shifts',       icon:<Icons.Team />,    label:'Mis turnos'   },
+    { view:'shifts',       icon:<Icons.Team />,    label:'Turnos'   },
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú' },
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'  },
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'     },
@@ -156,13 +169,122 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
   client:  [{ view:'menu', icon:<Icons.Menu />, label:'Menú' }],
 }
 
-// ── Admin Dashboard ────────────────────────────────────────────
+// ── Admin Dashboard (Inicio) ───────────────────────────────────
+// Composición de la lámina "Inicio": saludo, 4 KPI con variación, ventas de la semana,
+// estado de cocina, pedidos recientes, platos más vendidos e inventario en riesgo.
+// Solo lee datos que la app ya consulta (pedidos, mesas, ingredientes, get_admin_metrics).
+const dsvg = (d: string) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+const DI = {
+  home:  dsvg('M3 11l9-8 9 8M5 10v10h14V10'),
+  chart: dsvg('M4 20V10M10 20V4M16 20v-8M22 20H2'),
+  cart:  dsvg('M3 4h2l2.4 11h11L21 7H6M9 20h.01M18 20h.01'),
+  table: dsvg('M3 5h18v3H3zM6 8v12M18 8v12M9 13h6'),
+  bell:  dsvg('M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 004 0'),
+}
+
+const sumarDias = (ymd: string, n: number) => {
+  const d = new Date(`${ymd}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+const diaBogota = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+const diaCorto = (ymd: string) => new Date(`${ymd}T12:00:00Z`).toLocaleDateString('es-CO', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
+const horaCorta = (iso: string) => new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })
+const DASH_PAGE = 1000
+
+interface VentasSemana { hoy: number; ayer: number; nHoy: number; nAyer: number; dias: { etiqueta: string; valor: number }[]; platos: ProductTotal[] }
+type PedidoReciente = Pick<SaleOrder, 'id' | 'order_number_today' | 'table_num' | 'customer_name' | 'tipo_pedido' | 'items' | 'created_at'> & { status: string }
+interface Riesgo { nombre: string; stock: number; minimo: number; unidad: string | null }
+interface MesasResumen { total: number; ocupadas: number }
+
+const ESTADO_PEDIDO: Record<string, { label: string; tone: Tone }> = {
+  pending:   { label: 'Pendiente',      tone: 'warning' },
+  cooking:   { label: 'En preparación', tone: 'info' },
+  ready:     { label: 'Listo',          tone: 'success' },
+  completed: { label: 'Completado',     tone: 'neutral' },
+}
+
+/** Variación contra ayer. Sin ayer con la que comparar no se muestra nada (no se inventa). */
+function Variacion({ actual, previo }: { actual: number; previo: number }) {
+  if (previo <= 0) return null
+  const pct = Math.round(((actual - previo) / previo) * 100)
+  const sube = pct >= 0
+  return (
+    <span className="ml-1.5 whitespace-nowrap text-[length:var(--w-fs-caption)] font-semibold"
+      style={{ color: sube ? 'var(--w-success-text)' : 'var(--w-danger-text)' }}>
+      {sube ? '↑' : '↓'} {Math.abs(pct)}%
+    </span>
+  )
+}
+
+/** Línea con área en SVG puro (mismo criterio que VentasView: sin librerías). */
+function LineaVentas({ dias }: { dias: { etiqueta: string; valor: number }[] }) {
+  const W = 300, H = 110
+  const max = Math.max(...dias.map(d => d.valor), 1)
+  const x = (i: number) => (dias.length > 1 ? (i / (dias.length - 1)) * W : W / 2)
+  const y = (v: number) => H - 4 - (v / max) * (H - 12)
+  const linea = dias.map((d, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)} ${y(d.valor).toFixed(1)}`).join(' ')
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height: 150 }} role="img"
+        aria-label={`Ventas de la semana: ${dias.map(d => `${d.etiqueta} ${formatCOP(d.valor)}`).join(', ')}`}>
+        <defs>
+          <linearGradient id="dash-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--w-accent)" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="var(--w-accent)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[0, 0.5, 1].map(f => <line key={f} x1="0" x2={W} y1={4 + f * (H - 12)} y2={4 + f * (H - 12)} stroke="var(--w-border)" strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
+        <path d={`${linea} L${W} ${H} L0 ${H} Z`} fill="url(#dash-area)" />
+        <path d={linea} fill="none" stroke="var(--w-accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {dias.map((d, i) => <circle key={i} cx={x(i)} cy={y(d.valor)} r="6" fill="transparent"><title>{`${d.etiqueta}: ${formatCOP(d.valor)}`}</title></circle>)}
+      </svg>
+      <div className="mt-1 flex justify-between text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">
+        {dias.map((d, i) => <span key={i}>{d.etiqueta}</span>)}
+      </div>
+    </div>
+  )
+}
+
+/** Anillo de estado de cocina: en preparación / listos / pendientes. */
+function AnilloCocina({ cooking, ready, pending }: { cooking: number; ready: number; pending: number }) {
+  const total = cooking + ready + pending
+  const partes = [
+    { n: cooking, c: 'var(--w-accent)' }, { n: ready, c: 'var(--w-success)' }, { n: pending, c: 'var(--w-warning)' },
+  ]
+  let acum = 0
+  return (
+    <div className="relative mx-auto h-[132px] w-[132px] shrink-0">
+      <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90" aria-hidden>
+        <circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--w-surface-sunken)" strokeWidth="4" />
+        {total > 0 && partes.map((p, i) => {
+          const len = (p.n / total) * 100
+          const el = p.n > 0 ? <circle key={i} cx="18" cy="18" r="15.9155" fill="none" stroke={p.c} strokeWidth="4"
+            strokeDasharray={`${len} ${100 - len}`} strokeDashoffset={-acum} /> : null
+          acum += len
+          return el
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="font-bold leading-none text-[color:var(--w-text)]" style={{ fontSize: 'var(--w-fs-kpi)' }}>{cooking}</span>
+        <span className="mt-1 px-4 text-[length:var(--w-fs-caption)] leading-tight text-[color:var(--w-text-3)]">en preparación</span>
+      </div>
+    </div>
+  )
+}
+
 const AdminDashboard = memo(({ profile, onNavigate }: {
   profile: Profile
   onNavigate: (v: NavView) => void
 }) => {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
+  const [ventas, setVentas] = useState<VentasSemana | null>(null)
+  const [recientes, setRecientes] = useState<PedidoReciente[]>([])
+  const [riesgo, setRiesgo] = useState<Riesgo[]>([])
+  const [mesas, setMesas] = useState<MesasResumen | null>(null)
+  const [refrescando, setRefrescando] = useState(false)
+  const [tab, setTab] = useState<'orders'|'tables'|'tasks'|'qr'>('orders')
 
   const fetchMetrics = useCallback(async () => {
     try {
@@ -171,58 +293,254 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
     } finally { setLoading(false) }
   }, [])
 
-  useEffect(() => {
-    fetchMetrics()
-    const t = setInterval(fetchMetrics, 30_000)
-    return () => clearInterval(t)
-  }, [fetchMetrics])
+  // Ventas de 7 días con las mismas reglas del corte (pagados, hora Colombia, sin Rappi).
+  const cargarVentas = useCallback(async () => {
+    const hoy = hoyBogota()
+    const desde = sumarDias(hoy, -6)
+    const todos: SaleOrder[] = []
+    for (let ini = 0; ; ini += DASH_PAGE) {
+      const { data, error } = await supabase.from('orders')
+        .select('id, order_number_today, user_id, table_num, customer_name, items, total, tipo_pedido, payment_method, propina, paid_at, created_at, notes')
+        .eq('status', 'completed').gte('paid_at', dayBoundsBogota(desde).from).lt('paid_at', dayBoundsBogota(hoy).to)
+        .order('paid_at', { ascending: false }).range(ini, ini + DASH_PAGE - 1)
+      if (error) throw error
+      todos.push(...(data ?? []).map(o => ({ ...o, items: parseItems(o.items) }) as SaleOrder))
+      if (!data || data.length < DASH_PAGE) break
+    }
+    for (let i = 0; i < todos.length; i += 200) {
+      const lote = todos.slice(i, i + 200)
+      const { data: pagos } = await supabase.from('order_payments')
+        .select('order_id, payment_method, monto').is('anulado_at', null).in('order_id', lote.map(o => o.id))
+      const por = new Map<string, { payment_method: string; monto: number }[]>()
+      for (const p of pagos ?? []) {
+        const a = por.get(p.order_id as string) ?? []
+        a.push({ payment_method: p.payment_method as string, monto: Number(p.monto) })
+        por.set(p.order_id as string, a)
+      }
+      for (const o of lote) o.pagos = por.get(o.id)
+    }
+    const porDia = new Map<string, { total: number; n: number }>()
+    for (const o of todos) {
+      if (esRappi(o) || !o.paid_at) continue
+      const d = diaBogota(o.paid_at)
+      const a = porDia.get(d) ?? { total: 0, n: 0 }
+      a.total += summarize([o]).total; a.n += 1
+      porDia.set(d, a)
+    }
+    const dias = Array.from({ length: 7 }, (_, i) => sumarDias(desde, i))
+    const ayer = porDia.get(sumarDias(hoy, -1))
+    const dHoy = porDia.get(hoy)
+    setVentas({
+      hoy: dHoy?.total ?? 0, nHoy: dHoy?.n ?? 0, ayer: ayer?.total ?? 0, nAyer: ayer?.n ?? 0,
+      dias: dias.map(d => ({ etiqueta: diaCorto(d), valor: porDia.get(d)?.total ?? 0 })),
+      platos: productTotals(todos).slice(0, 4),
+    })
+  }, [])
 
-  const cards = [
-    { target:'card-ventas-hoy',    label:'Ventas hoy',    value:`$${(metrics?.total_sales_today??0).toLocaleString('es-CO')}`, Icon:Icons.Analytics, nav:'analytics' as NavView, color:'var(--w-olive)'   },
-    { target:'card-pendientes',    label:'Pendientes',    value:metrics?.pending_count??0,   Icon:Icons.Orders,  nav:'kitchen'   as NavView, color:'var(--w-saffron)' },
-    { target:'card-en-cocina',     label:'En cocina',     value:metrics?.cooking_count??0,   Icon:Icons.Kitchen, nav:'kitchen'   as NavView, color:'var(--w-terra)'   },
-    { target:'card-listas',        label:'Listas',        value:metrics?.ready_count??0,     Icon:Icons.Tasks,   nav:'cashier'   as NavView, color:'var(--w-olive)'   },
-    { target:'card-completadas',   label:'Completadas',   value:metrics?.completed_today??0, Icon:Icons.Tasks,   nav:'analytics' as NavView, color:'var(--w-wine)'    },
-    { target:'card-mesas-activas', label:'Mesas activas', value:metrics?.active_tables??0,   Icon:Icons.Tables,  nav:'tables'    as NavView, color:'var(--w-terra)'   },
-  ]
+  const cargarResto = useCallback(async () => {
+    const hoy = hoyBogota()
+    const [rec, ing, mes] = await Promise.all([
+      supabase.from('orders').select('id, order_number_today, table_num, customer_name, tipo_pedido, items, status, created_at')
+        .gte('created_at', dayBoundsBogota(hoy).from).order('created_at', { ascending: false }).limit(5),
+      supabase.from('ingredientes').select('nombre, stock_actual, stock_minimo, unidad_medida'),
+      supabase.from('mesas').select('estado').eq('activa', true),
+    ])
+    if (!rec.error) setRecientes((rec.data ?? []).map(o => ({ ...o, items: parseItems(o.items) }) as PedidoReciente))
+    if (!ing.error) {
+      setRiesgo((ing.data ?? [])
+        .filter(i => Number(i.stock_actual) <= Number(i.stock_minimo))
+        .map(i => ({ nombre: i.nombre as string, stock: Number(i.stock_actual), minimo: Number(i.stock_minimo), unidad: (i.unidad_medida as string | null) ?? null }))
+        .sort((a, b) => (a.minimo > 0 ? a.stock / a.minimo : 0) - (b.minimo > 0 ? b.stock / b.minimo : 0)))
+    }
+    if (!mes.error) {
+      const lista = mes.data ?? []
+      setMesas({ total: lista.length, ocupadas: lista.filter(m => m.estado === 'ocupada' || m.estado === 'cuenta').length })
+    }
+  }, [])
+
+  const refrescar = useCallback(async () => {
+    setRefrescando(true)
+    try { await Promise.allSettled([fetchMetrics(), cargarVentas(), cargarResto()]) } finally { setRefrescando(false) }
+  }, [fetchMetrics, cargarVentas, cargarResto])
+
+  useEffect(() => {
+    void refrescar()
+    const t = setInterval(fetchMetrics, 30_000)
+    const t2 = setInterval(() => { void Promise.allSettled([cargarVentas(), cargarResto()]) }, 60_000)
+    return () => { clearInterval(t); clearInterval(t2) }
+  }, [refrescar, fetchMetrics, cargarVentas, cargarResto])
 
   if (loading) return <div style={{display:'flex',justifyContent:'center',padding:'5rem 0'}}><Spin size="large"/></div>
 
+  const fecha = (d => d.charAt(0).toUpperCase() + d.slice(1))(new Date().toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'}))
+  const ventasHoy = ventas ? ventas.hoy : (metrics?.total_sales_today ?? 0)
+  const pctMesas = mesas && mesas.total > 0 ? Math.round((mesas.ocupadas / mesas.total) * 100) : 0
+  const cooking = metrics?.cooking_count ?? 0, ready = metrics?.ready_count ?? 0, pending = metrics?.pending_count ?? 0
+  const filasCocina = [
+    { target: 'card-en-cocina', label: 'En preparación', n: cooking, color: 'var(--w-accent)', nav: 'kitchen' as NavView },
+    { target: 'card-listas', label: 'Listos', n: ready, color: 'var(--w-success)', nav: 'cashier' as NavView },
+    { target: 'card-pendientes', label: 'Pendientes', n: pending, color: 'var(--w-warning)', nav: 'kitchen' as NavView },
+    { target: 'card-completadas', label: 'Completadas hoy', n: metrics?.completed_today ?? 0, color: 'var(--w-info)', nav: 'analytics' as NavView },
+  ]
+  const tituloCard = 'm-0 font-bold text-[color:var(--w-text)]'
+  const verMas = 'text-[length:var(--w-fs-label)] font-semibold text-[color:var(--w-accent-text)] hover:underline'
+
+  const tabContent = tab === 'orders' ? <OrderFlow profile={profile} onOrderCreated={()=>{}} />
+    : tab === 'tables' ? <TableMap profile={profile} />
+    : tab === 'tasks' ? <AdminTasksView profile={profile} />
+    : <QRPrintManager />
+
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:'2rem'}}>
-      <div>
-        <p className="ed-kicker" style={{marginBottom:'0.375rem'}}>
-          {new Date().toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'})}
-        </p>
-        <h2 className="ed-display" style={{fontWeight:600,fontSize:'2rem',margin:0}}>
-          Hola, {profile.full_name?.split(' ')[0]??'Admin'}
-        </h2>
-      </div>
+    <div className="flex flex-col gap-5 [&>header]:mb-0" style={{ fontFamily: 'var(--w-font)' }}>
+      <ModuleHeader
+        icon={DI.home}
+        title={`¡Hola, ${profile.full_name?.split(' ')[0] ?? 'Admin'}!`}
+        subtitle={`${fecha} · Aquí tienes un resumen de la actividad de tu restaurante.`}
+        actions={<Button variant="secondary" onClick={() => void refrescar()} loading={refrescando}>Actualizar</Button>}
+      />
 
       <InstallPWA />
 
-      <div className="menu-grid">
-        {cards.map((card,i) => (
-          <button key={i} onClick={()=>onNavigate(card.nav)} data-resti-target={card.target}
-            className="w-lift w-rise"
-            style={{padding:'1.25rem',textAlign:'left',border:'1px solid var(--w-line)',cursor:'pointer',fontFamily:'var(--w-sans)',background:'var(--w-surface)',borderRadius:'1.25rem',boxShadow:'var(--w-shadow-sm)',animationDelay:`${i*45}ms`}}>
-            <div style={{color:card.color,marginBottom:'0.75rem'}}><card.Icon /></div>
-            <div className="ed-display" style={{fontWeight:600,fontSize:'1.75rem',color:card.color,lineHeight:1}}>
-              {card.value}
-            </div>
-            <div className="ed-body" style={{fontSize:'0.75rem',color:'var(--w-ink-mut)',fontWeight:500,marginTop:'0.375rem'}}>
-              {card.label}
-            </div>
-          </button>
-        ))}
+      <section aria-label="Resumen del día" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <button type="button" onClick={() => onNavigate('ventas')} data-resti-target="card-ventas-hoy" className="cursor-pointer text-left">
+          <StatCard label="Ventas del día" icon={DI.chart}
+            value={<>{formatCOP(ventasHoy)}{ventas && <Variacion actual={ventas.hoy} previo={ventas.ayer} />}</>} />
+        </button>
+        <button type="button" onClick={() => onNavigate('orders')} className="cursor-pointer text-left">
+          <StatCard label="Pedidos realizados" tone="info" icon={DI.cart}
+            value={ventas ? <>{ventas.nHoy}<Variacion actual={ventas.nHoy} previo={ventas.nAyer} /></> : (metrics?.completed_today ?? 0)} />
+        </button>
+        <button type="button" onClick={() => onNavigate('tables')} data-resti-target="card-mesas-activas" className="cursor-pointer text-left">
+          <StatCard label="Mesas ocupadas" tone="success" icon={DI.table}
+            value={<>{pctMesas}%<span className="ml-1.5 text-[length:var(--w-fs-caption)] font-semibold text-[color:var(--w-text-3)]">{mesas ? `${mesas.ocupadas}/${mesas.total}` : '0/0'}</span></>} />
+        </button>
+        <button type="button" onClick={() => onNavigate('inventory')} className="cursor-pointer text-left">
+          <StatCard label="Alertas activas" tone={riesgo.length > 0 ? 'warning' : 'success'} icon={DI.bell} value={riesgo.length} />
+        </button>
+      </section>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className={tituloCard} style={{ fontSize: 'var(--w-fs-title)' }}>Ventas de la semana</h2>
+            <button type="button" onClick={() => onNavigate('ventas')} className={verMas}>Ver ventas →</button>
+          </div>
+          {ventas ? <LineaVentas dias={ventas.dias} /> : <p className="m-0 text-[color:var(--w-text-3)]">Cargando ventas...</p>}
+        </Card>
+
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className={tituloCard} style={{ fontSize: 'var(--w-fs-title)' }}>Estado de cocina</h2>
+            <button type="button" onClick={() => onNavigate('kitchen')} className={verMas}>Ver detalles →</button>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <AnilloCocina cooking={cooking} ready={ready} pending={pending} />
+            <ul className="m-0 flex min-w-[150px] flex-1 list-none flex-col gap-1 p-0">
+              {filasCocina.map(f => (
+                <li key={f.target}>
+                  <button type="button" onClick={() => onNavigate(f.nav)} data-resti-target={f.target}
+                    className="flex min-h-[36px] w-full cursor-pointer items-center gap-2 text-left text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">
+                    <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: f.color }} />
+                    <span className="flex-1">{f.label}</span>
+                    <span className="font-bold text-[color:var(--w-text)]">{f.n}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
+
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className={tituloCard} style={{ fontSize: 'var(--w-fs-title)' }}>Pedidos recientes</h2>
+            <button type="button" onClick={() => onNavigate('orders')} className={verMas}>Ver todos →</button>
+          </div>
+          {recientes.length === 0 ? (
+            <p className="m-0 text-[length:var(--w-fs-body)] text-[color:var(--w-text-3)]">Aún no hay pedidos hoy.</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {recientes.map(o => {
+                const est = ESTADO_PEDIDO[o.status] ?? { label: o.status, tone: 'neutral' as Tone }
+                return (
+                  <li key={o.id} className="flex min-h-[44px] items-center gap-2">
+                    <span className="shrink-0 font-bold text-[color:var(--w-accent-text)] text-[length:var(--w-fs-label)]">
+                      {o.order_number_today ? `#${o.order_number_today}` : '—'}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[length:var(--w-fs-label)] text-[color:var(--w-text)]">{forWhom(o)} · {itemsSummary(o.items) || 'Sin productos'}</span>
+                      <span className="block text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{horaCorta(o.created_at)}</span>
+                    </span>
+                    <Badge tone={est.tone}>{est.label}</Badge>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Card>
       </div>
 
-      <Tabs defaultActiveKey="orders" items={[
-        { key:'orders', label:<span data-resti-target="tab-nueva-orden">Nueva orden</span>, children:<OrderFlow profile={profile} onOrderCreated={()=>{}} /> },
-        { key:'tables', label:<span data-resti-target="tab-mesas">Mesas</span>,            children:<TableMap profile={profile} /> },
-        { key:'tasks',  label:'Tareas',      children:<AdminTasksView profile={profile} /> },
-        { key:'qr',     label:'Imprimir QR', children:<QRPrintManager /> },
-      ]} />
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <Card className="flex flex-col gap-3">
+          <h2 className={tituloCard} style={{ fontSize: 'var(--w-fs-title)' }}>Platos más vendidos (7 días)</h2>
+          {!ventas || ventas.platos.length === 0 ? (
+            <p className="m-0 text-[length:var(--w-fs-body)] text-[color:var(--w-text-3)]">Cuando se cobren pedidos, aquí verás los más vendidos.</p>
+          ) : (
+            <ol className="m-0 flex list-none flex-col gap-2 p-0">
+              {ventas.platos.map((p, i) => (
+                <li key={p.producto} className="flex min-h-[44px] items-center gap-3">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--w-accent-soft)] text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-accent-text)]">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-[length:var(--w-fs-body)] text-[color:var(--w-text)]">{p.producto}</span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-[length:var(--w-fs-body)] font-semibold text-[color:var(--w-text)]">{p.cantidad} uds</span>
+                    <span className="block text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{formatCOP(p.subtotal)}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className={tituloCard} style={{ fontSize: 'var(--w-fs-title)' }}>Inventario en riesgo</h2>
+            <button type="button" onClick={() => onNavigate('inventory')} className={verMas}>Ver inventario →</button>
+          </div>
+          {riesgo.length === 0 ? (
+            <p className="m-0 text-[length:var(--w-fs-body)] text-[color:var(--w-text-3)]">Todo el inventario está por encima de su mínimo.</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-3 p-0">
+              {riesgo.slice(0, 4).map(r => {
+                const pct = r.minimo > 0 ? Math.max(0, Math.min(100, Math.round((r.stock / r.minimo) * 100))) : 0
+                return (
+                  <li key={r.nombre} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-[length:var(--w-fs-body)] text-[color:var(--w-text)]">{r.nombre}</span>
+                      <Badge tone={r.stock <= 0 ? 'danger' : 'warning'}>{r.stock <= 0 ? 'Agotado' : 'Stock bajo'}</Badge>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-[var(--w-surface-sunken)]" aria-hidden>
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: r.stock <= 0 ? 'var(--w-danger)' : 'var(--w-warning)' }} />
+                    </div>
+                    <span className="text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Quedan {r.stock}{r.unidad ? ` ${r.unidad}` : ''} · mínimo {r.minimo}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <Card className="flex flex-col gap-4">
+        <h2 className={tituloCard} style={{ fontSize: 'var(--w-fs-title)' }}>Acciones rápidas</h2>
+        <div style={{overflowX:'auto'}}>
+          <UiTabs label="Secciones de inicio" value={tab} onChange={setTab} items={[
+            { key:'orders', label:'Nueva orden' },
+            { key:'tables', label:'Mesas' },
+            { key:'tasks',  label:'Tareas' },
+            { key:'qr',     label:'Imprimir QR' },
+          ]} />
+        </div>
+        <div data-resti-target={tab === 'orders' ? 'tab-nueva-orden' : tab === 'tables' ? 'tab-mesas' : undefined}>{tabContent}</div>
+      </Card>
     </div>
   )
 })
@@ -278,6 +596,23 @@ const ForcePasswordChangeModal = ({ onDone }: { onDone: () => void }) => {
   )
 }
 
+// ── Inventario: pestañas en píldora ─────────────────────────────
+const InventoryView = () => {
+  const [t, setT] = useState('i')
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:'var(--w-s-4)'}}>
+      <div style={{overflowX:'auto'}}>
+        <UiTabs label="Inventario" value={t} onChange={setT} items={[
+          { key:'i', label:'Ingredientes' },
+          { key:'c', label:'Lista de compras' },
+          { key:'r', label:'Recetas' },
+        ]} />
+      </div>
+      {t === 'i' ? <IngredientesManager /> : t === 'c' ? <ShoppingList /> : <RecipeBuilder />}
+    </div>
+  )
+}
+
 // ── Dashboard Principal ─────────────────────────────────────────
 interface DashboardProps { onLogout: () => void }
 
@@ -285,7 +620,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [profile,    setProfile]    = useState<Profile | null>(null)
   const [activeNav,  setActiveNav]  = useState<NavView>('dashboard')
   const [loading,    setLoading]    = useState(true)
-  const [mobileOpen, setMobileOpen] = useState(false)
   // Cocina: pantalla completa para TV (sin barra lateral ni botones); "Menú" vuelve a mostrarlos.
   const [kitchenMenu, setKitchenMenu] = useState(false)
   useEffect(() => { if (activeNav === 'kitchen') setKitchenMenu(false) }, [activeNav])
@@ -293,6 +627,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   // Asistente de configuración: solo el admin de un restaurante nuevo (onboarding_completed_at nulo).
   const [wizardPending, setWizardPending] = useState(false)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [isPhone, setIsPhone] = useState(() => window.innerWidth < 900)
   useEffect(() => {
     const on = () => setIsPhone(window.innerWidth < 900)
@@ -466,29 +801,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'dashboard': return profile.role === 'admin'
         ? <AdminDashboard profile={profile} onNavigate={setActiveNav} />
         : null
-      case 'orders':    return (
-        <div>
-          <h2 className="ed-display" style={{fontWeight:600,fontSize:'1.875rem',marginBottom:'1.25rem'}}>
-            Nueva orden
-          </h2>
-          <OrderFlow profile={profile} />
-        </div>
-      )
-      case 'tables':    return <TableMap profile={profile} />
+      case 'orders':    return <OrderFlow profile={profile} />
+      case 'tables':    return <TableMap profile={profile} onNavigate={setActiveNav} />
       case 'kitchen':   return <KitchenBoard />
       case 'cashier':   return <CashierPanel profile={profile} />
       case 'tasks':     return profile.role === 'admin'
         ? <AdminTasksView profile={profile} />
         : <EmployeeTasksView profile={profile} />
       case 'shifts':    return <MyShifts profile={profile} />
-      case 'inventory': return (
-        <Tabs defaultActiveKey="1" items={[
-          { key:'1', label:'Ingredientes',     children:<IngredientesManager /> },
-          { key:'2', label:'Lista de compras', children:<ShoppingList /> },
-          { key:'3', label:'Recetas',          children:<RecipeBuilder /> },
-        ]} />
-      )
+      case 'inventory': return <InventoryView />
       case 'analytics': return <BusinessAssistant />
+      case 'ventas':    return profile.role === 'admin' ? <VentasView /> : null
       case 'team':      return <TeamManager />
       case 'menu':      return profile.role === 'admin' ? <MenuManager /> : <ClientMenuSection />
       case 'menu_gestion': return <MenuAvailability />
@@ -498,6 +821,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'opinion':   return ['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role) ? <OpinionSection /> : null
       case 'impresion': return profile.role === 'admin' ? <ImpresionConfig /> : null
       case 'setup':     return profile.role === 'admin' ? <ConfiguracionGuiada onAbrir={() => setWizardOpen(true)} /> : null
+      case 'config':    return profile.role === 'admin' ? <ConfigHub onNavigate={v => setActiveNav(v as NavView)} visibles={['branding', 'impresion', 'setup', 'billing']} /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
       case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformPanel /></MfaGate> : null
@@ -509,7 +833,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center'}}>
         <div style={{width:64,height:64,borderRadius:'1.25rem',overflow:'hidden',margin:'0 auto 1rem',border:'1px solid var(--w-line)',...S.md}}>
-          <img src="/logo.jpg" alt="logo" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+          <img src="/brand/logo-oficial.png" alt="logo" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
         </div>
         <Spin size="large" />
       </div>
@@ -523,10 +847,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   )
 
   const navItems = NAV_BY_ROLE[profile!.role] ?? NAV_BY_ROLE.client
-  const hasSounds = ['admin', 'cashier', 'kitchen', 'waiter'].includes(profile!.role)
+  const navActive: NavView = profile!.role === 'admin' && ['impresion', 'setup', 'branding', 'billing'].includes(activeNav) ? 'config' : activeNav
+  const hasSounds =['admin', 'cashier', 'kitchen', 'waiter'].includes(profile!.role)
 
   const chromeBtn: React.CSSProperties = {
-    padding:'0.625rem', background:'var(--w-surface)', borderRadius:'0.75rem',
+    padding:'0.5rem', minWidth:40, minHeight:40, background:'var(--w-surface)', borderRadius:'0.75rem',
     border:'1px solid var(--w-line)', color:'var(--w-ink-soft)', cursor:'pointer',
     display:'flex', alignItems:'center', justifyContent:'center',
   }
@@ -545,7 +870,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   return (
-    <div style={{minHeight:'100vh',background:'var(--w-bg)',fontFamily:'var(--w-sans)'}}>
+    <div className="ros-ambient" style={{minHeight:'100vh',background:'var(--w-bg)',fontFamily:'var(--w-sans)'}}>
 
       {profile!.must_change_password && (
         <ForcePasswordChangeModal onDone={() => setProfile(p => p ? { ...p, must_change_password: false } : p)} />
@@ -573,126 +898,31 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       {hasSounds && <SoundUnlockBanner />}
 
       {/* Header */}
-      <header className="lg" style={{
-        padding:'0.875rem 1.25rem', borderRadius:0, border:'none',
-        borderBottom:'1px solid var(--w-line)',
-        display:'flex', justifyContent:'space-between', alignItems:'center',
-        position:'sticky', top:0, zIndex:20,
-      }}>
-        <div style={{display:'flex',alignItems:'center',gap:'0.75rem',minWidth:0,flex:1}}>
-          <div style={{width:38,height:38,borderRadius:'0.625rem',overflow:'hidden',flexShrink:0,border:'1px solid var(--w-line)',background:'var(--w-surface)'}}>
-            <img src={brand.logo || '/logo.jpg'} alt={brand.name || 'RestaurantOS'} style={{width:'100%',height:'100%',objectFit:brand.logo?'contain':'cover',display:'block'}}
-              onError={e => { (e.target as HTMLImageElement).src = '/logo.jpg' }} />
-          </div>
-          <div style={{minWidth:0}}>
-            <h1 className="ed-display" style={{fontWeight:600,fontSize:'1.125rem',margin:0,lineHeight:1.1,
-              overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
-              {brand.name || 'RestaurantOS'}
-            </h1>
-            <p style={{fontSize:'0.6875rem',color:'var(--w-ink-mut)',margin:0,fontFamily:'var(--w-sans)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-              {profile!.full_name ?? profile!.email} · {profile!.role}
-            </p>
-          </div>
-        </div>
-
-        <div style={{display:'flex',gap:'0.5rem',alignItems:'center',flexShrink:0,marginLeft:'0.5rem'}}>
-          {profile!.role === 'admin' && <SedeSelector style={{ ...chromeBtn, width: 'auto', padding: '0 0.5rem', maxWidth: 140 }} />}
-          <InstallPWA compact />
-          {hasSounds && <SoundTestButton style={chromeBtn} />}
-          {/* Theme toggle — solo admin */}
-          {profile!.role === 'admin' && (
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              style={chromeBtn}
-              title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
-              {theme === 'dark' ? <Icons.Sun /> : <Icons.Moon />}
-            </button>
-          )}
-          <button onClick={()=>setMobileOpen(p=>!p)} style={chromeBtn} aria-label="Menú">
-            <Icons.Hamburger />
+      <div style={{display:'flex',alignItems:'flex-start'}}>
+      <div style={{flex:1,minWidth:0}}>
+      <TopBar<NavView> phone={isPhone} items={navItems} onSelect={setActiveNav}
+        onMenu={() => setMoreOpen(true)}>
+        {profile!.role === 'admin' && <SedeSelector style={{ ...chromeBtn, width: 'auto', padding: '0 0.5rem', maxWidth: 140 }} />}
+        {!isPhone && <InstallPWA compact />}
+        {hasSounds && !isPhone && <SoundTestButton style={chromeBtn} />}
+        {profile!.role === 'admin' && (
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            style={chromeBtn}
+            title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
+            {theme === 'dark' ? <Icons.Sun /> : <Icons.Moon />}
           </button>
+        )}
+        {isPhone && (
           <button onClick={onLogout} style={chromeBtn} title="Cerrar sesión">
             <Icons.Logout />
           </button>
-        </div>
-      </header>
-
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div style={{position:'fixed',inset:0,zIndex:30,background:'oklch(0.20 0.02 55 / 0.50)',
-          backdropFilter:'blur(6px)'}} onClick={()=>setMobileOpen(false)}>
-          <nav className="lg" style={{position:'absolute',top:0,left:0,bottom:0,width:230,
-            padding:'1.5rem 1rem',display:'flex',
-            flexDirection:'column',gap:'0.375rem',overflowY:'auto',borderRadius:0,
-            borderRight:'1px solid var(--w-line)'}}
-            onClick={e=>e.stopPropagation()}>
-            <p className="ed-kicker" style={{marginBottom:'0.875rem',paddingLeft:'0.5rem'}}>
-              Navegación
-            </p>
-            {navItems.map(({view,icon,label})=>(
-              <button key={view} onClick={()=>{setActiveNav(view);setMobileOpen(false)}}
-                className="w-press"
-                style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 1rem',
-                  borderRadius:'0.875rem',border:'none',cursor:'pointer',fontFamily:'var(--w-sans)',
-                  fontWeight:600,fontSize:'0.875rem',width:'100%',textAlign:'left',
-                  transition:'all 0.2s cubic-bezier(0.16,1,0.3,1)',
-                  ...(activeNav===view
-                    ? {background:'var(--w-terra)',color:'#fff',...S.terra}
-                    : {background:'transparent',color:'var(--w-ink-soft)'})}}>
-                {icon}{label}
-                {view==='inventory' && lowStock>0 && (
-                  <span style={{marginLeft:'auto',background:'#DC2626',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{lowStock}</span>
-                )}
-                {view==='menu' && pendingSocial>0 && (
-                  <span style={{marginLeft:'auto',background:'#DC2626',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{pendingSocial}</span>
-                )}
-                {view==='opinion' && opinionesListas>0 && (
-                  <span style={{marginLeft:'auto',background:'#1D7A46',color:'#fff',fontSize:'0.65rem',fontWeight:800,borderRadius:'999px',padding:'0.1rem 0.45rem'}}>{opinionesListas}</span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-      )}
+        )}
+      </TopBar>
 
       {/* Layout */}
       <div style={{display:'flex',alignItems:'flex-start'}}>
-        {/* Sidebar desktop */}
-        <nav className="lg-sidebar lg" style={{width:84,flexDirection:'column',
-          alignItems:'center',padding:'1.25rem 0',gap:'0.5rem',
-          position:'sticky',top:70,height:'calc(100vh - 70px)',
-          overflowY:'auto',borderRadius:0,borderRight:'1px solid var(--w-line)',
-          display:'none'}}>
-          {navItems.map(({view,icon,label})=>(
-            <button key={view} onClick={()=>setActiveNav(view)} title={label}
-              className="w-press"
-              style={{width:72,padding:'0.625rem 0',borderRadius:'0.875rem',border:'none',
-                cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',
-                gap:'0.3rem',fontFamily:'var(--w-sans)',
-                transition:'all 0.2s cubic-bezier(0.16,1,0.3,1)',
-                ...(activeNav===view
-                  ? {background:'var(--w-terra)',color:'#fff',...S.terra}
-                  : {background:'transparent',color:'var(--w-ink-mut)'})}}>
-              <span style={{position:'relative'}}>
-                {icon}
-                {view==='inventory' && lowStock>0 && (
-                  <span style={{position:'absolute',top:-6,right:-8,background:'#DC2626',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{lowStock}</span>
-                )}
-                {view==='menu' && pendingSocial>0 && (
-                  <span style={{position:'absolute',top:-6,right:-8,background:'#DC2626',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{pendingSocial}</span>
-                )}
-                {view==='opinion' && opinionesListas>0 && (
-                  <span style={{position:'absolute',top:-6,right:-8,background:'#1D7A46',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:'999px',minWidth:15,padding:'0 4px',textAlign:'center',lineHeight:'15px'}}>{opinionesListas}</span>
-                )}
-              </span>
-              <span style={{fontSize:'0.5625rem',fontWeight:700,lineHeight:1.15,textAlign:'center'}}>
-                {label}
-              </span>
-            </button>
-          ))}
-        </nav>
-
-        <main style={{flex:1,padding:'1.25rem',overflowX:'hidden',minWidth:0}}>
+        <main style={{flex:1,padding:'1.25rem 1.25rem 7rem',overflowX:'hidden',minWidth:0}}>
           {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
           {wizardPending && !wizardOpen && (
             <button onClick={() => setWizardOpen(true)} style={{
@@ -707,6 +937,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <div style={{height:'2rem'}} />
         </main>
       </div>
+      </div>
+      </div>
+
+      <MobileNav<NavView>
+        items={navItems}
+        active={navActive}
+        onSelect={setActiveNav}
+        open={moreOpen}
+        setOpen={setMoreOpen}
+        footer={<button type="button" onClick={onLogout} style={{ minHeight: 48, borderRadius: 'var(--w-r-lg)', border: '1px solid var(--w-border)', background: 'transparent', color: 'var(--w-text)', fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer' }}>Cerrar sesión</button>}
+        badges={{ inventory: lowStock, menu: pendingSocial, opinion: opinionesListas }}
+      />
 
       <style>{`@keyframes rs{to{transform:rotate(360deg)}}`}</style>
       {restiOn && profile!.role === 'admin'

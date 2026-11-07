@@ -4,34 +4,50 @@
  * Muestra las tareas asignadas y permite enviar evidencia fotográfica.
  */
 import { useState, useCallback, memo } from 'react'
+import type { ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }       from '../../services/supabaseClient'
 import { EvidenceUpload } from './EvidenceUpload'
 import { useRealtimeTasks } from './useRealtimeTasks'
+import { ModuleHeader, StatCard, IconBubble } from './ModuleHeader'
+import { Tabs } from '../ui/Tabs'
+import { StatePanel } from '../ui/StatePanel'
+import { Badge } from '../ui/Badge'
+import type { Tone } from '../ui/Badge'
 import message from 'antd/es/message'
 import type { Task, TaskStatus, Profile } from '../../types'
 
+
+const ico = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24' } as const
+const IcClock = () => <svg {...ico}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+const IcPlay  = () => <svg {...ico}><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5 3.5-5 3.5z"/></svg>
+const IcCheck = () => <svg {...ico}><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+const IcX     = () => <svg {...ico}><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
+const IcTasks = () => <svg {...ico}><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+const TONE: Record<TaskStatus, Tone> = { pending: 'warning', in_progress: 'info', completed: 'success', rejected: 'danger' }
+const ST_ICON: Record<TaskStatus, ReactNode> = { pending: <IcClock />, in_progress: <IcPlay />, completed: <IcCheck />, rejected: <IcX /> }
+
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
 const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
+  neoOut:  { boxShadow: 'var(--w-shadow-sm)' },
+  neoOutSm:{ boxShadow: 'var(--w-shadow-sm)' },
+  neoIn:   { boxShadow: 'inset 0 0 0 1px var(--w-border)' },
+  coral:   { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
 // ─── Configuración visual por estado y prioridad ─────────────
 const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; emoji: string }> = {
-  pending:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   emoji: '' },
-  in_progress: { label: 'En progreso', color: 'bg-blue-100 text-blue-700',     emoji: '' },
-  completed:   { label: 'Completada',  color: 'bg-emerald-100 text-emerald-700', emoji: '' },
-  rejected:    { label: 'Rechazada',   color: 'bg-red-100 text-red-600',       emoji: '' },
+  pending:     { label: 'Pendiente',   color: 'bg-[var(--w-warning-bg)] text-[color:var(--w-warning-text)]',   emoji: '' },
+  in_progress: { label: 'En progreso', color: 'bg-[var(--w-info-bg)] text-[color:var(--w-info-text)]',     emoji: '' },
+  completed:   { label: 'Completada',  color: 'bg-[var(--w-success-bg)] text-[color:var(--w-success-text)]', emoji: '' },
+  rejected:    { label: 'Rechazada',   color: 'bg-[var(--w-danger-bg)] text-[color:var(--w-danger-text)]',       emoji: '' },
 }
 
 const PRIORITY_CONFIG = {
-  low:    { label: 'Baja',     dot: 'bg-gray-400'    },
-  medium: { label: 'Media',    dot: 'bg-blue-500'    },
-  high:   { label: 'Alta',     dot: 'bg-orange-500'  },
-  urgent: { label: 'Urgente',  dot: 'bg-red-500'     },
+  low:    { label: 'Baja',     dot: 'bg-[var(--w-text-3)]'    },
+  medium: { label: 'Media',    dot: 'bg-[var(--w-info)]'    },
+  high:   { label: 'Alta',     dot: 'bg-[var(--w-warning)]'  },
+  urgent: { label: 'Urgente',  dot: 'bg-[var(--w-danger)]'     },
 }
 
 function formatDueDate(due: string | null): string {
@@ -75,72 +91,56 @@ export const EmployeeTasksView = memo<EmployeeTasksViewProps>(({ profile }) => {
   const completed = tasks.filter(t => t.status === 'completed').length
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-            Mis Tareas
-          </h1>
-          <p className="text-sm text-[#9CA3AF] mt-0.5">Revisa y completa tus asignaciones</p>
-        </div>
-        <button onClick={refetch} className="flex items-center gap-2 text-sm font-semibold text-[#6B7280] px-4 py-2.5 rounded-2xl bg-[#D8DAE4]" style={S.neoOutSm}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-          Actualizar
-        </button>
-      </div>
+    <div className="mx-auto w-full max-w-6xl">
+      <ModuleHeader
+        icon={<IcTasks />}
+        title="Mis tareas"
+        subtitle="Revisa y completa tus asignaciones"
+        actions={
+          <button onClick={refetch} className="flex min-h-[44px] items-center gap-2 rounded-[var(--w-r-md)] border border-[var(--w-border-strong)] bg-[var(--w-surface)] px-4 text-sm font-semibold text-[color:var(--w-text-2)]">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Actualizar
+          </button>
+        }
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Pendientes',  value: pending,   color: 'text-amber-600'   },
-          { label: 'En progreso', value: inProg,    color: 'text-blue-600'    },
-          { label: 'Completadas', value: completed, color: 'text-emerald-600' },
+          { label: 'Total de tareas', value: tasks.length, tone: 'accent' as const, icon: <IcTasks /> },
+          { label: 'Pendientes',  value: pending,   tone: 'warning' as const, icon: <IcClock />   },
+          { label: 'En progreso', value: inProg,    tone: 'info' as const, icon: <IcPlay />    },
+          { label: 'Completadas', value: completed, tone: 'success' as const, icon: <IcCheck /> },
         ].map(s => (
-          <div key={s.label} className="bg-[#D8DAE4] rounded-2xl p-4 text-center" style={S.neoOutSm}>
-            <p className={`text-2xl font-bold ${s.color}`} style={{ fontFamily: 'DM Sans, sans-serif' }}>
-              {s.value}
-            </p>
-            <p className="text-xs text-[#9CA3AF] font-medium mt-0.5">{s.label}</p>
-          </div>
+          <StatCard key={s.label} label={s.label} value={s.value} tone={s.tone} icon={s.icon} />
         ))}
       </div>
 
       {/* Filtros */}
-      <div className="flex gap-2 overflow-x-auto pb-1 mb-5">
-        {(['all', 'pending', 'in_progress', 'completed', 'rejected'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-            style={
-              filter === f
-                ? { background: 'var(--accent)', color: 'white', ...S.coral }
-                : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }
-            }
-          >
-            {f === 'all' ? 'Todas' : STATUS_CONFIG[f as TaskStatus].label}
-          </button>
-        ))}
+      <div className="mb-5 max-w-full overflow-x-auto pb-1">
+        <Tabs
+          label="Filtrar tareas"
+          value={filter}
+          onChange={setFilter}
+          items={[{ key: 'all' as const, label: `Todas (${tasks.length})`, icon: <IcTasks /> }, ...(['pending', 'in_progress', 'completed', 'rejected'] as const).map(k => ({ key: k, label: `${STATUS_CONFIG[k].label} (${tasks.filter(t => t.status === k).length})`, icon: ST_ICON[k] }))]}
+        />
       </div>
 
       {/* Lista de tareas */}
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-4 border-[#FF5722] border-t-transparent animate-spin" />
+          <div className="w-8 h-8 rounded-full border-4 border-[var(--w-accent)] border-t-transparent animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
-          <p className="text-4xl mb-3"></p>
-          <p className="font-bold text-[#2D3561]">Sin tareas</p>
-          <p className="text-sm text-[#9CA3AF] mt-1">
-            {filter === 'all' ? 'No tienes tareas asignadas' : 'Sin tareas en este estado'}
-          </p>
-        </div>
+        <StatePanel
+          kind="empty"
+          title="Sin tareas"
+          text={filter === 'all' ? 'No tienes tareas asignadas' : 'Sin tareas en este estado'}
+        />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="grid items-start gap-3 lg:grid-cols-2">
           {filtered.map((task, i) => (
             <motion.div
               key={task.id}
@@ -198,34 +198,33 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
 
   return (
     <div
-      className={`bg-[#D8DAE4] rounded-3xl p-5 ${isOverdue ? 'border-l-4 border-red-400' : ''}`}
+      className={`bg-[var(--w-surface)] rounded-[var(--w-r-lg)] border border-[var(--w-border)] p-5 ${isOverdue ? 'border-l-4 border-[var(--w-danger)]' : ''}`}
       style={S.neoOut}
     >
       {/* Top row */}
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex-1">
+        <IconBubble tone={TONE[task.status]} size={44}>{ST_ICON[task.status]}</IconBubble>
+        <div className="min-w-0 flex-1">
           {/* Prioridad */}
           <div className="flex items-center gap-1.5 mb-1.5">
             <span className={`w-2 h-2 rounded-full ${pri.dot}`} />
-            <span className="text-[0.625rem] font-bold text-[#9CA3AF] uppercase tracking-wider">{pri.label}</span>
+            <span className="text-[0.625rem] font-bold text-[color:var(--w-text-3)] uppercase tracking-wider">{pri.label}</span>
           </div>
-          <h3 className="font-bold text-[#2D3561] leading-snug" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <h3 className="font-bold text-[color:var(--w-text)] leading-snug" style={{ fontFamily: 'var(--w-font)' }}>
             {task.title}
           </h3>
         </div>
-        <span className={`${st.color} text-xs font-bold px-3 py-1 rounded-full shrink-0 flex items-center gap-1`}>
-          {st.emoji} {st.label}
-        </span>
+        <Badge tone={TONE[task.status]} className="shrink-0">{st.label}</Badge>
       </div>
 
       {/* Descripción */}
       {task.description && (
-        <p className="text-sm text-[#6B7280] mb-3 leading-relaxed">{task.description}</p>
+        <p className="text-sm text-[color:var(--w-text-2)] mb-3 leading-relaxed">{task.description}</p>
       )}
 
       {/* Fecha límite */}
       {due && (
-        <p className={`text-xs font-medium mb-4 ${isOverdue ? 'text-red-500' : 'text-[#9CA3AF]'}`}>{due}</p>
+        <p className={`text-xs font-medium mb-4 ${isOverdue ? 'text-[color:var(--w-danger-text)]' : 'text-[color:var(--w-text-3)]'}`}>{due}</p>
       )}
 
       {/* Acciones */}
@@ -234,7 +233,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={onStart}
-            className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-white bg-[#FF5722]"
+            className="flex-1 min-h-[44px] rounded-[var(--w-r-md)] text-xs font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]"
             style={S.coral}
           >
             Iniciar tarea
@@ -245,7 +244,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={onUploadEvidence}
-            className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-white bg-[#FF5722] flex items-center justify-center gap-2"
+            className="flex-1 min-h-[44px] rounded-[var(--w-r-md)] text-xs font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)] flex items-center justify-center gap-2"
             style={S.coral}
           >
             Enviar evidencia
@@ -256,7 +255,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={onStart}
-            className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-orange-600 bg-[#D8DAE4]"
+            className="flex-1 min-h-[44px] rounded-[var(--w-r-md)] text-xs font-bold text-[color:var(--w-warning-text)] bg-[var(--w-surface)] border border-[var(--w-border-strong)]"
             style={S.neoOut}
           >
             Reintentar
@@ -264,7 +263,7 @@ const EmployeeTaskCard = memo<EmployeeTaskCardProps>(({ task, onStart, onUploadE
         )}
 
         {task.status === 'completed' && (
-          <div className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-emerald-600 bg-[#D8DAE4] flex items-center justify-center gap-2" style={S.neoOut}>
+          <div className="flex-1 min-h-[44px] rounded-[var(--w-r-md)] text-xs font-bold text-[color:var(--w-success-text)] bg-[var(--w-surface)] border border-[var(--w-border-strong)] flex items-center justify-center gap-2" style={S.neoOut}>
             Completada con evidencia
           </div>
         )}

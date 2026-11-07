@@ -12,12 +12,15 @@ import { supabase } from '../../services/supabaseClient'
 import { useMenuConfig } from '../../hooks/useMenuConfig'
 import { orderCategories } from '../../services/menuOptions'
 import type { Dish } from '../../types'
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
+import { Toggle as Switch } from '../ui/Toggle'
+import { Badge } from '../ui/Badge'
 
 type Tipo = 'helado' | 'jugo' | 'topping'
 type DishRow = Pick<Dish, 'id' | 'name' | 'category' | 'available' | 'availability_status' | 'toppings'>
 
 const card: React.CSSProperties = {
-  background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem',
+  background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: '1.25rem',
   padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)',
 }
 
@@ -26,12 +29,12 @@ function Toggle({ label, on, busy, hint, onClick }: { label: string; on: boolean
     <button onClick={onClick} disabled={busy} aria-pressed={on} title={hint}
       style={{
         display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.875rem', borderRadius: '9999px',
-        cursor: busy ? 'wait' : 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 600, fontSize: '0.875rem',
-        border: on ? '1px solid transparent' : '1px dashed var(--w-line)',
-        background: on ? 'var(--w-terra)' : 'var(--w-bg)', color: on ? '#fff' : 'var(--w-ink-mut)',
+        cursor: busy ? 'wait' : 'pointer', fontFamily: 'var(--w-font)', fontWeight: 600, fontSize: '0.875rem',
+        border: on ? '1px solid transparent' : '1px dashed var(--w-border)',
+        background: on ? 'var(--w-accent)' : 'var(--w-surface-sunken)', color: on ? 'var(--w-on-accent)' : 'var(--w-text-3)',
         textDecoration: on ? 'none' : 'line-through', opacity: busy ? 0.6 : 1,
       }}>
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: on ? '#fff' : 'var(--w-wine)', flexShrink: 0 }} />
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: on ? 'var(--w-on-accent)' : 'var(--w-danger)', flexShrink: 0 }} />
       {label}
     </button>
   )
@@ -41,7 +44,7 @@ function Section({ title, sub, children }: { title: string; sub: string; childre
   return (
     <section style={card}>
       <h3 className="ed-display" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>{title}</h3>
-      <p style={{ margin: '0.125rem 0 0.875rem', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>{sub}</p>
+      <p style={{ margin: '0.125rem 0 0.875rem', fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>{sub}</p>
       {children}
     </section>
   )
@@ -116,7 +119,7 @@ export function MenuAvailability() {
   }
 
   const flavorGroup = (tipo: 'helado' | 'jugo', all: string[], off: string[]) => all.length === 0
-    ? <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>No hay sabores configurados (se agregan en Menú → Configurar).</p>
+    ? <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-text-3)' }}>No hay sabores configurados (se agregan en Menú → Configurar).</p>
     : (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
         {all.map(f => {
@@ -127,15 +130,21 @@ export function MenuAvailability() {
     )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans)' }}>
-      <div>
-        <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', margin: 0 }}>Gestión del menú</h2>
-        <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>
-          Toca para marcar lo que se agotó (tachado) o volver a activarlo. El cambio se ve al instante en el menú del cliente y al tomar pedidos.
-        </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-font)' }}>
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1-3 4-3 8h3v10"/></svg>}
+        title="Gestión del menú"
+        subtitle="Marca lo que se agotó (tachado) o vuelve a activarlo. El cambio se ve al instante en el menú del cliente y al tomar pedidos."
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1">
+        <StatCard label="Platos totales" value={dishes.length} tone="accent" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1-3 4-3 8h3v10"/></svg>} />
+        <StatCard label="Disponibles" value={dishes.filter(d => d.available).length} tone="success" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10"/></svg>} />
+        <StatCard label="Agotados" value={dishes.filter(d => !d.available).length} tone="danger" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>} />
       </div>
 
-      {menu.optionsV2 ? Object.entries(menu.listas).filter(([, items]) => items.length > 0).map(([key, items]) => (
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {menu.optionsV2 ?Object.entries(menu.listas).filter(([, items]) => items.length > 0).map(([key, items]) => (
         <Section key={key} title={menu.listaNombres[key] ?? key} sub="Toca un ítem para marcarlo agotado o volver a activarlo.">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {items.map(it => {
@@ -159,7 +168,7 @@ export function MenuAvailability() {
 
       <Section title="Toppings" sub="Se activan o desactivan en todos los productos que los usan.">
         {toppings.length === 0 ? (
-          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Ningún producto tiene toppings.</p>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-text-3)' }}>Ningún producto tiene toppings.</p>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {toppings.map(([nombre, platos]) => {
@@ -171,19 +180,29 @@ export function MenuAvailability() {
         )}
       </Section>
 
-      <Section title="Productos" sub="Un producto agotado deja de aparecer en el menú y al tomar pedidos.">
+      </div>
+
+      <Section title="Productos"sub="Un producto agotado deja de aparecer en el menú y al tomar pedidos.">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar producto..."
-          style={{ width: '100%', boxSizing: 'border-box', marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '0.875rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontSize: '0.9375rem', outline: 'none', fontFamily: 'var(--w-sans)' }} />
+          style={{ width: '100%', boxSizing: 'border-box', marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '0.875rem', border: '1px solid var(--w-border)', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontSize: '0.9375rem', outline: 'none', fontFamily: 'var(--w-font)' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {byCategory.map(([cat, list]) => (
             <div key={cat}>
               <p className="ed-kicker" style={{ margin: '0 0 0.5rem' }}>{catLabel(cat)}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                {list.map(d => <Toggle key={d.id} label={d.name} on={d.available} busy={busy === `dish:${d.id}`} onClick={() => togglePlato(d)} />)}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {list.map(d => (
+                  <div key={d.id} className="flex items-center justify-between gap-3 rounded-[var(--w-r-lg)] border border-[var(--w-border)] bg-[var(--w-surface)] p-3" style={{ boxShadow: 'var(--w-shadow-sm)', opacity: busy === `dish:${d.id}` ? 0.6 : 1 }}>
+                    <div className="flex min-w-0 flex-col items-start gap-1">
+                      <p className="max-w-full truncate font-bold text-[color:var(--w-text)] text-[length:var(--w-fs-body)]">{d.name}</p>
+                      <Badge tone={d.available ? 'success' : 'danger'}>{d.available ? 'Disponible' : 'Agotado'}</Badge>
+                    </div>
+                    <Switch checked={d.available} disabled={busy === `dish:${d.id}`} label={`${d.name}: ${d.available ? 'disponible' : 'agotado'}`} onChange={() => togglePlato(d)} />
+                  </div>
+                ))}
               </div>
             </div>
           ))}
-          {byCategory.length === 0 && <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Sin productos.</p>}
+          {byCategory.length === 0 && <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-text-3)' }}>Sin productos.</p>}
         </div>
       </Section>
     </div>

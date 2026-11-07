@@ -13,6 +13,7 @@ import type { Session } from '@supabase/supabase-js'
 // etc.) va en su propio chunk — un visitante anónimo en la landing/login nunca
 // debería descargar ese código.
 const Dashboard = lazy(() => import('./pages/Dashboard'))
+const DesignSystem = lazy(() => import('./pages/DesignSystem'))
 
 const PATH = typeof window !== 'undefined' ? window.location.pathname : '/'
 const IS_PUBLIC_MENU = PATH.startsWith('/menu')
@@ -98,6 +99,8 @@ export default function App() {
     // signOut dispara onAuthStateChange con session=null → setSession automático
   }, [])
 
+  // Muestra del Design System: solo en desarrollo; en producción esta rama se elimina al compilar
+  if (import.meta.env.DEV && PATH.startsWith('/design-system')) return <ThemeProvider><Suspense fallback={<SplashScreen />}><DesignSystem /></Suspense></ThemeProvider>
   if (IS_PUBLIC_MENU) return <ThemeProvider><PublicMenu /></ThemeProvider>
   if (IS_LEGAL)       return <ThemeProvider><Legal /></ThemeProvider>
   if (!ready)         return <SplashScreen />

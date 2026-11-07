@@ -20,11 +20,11 @@ type GrupoPlantilla = Omit<OptionGroupV2, 'v'>
 
 const slug = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40)
 
-const bg = 'var(--bg, #D8DAE4)', bgSurf = 'var(--bg-surface, #CDD0DC)', txt = 'var(--text-primary, #2D3561)', txtSec = 'var(--text-secondary, #6b7280)'
-const acc = 'var(--w-terra, #C2570C)'
-const caja: React.CSSProperties = { borderRadius: '1rem', padding: '1.25rem', backgroundColor: bg, boxShadow: 'var(--shadow-out)' }
-const campo: React.CSSProperties = { boxSizing: 'border-box', padding: '0.55rem 0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-line, #ccc)', background: 'var(--w-bg, #fff)', color: 'var(--w-ink, #222)', fontSize: '0.9375rem', minWidth: 0 }
-const boton = (primario = false): React.CSSProperties => ({ border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8125rem', borderRadius: '0.75rem', padding: '0.5rem 0.9rem', minHeight: '2.5rem', background: primario ? acc : bgSurf, color: primario ? '#fff' : txt })
+const bg = 'var(--w-surface)', bgSurf = 'var(--w-surface-sunken)', txt = 'var(--w-text)', txtSec = 'var(--w-text-2)'
+const acc = 'var(--w-accent)'
+const caja: React.CSSProperties = { borderRadius: '1rem', padding: '1.25rem', backgroundColor: bg, border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' }
+const campo: React.CSSProperties = { boxSizing: 'border-box', padding: '0.55rem 0.75rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontSize: '0.9375rem', minWidth: 0 }
+const boton = (primario = false): React.CSSProperties => ({ border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8125rem', borderRadius: 'var(--w-r-md)', padding: '0.5rem 0.9rem', minHeight: '2.5rem', background: primario ? acc : bgSurf, color: primario ? 'var(--w-on-accent)' : txt })
 const h3: React.CSSProperties = { fontSize: '0.8rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: txtSec, margin: '1.25rem 0 0.5rem', fontWeight: 700 }
 
 function Editor({ inicial, esNueva, onVolver }: { inicial: { key: string; nombre: string; descripcion: string; payload: Record<string, unknown> }; esNueva: boolean; onVolver: (recargar: boolean) => void }) {
@@ -100,7 +100,7 @@ function Editor({ inicial, esNueva, onVolver }: { inicial: { key: string; nombre
         <button style={boton()} onClick={() => onVolver(false)}>← Volver a la lista</button>
         <h2 style={{ margin: 0, fontSize: '1.25rem', color: txt }}>{esNueva ? 'Nueva plantilla' : `Editar: ${inicial.nombre}`}</h2>
       </div>
-      {error && <div role="alert" style={{ ...caja, color: 'var(--tag-red-text, #b91c1c)', boxShadow: 'var(--shadow-in)' }}>{error}</div>}
+      {error && <div role="alert" style={{ ...caja, color: 'var(--w-danger-text)', boxShadow: 'inset 0 0 0 1px var(--w-border)' }}>{error}</div>}
 
       <div style={caja}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))', gap: '0.5rem' }}>
@@ -160,7 +160,7 @@ function Editor({ inicial, esNueva, onVolver }: { inicial: { key: string; nombre
 
         <h3 style={h3}>Platos de ejemplo <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>(sin precio: el restaurante los pone)</span></h3>
         {platos.map((pl, i) => (
-          <div key={i} style={{ borderRadius: '0.75rem', padding: '0.625rem', backgroundColor: bgSurf, marginBottom: '0.5rem' }}>
+          <div key={i} style={{ borderRadius: 'var(--w-r-md)', padding: '0.625rem', backgroundColor: bgSurf, marginBottom: '0.5rem' }}>
             <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
               <input style={{ ...campo, flex: '1 1 12rem' }} value={pl.nombre} aria-label="Nombre del plato" onChange={e => setPlatos(ps => ps.map((x, k) => k === i ? { ...x, nombre: e.target.value } : x))} />
               <select style={campo} value={pl.categoria} aria-label="Categoría del plato" onChange={e => setPlatos(ps => ps.map((x, k) => k === i ? { ...x, categoria: e.target.value } : x))}>
@@ -198,7 +198,7 @@ function Editor({ inicial, esNueva, onVolver }: { inicial: { key: string; nombre
         }}>+ Agregar pregunta</button>
 
         <h3 style={h3}>Vista previa: el menú que recibe un restaurante nuevo</h3>
-        <div style={{ borderRadius: '0.75rem', padding: '0.75rem', backgroundColor: bgSurf }}>
+        <div style={{ borderRadius: 'var(--w-r-md)', padding: '0.75rem', backgroundColor: bgSurf }}>
           {cats.map(c => {
             const ps = platos.filter(pl => pl.categoria === c.value)
             return (
@@ -283,7 +283,7 @@ export function PlantillasManager() {
         </div>
         <button style={boton(true)} onClick={() => setEditando({ key: '', nombre: '', descripcion: '', payload: {}, nueva: true })}>+ Nueva plantilla</button>
       </div>
-      {error && <div role="alert" style={{ ...caja, color: 'var(--tag-red-text, #b91c1c)', boxShadow: 'var(--shadow-in)' }}>{error}</div>}
+      {error && <div role="alert" style={{ ...caja, color: 'var(--w-danger-text)', boxShadow: 'inset 0 0 0 1px var(--w-border)' }}>{error}</div>}
       {!filas ? <div style={{ padding: '2rem', textAlign: 'center', color: txtSec }}>Cargando…</div> : filas.length === 0 ? (
         <div style={{ ...caja, textAlign: 'center', color: txtSec }}>Todavía no hay plantillas cargadas.</div>
       ) : filas.map(f => (
@@ -291,7 +291,7 @@ export function PlantillasManager() {
           <div style={{ minWidth: '12rem', flex: '1 1 14rem' }}>
             <div style={{ fontWeight: 700, color: txt }}>
               {f.nombre}
-              <span style={{ marginLeft: '0.5rem', fontSize: '0.625rem', fontWeight: 700, padding: '0.0625rem 0.4rem', borderRadius: '9999px', border: '1px solid currentColor', color: f.activo ? 'var(--w-olive, #2f6b3d)' : txtSec }}>{f.activo ? 'ACTIVA' : 'INACTIVA'}</span>
+              <span style={{ marginLeft: '0.5rem', fontSize: '0.625rem', fontWeight: 700, padding: '0.0625rem 0.4rem', borderRadius: '9999px', border: '1px solid currentColor', color: f.activo ? 'var(--w-success-text)' : txtSec }}>{f.activo ? 'ACTIVA' : 'INACTIVA'}</span>
             </div>
             <div style={{ fontSize: '0.75rem', color: txtSec }}>{f.key} · versión {f.version} · {f.aplicada_en} restaurante{f.aplicada_en === 1 ? '' : 's'} la {f.aplicada_en === 1 ? 'aplicó' : 'aplicaron'}</div>
             {f.descripcion && <div style={{ fontSize: '0.8125rem', color: txtSec, marginTop: '0.25rem' }}>{f.descripcion}</div>}

@@ -7,10 +7,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../services/supabaseClient'
 
 export const SEMAFORO: Record<string, { color: string; texto: string }> = {
-  verde: { color: '#2e9e5b', texto: 'Activo' },
-  amarillo: { color: '#d9a400', texto: 'Bajando' },
-  rojo: { color: '#c93b2b', texto: 'Sin uso' },
-  gris: { color: '#8a8a8a', texto: 'Desactivado' },
+  verde: { color: 'var(--w-success-text)', texto: 'Activo' },
+  amarillo: { color: 'var(--w-warning-text)', texto: 'Bajando' },
+  rojo: { color: 'var(--w-danger-text)', texto: 'Sin uso' },
+  gris: { color: 'var(--w-text-3)', texto: 'Desactivado' },
 }
 const ESTADOS = ['prospecto', 'demo', 'prueba', 'piloto', 'activo', 'en_riesgo', 'cancelado'] as const
 const ORIGENES: Record<string, string> = { vendedor: 'Un vendedor', redes: 'Redes sociales', restaurante: 'Otro restaurante', aliado: 'Contador o proveedor', google: 'Google', evento: 'Visita o evento', otro: 'Otro' }
@@ -28,9 +28,9 @@ interface Ficha {
 }
 
 const fecha = (s: string | null) => (s ? new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
-const campo: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.65rem 0.8rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontSize: '0.9375rem', minHeight: '2.75rem', fontFamily: 'inherit' }
-const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: '0.75rem', padding: '0.6rem 1rem', minHeight: '2.75rem' }
-const etiqueta: React.CSSProperties = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary, #6b7280)', display: 'block', marginBottom: '0.25rem' }
+const campo: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.65rem 0.8rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontSize: '0.9375rem', minHeight: '2.75rem', fontFamily: 'inherit' }
+const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: 'var(--w-r-md)', padding: '0.6rem 1rem', minHeight: '2.75rem' }
+const etiqueta: React.CSSProperties = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-text-2)', display: 'block', marginBottom: '0.25rem' }
 
 export function FichaRestaurante({ id, onClose, onCambio }: { id: string; onClose: () => void; onCambio: () => void }) {
   const [f, setF] = useState<Ficha | null>(null)
@@ -96,28 +96,28 @@ export function FichaRestaurante({ id, onClose, onCambio }: { id: string; onClos
   const sem = f?.salud ? SEMAFORO[f.salud.semaforo] : null
   return (
     <div role="dialog" aria-modal="true" onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '1rem', overflowY: 'auto' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg, #D8DAE4)', color: 'var(--text-primary, #2D3561)', borderRadius: '1rem', width: '100%', maxWidth: '44rem', padding: '1.25rem', margin: '1rem 0' }}>
-        {error && <p style={{ color: 'var(--tag-red-text, #b91c1c)' }}>No se pudo cargar: {error}</p>}
+      style={{ position: 'fixed', inset: 0, background: 'var(--w-overlay)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '1rem', overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--w-surface)', color: 'var(--w-text)', borderRadius: '1rem', width: '100%', maxWidth: '44rem', padding: '1.25rem', margin: '1rem 0' }}>
+        {error && <p style={{ color: 'var(--w-danger-text)' }}>No se pudo cargar: {error}</p>}
         {!f && !error && <p>Cargando…</p>}
         {f && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start' }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: '1.375rem' }}>{f.restaurante.nombre}</h2>
-                <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary, #6b7280)' }}>
+                <div style={{ fontSize: '0.8125rem', color: 'var(--w-text-2)' }}>
                   /{f.restaurante.slug} · cliente desde {fecha(f.restaurante.creado)} · plan {f.restaurante.plan ?? '—'}{f.suscripcion?.status ? ` (${f.suscripcion.status})` : ''}
                   {!f.restaurante.activo && ' · DESACTIVADO'}
                 </div>
               </div>
-              <button style={{ ...boton, background: 'var(--bg-surface, #CDD0DC)', color: 'inherit' }} onClick={onClose}>Cerrar</button>
+              <button style={{ ...boton, background: 'var(--w-surface-sunken)', color: 'inherit' }} onClick={onClose}>Cerrar</button>
             </div>
 
             {f.salud && sem && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', margin: '0.875rem 0', flexWrap: 'wrap' }}>
                 <span style={{ width: '0.875rem', height: '0.875rem', borderRadius: '50%', background: sem.color, display: 'inline-block' }} aria-hidden />
                 <strong>{sem.texto}</strong>
-                <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary, #6b7280)' }}>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--w-text-2)' }}>
                   {f.salud.pedidos_7d} pedidos en 7 días · {f.salud.pedidos_30d} en 30 · último {fecha(f.salud.ultimo_pedido)} · {f.salud.usuarios_activos} usuarios
                 </span>
               </div>
@@ -143,7 +143,7 @@ export function FichaRestaurante({ id, onClose, onCambio }: { id: string; onClos
             </div>
             <div style={{ marginTop: '0.5rem' }}><span style={etiqueta}>Notas (solo tú las ves)</span>
               <textarea style={{ ...campo, minHeight: '5rem' }} value={form.notas} maxLength={4000} onChange={e => setForm(x => ({ ...x, notas: e.target.value }))} /></div>
-            <button disabled={busy} style={{ ...boton, marginTop: '0.625rem', background: 'var(--w-terra, #C2570C)', color: '#fff' }} onClick={guardar}>Guardar ficha</button>
+            <button disabled={busy} style={{ ...boton, marginTop: '0.625rem', background: 'var(--w-accent)', color: 'var(--w-on-accent)' }} onClick={guardar}>Guardar ficha</button>
             {msg && <span role="status" style={{ marginLeft: '0.75rem', fontSize: '0.8125rem' }}>{msg}</span>}
 
             <h3 style={{ margin: '1.25rem 0 0.5rem', fontSize: '1rem' }}>Contactos</h3>
@@ -152,11 +152,11 @@ export function FichaRestaurante({ id, onClose, onCambio }: { id: string; onClos
                 {CANALES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               <input style={{ ...campo, flex: 1, minWidth: '12rem', width: 'auto' }} value={resumen} maxLength={1000} placeholder="¿Qué hablaron?" onChange={e => setResumen(e.target.value)} />
-              <button disabled={busy} style={{ ...boton, background: 'var(--bg-surface, #CDD0DC)', color: 'inherit' }} onClick={agregarContacto}>Agregar</button>
+              <button disabled={busy} style={{ ...boton, background: 'var(--w-surface-sunken)', color: 'inherit' }} onClick={agregarContacto}>Agregar</button>
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0', fontSize: '0.8125rem' }}>
-              {f.contactos.length === 0 && <li style={{ color: 'var(--text-secondary, #6b7280)' }}>Todavía no hay contactos anotados.</li>}
-              {f.contactos.map(c => <li key={c.id} style={{ padding: '0.25rem 0', borderTop: '1px solid var(--bg-surface, #CDD0DC)' }}><strong>{fecha(c.fecha)}</strong> · {c.canal} — {c.resumen}</li>)}
+              {f.contactos.length === 0 && <li style={{ color: 'var(--w-text-2)' }}>Todavía no hay contactos anotados.</li>}
+              {f.contactos.map(c => <li key={c.id} style={{ padding: '0.25rem 0', borderTop: '1px solid var(--w-surface-sunken)' }}><strong>{fecha(c.fecha)}</strong> · {c.canal} — {c.resumen}</li>)}
             </ul>
 
             <h3 style={{ margin: '1.25rem 0 0.5rem', fontSize: '1rem' }}>Prueba y estado del restaurante</h3>
@@ -166,21 +166,21 @@ export function FichaRestaurante({ id, onClose, onCambio }: { id: string; onClos
               <input style={{ ...campo, flex: 1, minWidth: '12rem', width: 'auto' }} value={motivo} maxLength={500} placeholder="Motivo (obligatorio)" onChange={e => setMotivo(e.target.value)} aria-label="Motivo" />
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-              <button disabled={busy} style={{ ...boton, background: 'var(--bg-surface, #CDD0DC)', color: 'inherit' }} onClick={extenderPrueba}>Extender prueba</button>
-              <button disabled={busy} style={{ ...boton, background: f.restaurante.activo ? '#b3261e' : '#2e7d32', color: '#fff' }} onClick={cambiarActivo}>
+              <button disabled={busy} style={{ ...boton, background: 'var(--w-surface-sunken)', color: 'inherit' }} onClick={extenderPrueba}>Extender prueba</button>
+              <button disabled={busy} style={{ ...boton, background: f.restaurante.activo ? 'var(--w-danger)' : 'var(--w-success)', color: 'var(--w-on-accent)' }} onClick={cambiarActivo}>
                 {f.restaurante.activo ? 'Desactivar restaurante' : 'Activar restaurante'}
               </button>
             </div>
 
             <h3 style={{ margin: '1.25rem 0 0.5rem', fontSize: '1rem' }}>Pagos de suscripción</h3>
             {f.pagos.length === 0
-              ? <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--text-secondary, #6b7280)' }}>Sin pagos registrados por Wompi todavía.</p>
+              ? <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--w-text-2)' }}>Sin pagos registrados por Wompi todavía.</p>
               : <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.8125rem' }}>
                   {f.pagos.map((p, i) => <li key={i}>{fecha(p.created_at)} · {(p.amount_in_cents / 100).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })} · {p.status ?? '—'}</li>)}
                 </ul>}
 
             <h3 style={{ margin: '1.25rem 0 0.5rem', fontSize: '1rem' }}>Últimos cambios</h3>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary, #6b7280)' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.75rem', color: 'var(--w-text-2)' }}>
               {f.cambios.length === 0 && <li>Sin cambios registrados.</li>}
               {f.cambios.map((c, i) => <li key={i}>{new Date(c.created_at).toLocaleString('es-CO')} · {c.accion.replace(/_/g, ' ')}{c.motivo ? ` — ${c.motivo}` : ''}</li>)}
             </ul>

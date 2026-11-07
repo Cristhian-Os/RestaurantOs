@@ -3,12 +3,12 @@ import type { ReactNode } from 'react'
 import { RestiSprite, type RestiPose } from '../resti/RestiSprite'
 
 const globo: React.CSSProperties = {
-  flex: 1, minWidth: 0, background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem',
-  padding: '0.75rem 1rem', boxShadow: 'var(--w-shadow-sm)', fontFamily: 'var(--w-sans)', color: 'var(--w-ink)', fontSize: '0.9375rem', lineHeight: 1.4,
+  flex: 1, minWidth: 0, background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)',
+  padding: '0.75rem 1rem', boxShadow: 'var(--w-shadow-sm)', fontFamily: 'var(--w-font)', color: 'var(--w-text)', fontSize: '0.9375rem', lineHeight: 1.4,
 }
 const boton: React.CSSProperties = {
-  border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem',
-  borderRadius: '0.75rem', padding: '0.7rem 1.1rem', minHeight: '2.75rem',
+  border: 'none', cursor: 'pointer', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.9375rem',
+  borderRadius: 'var(--w-r-md)', padding: '0.7rem 1.1rem', minHeight: '2.75rem',
 }
 
 export function RestiGuia({ texto, pose = 'wave', children }: { texto: string; pose?: RestiPose; children?: ReactNode }) {
@@ -28,8 +28,8 @@ export function RestiConfirma({ resumen, ocupado, onConfirmar, onRevisar }: { re
   return (
     <RestiGuia texto={`${resumen} ¿Confirmas?`} pose="click">
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.625rem' }}>
-        <button style={{ ...boton, background: 'var(--w-terra)', color: '#fff', opacity: ocupado ? 0.7 : 1 }} disabled={ocupado} onClick={onConfirmar}>Sí, guardar</button>
-        <button style={{ ...boton, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }} disabled={ocupado} onClick={onRevisar}>Quiero revisar</button>
+        <button style={{ ...boton, background: 'var(--w-accent)', color: 'var(--w-on-accent)', opacity: ocupado ? 0.7 : 1 }} disabled={ocupado} onClick={onConfirmar}>Sí, guardar</button>
+        <button style={{ ...boton, background: 'var(--w-bg)', color: 'var(--w-text)', border: '1px solid var(--w-border)' }} disabled={ocupado} onClick={onRevisar}>Quiero revisar</button>
       </div>
     </RestiGuia>
   )

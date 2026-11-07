@@ -36,22 +36,22 @@ export default function SubscriptionBanner({ onNavigate }: { onNavigate?: (v: Na
     const d = daysLeft(info.trial_ends_at)
     if (d === null || d > 3) return null // solo avisar cerca del final
     text = d <= 0 ? 'Tu plan está pendiente de pago. Actívalo para seguir usando la app.' : `Tu acceso vence en ${d} día${d === 1 ? '' : 's'}. Activa tu plan para no perder acceso.`
-    bg = 'rgba(201,160,64,0.14)'; color = '#8a6d3b'
+    bg = 'var(--w-warning-bg)'; color = 'var(--w-warning)'
   } else if (info.status === 'past_due') {
     const d = daysLeft(info.grace_ends_at)
     text = `Pago pendiente. Tienes ${Math.max(d ?? 0, 0)} día${d === 1 ? '' : 's'} de gracia antes de perder acceso. Ponte al día para no interrumpir tu servicio.`
-    bg = 'rgba(176,52,29,0.12)'; color = '#B0341D'
+    bg = 'var(--w-danger-bg)'; color = 'var(--w-danger)'
   } else { // canceled
     text = 'Tu acceso está suspendido por falta de pago. Reactiva tu plan para recuperar tu restaurante (tus datos se conservan 30 días).'
-    bg = 'rgba(176,52,29,0.16)'; color = '#B0341D'
+    bg = 'var(--w-danger-bg)'; color = 'var(--w-danger)'
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flexWrap: 'wrap', padding: '0.85rem 1.1rem', borderRadius: '0.9rem', background: bg, color, marginBottom: '1.25rem', fontFamily: 'var(--w-sans)', fontSize: '0.88rem', fontWeight: 600 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flexWrap: 'wrap', padding: '0.85rem 1.1rem', borderRadius: 'var(--w-r-md)', background: bg, color, marginBottom: '1.25rem', fontFamily: 'var(--w-font)', fontSize: '0.88rem', fontWeight: 600 }}>
       <span style={{ flex: 1, minWidth: 200 }}>{text}</span>
       {onNavigate && (
         <button onClick={() => onNavigate('billing')} className="w-press"
-          style={{ padding: '0.5rem 1rem', borderRadius: '0.7rem', border: 'none', background: color, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          style={{ padding: '0.5rem 1rem', borderRadius: 'var(--w-r-md)', border: 'none', background: color, color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
           Ir a Suscripción
         </button>
       )}

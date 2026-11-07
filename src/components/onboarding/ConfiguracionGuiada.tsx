@@ -2,6 +2,8 @@
  * ConfiguracionGuiada.tsx — "Configuración guiada" en el menú del administrador (Anexo D, 3.1).
  * Muestra cuántos pasos del asistente están hechos y cuáles quedaron pendientes; cada uno abre el asistente en ese paso.
  */
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
+import { Button } from '../ui/Button'
 import { useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
@@ -34,30 +36,47 @@ export function ConfiguracionGuiada({ onAbrir }: { onAbrir: () => void }) {
   if (hecho === null) return <p>Cargando…</p>
   const total = PASOS_ASISTENTE.length - 1            // el último paso ("Listo") es solo el resumen
   const hechos = PASOS_ASISTENTE.slice(0, total).filter((_, i) => hecho[String(i + 1)]).length
+  const pct = Math.round((hechos / total) * 100)
+  const svg = (d: React.ReactNode) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', display: 'grid', gap: '1rem', fontFamily: 'var(--w-sans)' }}>
-      <div>
-        <h2 className="ed-display" style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0, color: 'var(--w-ink)' }}>Configuración guiada</h2>
-        <p style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', margin: '0.25rem 0 0' }}>{hechos} de {total} pasos hechos. Toca uno para completarlo o repasarlo.</p>
-        <div style={{ height: '0.5rem', borderRadius: '999px', background: 'var(--w-line)', marginTop: '0.5rem', overflow: 'hidden' }}>
-          <div style={{ width: `${Math.round((hechos / total) * 100)}%`, height: '100%', background: 'var(--w-terra)' }} />
-        </div>
+    <div className="mx-auto w-full max-w-[1100px]" style={{ fontFamily: 'var(--w-font)' }}>
+      <ModuleHeader
+        icon={svg(<path d="M5 12l5 5L20 7" />)}
+        title="Configuración guiada"
+        subtitle={`${hechos} de ${total} pasos hechos. Toca uno para completarlo o repasarlo.`}
+      />
+
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <StatCard label="Pasos hechos" value={`${hechos} de ${total}`} icon={svg(<path d="M5 12l5 5L20 7" />)} tone="success" />
+        <StatCard label="Avance" value={`${pct}%`} icon={svg(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>)} />
       </div>
-      <div style={{ background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+      <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Avance de la configuración"
+        style={{ height: '0.5rem', borderRadius: '999px', background: 'var(--w-surface-sunken)', marginBottom: '1rem', overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: 'var(--w-accent)' }} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {PASOS_ASISTENTE.slice(0, total).map((nombre, i) => {
           const ok = !!hecho[String(i + 1)]
           return (
-            <button key={nombre} onClick={() => void abrirEn(i + 1)} className="w-press"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left', padding: '0.75rem 1rem', minHeight: '3rem', borderRadius: '0.85rem', border: `1px solid ${ok ? '#1D7A46' : 'var(--w-line)'}`, background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer' }}>
-              <span aria-hidden style={{ color: ok ? '#1D7A46' : 'var(--w-ink-mut)' }}>{ok ? '✔' : '○'}</span>
-              <span style={{ flex: 1 }}>{i + 1}. {nombre}</span>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: ok ? '#1D7A46' : 'var(--w-terra)' }}>{ok ? 'Hecho' : 'Pendiente'}</span>
+            <button key={nombre} type="button" onClick={() => void abrirEn(i + 1)} className="w-press flex min-h-[88px] items-center gap-3 rounded-[var(--w-r-lg)] border bg-[var(--w-surface)] p-4 text-left"
+              style={{ borderColor: ok ? 'var(--w-success)' : 'var(--w-border)', boxShadow: 'var(--w-shadow-sm)', color: 'var(--w-text)', fontFamily: 'inherit' }}>
+              <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-bold [&>svg]:h-5 [&>svg]:w-5"
+                style={{ background: ok ? 'var(--w-success-bg)' : 'var(--w-accent-soft)', color: ok ? 'var(--w-success-text)' : 'var(--w-accent-text)' }}>
+                {ok ? svg(<path d="M5 12l5 5L20 7" />) : i + 1}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-bold text-[length:var(--w-fs-body)]">{nombre}</span>
+                <span className="mt-1 inline-block rounded-[var(--w-r-pill)] px-2 py-0.5 text-[length:var(--w-fs-caption)] font-semibold"
+                  style={{ background: ok ? 'var(--w-success-bg)' : 'var(--w-warning-bg)', color: ok ? 'var(--w-success-text)' : 'var(--w-warning-text)' }}>{ok ? 'Hecho' : 'Pendiente'}</span>
+              </span>
             </button>
           )
         })}
       </div>
-      <button onClick={onAbrir} style={{ border: 'none', borderRadius: '0.75rem', padding: '0.8rem 1.2rem', minHeight: '2.75rem', fontWeight: 700, background: 'var(--w-terra)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Abrir el asistente</button>
+
+      <Button size="lg" className="mt-5 w-full" onClick={onAbrir}>Abrir el asistente</Button>
     </div>
   )
 }

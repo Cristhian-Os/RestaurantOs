@@ -10,7 +10,8 @@ import { inventoryService } from '../../services/inventoryService'
 import { VoiceButton } from '../VoiceButton'
 import { matchName } from '../../services/voiceMatch'
 import message from 'antd/es/message'
-import Button from 'antd/es/button'
+import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
 import Modal from 'antd/es/modal'
 import Select from 'antd/es/select'
 import Spin from 'antd/es/spin'
@@ -28,9 +29,9 @@ const emptyLine = (): RecetaLine => ({ nombre: '', costo_unitario: 0, cantidad_n
 
 // — estilos de input cálidos (siguen el tema claro/oscuro) —
 const inputBase: React.CSSProperties = {
-  background: 'var(--bg-surface)', border: '1px solid var(--divider)', borderRadius: '0.625rem',
-  padding: '0.55rem 0.7rem', color: 'var(--text-primary)', fontFamily: 'var(--w-sans, inherit)',
-  fontSize: '0.875rem', outline: 'none', width: '100%', boxSizing: 'border-box',
+  background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border-strong)', borderRadius: 'var(--w-r-md)', minHeight: 44,
+  padding: '0.55rem 0.75rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)',
+  fontSize: '0.875rem', width: '100%', boxSizing: 'border-box',
 }
 
 export function RecipeBuilder({ productId: propProductId = '', productName: propProductName = 'Producto', onClose }: RecipeBuilderProps) {
@@ -178,7 +179,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
   // ─── Render ───────────────────────────────────────────────
   return (
     <>
-      <Button type="primary" onClick={() => setIsModalVisible(true)}>
+      <Button onClick={() => setIsModalVisible(true)}>
         Editar Receta
       </Button>
 
@@ -192,12 +193,12 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
         destroyOnClose
       >
         <Spin spinning={recetaQuery.isFetching && !!productId}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans, inherit)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-font)' }}>
 
             {/* Seleccionar producto (si no viene por props) */}
             {!propProductId && (
               <div>
-                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.4rem' }}>
+                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--w-text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.4rem' }}>
                   Producto
                 </label>
                 <Select
@@ -220,33 +221,30 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
             )}
 
             {!productId ? (
-              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--w-text-3)' }}>
                 Selecciona un producto para escribir su receta.
               </div>
             ) : (
               <>
                 {/* Encabezado + total en vivo */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <h4 style={{ margin: 0, fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem' }}>
+                  <h4 style={{ margin: 0, fontWeight: 700, color: 'var(--w-text)', fontSize: '1rem' }}>
                     Materias primas
                   </h4>
                   <VoiceButton<{ lineas: { nombre: string; cantidad: number; unidad?: string }[] }>
                     kind="recipe" label="Dictar receta" onResult={addVoiceLines}
                     context={() => ({ dishes: [productName], ingredients: ingredientesOpts.map(i => i.nombre) })} />
-                  <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '1px solid var(--divider)', padding: '0.35rem 0.75rem', borderRadius: '0.625rem' }}>
-                    Costo total:{' '}
-                    <span style={{ color: 'var(--accent)', fontSize: '1.0625rem' }}>{fmtCOP(total)}</span>
-                  </span>
+                  <Badge tone="accent" className="!text-[length:var(--w-fs-label)] !py-1.5">Costo total: {fmtCOP(total)}</Badge>
                 </div>
-                <p style={{ margin: '-0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <p style={{ margin: '-0.5rem 0 0', fontSize: '0.75rem', color: 'var(--w-text-3)' }}>
                   💡 ¿Compras al por mayor (ej. tina de 10 litros)? Toca 🧮 en la fila para calcular solo el precio por unidad.
                 </p>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--w-text-3)' }}>
                   📦 Si vinculas una fila a un ingrediente del inventario, cada venta de este plato descuenta esa cantidad del stock automáticamente.
                 </p>
 
                 {/* Cabecera de columnas (desktop) */}
-                <div className="recipe-head" style={{ display: 'none', gap: '0.5rem', padding: '0 0.25rem', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <div className="recipe-head" style={{ display: 'none', gap: '0.5rem', padding: '0 0.25rem', fontSize: '0.65rem', fontWeight: 700, color: 'var(--w-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   <span style={{ flex: 1.6 }}>Inventario</span>
                   <span style={{ flex: 3 }}>Materia prima</span>
                   <span style={{ flex: 1.4, textAlign: 'right' }}>Precio unit.</span>
@@ -262,7 +260,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                     return (
                       <div key={idx} className="recipe-row" style={{
                         display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem',
-                        background: 'var(--bg)', border: '1px solid var(--divider)', borderRadius: '0.875rem', padding: '0.625rem',
+                        background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', boxShadow: 'var(--w-shadow-sm)', padding: '0.75rem',
                       }}>
                         {/* Vincular a inventario (opcional): si se elige, vender el plato baja este stock */}
                         <select
@@ -311,7 +309,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                           style={{ ...inputBase, flex: 1.2, minWidth: 76, textAlign: 'right' }}
                         />
                         {/* Subtotal (vivo) */}
-                        <span style={{ flex: 1.4, minWidth: 80, textAlign: 'right', fontWeight: 700, color: 'var(--accent)', fontSize: '0.9375rem' }}>
+                        <span style={{ flex: 1.4, minWidth: 80, textAlign: 'right', fontWeight: 700, color: 'var(--w-accent-text)', fontSize: '0.9375rem' }}>
                           {fmtCOP(subtotal)}
                         </span>
                         {/* Calculadora: compré X por $Y → precio unitario */}
@@ -319,9 +317,9 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                           onClick={() => toggleCalc(idx)}
                           title="¿Compraste al por mayor? Calcula el precio por unidad"
                           style={{
-                            width: 32, height: 32, flexShrink: 0, borderRadius: '0.5rem', cursor: 'pointer', fontSize: '1rem', lineHeight: 1,
-                            border: `1px solid ${calcOpen[idx] ? 'var(--accent)' : 'var(--divider)'}`,
-                            background: calcOpen[idx] ? 'var(--accent)' : 'transparent',
+                            width: 44, height: 44, flexShrink: 0, borderRadius: 'var(--w-r-md)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1,
+                            border: `1px solid ${calcOpen[idx] ? 'var(--w-accent)' : 'var(--w-border)'}`,
+                            background: calcOpen[idx] ? 'var(--w-accent-soft)' : 'transparent',
                           }}
                         >
                           🧮
@@ -330,7 +328,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                         <button
                           onClick={() => removeLine(idx)}
                           title="Quitar"
-                          style={{ width: 32, height: 32, flexShrink: 0, borderRadius: '0.5rem', border: '1px solid var(--divider)', background: 'transparent', color: 'var(--w-wine, #b34)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}
+                          style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border)', background: 'transparent', color: 'var(--w-danger-text)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}
                         >
                           ✕
                         </button>
@@ -339,10 +337,10 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                         {calcOpen[idx] && (
                           <div style={{
                             flexBasis: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem',
-                            padding: '0.625rem', marginTop: '0.25rem', borderRadius: '0.75rem',
-                            background: 'var(--bg-surface)', border: '1px dashed var(--accent)',
+                            padding: '0.625rem', marginTop: '0.25rem', borderRadius: 'var(--w-r-md)',
+                            background: 'var(--w-surface-sunken)', border: '1px dashed var(--w-accent)',
                           }}>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Compré</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--w-text-3)' }}>Compré</span>
                             <input
                               type="number" min={0} step={0.1} inputMode="decimal"
                               value={calcQty[idx] ?? ''}
@@ -357,7 +355,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                               placeholder="litros, kg, unid."
                               style={{ ...inputBase, width: 110 }}
                             />
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>por</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--w-text-3)' }}>por</span>
                             <span style={{ fontSize: '0.875rem' }}>$</span>
                             <input
                               type="number" min={0} step={50} inputMode="decimal"
@@ -367,7 +365,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                               style={{ ...inputBase, width: 100 }}
                             />
                             {parseFloat(calcQty[idx] ?? '') > 0 && (
-                              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent)' }}>
+                              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-accent-text)' }}>
                                 = {fmtCOP((parseFloat(calcTotal[idx] ?? '0') || 0) / parseFloat(calcQty[idx]))} por {line.unidad?.trim() || 'unidad'}
                                 {' '}→ usa "Cantidad" para poner cuántos {line.unidad?.trim() || 'unidad(es)'} lleva este plato
                               </span>
@@ -380,20 +378,15 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                 </div>
 
                 {/* Agregar fila */}
-                <button
-                  onClick={addLine}
-                  style={{ alignSelf: 'flex-start', padding: '0.55rem 1rem', borderRadius: '0.75rem', border: '1px dashed var(--accent)', background: 'transparent', color: 'var(--accent)', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  + Agregar materia prima
-                </button>
+                <Button variant="secondary" className="self-start" onClick={addLine}>+ Agregar materia prima</Button>
 
                 {/* Resumen + guardar */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--divider)' }}>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                    {validLines} materia(s) prima(s) · total <strong style={{ color: 'var(--accent)' }}>{fmtCOP(total)}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--w-border)' }}>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>
+                    {validLines} materia(s) prima(s) · total <strong style={{ color: 'var(--w-accent-text)' }}>{fmtCOP(total)}</strong>
                   </p>
                   <Button
-                    type="primary"
+                    className="w-full sm:w-auto"
                     onClick={() => saveMutation.mutate()}
                     loading={saveMutation.isPending}
                     disabled={validLines === 0}

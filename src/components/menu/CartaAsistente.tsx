@@ -45,29 +45,29 @@ export default function CartaAsistente({ slug, restaurantId, mesa }: { slug: str
   }
 
   return (
-    <div style={{ marginTop: '1rem', fontFamily: 'var(--w-sans)' }}>
+    <div style={{ marginTop: '1rem', fontFamily: 'var(--w-font)' }}>
       <button type="button" onClick={() => setAbierto(a => !a)} aria-expanded={abierto}
-        style={{ border: '1px solid var(--w-terra)', background: 'var(--w-surface)', color: 'var(--w-terra)', fontWeight: 700, fontSize: '0.875rem', borderRadius: '999px', padding: '0.6rem 1.1rem', minHeight: '2.75rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+        style={{ border: '1px solid var(--w-accent)', background: 'var(--w-surface)', color: 'var(--w-accent-text)', fontWeight: 700, fontSize: '0.875rem', borderRadius: '999px', padding: '0.6rem 1.1rem', minHeight: '2.75rem', cursor: 'pointer', fontFamily: 'inherit' }}>
         {abierto ? 'Cerrar' : 'Pregunta sobre la carta'}
       </button>
       {abierto && (
-        <div style={{ marginTop: '0.75rem', padding: '0.875rem', borderRadius: '1rem', background: 'var(--w-surface)', border: '1px solid var(--w-line)', maxWidth: '34rem' }}>
-          <label htmlFor="carta-pregunta" style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--w-ink-mut)', marginBottom: '0.375rem' }}>
+        <div style={{ marginTop: '0.75rem', padding: '0.875rem', borderRadius: '1rem', background: 'var(--w-surface)', border: '1px solid var(--w-border)', maxWidth: '34rem' }}>
+          <label htmlFor="carta-pregunta" style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--w-text-3)', marginBottom: '0.375rem' }}>
             Pregunta por ingredientes, precios, opciones o qué hay disponible.
           </label>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <input id="carta-pregunta" value={pregunta} maxLength={300} placeholder="Ej.: ¿qué me recomiendas?"
               onChange={e => setPregunta(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void preguntar() }}
-              style={{ flex: 1, minWidth: 0, border: '1px solid var(--w-line)', borderRadius: '0.75rem', padding: '0.6rem 0.85rem', fontSize: '1rem', minHeight: '2.75rem', background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'inherit' }} />
+              style={{ flex: 1, minWidth: 0, border: '1px solid var(--w-border)', borderRadius: '0.75rem', padding: '0.6rem 0.85rem', fontSize: '1rem', minHeight: '2.75rem', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontFamily: 'inherit' }} />
             <button type="button" onClick={() => void preguntar()} disabled={cargando || pregunta.trim().length < 2}
-              style={{ border: 'none', borderRadius: '0.75rem', padding: '0 1rem', minHeight: '2.75rem', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, cursor: cargando ? 'wait' : 'pointer', opacity: cargando || pregunta.trim().length < 2 ? 0.6 : 1, fontFamily: 'inherit' }}>
+              style={{ border: 'none', borderRadius: '0.75rem', padding: '0 1rem', minHeight: '2.75rem', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, cursor: cargando ? 'wait' : 'pointer', opacity: cargando || pregunta.trim().length < 2 ? 0.6 : 1, fontFamily: 'inherit' }}>
               {cargando ? '…' : 'Preguntar'}
             </button>
           </div>
-          <div role="status" aria-live="polite" style={{ marginTop: '0.625rem', fontSize: '0.9375rem', lineHeight: 1.45, color: 'var(--w-ink)', whiteSpace: 'pre-wrap' }}>
+          <div role="status" aria-live="polite" style={{ marginTop: '0.625rem', fontSize: '0.9375rem', lineHeight: 1.45, color: 'var(--w-text)', whiteSpace: 'pre-wrap' }}>
             {cargando ? 'Mirando la carta…' : respuesta}
           </div>
-          <p style={{ margin: '0.625rem 0 0', fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>No guardo tu conversación. En alergias, la última palabra la tiene el personal.</p>
+          <p style={{ margin: '0.625rem 0 0', fontSize: '0.75rem', color: 'var(--w-text-3)' }}>No guardo tu conversación. En alergias, la última palabra la tiene el personal.</p>
         </div>
       )}
     </div>

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import { useRestiVoice } from '../../hooks/useRestiVoice'
-import { RestiSprite, RestiHat, type RestiPose } from './RestiSprite'
+import { RestiSprite, type RestiPose } from './RestiSprite'
 import { isRestiTarget, type RestiBrainResponse } from '../../lib/resti/targets'
 import { parseBrainResponse } from '../../lib/resti/brain'
 import { intencionLocal } from '../../lib/resti/intents'
@@ -22,7 +22,7 @@ const NO_ENTENDI: RestiBrainResponse = { speech: 'No te entendí bien. ¿Me lo d
 const esperar = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 const sinMovimiento = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
-const casa = () => ({ x: window.innerWidth - W - 16, y: window.innerHeight - H - 84 })
+const casa = () => ({ x: window.innerWidth - W - 16, y: window.innerHeight - H - 164 })
 const buscar = (id: string) => document.querySelector<HTMLElement>(`[data-resti-target="${id}"]`)
 
 const CSS = `
@@ -105,7 +105,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
     }
     setMirarDer(false)   // el brazo del sprite "click" ya apunta a la derecha
     ir('POINTING', 'click')
-    el.style.outline = '3px solid var(--w-terra)'; el.style.outlineOffset = '3px'
+    el.style.outline = '3px solid var(--w-accent)'; el.style.outlineOffset = '3px'
     const resaltado = el
     setTimeout(() => { resaltado.style.outline = ''; resaltado.style.outlineOffset = '' }, 1800)
     if (speechText) decir(speechText, enVoz)
@@ -152,10 +152,10 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
         <style>{CSS}</style>
         <button type="button" onClick={invocar} aria-label="Abrir a Resti, tu chef asistente" title="Resti"
           className="resti-anim"
-          style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 90, width: 58, height: 58, borderRadius: '50%', cursor: 'pointer', padding: 0, overflow: 'hidden',
-            border: '1px solid var(--w-line)', background: 'var(--w-surface)', boxShadow: 'var(--w-shadow-sm)',
+          style={{ position: 'fixed', right: 20, bottom: 'calc(96px + env(safe-area-inset-bottom))', zIndex: 90, width: 56, height: 56, borderRadius: '50%', cursor: 'pointer', padding: 0, overflow: 'hidden',
+            border: '1px solid var(--w-border)', background: '#fff', boxShadow: 'var(--w-shadow-md)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'resti-float 2s ease-in-out 3' }}>
-          <RestiHat size={56} />
+          <img src="/brand/resti-gorro.jpg" alt="Resti" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </button>
       </>
     )
@@ -173,10 +173,10 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
           {estado === 'SUMMONING' && (
             <>
               <div className="resti-anim" style={{ position: 'absolute', left: W / 2 - 22, top: -40, width: 44, height: H + 40,
-                background: 'linear-gradient(to top, rgba(242,106,27,.0), rgba(242,106,27,.55))', animation: 'resti-beam 400ms ease-out both' }} />
+                background: 'linear-gradient(to top, transparent, var(--w-accent))', animation: 'resti-beam 400ms ease-out both' }} />
               {[[-40, -30], [40, -36], [-26, -60], [30, -64], [-6, -76], [14, -52]].map(([dx, dy], i) => (
                 <span key={i} className="resti-anim" style={{ position: 'absolute', left: W / 2, top: 20, width: 5, height: 5, borderRadius: '50%',
-                  background: '#F26A1B', ['--dx' as string]: `${dx}px`, ['--dy' as string]: `${dy}px`, animation: 'resti-spark 400ms ease-out both' }} />
+                  background: 'var(--w-accent)', ['--dx' as string]: `${dx}px`, ['--dy' as string]: `${dy}px`, animation: 'resti-spark 400ms ease-out both' }} />
               ))}
             </>
           )}
@@ -189,34 +189,34 @@ export default function Resti({ onOpenVoiceCommands, onGoHome }: Props) {
       {habla && (
         <div role="status" aria-live="polite"
           style={reducido
-            ? { position: 'fixed', right: 16, bottom: 80, zIndex: 96, maxWidth: 'min(320px, calc(100vw - 32px))' }
+            ? { position: 'fixed', right: 16, bottom: 'calc(168px + env(safe-area-inset-bottom))', zIndex: 96, maxWidth: 'min(320px, calc(100vw - 32px))' }
             : { position: 'fixed', left: 0, top: 0, zIndex: 96, width: 240, maxWidth: 'calc(100vw - 16px)', pointerEvents: 'none',
                 transform: `translate(${globoALaIzquierda ? Math.max(8, p.x - 248) : Math.min(window.innerWidth - 248, p.x + W + 8)}px, ${Math.max(8, p.y)}px)`,
                 transition: `transform 650ms ${EASE}` }}>
-          <p style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#111113', color: '#fff', borderRadius: '0.875rem', fontSize: '0.8125rem',
-            lineHeight: 1.35, fontFamily: 'var(--w-sans)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+          <p style={{ margin: 0, padding: '0.5rem 0.75rem', background: 'var(--w-text)', color: 'var(--w-surface)', borderRadius: '0.875rem', fontSize: '0.8125rem',
+            lineHeight: 1.35, fontFamily: 'var(--w-font)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
             {habla}
           </p>
         </div>
       )}
 
-      <form onSubmit={e => { e.preventDefault(); const t = texto; setTexto(''); void atender(t, false) }}
-        style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 96, display: 'flex', gap: 6, alignItems: 'center', padding: 6,
-          background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '999px', boxShadow: 'var(--w-shadow-sm)', maxWidth: 'calc(100vw - 32px)' }}>
+      <form className="liquid-glass" onSubmit={e => { e.preventDefault(); const t = texto; setTexto(''); void atender(t, false) }}
+        style={{ position: 'fixed', right: 16, bottom: 'calc(96px + env(safe-area-inset-bottom))', zIndex: 96, display: 'flex', gap: 6, alignItems: 'center', padding: 6,
+          borderRadius: '999px', maxWidth: 'calc(100vw - 32px)' }}>
         {voz.supported && (
           <button type="button" onClick={escuchar} aria-label={voz.listening ? 'Dejar de escuchar' : 'Hablar con Resti'}
             style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0,
-              background: voz.listening ? 'var(--w-terra)' : 'var(--w-bg)', color: voz.listening ? '#fff' : 'var(--w-terra)' }}>
+              background: voz.listening ? 'var(--w-accent)' : 'var(--w-bg)', color: voz.listening ? 'var(--w-on-accent)' : 'var(--w-accent)' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={20} height={20}>
               <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v4" />
             </svg>
           </button>
         )}
         <input value={texto} onChange={e => setTexto(e.target.value)} maxLength={200} placeholder="Pregúntale a Resti…" aria-label="Escríbele a Resti"
-          style={{ border: 'none', outline: 'none', background: 'transparent', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontSize: '0.875rem',
+          style={{ border: 'none', outline: 'none', background: 'transparent', color: 'var(--w-text)', fontFamily: 'var(--w-font)', fontSize: '0.875rem',
             width: 160, minWidth: 0 }} />
         <button type="button" onClick={guardar} aria-label="Guardar a Resti" title="Descansa, Resti"
-          style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0, background: 'var(--w-bg)', color: 'var(--w-ink-mut)', fontSize: '1rem' }}>
+          style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0, background: 'var(--w-bg)', color: 'var(--w-text-3)', fontSize: '1rem' }}>
           ✕
         </button>
       </form>

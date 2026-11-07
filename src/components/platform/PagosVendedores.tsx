@@ -53,7 +53,7 @@ export function PagosVendedores() {
     cargar()
   }
 
-  if (error) return <div style={{ ...tarjeta, color: 'var(--tag-red-text, #b91c1c)' }}>No se pudo cargar: {error}</div>
+  if (error) return <div style={{ ...tarjeta, color: 'var(--w-danger-text)' }}>No se pudo cargar: {error}</div>
   if (!deuda) return <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando…</div>
   const totalDebido = deuda.reduce((s, d) => s + d.por_pagar_cop, 0)
 
@@ -91,7 +91,7 @@ export function PagosVendedores() {
             <h3 style={{ margin: '0 0 0.5rem' }}>{ESTADOS[est]} ({filas.length})</h3>
             <div style={{ display: 'grid', gap: '0.375rem' }}>
               {filas.map(l => (
-                <button key={l.id} onClick={() => setAbierta(l.id)} style={{ textAlign: 'left', border: 'none', cursor: 'pointer', borderRadius: '0.75rem', padding: '0.6rem 0.8rem', minHeight: '2.75rem', background: 'var(--bg-surface, #CDD0DC)', color: 'inherit', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button key={l.id} onClick={() => setAbierta(l.id)} style={{ textAlign: 'left', border: 'none', cursor: 'pointer', borderRadius: 'var(--w-r-md)', padding: '0.6rem 0.8rem', minHeight: '2.75rem', background: 'var(--w-surface-sunken)', color: 'inherit', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <span><strong>{l.vendedor}</strong> <span style={suave}>· {mesLargo(l.periodo)}{l.numero ? ` · ${l.numero}` : ''} · {l.lineas} líneas</span></span>
                   <strong>{cop(l.total_pagar_cop)}</strong>
                 </button>
@@ -196,7 +196,7 @@ function DetalleLiquidacion({ id, onClose, onCambio }: { id: string; onClose: ()
 
           <ul style={{ listStyle: 'none', padding: 0, margin: '0.75rem 0', display: 'grid', gap: '0.25rem', fontSize: '0.8125rem' }}>
             {d.lineas.map(l => (
-              <li key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid var(--bg-surface, #CDD0DC)', paddingTop: '0.25rem', opacity: l.estado === 'anulada' ? 0.45 : 1 }}>
+              <li key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid var(--w-surface-sunken)', paddingTop: '0.25rem', opacity: l.estado === 'anulada' ? 0.45 : 1 }}>
                 <span>{TIPOS[l.tipo] ?? l.tipo} · {l.restaurante ?? '—'} · {fechaCorta(l.fecha_pago)} · base {cop(l.base_cop)} ({l.porcentaje}%){l.estado === 'anulada' ? ' · anulada' : ''}</span>
                 <span><strong>{cop(l.monto_cop)}</strong>{d.estado === 'borrador' && l.estado !== 'anulada' && <button style={{ ...botonSuave, minHeight: '2rem', padding: '0.15rem 0.6rem', marginLeft: '0.5rem', fontSize: '0.75rem' }} onClick={() => anular(l)}>Quitar</button>}</span>
               </li>

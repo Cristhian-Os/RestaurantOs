@@ -95,14 +95,14 @@ export function SoundUnlockBanner() {
   return (
     <button onClick={unlockAudio}
       style={{
-        position: 'fixed', left: '50%', bottom: '1rem', transform: 'translateX(-50%)', zIndex: 190,
-        display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.25rem',
+        position: 'fixed', left: '50%', bottom: 'calc(164px + env(safe-area-inset-bottom))', transform: 'translateX(-50%)', zIndex: 190,
+        display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem',
         width: 'max-content', maxWidth: 'calc(100vw - 2rem)', textAlign: 'left',
         borderRadius: '1.5rem', border: 'none', cursor: 'pointer',
-        background: 'var(--w-saffron)', color: '#fff', fontWeight: 700, fontSize: '0.875rem',
-        fontFamily: 'var(--w-sans)', boxShadow: 'var(--w-shadow-md)',
+        background: 'var(--w-warning)', color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '0.875rem',
+        fontFamily: 'var(--w-font)', boxShadow: 'var(--w-shadow-md)',
       }}>
-      <span style={{ flexShrink: 0, display: 'flex' }}><BellIcon /></span> Toca aquí para activar el sonido de los pedidos
+      <span style={{ flexShrink: 0, display: 'flex' }}><BellIcon /></span> Activar sonido de pedidos
     </button>
   )
 }

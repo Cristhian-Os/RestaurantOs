@@ -7,8 +7,8 @@ import { armarTicket, registrarImpresion, type TicketListo } from '../../lib/pri
 import { abrirWhatsApp, compartirPdf, imprimirEnNavegador } from '../../lib/print/navegador'
 import { renderHtml } from '../../lib/print/render'
 
-const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.9375rem', borderRadius: '0.75rem', padding: '0.7rem 1.1rem', minHeight: '2.75rem' }
-const secundario: React.CSSProperties = { ...boton, flex: 1, background: 'rgba(120,110,95,0.12)', color: 'inherit' }
+const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.9375rem', borderRadius: 'var(--w-r-md)', padding: '0.7rem 1.1rem', minHeight: '2.75rem' }
+const secundario: React.CSSProperties = { ...boton, flex: 1, background: 'var(--w-surface-sunken)', color: 'inherit' }
 
 interface Props { tipo: 'precuenta' | 'recibo' | 'cierre'; orderId?: string; preparado?: TicketListo; automatico?: boolean; onClose: () => void }
 const TITULO = { recibo: 'Recibo de pago', precuenta: 'Pre-cuenta', cierre: 'Cierre de caja' }
@@ -40,25 +40,25 @@ export function TicketModal({ tipo, orderId, preparado, automatico, onClose }: P
   const titulo = TITULO[tipo]
   return (
     <div role="dialog" aria-modal="true" aria-label={titulo} onClick={e => { e.stopPropagation(); onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(30,35,60,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, maxHeight: '92vh', overflow: 'auto', background: '#fff', color: '#222', borderRadius: '1.25rem', padding: '1.125rem', display: 'grid', gap: '0.75rem' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--w-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, maxHeight: '92vh', overflow: 'auto', background: 'var(--w-surface)', color: 'var(--w-text)', borderRadius: 'var(--w-r-lg)', padding: '1.125rem', display: 'grid', gap: '0.75rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <strong style={{ fontSize: '1.0625rem' }}>{titulo}{ticket?.numeroRecibo ? ` · N.º ${String(ticket.numeroRecibo).padStart(6, '0')}` : ''}</strong>
           <button onClick={onClose} aria-label="Cerrar" style={{ ...boton, background: 'transparent', padding: '0.25rem 0.75rem', fontSize: '1.25rem' }}>×</button>
         </div>
 
         {!ticket && !error && <p style={{ margin: 0 }}>Preparando…</p>}
-        {error && <p role="alert" style={{ margin: 0, color: '#B0341D', fontWeight: 600 }}>{error}</p>}
+        {error && <p role="alert" style={{ margin: 0, color: 'var(--w-danger-text)', fontWeight: 600 }}>{error}</p>}
 
         {ticket && (
           <>
-            <iframe title="Vista previa" srcDoc={renderHtml(ticket.modelo)} style={{ width: '100%', height: '46vh', border: '1px solid #ddd', borderRadius: '0.75rem', background: '#fff' }} />
+            <iframe title="Vista previa" srcDoc={renderHtml(ticket.modelo)} style={{ width: '100%', height: '46vh', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-md)', background: '#fff' }} />
             {falloImpresion && (
-              <p role="alert" style={{ margin: 0, color: '#B0341D', fontWeight: 600, fontSize: '0.875rem' }}>
+              <p role="alert" style={{ margin: 0, color: 'var(--w-danger-text)', fontWeight: 600, fontSize: '0.875rem' }}>
                 No se pudo imprimir: {falloImpresion}. El cobro quedó bien. Puedes reintentar o usar el PDF / WhatsApp.
               </p>
             )}
-            <button style={{ ...boton, background: '#C2570C', color: '#fff', opacity: imprimiendo ? 0.7 : 1 }} disabled={imprimiendo} onClick={() => void imprimir(ticket)}>
+            <button style={{ ...boton, background: 'var(--w-accent)', color: 'var(--w-on-accent)', opacity: imprimiendo ? 0.7 : 1 }} disabled={imprimiendo} onClick={() => void imprimir(ticket)}>
               {imprimiendo ? 'Abriendo impresión…' : falloImpresion ? '↻ Reintentar impresión' : '🖨 Imprimir'}
             </button>
             <div style={{ display: 'flex', gap: '0.5rem' }}>

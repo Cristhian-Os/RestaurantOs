@@ -81,7 +81,7 @@ export function VoiceButton<T = Record<string, unknown>>({ kind, onResult, conte
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', flexShrink: 0,
         padding: label ? '0.5rem 0.875rem' : '0.5rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer',
         fontWeight: 700, fontSize: '0.8125rem', fontFamily: 'inherit',
-        background: recording ? 'var(--w-wine, #b91c1c)' : 'var(--w-terra, #FF5722)', color: '#fff',
+        background: recording ? 'var(--w-danger-text)' : 'var(--w-accent)', color: 'var(--w-on-accent)',
         opacity: disabled || processing ? 0.6 : 1,
       }}>
       <MicIcon />

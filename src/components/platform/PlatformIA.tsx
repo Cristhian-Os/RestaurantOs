@@ -10,8 +10,8 @@ interface Fila { restaurant_id: string; nombre: string; ia_activa: boolean; llam
 interface Consumo { mes: string; gasto_usd: number; tope_usd: number; uso_pct: number | null; alerta: boolean; restaurantes: Fila[] }
 
 const usd = (n: number) => `US$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
-const th: React.CSSProperties = { textAlign: 'left', padding: '0.5rem 0.6rem', fontSize: '0.75rem', color: 'var(--text-secondary, #6B7280)' }
-const td: React.CSSProperties = { padding: '0.6rem', fontSize: '0.875rem', borderTop: '1px solid var(--w-line, #CDD0DC)' }
+const th: React.CSSProperties = { textAlign: 'left', padding: '0.5rem 0.6rem', fontSize: '0.75rem', color: 'var(--w-text-2)' }
+const td: React.CSSProperties = { padding: '0.6rem', fontSize: '0.875rem', borderTop: '1px solid var(--w-border)' }
 
 export function PlatformIA() {
   const [c, setC] = useState<Consumo | null>(null)
@@ -31,22 +31,22 @@ export function PlatformIA() {
     if (e) message.error(e.message); else { message.success(f.ia_activa ? 'IA apagada' : 'IA encendida'); cargar() }
   }
 
-  if (error) return <p role="alert" style={{ color: '#B0341D', fontWeight: 600 }}>{error}</p>
+  if (error) return <p role="alert" style={{ color: 'var(--w-danger-text)', fontWeight: 600 }}>{error}</p>
   if (!c) return <p>Cargando…</p>
   const pct = Math.min(c.uso_pct ?? 0, 100)
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
-      <div style={{ background: 'var(--bg-surface, #D8DAE4)', borderRadius: '1.25rem', padding: '1.25rem' }}>
+      <div style={{ background: 'var(--w-surface-sunken)', borderRadius: 'var(--w-r-lg)', padding: '1.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
           <strong style={{ fontSize: '1.0625rem' }}>Uso de IA · {c.mes}</strong>
           <input type="month" aria-label="Mes" value={mes || c.mes} onChange={e => setMes(e.target.value)} style={{ padding: '0.4rem', borderRadius: '0.5rem', minHeight: 40 }} />
         </div>
         <p style={{ margin: '0.5rem 0' }}>Gastado: <strong>{usd(c.gasto_usd)}</strong> de un tope de {usd(c.tope_usd)} ({c.uso_pct ?? 0}%)</p>
-        <div aria-hidden style={{ height: 10, borderRadius: 999, background: '#CDD0DC', overflow: 'hidden' }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: c.alerta ? '#B0341D' : '#047857' }} />
+        <div aria-hidden style={{ height: 10, borderRadius: 999, background: 'var(--w-surface-sunken)', overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: c.alerta ? 'var(--w-danger)' : 'var(--w-success)' }} />
         </div>
-        {c.alerta && <p role="alert" style={{ margin: '0.5rem 0 0', color: '#B0341D', fontWeight: 700 }}>Ya pasaste el nivel de alerta del tope. Al llegar al 100% no se generan más reportes este mes.</p>}
-        <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary, #6B7280)' }}>Costo estimado con los precios por millón de tokens guardados en Condiciones generales. Hoy se mide el consumo de los reportes con IA; el chat y la voz todavía no se contabilizan aquí.</p>
+        {c.alerta && <p role="alert" style={{ margin: '0.5rem 0 0', color: 'var(--w-danger-text)', fontWeight: 700 }}>Ya pasaste el nivel de alerta del tope. Al llegar al 100% no se generan más reportes este mes.</p>}
+        <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: 'var(--w-text-2)' }}>Costo estimado con los precios por millón de tokens guardados en Condiciones generales. Hoy se mide el consumo de los reportes con IA; el chat y la voz todavía no se contabilizan aquí.</p>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
@@ -57,7 +57,7 @@ export function PlatformIA() {
               <tr key={f.restaurant_id}>
                 <td style={td}>{f.nombre}</td>
                 <td style={td}>
-                  <button onClick={() => cambiar(f)} aria-pressed={f.ia_activa} style={{ border: 'none', cursor: 'pointer', fontWeight: 700, borderRadius: 999, padding: '0.35rem 0.9rem', minHeight: 36, background: f.ia_activa ? '#047857' : '#9CA3AF', color: '#fff' }}>
+                  <button onClick={() => cambiar(f)} aria-pressed={f.ia_activa} style={{ border: 'none', cursor: 'pointer', fontWeight: 700, borderRadius: 999, padding: '0.35rem 0.9rem', minHeight: 36, background: f.ia_activa ? 'var(--w-success)' : 'var(--w-text-disabled)', color: 'var(--w-on-accent)' }}>
                     {f.ia_activa ? 'Encendida' : 'Apagada'}
                   </button>
                 </td>

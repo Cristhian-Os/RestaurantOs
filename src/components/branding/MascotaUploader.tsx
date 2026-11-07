@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 
-const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }
+const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }
 
 export function MascotaUploader() {
   const [rid, setRid] = useState<string | null>(null)
@@ -45,17 +45,17 @@ export function MascotaUploader() {
     <div style={card}>
       <span style={{ display: 'block', fontWeight: 700, marginBottom: '0.5rem' }}>Mascota del menú (opcional)</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '0.75rem', overflow: 'hidden', border: '1px solid var(--w-line)', background: 'var(--w-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {url ? <img src={url} alt="mascota" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '0.7rem', color: 'var(--w-ink-mut)' }}>Sin mascota</span>}
+        <div style={{ width: 72, height: 72, borderRadius: 'var(--w-r-md)', overflow: 'hidden', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {url ? <img src={url} alt="mascota" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '0.7rem', color: 'var(--w-text-3)' }}>Sin mascota</span>}
         </div>
-        <label className="w-press" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-ink)' }}>
+        <label className="w-press" style={{ padding: '0.6rem 1rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-text)' }}>
           {subiendo ? 'Subiendo…' : 'Subir mascota'}
           <input type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void subir(f); e.target.value = '' }} />
         </label>
         {url && <button type="button" onClick={() => void guardar(null).catch(() => message.error('No se pudo quitar'))}
-          style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-wine)' }}>Quitar</button>}
+          style={{ padding: '0.6rem 1rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: 'var(--w-danger-text)' }}>Quitar</button>}
       </div>
-      <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.6rem 0 0' }}>
+      <p style={{ fontSize: '0.75rem', color: 'var(--w-text-3)', margin: '0.6rem 0 0' }}>
         Aparece como imagen fija en el encabezado del menú de tus clientes. Mejor un PNG con fondo transparente. Si no subes ninguna, no se muestra ningún personaje.
       </p>
     </div>

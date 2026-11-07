@@ -11,15 +11,15 @@
      Todo el tamaño va en rem y el rem escala con el ancho de pantalla:
      16px a 1920px de ancho, así se ve igual en cualquier TV. */
   :root {
-    --bg:        #000000;
-    --surface:   #0C0C0E;
-    --card:      #17171B;
-    --card-line: #2B2B31;
-    --inset:     #050506;
-    --ink:       #F5F5F7;
-    --ink-soft:  #A0A0AA;
+    --bg:        #101010;
+    --surface:   #171717;
+    --card:      #202020;
+    --card-line: #2C2C2A;
+    --inset:     #0B0B0B;
+    --ink:       #F5F5F2;
+    --ink-soft:  #BDBDB7;
     --ink-note:  #D6D6DC;
-    --pend:      #FB923C;
+    --pend:      #FF7426;
     --cook:      #E879F9;
     --ready:     #34D399;
     --warn:      #FBBF24;
@@ -36,22 +36,22 @@
   /* El tema lo decide SOLO el restaurante (restaurant_config) o ?theme=. Se ignora
      prefers-color-scheme: las TVs WebOS lo reportan como "light" y pisaban el oscuro. */
   html[data-theme="light"] {
-    --bg:        #F4EEE4;
-    --surface:   #FBF6EE;
-    --card:      #FDFAF4;
-    --card-line: #E3D9C8;
-    --inset:     #EFE6D6;
-    --ink:       #2B2018;
-    --ink-soft:  #5C5147;
-    --ink-note:  #3A2F25;
-    --pend:      #C2570C;
+    --bg:        #FAFAF8;
+    --surface:   #F1F1EF;
+    --card:      #FFFFFF;
+    --card-line: #E6E6E1;
+    --inset:     #F1F1EF;
+    --ink:       #101010;
+    --ink-soft:  #44443F;
+    --ink-note:  #101010;
+    --pend:      #B83F00;
     --cook:      #A21CAF;
-    --ready:     #047857;
+    --ready:     #14683A;
     --warn:      #B45309;
     --late:      #E11D48;
     --late-bg:   #BE123C;
-    --paid-bg:   #FDBA74;
-    --paid-fg:   #431407;
+    --paid-bg:   #FFEDE3;
+    --paid-fg:   #B83F00;
     --unpaid-fg: #92400E;
     --alert-bg:  #FEF3C7;
     --alert-fg:  #78350F;
@@ -62,7 +62,7 @@
   body {
     background: var(--bg);
     color: var(--ink);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-family: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
     height: 100%;
     max-height: 100vh;
     overflow: hidden;

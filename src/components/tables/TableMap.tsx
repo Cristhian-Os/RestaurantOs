@@ -1,62 +1,46 @@
 /**
- * TableMap.tsx v2
- * - Click en mesa muestra pedido activo, tiempo de espera, estado de pago
- * - Meseros también ven alertas de pedido listo
- * - Admin puede cambiar estado de mesa
+ * TableMap.tsx v3 — pantalla Mesas con la composición de la lámina "Mesas".
+ * - Plano de mesas con forma (cuadrada / alargada), sillas según capacidad y estado por color
+ * - Filtro por estado (píldoras), selector de zona, leyenda y totales
+ * - Panel de la mesa seleccionada: personas, tiempo en mesa, pedido, total, mesero y acciones
+ * - Acciones reutilizan lógica existente: cambiar estado de mesa (handleChangeEstado) e ir a Caja
+ * Los datos salen de las tablas mesas y orders; no hay posición (x,y) guardada, el plano se acomoda solo.
  */
 import { useState, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
-import type { Profile } from '../../pages/Dashboard'
+import { Button } from '../ui/Button'
+import { ModuleHeader } from '../tasks/ModuleHeader'
+import type { Profile, NavView } from '../../pages/Dashboard'
 
-const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
+const FX = {
+  card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  soft:  { boxShadow: 'var(--w-shadow-sm)' },
+  field: { border: '1px solid var(--w-border)' },
+  cta:   { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
+type Estado = 'libre' | 'ocupada' | 'reservada' | 'cuenta'
 interface Mesa {
   id: string; numero: number; capacidad: number
-  estado: 'libre' | 'ocupada' | 'reservada' | 'cuenta'; zona: string; activa: boolean
+  estado: Estado; zona: string; activa: boolean
 }
 interface OrderItem { name: string; quantity: number; notes?: string }
 interface ActiveOrder {
   id: string; mesa_id: string; total: number; status: string
   created_at: string; items: OrderItem[]; paid_at?: string | null
-  customer_name?: string | null
+  customer_name?: string | null; user_id?: string | null
 }
 
-// Semi-transparent backgrounds work on both light & dark themes
-const ESTADO_CONFIG = {
-  libre:    { label: 'Libre',          bg: 'var(--bg)',                         text: 'var(--green)', dot: 'var(--green)' },
-  ocupada:  { label: 'Ocupada',        bg: 'rgba(245,158,11,0.15)',             text: '#D97706', dot: 'var(--amber)' },
-  reservada:{ label: 'Reservada',      bg: 'rgba(139,92,246,0.15)',             text: '#7C3AED', dot: '#8B5CF6' },
-  cuenta:   { label: 'Pide la cuenta', bg: 'rgba(239,68,68,0.15)',              text: '#DC2626', dot: '#EF4444' },
+// Libre = verde, Ocupada = naranja (texto blanco), Reservada = azul, En atención (pide la cuenta) = amarillo
+const ESTADO_CONFIG: Record<Estado, { label: string; fill: string; edge: string; legend: string; dot: string; ink: string; badgeBg: string; badgeText: string }> = {
+  libre:     { label: 'Disponible',   fill: 'var(--w-success-bg)', edge: 'var(--w-success)',  legend: 'var(--w-success)', dot: 'var(--w-success)',  ink: 'var(--w-text)',      badgeBg: 'var(--w-success-bg)', badgeText: 'var(--w-success-text)' },
+  ocupada:   { label: 'Ocupada',      fill: 'var(--w-accent)',     edge: 'var(--w-accent-press)', legend: 'var(--w-accent)', dot: 'var(--w-on-accent)', ink: 'var(--w-on-accent)', badgeBg: 'var(--w-accent-soft)', badgeText: 'var(--w-accent-text)' },
+  reservada: { label: 'Reservada',    fill: 'var(--w-info-bg)',    edge: 'var(--w-info)',     legend: 'var(--w-info)',    dot: 'var(--w-info)',     ink: 'var(--w-text)',      badgeBg: 'var(--w-info-bg)',    badgeText: 'var(--w-info-text)' },
+  cuenta:    { label: 'En atención',  fill: 'var(--w-warning-bg)', edge: 'var(--w-warning)',  legend: 'var(--w-warning)', dot: 'var(--w-warning)',  ink: 'var(--w-text)',      badgeBg: 'var(--w-warning-bg)', badgeText: 'var(--w-warning-text)' },
 }
-
-function elapsed(createdAt: string) {
-  const s = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000)
-  const m = Math.floor(s / 60), h = Math.floor(m / 60)
-  if (h > 0) return `${h}h ${m % 60}m`
-  return `${m}m ${s % 60}s`
-}
-
-function ElapsedTimer({ createdAt }: { createdAt: string }) {
-  const [t, setT] = useState(elapsed(createdAt))
-  const secs = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000)
-  useEffect(() => {
-    const id = setInterval(() => setT(elapsed(createdAt)), 1000)
-    return () => clearInterval(id)
-  }, [createdAt])
-  const isUrgent = secs > 900
-  return (
-    <span style={{ color: isUrgent ? '#DC2626' : '#D97706', fontWeight: 700, fontSize: '0.875rem' }}>
-      {t}{isUrgent ? ' · urgente' : ''}
-    </span>
-  )
-}
+const ESTADOS = Object.keys(ESTADO_CONFIG) as Estado[]
 
 const STATUS_LABELS: Record<string, string> = {
   pending:   'En espera',
@@ -66,13 +50,121 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelado',
 }
 
-export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => void }>(({ profile }) => {
+const pad = (n: number) => String(n).padStart(2, '0')
+const capitalizar = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+const minutosDesde = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000))
+
+/** Tiempo en mesa HH:MM:SS, se actualiza cada segundo. */
+function Reloj({ desde }: { desde: string }) {
+  const calc = () => {
+    const s = Math.max(0, Math.floor((Date.now() - new Date(desde).getTime()) / 1000))
+    return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`
+  }
+  const [t, setT] = useState(calc)
+  useEffect(() => {
+    setT(calc())
+    const id = setInterval(() => setT(calc()), 1000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desde])
+  return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{t}</span>
+}
+
+const ico = (d: string, size = 18) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>
+)
+const I = {
+  mesa:    ico('M4 9h16M6 9v11M18 9v11M3 5h18v4H3z', 24),
+  capas:   ico('M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5', 18),
+  ojo:     ico('M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z'),
+  cuenta:  ico('M9 12l2 2 4-4M12 21a9 9 0 100-18 9 9 0 000 18z'),
+  liberar: ico('M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9'),
+  gente:   ico('M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 11a2.5 2.5 0 100-5M18 14.5c2 .7 3 2.5 3 5.5', 16),
+  reloj:   ico('M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2', 16),
+  check:   ico('M5 12l5 5 9-10', 16),
+  refrescar: ico('M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5'),
+  chevron: ico('M6 9l6 6 6-6', 18),
+  cerrar:  ico('M6 6l12 12M18 6L6 18', 18),
+  mas:     ico('M12 5v14M5 12h14'),
+}
+
+/** Mesa dibujada: cuerpo con forma + sillas alrededor según la capacidad. */
+const MesaTile = memo(({ mesa, order, ready, selected, dim, onClick }: {
+  mesa: Mesa; order?: ActiveOrder; ready: boolean; selected: boolean; dim: boolean; onClick: () => void
+}) => {
+  const cfg = ESTADO_CONFIG[mesa.estado]
+  const ancha = mesa.capacidad >= 5
+  const silla: React.CSSProperties = { position: 'absolute', background: cfg.edge, opacity: 0.55, borderRadius: 3 }
+  const sillasAncha = (n: number, arriba: boolean) =>
+    <span style={{ position: 'absolute', left: '12%', right: '12%', top: arriba ? 1 : undefined, bottom: arriba ? undefined : 1, height: 6, display: 'flex', justifyContent: 'space-evenly' }}>
+      {Array.from({ length: n }, (_, i) => <span key={i} style={{ width: '12%', height: 6, background: cfg.edge, opacity: 0.55, borderRadius: 3 }} />)}
+    </span>
+  const nSillas = Math.min(mesa.capacidad, 4)
+  const min = order ? minutosDesde(order.created_at) : null
+  return (
+    <motion.button type="button" whileTap={{ scale: 0.96 }} onClick={onClick}
+      aria-label={`Mesa ${mesa.numero}, ${cfg.label}, ${mesa.capacidad} personas`} aria-pressed={selected}
+      style={{
+        position: 'relative', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+        gridColumn: ancha ? 'span 2' : undefined, aspectRatio: ancha ? '2.15 / 1' : '1 / 1',
+        opacity: dim ? 0.25 : 1, transition: 'opacity var(--w-dur-fast)', fontFamily: 'inherit',
+      }}>
+      {selected && (
+        <span style={{ position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)', zIndex: 2, whiteSpace: 'nowrap',
+          background: 'var(--w-text)', color: 'var(--w-bg)', fontSize: 'var(--w-fs-caption)', fontWeight: 700, padding: '2px 10px', borderRadius: 'var(--w-r-pill)' }}>
+          {cfg.label}
+        </span>
+      )}
+      {/* sillas */}
+      {ancha ? (<>{sillasAncha(Math.min(Math.ceil(mesa.capacidad / 2), 5), true)}{sillasAncha(Math.min(Math.floor(mesa.capacidad / 2), 5), false)}</>) : (<>
+        {nSillas >= 1 && <span style={{ ...silla, left: 1, top: '30%', width: 6, height: '40%' }} />}
+        {nSillas >= 2 && <span style={{ ...silla, right: 1, top: '30%', width: 6, height: '40%' }} />}
+        {nSillas >= 3 && <span style={{ ...silla, top: 1, left: '30%', height: 6, width: '40%' }} />}
+        {nSillas >= 4 && <span style={{ ...silla, bottom: 1, left: '30%', height: 6, width: '40%' }} />}
+      </>)}
+      {/* cuerpo de la mesa */}
+      <span style={{
+        position: 'absolute', inset: 9, borderRadius: 'var(--w-r-md)', background: cfg.fill, color: cfg.ink,
+        border: `2px solid ${cfg.edge}`, boxShadow: selected ? '0 0 0 3px var(--w-accent-soft), var(--w-shadow-md)' : 'var(--w-shadow-sm)',
+        outline: selected ? '2px solid var(--w-accent)' : 'none', outlineOffset: 2,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, minWidth: 0,
+      }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.dot, boxShadow: '0 0 0 2px rgba(255,255,255,.55)' }} />
+        <span style={{ fontWeight: 700, fontSize: '1.25rem', lineHeight: 1.1 }}>{mesa.numero}</span>
+        <span style={{ fontSize: '0.65rem', lineHeight: 1.1, opacity: 0.85, fontWeight: 600 }}>
+          {mesa.capacidad}p{min !== null ? ` · ${min >= 60 ? `${Math.floor(min / 60)}h${pad(min % 60)}` : `${min}m`}` : ''}
+        </span>
+      </span>
+      {ready && (
+        <span style={{ position: 'absolute', top: 0, right: 0, zIndex: 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--w-success)', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }} aria-label="Pedido listo">✓</span>
+      )}
+    </motion.button>
+  )
+})
+MesaTile.displayName = 'MesaTile'
+
+const Planta = ({ style }: { style: React.CSSProperties }) => (
+  <svg aria-hidden viewBox="0 0 32 32" width={30} height={30} style={{ position: 'absolute', pointerEvents: 'none', ...style }}>
+    <circle cx="16" cy="16" r="13" fill="var(--w-success)" opacity={0.28} />
+    <circle cx="11" cy="12" r="6" fill="var(--w-success)" opacity={0.55} />
+    <circle cx="20" cy="14" r="6" fill="var(--w-success)" opacity={0.7} />
+    <circle cx="15" cy="21" r="6" fill="var(--w-success)" opacity={0.5} />
+  </svg>
+)
+
+export const TableMap = memo<{ profile: Profile; onNavigate?: (v: NavView) => void; onSelectMesa?: (m: Mesa) => void }>(({ profile, onNavigate }) => {
   const [mesas,        setMesas]       = useState<Mesa[]>([])
   const [activeOrders, setActiveOrders]= useState<ActiveOrder[]>([])
+  const [meseros,      setMeseros]     = useState<Record<string, string>>({})
   const [readyOrders,  setReadyOrders] = useState<Set<string>>(new Set())
   const [loading,      setLoading]     = useState(true)
   const [selected,     setSelected]    = useState<Mesa | null>(null)
   const [zona,         setZona]        = useState('all')
+  const [filtro,       setFiltro]      = useState<'all' | Estado>('all')
+  const [detalle,      setDetalle]     = useState(false)
+  const [abierto,      setAbierto]     = useState(false)
+  const [, setTick]                    = useState(0)
   const [showAddForm,  setShowAddForm] = useState(false)
   const [newNumero,    setNewNumero]   = useState('')
   const [newCapacidad, setNewCapacidad]= useState('4')
@@ -87,7 +179,7 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
   const fetchData = useCallback(async () => {
     const [mr, or] = await Promise.all([
       supabase.from('mesas').select('*').eq('activa', true).order('numero'),
-      supabase.from('orders').select('id,mesa_id,total,status,created_at,items,paid_at,customer_name')
+      supabase.from('orders').select('id,mesa_id,total,status,created_at,items,paid_at,customer_name,user_id')
         .not('mesa_id', 'is', null)
         .not('status', 'in', '(completed,cancelled)')
     ])
@@ -101,6 +193,12 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
       // Detectar pedidos listos para alerta
       const readySet = new Set(orders.filter(o => o.status === 'ready').map(o => o.mesa_id))
       setReadyOrders(readySet as Set<string>)
+      // Nombre del mesero (si el perfil es legible para este usuario; si no, simplemente no se muestra)
+      const ids = Array.from(new Set(orders.map(o => o.user_id).filter(Boolean))) as string[]
+      if (ids.length) {
+        const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids)
+        if (profs) setMeseros(Object.fromEntries(profs.map(p => [p.id as string, (p.full_name as string) || ''])))
+      }
     }
     setLoading(false)
   }, [])
@@ -135,6 +233,12 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
     })
     return () => { cancelled = true; if (ch) supabase.removeChannel(ch) }
   }, [fetchData])
+
+  // Refresca los minutos que se ven en las mesas
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30000)
+    return () => clearInterval(id)
+  }, [])
 
   const handleChangeEstado = useCallback(async (mesa: Mesa, estado: Mesa['estado']) => {
     const { error } = await supabase.from('mesas').update({ estado }).eq('id', mesa.id)
@@ -199,274 +303,308 @@ export const TableMap = memo<{ profile: Profile; onSelectMesa?: (m: Mesa) => voi
     }
   }, [selected])
 
-  const zonas = ['all', ...Array.from(new Set(mesas.map(m => m.zona)))]
-  const filtered = zona === 'all' ? mesas : mesas.filter(m => m.zona === zona)
+  const zonas = Array.from(new Set(mesas.map(m => m.zona)))
+  const delZona = zona === 'all' ? mesas : mesas.filter(m => m.zona === zona)
   const selectedOrder = selected ? activeOrders.find(o => o.mesa_id === selected.id) : null
+  const cuenta = (e: Estado) => mesas.filter(m => m.estado === e).length
+
+  const seleccionar = (m: Mesa) => {
+    const quitar = selected?.id === m.id
+    setSelected(quitar ? null : m)
+    setDetalle(false); setAbierto(false)
+  }
+
+  // Liberar mesa = mismo cambio de estado que ya existía; no deja liberar si hay un pedido sin cobrar.
+  const liberar = (m: Mesa) => {
+    if (selectedOrder && !selectedOrder.paid_at) { message.warning('La mesa tiene un pedido sin cobrar. Cóbralo en Caja antes de liberarla.'); return }
+    void handleChangeEstado(m, 'libre')
+  }
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid var(--bg-surface)', borderTopColor: 'var(--accent)', animation: 'rs 0.8s linear infinite' }} />
+      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid var(--w-surface-sunken)', borderTopColor: 'var(--w-accent)', animation: 'rs 0.8s linear infinite' }} />
       <style>{'@keyframes rs{to{transform:rotate(360deg)}}'}</style>
     </div>
   )
 
+  const pildoras: { key: 'all' | Estado; label: string }[] = [
+    { key: 'all', label: 'Todas' }, { key: 'libre', label: 'Disponibles' }, { key: 'ocupada', label: 'Ocupadas' },
+    { key: 'reservada', label: 'Reservadas' }, { key: 'cuenta', label: 'En atención' },
+  ]
+  const totales = [
+    { label: 'Total mesas', n: mesas.length, icon: I.mesa, color: 'var(--w-text-2)' },
+    { label: 'Disponibles', n: cuenta('libre'), icon: I.check, color: ESTADO_CONFIG.libre.legend },
+    { label: 'Ocupadas', n: cuenta('ocupada'), icon: I.gente, color: ESTADO_CONFIG.ocupada.legend },
+    { label: 'Reservadas', n: cuenta('reservada'), icon: I.cuenta, color: ESTADO_CONFIG.reservada.legend },
+  ]
+  const etiqueta: React.CSSProperties = { fontSize: '0.7rem', color: 'var(--w-text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }
+  const campo: React.CSSProperties = { padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontFamily: 'inherit', ...FX.field }
+  const nombreMesero = selectedOrder?.user_id ? meseros[selectedOrder.user_id] : ''
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div>
-          <h2 style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1.5rem', color: 'var(--text-primary)', margin: 0 }}>Mesas</h2>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
-            {mesas.filter(m => m.estado === 'ocupada').length} ocupadas · {mesas.filter(m => m.estado === 'libre').length} libres
-            {readyOrders.size > 0 && <span style={{ color: 'var(--green)', fontWeight: 700, marginLeft: 8 }}>· {readyOrders.size} listas</span>}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          {isAdmin && (
-            <button onClick={() => setShowAddForm(v => !v)}
-              style={{ padding: '0.625rem 1rem', borderRadius: '0.75rem', border: 'none', backgroundColor: showAddForm ? 'var(--accent)' : 'var(--bg)', color: showAddForm ? '#fff' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 700, fontSize: '0.8125rem', fontFamily: 'inherit', ...(showAddForm ? S.coral : S.neoOutSm) }}>
-              + Agregar mesa
-            </button>
-          )}
-          <button onClick={fetchData} title="Refrescar" aria-label="Refrescar" style={{ padding: '0.625rem', borderRadius: '0.75rem', border: 'none', backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...S.neoOutSm }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontFamily: 'var(--w-font)', minWidth: 0 }}>
+      {/* Encabezado + filtros por estado */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between [&>header]:mb-0">
+        <ModuleHeader icon={I.mesa} title="Mesas" subtitle="Gestiona la distribución y el estado de las mesas de tu restaurante." />
+        <div role="tablist" aria-label="Filtrar por estado" className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {pildoras.map(p => {
+            const on = filtro === p.key
+            return (
+              <button key={p.key} type="button" role="tab" aria-selected={on} onClick={() => setFiltro(p.key)}
+                className="shrink-0"
+                style={{
+                  minHeight: 40, padding: '0 1rem', borderRadius: 'var(--w-r-pill)', fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer',
+                  fontSize: 'var(--w-fs-label)', whiteSpace: 'nowrap',
+                  ...(on ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', border: '1px solid var(--w-accent)' }
+                         : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.card }),
+                }}>
+                {p.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
       {/* Formulario agregar mesa (solo admin) */}
       {isAdmin && showAddForm && (
-        <div style={{ backgroundColor: 'var(--bg)', borderRadius: '1.25rem', padding: '1rem 1.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end', ...S.neoOut }}>
+        <div style={{ backgroundColor: 'var(--w-surface)', borderRadius: 'var(--w-r-lg)', padding: '1rem 1.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end', ...FX.card }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>Número</label>
+            <label style={{ fontSize: '0.7rem', color: 'var(--w-text-3)', fontWeight: 700 }}>Número</label>
             <input type="number" min={1} max={100} placeholder={String(siguienteNumero)} value={newNumero}
-              onChange={e => setNewNumero(e.target.value)}
-              style={{ width: 90, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+              onChange={e => setNewNumero(e.target.value)} style={{ ...campo, width: 90 }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>Capacidad</label>
-            <input type="number" min={1} value={newCapacidad} onChange={e => setNewCapacidad(e.target.value)}
-              style={{ width: 90, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+            <label style={{ fontSize: '0.7rem', color: 'var(--w-text-3)', fontWeight: 700 }}>Capacidad</label>
+            <input type="number" min={1} value={newCapacidad} onChange={e => setNewCapacidad(e.target.value)} style={{ ...campo, width: 90 }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>Zona</label>
-            <input type="text" value={newZona} onChange={e => setNewZona(e.target.value)}
-              style={{ width: 130, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
+            <label style={{ fontSize: '0.7rem', color: 'var(--w-text-3)', fontWeight: 700 }}>Zona</label>
+            <input type="text" value={newZona} onChange={e => setNewZona(e.target.value)} style={{ ...campo, width: 130 }} />
           </div>
           <button onClick={handleAddMesa} disabled={savingMesa}
-            style={{ padding: '0.625rem 1.25rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.8125rem', cursor: savingMesa ? 'default' : 'pointer', opacity: savingMesa ? 0.6 : 1, fontFamily: 'inherit', ...S.coral }}>
+            style={{ padding: '0.625rem 1.25rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '0.8125rem', cursor: savingMesa ? 'default' : 'pointer', opacity: savingMesa ? 0.6 : 1, fontFamily: 'inherit', ...FX.cta }}>
             {savingMesa ? 'Creando…' : 'Crear mesa'}
           </button>
         </div>
       )}
 
-      {/* Filtro zonas */}
-      {zonas.length > 2 && (
-        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto' }}>
-          {zonas.map(z => (
-            <button key={z} onClick={() => setZona(z)}
-              style={{
-                flexShrink: 0, padding: '0.5rem 0.875rem', borderRadius: '9999px',
-                border: 'none', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit',
-                ...(zona === z ? { background: 'var(--accent)', color: '#fff', ...S.coral } : { backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm })
-              }}>
-              {z === 'all' ? 'Todas' : z}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Grid mesas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '0.75rem' }}>
-        {filtered.map(mesa => {
-          const cfg = ESTADO_CONFIG[mesa.estado]
-          const order = activeOrders.find(o => o.mesa_id === mesa.id)
-          const isReady = readyOrders.has(mesa.id)
-          const isSelected = selected?.id === mesa.id
-          return (
-            <motion.button key={mesa.id} whileTap={{ scale: 0.95 }}
-              onClick={() => setSelected(isSelected ? null : mesa)}
-              style={{
-                backgroundColor: cfg.bg,
-                borderRadius: '1.25rem', border: 'none', cursor: 'pointer',
-                padding: '0.875rem 0.5rem',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.375rem',
-                fontFamily: 'inherit', position: 'relative',
-                outline: isSelected ? `3px solid #FF5722` : 'none',
-                outlineOffset: 2,
-                ...(isReady ? { boxShadow: 'var(--shadow-out)' } : S.neoOut),
-              }}>
-              {isReady && (
-                <div style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18,
-                  borderRadius: '50%', backgroundColor: 'var(--green)', color: '#fff',
-                  fontSize: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
-                  ✓
-                </div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* Plano + leyenda y totales */}
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <section style={{ backgroundColor: 'var(--w-surface)', borderRadius: 'var(--w-r-lg)', padding: '0.75rem', ...FX.card }}>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              {zonas.length > 1 ? (
+                <label className="inline-flex items-center gap-2" style={{ minHeight: 40, padding: '0 0.75rem', borderRadius: 'var(--w-r-pill)', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontWeight: 700, fontSize: 'var(--w-fs-label)', maxWidth: '100%' }}>
+                  <span style={{ color: 'var(--w-accent-text)', display: 'flex' }}>{I.capas}</span>
+                  <select aria-label="Zona" value={zona} onChange={e => { setZona(e.target.value); setSelected(null) }}
+                    style={{ background: 'transparent', border: 'none', color: 'inherit', font: 'inherit', fontWeight: 700, cursor: 'pointer', minWidth: 0, maxWidth: '55vw' }}>
+                    <option value="all">Todas las zonas</option>
+                    {zonas.map(z => <option key={z} value={z}>{capitalizar(z)}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <span className="inline-flex items-center gap-2" style={{ minHeight: 40, padding: '0 0.75rem', borderRadius: 'var(--w-r-pill)', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontWeight: 700, fontSize: 'var(--w-fs-label)' }}>
+                  <span style={{ color: 'var(--w-accent-text)', display: 'flex' }}>{I.capas}</span>{capitalizar(zonas[0] ?? 'principal')}
+                </span>
               )}
-              <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: cfg.dot }} />
-              <p style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)', margin: 0 }}>
-                {mesa.numero}
-              </p>
-              <p style={{ fontSize: '0.625rem', color: cfg.text, fontWeight: 700, margin: 0 }}>
-                {cfg.label}
-              </p>
-              {order && (
-                <p style={{ fontSize: '0.6rem', color: 'var(--text-muted)', margin: 0 }}>
-                  ${order.total.toLocaleString('es')}
-                </p>
-              )}
-            </motion.button>
-          )
-        })}
-      </div>
-
-      {/* Panel detalle mesa seleccionada */}
-      <AnimatePresence>
-        {selected && (
-          <motion.div key={selected.id}
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.25 }}
-            style={{ backgroundColor: 'var(--bg)', borderRadius: '1.5rem', padding: '1.5rem', ...S.neoOut }}>
-
-            {/* Mesa header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-              <div>
-                <h3 style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>
-                  Mesa {selected.numero}
-                  <span style={{ marginLeft: 8, fontSize: '0.75rem', backgroundColor: ESTADO_CONFIG[selected.estado].bg,
-                    color: ESTADO_CONFIG[selected.estado].text, padding: '0.25rem 0.625rem', borderRadius: '9999px', fontWeight: 700 }}>
-                    {ESTADO_CONFIG[selected.estado].label}
-                  </span>
-                </h3>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
-                  Zona: {selected.zona} · Cap: {selected.capacidad}
-                </p>
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <Button size="sm" variant={showAddForm ? 'secondary' : 'primary'} icon={I.mas} onClick={() => setShowAddForm(v => !v)}>Agregar mesa</Button>
+                )}
+                <Button size="sm" variant="secondary" onClick={fetchData} title="Refrescar" aria-label="Refrescar" className="!px-0 w-[36px]">{I.refrescar}</Button>
               </div>
-              <button onClick={() => setSelected(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.25rem', padding: 4 }}>
-                ✕
-              </button>
             </div>
 
-            {/* Pedido activo */}
-            {selectedOrder ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                {/* Info general del pedido */}
-                <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: '1rem', padding: '0.875rem 1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', ...S.neoIn }}>
-                  <div>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Estado</p>
-                    <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.875rem', margin: 0 }}>{STATUS_LABELS[selectedOrder.status] ?? selectedOrder.status}</p>
+            {/* Plano: las mesas se acomodan solas (no hay posición guardada) */}
+            <div style={{
+              position: 'relative', borderRadius: 'var(--w-r-md)', background: 'var(--w-surface-sunken)', overflow: 'hidden',
+              backgroundImage: 'linear-gradient(var(--w-border) 1px, transparent 1px), linear-gradient(90deg, var(--w-border) 1px, transparent 1px)',
+              backgroundSize: '28px 28px', padding: '2rem 1.25rem 1.25rem 1.5rem', minHeight: 200,
+            }}>
+              <span aria-hidden style={{ position: 'absolute', left: 0, top: '38%', width: 12, height: 64, borderRight: '3px solid var(--w-border-strong)', borderTopRightRadius: 64, borderBottomRightRadius: 64, opacity: 0.7 }} />
+              <Planta style={{ top: 4, left: 6 }} />
+              <Planta style={{ bottom: 4, right: 6 }} />
+              {delZona.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--w-text-3)', fontWeight: 600, padding: '2rem 0', margin: 0 }}>
+                  {mesas.length === 0 ? 'Aún no hay mesas creadas.' : 'No hay mesas en esta zona.'}
+                </p>
+              ) : (
+                <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gridAutoFlow: 'dense', gap: '0.5rem' }}>
+                  {delZona.map(mesa => (
+                    <MesaTile key={mesa.id} mesa={mesa}
+                      order={activeOrders.find(o => o.mesa_id === mesa.id)}
+                      ready={readyOrders.has(mesa.id)}
+                      selected={selected?.id === mesa.id}
+                      dim={filtro !== 'all' && mesa.estado !== filtro}
+                      onClick={() => seleccionar(mesa)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Leyenda + totales */}
+          <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ backgroundColor: 'var(--w-surface)', borderRadius: 'var(--w-r-lg)', padding: '0.75rem 1rem', ...FX.card }}>
+            <div className="flex flex-wrap gap-x-4 gap-y-2" style={{ fontSize: 'var(--w-fs-label)', color: 'var(--w-text-2)' }}>
+              {ESTADOS.map(k => (
+                <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: ESTADO_CONFIG[k].legend }} />{ESTADO_CONFIG[k].label}
+                </span>
+              ))}
+            </div>
+            <div className="grid grid-cols-4 gap-2 sm:flex sm:gap-5">
+              {totales.map(t => (
+                <div key={t.label} style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--w-text-3)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ color: t.color, display: 'flex' }}>{t.icon}</span>{t.label}
+                  </p>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: '1.125rem', color: 'var(--w-text)' }}>{t.n}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* Panel de la mesa seleccionada */}
+        <aside className="w-full lg:w-[320px] lg:shrink-0">
+          <AnimatePresence mode="wait">
+            {!selected ? (
+              <motion.div key="vacio" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{ backgroundColor: 'var(--w-surface)', borderRadius: 'var(--w-r-lg)', padding: '1.25rem', textAlign: 'center', color: 'var(--w-text-3)', ...FX.card }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>Toca una mesa para ver su pedido y las acciones.</p>
+              </motion.div>
+            ) : (
+              <motion.div key={selected.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.2 }}
+                style={{ backgroundColor: 'var(--w-surface)', borderRadius: 'var(--w-r-lg)', padding: '1rem', ...FX.card }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ color: 'var(--w-accent-text)', display: 'flex' }}>{I.mesa}</span>
+                      <h3 style={{ margin: 0, fontWeight: 700, fontSize: '1.25rem', color: 'var(--w-text)' }}>Mesa {selected.numero}</h3>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.65rem', borderRadius: 'var(--w-r-pill)', background: ESTADO_CONFIG[selected.estado].badgeBg, color: ESTADO_CONFIG[selected.estado].badgeText }}>
+                        {ESTADO_CONFIG[selected.estado].label}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Tiempo</p>
-                    <ElapsedTimer createdAt={selectedOrder.created_at} />
+                  <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                    <button type="button" className="lg:hidden" aria-expanded={abierto} aria-label={abierto ? 'Ocultar acciones' : 'Mostrar acciones'} onClick={() => setAbierto(v => !v)}
+                      style={{ width: 40, height: 40, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', transform: abierto ? 'rotate(180deg)' : 'none' }}>{I.chevron}</button>
+                    <button type="button" aria-label="Cerrar panel" onClick={() => setSelected(null)}
+                      style={{ width: 40, height: 40, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-text-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.cerrar}</button>
                   </div>
-                  <div>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Total</p>
-                    <p style={{ fontWeight: 700, color: 'var(--accent)', fontSize: '1rem', margin: 0 }}>${selectedOrder.total.toLocaleString('es')}</p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, color: 'var(--w-text-2)', fontSize: 'var(--w-fs-label)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{I.gente}{selected.capacidad} {selected.capacidad === 1 ? 'persona' : 'personas'} · {capitalizar(selected.zona)}</span>
+                  {selectedOrder && (
+                    <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 8 }}>
+                      <span style={{ paddingTop: 2, display: 'flex' }}>{I.reloj}</span>
+                      <span>Tiempo en mesa:<br /><strong style={{ color: 'var(--w-text)', fontSize: '1.125rem' }}><Reloj desde={selectedOrder.created_at} /></strong></span>
+                    </span>
+                  )}
+                  {selectedOrder && (
+                    <span style={{ fontWeight: 700, color: 'var(--w-text)' }}>Total: <span style={{ color: 'var(--w-accent-text)' }}>${selectedOrder.total.toLocaleString('es')}</span></span>
+                  )}
+                  {nombreMesero && <span>Mesero: <strong style={{ color: 'var(--w-text)' }}>{nombreMesero}</strong></span>}
+                </div>
+
+                {/* Acciones rápidas (en celular se despliegan con la flecha) */}
+                <div className={abierto ? 'block' : 'hidden lg:block'}>
+                  <p style={{ ...etiqueta, margin: '1rem 0 0.5rem' }}>Acciones rápidas</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <Button className="w-full" icon={I.ojo} onClick={() => setDetalle(v => !v)}>{detalle ? 'Ocultar detalles' : 'Ver detalles'}</Button>
+                    {isAdmin && onNavigate && selectedOrder && (
+                      <Button variant="secondary" className="w-full" icon={I.cuenta} onClick={() => onNavigate('cashier')}>Cerrar cuenta</Button>
+                    )}
+                    {isAdmin && selected.estado !== 'libre' && (
+                      <Button variant="secondary" className="w-full" icon={I.liberar} onClick={() => liberar(selected)}>Liberar mesa</Button>
+                    )}
                   </div>
-                  <div>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Pago</p>
-                    <p style={{ fontWeight: 700, fontSize: '0.875rem', margin: 0, color: selectedOrder.paid_at ? 'var(--green)' : '#D97706' }}>
-                      {selectedOrder.paid_at ? 'Pagado' : 'Pendiente'}
-                    </p>
-                  </div>
-                  {selectedOrder.customer_name && (
-                    <div style={{ gridColumn: '1/-1' }}>
-                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Cliente</p>
-                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', margin: 0 }}>{selectedOrder.customer_name}</p>
+
+                  {detalle && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', marginTop: '1rem' }}>
+                      {selectedOrder ? (<>
+                        <div style={{ backgroundColor: 'var(--w-surface-sunken)', borderRadius: '1rem', padding: '0.875rem 1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', ...FX.field }}>
+                          <div><p style={etiqueta}>Estado</p><p style={{ fontWeight: 700, color: 'var(--w-text)', fontSize: '0.875rem', margin: 0 }}>{STATUS_LABELS[selectedOrder.status] ?? selectedOrder.status}</p></div>
+                          <div><p style={etiqueta}>Pago</p><p style={{ fontWeight: 700, fontSize: '0.875rem', margin: 0, color: selectedOrder.paid_at ? 'var(--w-success-text)' : 'var(--w-warning-text)' }}>{selectedOrder.paid_at ? 'Pagado' : 'Pendiente'}</p></div>
+                          {selectedOrder.customer_name && (
+                            <div style={{ gridColumn: '1/-1' }}><p style={etiqueta}>Cliente</p><p style={{ fontWeight: 600, color: 'var(--w-text)', fontSize: '0.875rem', margin: 0 }}>{selectedOrder.customer_name}</p></div>
+                          )}
+                        </div>
+                        <div>
+                          <p style={{ ...etiqueta, marginBottom: '0.5rem' }}>Pedido</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                            {selectedOrder.items.map((item, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, backgroundColor: 'var(--w-surface-sunken)', borderRadius: '0.75rem', padding: '0.5rem 0.75rem', ...FX.field }}>
+                                <span style={{ fontSize: '0.875rem', color: 'var(--w-text)', fontWeight: 600, minWidth: 0 }}>
+                                  <span style={{ color: 'var(--w-accent-text)', fontWeight: 700, marginRight: 6 }}>{item.quantity}×</span>{item.name}
+                                </span>
+                                {item.notes && <span style={{ fontSize: '0.7rem', color: 'var(--w-text-3)', textAlign: 'right' }}>{item.notes}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {selectedOrder.status === 'ready' && (
+                          <div style={{ backgroundColor: 'var(--w-success-bg)', borderRadius: '1rem', padding: '0.75rem 1rem', border: '2px solid var(--w-success)' }}>
+                            <p style={{ fontWeight: 700, color: 'var(--w-success-text)', margin: 0 }}>¡Este pedido está listo para entregar!</p>
+                          </div>
+                        )}
+                      </>) : (
+                        <p style={{ textAlign: 'center', color: 'var(--w-text-3)', fontWeight: 600, margin: '0.5rem 0' }}>Sin pedido activo</p>
+                      )}
+
+                      {/* Cambiar estado (solo admin) */}
+                      {isAdmin && (
+                        <div>
+                          <p style={{ ...etiqueta, marginBottom: '0.5rem' }}>Cambiar estado</p>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '0.5rem' }}>
+                            {ESTADOS.map(e => (
+                              <button key={e} onClick={() => handleChangeEstado(selected, e)}
+                                style={{
+                                  padding: '0.6rem 0.5rem', minHeight: 44, borderRadius: '0.75rem', border: 'none', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
+                                  ...(selected.estado === e
+                                    ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta }
+                                    : { backgroundColor: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.card })
+                                }}>
+                                {ESTADO_CONFIG[e].label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Editar mesa (número, zona, capacidad) + eliminar (solo admin) */}
+                      {isAdmin && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <p style={etiqueta}>Editar mesa</p>
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              <label style={{ fontSize: '0.625rem', color: 'var(--w-text-3)' }}>Número</label>
+                              <input type="number" min={1} max={100} value={editNumero} onChange={e => setEditNumero(e.target.value)} style={{ ...campo, width: 70 }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 90px', minWidth: 0 }}>
+                              <label style={{ fontSize: '0.625rem', color: 'var(--w-text-3)' }}>Zona</label>
+                              <input type="text" value={editZona} onChange={e => setEditZona(e.target.value)} style={{ ...campo, width: '100%', minWidth: 0 }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              <label style={{ fontSize: '0.625rem', color: 'var(--w-text-3)' }}>Capacidad</label>
+                              <input type="number" min={1} value={editCapacidad} onChange={e => setEditCapacidad(e.target.value)} style={{ ...campo, width: 70 }} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <Button size="sm" onClick={() => handleUpdateMesa(selected)} loading={savingEdit}>Guardar cambios</Button>
+                            <Button size="sm" variant="danger" onClick={() => handleDeleteMesa(selected)}>Eliminar mesa</Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-
-                {/* Items del pedido */}
-                <div>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Pedido</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                    {selectedOrder.items.map((item, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-surface)', borderRadius: '0.75rem', padding: '0.5rem 0.75rem', ...S.neoIn }}>
-                        <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                          <span style={{ color: 'var(--accent)', fontWeight: 700, marginRight: 6 }}>{item.quantity}×</span>
-                          {item.name}
-                        </span>
-                        {item.notes && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{item.notes}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Alerta si está listo */}
-                {selectedOrder.status === 'ready' && (
-                  <div style={{ backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: '1rem', padding: '0.75rem 1rem', border: '2px solid #10B981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '1.25rem' }}></span>
-                    <p style={{ fontWeight: 700, color: 'var(--green)', margin: 0 }}>¡Este pedido está listo para entregar!</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--text-muted)' }}>
-                <p style={{ fontSize: '1.5rem', margin: 0 }}></p>
-                <p style={{ fontWeight: 600, margin: '0.5rem 0 0' }}>Sin pedido activo</p>
-              </div>
+              </motion.div>
             )}
-
-            {/* Cambiar estado (solo admin) */}
-            {isAdmin && (
-              <div style={{ marginTop: '1rem' }}>
-                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Cambiar estado</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem' }}>
-                  {(['libre','ocupada','reservada','cuenta'] as Mesa['estado'][]).map(e => (
-                    <button key={e} onClick={() => handleChangeEstado(selected, e)}
-                      style={{
-                        padding: '0.5rem', borderRadius: '0.75rem', border: 'none',
-                        fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'inherit',
-                        ...(selected.estado === e
-                          ? { background: 'var(--accent)', color: '#fff', ...S.coral }
-                          : { backgroundColor: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm })
-                      }}>
-                      {ESTADO_CONFIG[e].label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Editar mesa (número, zona, capacidad) + eliminar (solo admin) */}
-            {isAdmin && (
-              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Editar mesa</label>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Número</label>
-                    <input type="number" min={1} max={100} value={editNumero} onChange={e => setEditNumero(e.target.value)}
-                      style={{ width: 70, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Zona</label>
-                    <input type="text" value={editZona} onChange={e => setEditZona(e.target.value)}
-                      style={{ width: 110, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Capacidad</label>
-                    <input type="number" min={1} value={editCapacidad} onChange={e => setEditCapacidad(e.target.value)}
-                      style={{ width: 70, padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', ...S.neoIn }} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-                  <button onClick={() => handleUpdateMesa(selected)} disabled={savingEdit}
-                    style={{ padding: '0.5rem 1rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: savingEdit ? 0.6 : 1, ...S.coral }}>
-                    {savingEdit ? 'Guardando…' : 'Guardar cambios'}
-                  </button>
-                  <button onClick={() => handleDeleteMesa(selected)}
-                    style={{ padding: '0.5rem 0.875rem', borderRadius: '0.625rem', border: 'none', backgroundColor: 'rgba(239,68,68,0.12)', color: '#DC2626', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Eliminar mesa
-                  </button>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </aside>
+      </div>
     </div>
   )
 })

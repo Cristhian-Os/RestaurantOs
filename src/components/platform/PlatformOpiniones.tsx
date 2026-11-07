@@ -18,7 +18,7 @@ const URGENCIAS = ['alta', 'media', 'baja'] as const
 const ETIQUETA: Record<string, string> = { en_progreso: 'en progreso', personalizacion: 'personalización' }
 const et = (s: string) => ETIQUETA[s] ?? s
 
-const sel: React.CSSProperties = { padding: '0.5rem 0.6rem', minHeight: '2.5rem', borderRadius: '0.6rem', border: '1px solid var(--w-line, #bbb)', background: 'var(--bg, #fff)', color: 'var(--text-primary, #2D3561)', fontFamily: 'inherit' }
+const sel: React.CSSProperties = { padding: '0.5rem 0.6rem', minHeight: '2.5rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontFamily: 'inherit' }
 const fecha = (s: string) => new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
 
 export function PlatformOpiniones() {
@@ -57,26 +57,26 @@ export function PlatformOpiniones() {
         <select aria-label="Urgencia" value={fUrg} onChange={e => setFUrg(e.target.value)} style={sel}><option value="">Toda urgencia</option>{URGENCIAS.map(t => <option key={t} value={t}>{t}</option>)}</select>
         <select aria-label="Estado" value={fEstado} onChange={e => setFEstado(e.target.value)} style={sel}><option value="">Todos los estados</option>{ESTADOS.map(t => <option key={t} value={t}>{et(t)}</option>)}</select>
         <button onClick={pedirResumen} disabled={resumiendo}
-          style={{ marginLeft: 'auto', padding: '0.6rem 1rem', minHeight: '2.75rem', borderRadius: '0.75rem', border: 'none', cursor: resumiendo ? 'wait' : 'pointer', fontWeight: 700, background: 'var(--w-terra, #C2570C)', color: '#fff', fontFamily: 'inherit' }}>
+          style={{ marginLeft: 'auto', padding: '0.6rem 1rem', minHeight: '2.75rem', borderRadius: 'var(--w-r-md)', border: 'none', cursor: resumiendo ? 'wait' : 'pointer', fontWeight: 700, background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontFamily: 'inherit' }}>
           {resumiendo ? 'Resumiendo…' : 'Resumen de la semana con IA'}
         </button>
       </div>
 
       {resumen && (
-        <div style={{ borderRadius: '1rem', padding: '1rem 1.25rem', background: 'var(--bg, #D8DAE4)', boxShadow: 'var(--shadow-out)', whiteSpace: 'pre-wrap', fontSize: '0.875rem', color: 'var(--text-primary, #2D3561)' }}>
+        <div style={{ borderRadius: '1rem', padding: '1rem 1.25rem', background: 'var(--w-surface)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)', whiteSpace: 'pre-wrap', fontSize: '0.875rem', color: 'var(--w-text)' }}>
           <strong>Resumen de la última semana</strong>
           <p style={{ margin: '0.5rem 0 0' }}>{resumen}</p>
           <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', opacity: 0.7 }}>Lo genera una IA a partir de los textos; la decisión de qué hacer sigue siendo tuya.</p>
         </div>
       )}
 
-      {error && <div style={{ color: '#b91c1c', fontSize: '0.875rem' }}>{error}</div>}
+      {error && <div style={{ color: 'var(--w-danger-text)', fontSize: '0.875rem' }}>{error}</div>}
       {!error && items === null && <div>Cargando…</div>}
-      {!error && items?.length === 0 && <div style={{ color: 'var(--text-secondary, #6b7280)' }}>No hay opiniones con esos filtros.</div>}
+      {!error && items?.length === 0 && <div style={{ color: 'var(--w-text-2)' }}>No hay opiniones con esos filtros.</div>}
 
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.5rem' }}>
         {(items ?? []).map(o => (
-          <li key={o.id} style={{ borderRadius: '1rem', padding: '0.8rem 1rem', background: 'var(--bg-surface, #CDD0DC)', borderLeft: o.urgencia === 'alta' ? '4px solid #DC2626' : '4px solid transparent' }}>
+          <li key={o.id} style={{ borderRadius: '1rem', padding: '0.8rem 1rem', background: 'var(--w-surface-sunken)', borderLeft: o.urgencia === 'alta' ? '4px solid var(--w-danger)' : '4px solid transparent' }}>
             <button onClick={() => setAbierta(abierta === o.id ? null : o.id)} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}>
               <strong>#{o.numero} · {o.titulo}</strong>
               <div style={{ fontSize: '0.8125rem' }}>

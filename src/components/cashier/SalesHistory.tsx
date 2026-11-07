@@ -7,6 +7,9 @@
  */
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import { Modal } from '../ui/Modal'
+import { Tabs } from '../ui/Tabs'
+import { Button } from '../ui/Button'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
@@ -19,10 +22,10 @@ import {
   type PayFilter, type SaleOrder,
 } from '../../services/salesHistory'
 
-const S = {
-  neoOut:   { boxShadow: 'var(--shadow-out)' },
-  neoOutSm: { boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:    { boxShadow: 'var(--shadow-in)' },
+const FX = {
+  card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  soft:  { boxShadow: 'var(--w-shadow-sm)' },
+  field: { border: '1px solid var(--w-border)' },
 } as const
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
@@ -30,11 +33,11 @@ const hora = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('es
 const orderRef = (o: { id: string; order_number_today?: number | null }) => `#${o.order_number_today ?? o.id.slice(0, 8)}`
 
 const METODO: Record<string, { label: string; color: string }> = {
-  efectivo:      { label: 'Efectivo',      color: '#059669' },
-  transferencia: { label: 'Transferencia', color: '#2563EB' },
-  tarjeta:       { label: 'Tarjeta',       color: '#4F46E5' },
-  mixto:         { label: 'Pago mixto',    color: '#7C3AED' },
-  rappi:         { label: 'Rappi',         color: '#9CA3AF' },
+  efectivo:      { label: 'Efectivo',      color: 'var(--w-success-text)' },
+  transferencia: { label: 'Transferencia', color: 'var(--w-info)' },
+  tarjeta:       { label: 'Tarjeta',       color: 'var(--w-info)' },
+  mixto:         { label: 'Pago mixto',    color: 'var(--w-info)' },
+  rappi:         { label: 'Rappi',         color: 'var(--w-text-3)' },
 }
 
 const FILTERS: { key: PayFilter; label: string }[] = [
@@ -56,50 +59,50 @@ interface SaleCardProps {
 const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, open, onToggle, onRecibo }, ref) => {
   // Cuenta dividida con varios métodos => "Pago mixto"; si no, el método del pedido.
   const distintos = new Set((order.pagos ?? []).map(p => p.payment_method)).size
-  const metodo = METODO[distintos > 1 ? 'mixto' : (order.payment_method ?? '')] ?? { label: order.payment_method ?? 'Sin método', color: '#9CA3AF' }
+  const metodo = METODO[distintos > 1 ? 'mixto' : (order.payment_method ?? '')] ?? { label: order.payment_method ?? 'Sin método', color: 'var(--w-text-3)' }
   return (
-    <div ref={ref} className="bg-[#D8DAE4] rounded-2xl" style={S.neoOutSm}>
+    <div ref={ref} className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)]" style={FX.soft}>
       <button type="button" onClick={onToggle} aria-expanded={open}
         className="w-full text-left p-3.5 bg-transparent border-none cursor-pointer">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="m-0 font-bold text-[#2D3561] text-sm">{forWhom(order)}</p>
-            <p className="m-0 text-xs text-[#9CA3AF]">{orderRef(order)} · pagó {hora(order.paid_at)}</p>
+            <p className="m-0 font-bold text-[color:var(--w-text)] text-sm">{forWhom(order)}</p>
+            <p className="m-0 text-xs text-[color:var(--w-text-3)]">{orderRef(order)} · pagó {hora(order.paid_at)}</p>
           </div>
           <div className="text-right shrink-0">
-            <p className="m-0 font-bold text-[#FF5722]">{fmt(Number(order.total))}</p>
-            <p className="m-0 text-[0.6875rem] font-bold" style={{ color: metodo.color }}>{metodo.label}</p>
+            <p className="m-0 font-bold text-[color:var(--w-accent-text)]">{fmt(Number(order.total))}</p>
+            <p className="m-0 text-[length:var(--w-fs-caption)] font-bold" style={{ color: metodo.color }}>{metodo.label}</p>
           </div>
         </div>
-        {!open && <p className="m-0 mt-1.5 text-xs text-[#6B7280] truncate">{itemsSummary(order.items) || 'Sin productos'}</p>}
+        {!open && <p className="m-0 mt-1.5 text-xs text-[color:var(--w-text-2)] truncate">{itemsSummary(order.items) || 'Sin productos'}</p>}
       </button>
       {open && (
         <div className="px-3.5 pb-3.5">
-          <div className="flex flex-col gap-1.5 border-t border-[#CDD0DC] pt-2.5">
-            {order.items.length === 0 && <p className="m-0 text-xs text-[#9CA3AF]">Sin productos registrados.</p>}
+          <div className="flex flex-col gap-1.5 border-t border-[var(--w-surface-sunken)] pt-2.5">
+            {order.items.length === 0 && <p className="m-0 text-xs text-[color:var(--w-text-3)]">Sin productos registrados.</p>}
             {order.items.map((it, i) => (
               <div key={i}>
                 <div className="flex justify-between gap-3 text-sm">
-                  <span className="text-[#2D3561]">{it.quantity}× {it.name}</span>
-                  <span className="text-[#6B7280] shrink-0">{fmt(it.price * it.quantity)}</span>
+                  <span className="text-[color:var(--w-text)]">{it.quantity}× {it.name}</span>
+                  <span className="text-[color:var(--w-text-2)] shrink-0">{fmt(it.price * it.quantity)}</span>
                 </div>
-                {it.notes && <p className="m-0 text-xs text-[#9CA3AF]">{it.notes}</p>}
+                {it.notes && <p className="m-0 text-xs text-[color:var(--w-text-3)]">{it.notes}</p>}
               </div>
             ))}
           </div>
           {(order.pagos?.length ?? 0) > 1 && (
-            <div className="mt-2 border-t border-[#CDD0DC] pt-2">
+            <div className="mt-2 border-t border-[var(--w-surface-sunken)] pt-2">
               {order.pagos!.map((p, i) => (
-                <p key={i} className="m-0 text-xs text-[#6B7280]">
+                <p key={i} className="m-0 text-xs text-[color:var(--w-text-2)]">
                   {(p as { comensal?: string | null }).comensal || `Pago ${i + 1}`}: {fmt(Number(p.monto))} · {METODO[p.payment_method]?.label ?? p.payment_method}
                 </p>
               ))}
             </div>
           )}
-          {order.notes && <p className="m-0 mt-2 text-xs italic text-[#6B7280]">Nota del pedido: {order.notes}</p>}
-          {Number(order.propina) > 0 && <p className="m-0 mt-2 text-xs text-[#6B7280]">Propina: {fmt(Number(order.propina))}</p>}
-          {takenBy && <p className="m-0 mt-1 text-xs text-[#6B7280]">Tomó el pedido: {takenBy}</p>}
-          <button type="button" onClick={onRecibo} className="w-full min-h-[44px] mt-3 rounded-2xl text-xs font-bold text-[#2D3561] border-none cursor-pointer" style={S.neoOutSm}>
+          {order.notes && <p className="m-0 mt-2 text-xs italic text-[color:var(--w-text-2)]">Nota del pedido: {order.notes}</p>}
+          {Number(order.propina) > 0 && <p className="m-0 mt-2 text-xs text-[color:var(--w-text-2)]">Propina: {fmt(Number(order.propina))}</p>}
+          {takenBy && <p className="m-0 mt-1 text-xs text-[color:var(--w-text-2)]">Tomó el pedido: {takenBy}</p>}
+          <button type="button" onClick={onRecibo} className="w-full min-h-[44px] mt-3 rounded-[var(--w-r-lg)] text-xs font-bold text-[color:var(--w-text)] border-none cursor-pointer" style={FX.soft}>
             🖨 Recibo (imprimir / PDF / WhatsApp)
           </button>
         </div>
@@ -177,29 +180,19 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const products = useMemo(() => productTotals(shown), [shown])
   const isToday  = date === hoyBogota()
 
-  const tab = (active: boolean) => `flex-1 py-2.5 rounded-xl text-sm font-bold border-none cursor-pointer ${active ? 'bg-[#FF5722] text-white' : 'bg-transparent text-[#6B7280]'}`
-  const chip = (active: boolean) => `px-3 py-1.5 rounded-xl text-xs font-bold border-none cursor-pointer ${active ? 'bg-[#2D3561] text-white' : 'bg-[#D8DAE4] text-[#6B7280]'}`
+  const chip = (active: boolean) => `min-h-[44px] px-3 rounded-[var(--w-r-pill)] text-xs font-bold border-none cursor-pointer ${active ? 'bg-[var(--w-text)] text-[color:var(--w-on-accent)]' : 'bg-[var(--w-surface)] text-[color:var(--w-text-2)]'}`
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
-      className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4">
-      <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-        onClick={e => e.stopPropagation()}
-        className="bg-[#CDD0DC] w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-4 flex flex-col gap-3" style={S.neoOut}>
-
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="m-0 font-bold text-[#2D3561] text-lg">Ventas y gastos del día</h3>
-          <button type="button" onClick={onClose} aria-label="Cerrar"
-            className="w-9 h-9 rounded-xl border-none cursor-pointer bg-[#D8DAE4] text-[#6B7280] text-lg" style={S.neoOutSm}>✕</button>
-        </div>
+    <>
+      <Modal open onClose={onClose} title="Ventas y gastos del día">
+      <div className="flex flex-col gap-3">
 
         <div className="flex items-center gap-2">
           <input type="date" value={date} max={hoyBogota()} onChange={e => e.target.value && setDate(e.target.value)}
-            aria-label="Día" className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm text-[#2D3561] bg-[#D8DAE4] border-none outline-none" style={S.neoIn} />
-          <button type="button" onClick={() => void load()} disabled={loading}
-            className="px-4 py-2 rounded-xl text-sm font-bold border-none cursor-pointer bg-[#D8DAE4] text-[#2D3561] disabled:opacity-50" style={S.neoOutSm}>
-            {loading ? 'Cargando…' : 'Actualizar'}
-          </button>
+            aria-label="Día" className="flex-1 min-w-0 min-h-[44px] rounded-[var(--w-r-md)] px-3 text-sm text-[color:var(--w-text)] bg-[var(--w-surface)] border border-[var(--w-border-strong)]" />
+          <Button variant="secondary" onClick={() => void load()} disabled={loading}>
+          {loading ? 'Cargando…' : 'Actualizar'}
+          </Button>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
@@ -208,13 +201,13 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
             { l: 'Efectivo', v: fmt(summary.efectivo) },
             { l: 'Transferencia', v: fmt(summary.transferencia) },
           ].map(x => (
-            <div key={x.l} className="bg-[#D8DAE4] rounded-2xl py-2.5 px-1" style={S.neoOutSm}>
-              <p className="m-0 text-[0.625rem] font-bold uppercase tracking-wider text-[#9CA3AF]">{x.l}</p>
-              <p className="m-0 font-bold text-[#2D3561] text-sm">{x.v}</p>
+            <div key={x.l} className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] py-2.5 px-1" style={FX.soft}>
+              <p className="m-0 text-[length:var(--w-fs-caption)] font-bold uppercase tracking-wider text-[color:var(--w-text-3)]">{x.l}</p>
+              <p className="m-0 font-bold text-[color:var(--w-text)] text-sm">{x.v}</p>
             </div>
           ))}
         </div>
-        <p className="m-0 text-xs text-[#6B7280] text-center">
+        <p className="m-0 text-xs text-[color:var(--w-text-2)] text-center">
           Total {fmt(summary.total)}{summary.tarjeta > 0 && ` · tarjeta ${fmt(summary.tarjeta)}`}{summary.propinas > 0 && ` · propinas ${fmt(summary.propinas)}`}
           {summary.rappi > 0 && ` · ${summary.rappi} de Rappi (no suman)`}
           {isToday && ' · es lo que va a incluir el corte de hoy'}
@@ -222,30 +215,27 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
 
         {/* Gastos del día y lo que queda: las mismas cuentas del corte (ventas − gastos; la propina no es venta). */}
         <div className="grid grid-cols-2 gap-2 text-center">
-          <div className="bg-red-50 border border-red-200 rounded-2xl py-2.5 px-1">
-            <p className="m-0 text-[0.625rem] font-bold uppercase tracking-wider text-red-400">Gastos{gastos.length > 0 && ` (${gastos.length})`}</p>
-            <p className="m-0 font-bold text-red-600 text-sm">{gastosDia > 0 ? '−' : ''}{fmt(gastosDia)}</p>
+          <div className="bg-[var(--w-danger-bg)] border border-[var(--w-danger)] rounded-[var(--w-r-lg)] py-2.5 px-1">
+            <p className="m-0 text-[length:var(--w-fs-caption)] font-bold uppercase tracking-wider text-[color:var(--w-danger-text)]">Gastos{gastos.length > 0 && ` (${gastos.length})`}</p>
+            <p className="m-0 font-bold text-[color:var(--w-danger-text)] text-sm">{gastosDia > 0 ? '−' : ''}{fmt(gastosDia)}</p>
           </div>
-          <div className="bg-[#D8DAE4] rounded-2xl py-2.5 px-1" style={S.neoOutSm}>
-            <p className="m-0 text-[0.625rem] font-bold uppercase tracking-wider text-[#9CA3AF]">Neto (ventas − gastos)</p>
-            <p className="m-0 font-bold text-[#2D3561] text-sm">{fmt(summary.total - gastosDia)}</p>
+          <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] py-2.5 px-1" style={FX.soft}>
+            <p className="m-0 text-[length:var(--w-fs-caption)] font-bold uppercase tracking-wider text-[color:var(--w-text-3)]">Neto (ventas − gastos)</p>
+            <p className="m-0 font-bold text-[color:var(--w-text)] text-sm">{fmt(summary.total - gastosDia)}</p>
           </div>
         </div>
         <GastosDesglose gastos={gastos} periodo="dia" etiquetas={etiquetas} />
 
-        <div className="flex gap-1 p-1 rounded-2xl bg-[#D8DAE4]" style={S.neoIn}>
-          <button type="button" className={tab(view === 'ventas')} onClick={() => setView('ventas')}>Por venta</button>
-          <button type="button" className={tab(view === 'productos')} onClick={() => setView('productos')}>Por producto</button>
-        </div>
+        <Tabs label="Vista" value={view} onChange={setView} items={[{ key: 'ventas', label: 'Por venta' }, { key: 'productos', label: 'Por producto' }]} />
 
         <div className="flex flex-wrap gap-2">
           {FILTERS.map(f => <button key={f.key} type="button" className={chip(filter === f.key)} onClick={() => setFilter(f.key)}>{f.label}</button>)}
         </div>
 
         {loading && orders.length === 0 ? (
-          <p className="m-0 py-8 text-center text-sm text-[#9CA3AF]">Cargando…</p>
+          <p className="m-0 py-8 text-center text-sm text-[color:var(--w-text-3)]">Cargando…</p>
         ) : shown.length === 0 ? (
-          <p className="m-0 py-8 text-center text-sm text-[#9CA3AF]">
+          <p className="m-0 py-8 text-center text-sm text-[color:var(--w-text-3)]">
             {orders.length === 0 ? (isToday ? 'Todavía no hay ventas pagadas hoy.' : 'No hubo ventas pagadas ese día.') : 'No hay ventas con ese filtro.'}
           </p>
         ) : view === 'ventas' ? (
@@ -259,17 +249,18 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {filter === 'rappi' && <p className="m-0 text-xs text-[#9CA3AF]">Los productos de Rappi no se suman en esta vista.</p>}
+            {filter === 'rappi' && <p className="m-0 text-xs text-[color:var(--w-text-3)]">Los productos de Rappi no se suman en esta vista.</p>}
             {products.map(p => (
-              <div key={p.producto} className="flex items-center justify-between gap-3 bg-[#D8DAE4] rounded-xl px-3.5 py-2.5" style={S.neoOutSm}>
-                <span className="text-sm text-[#2D3561] min-w-0 truncate">{p.cantidad}× {p.producto}</span>
-                <span className="text-sm font-bold text-[#6B7280] shrink-0">{fmt(p.subtotal)}</span>
+              <div key={p.producto} className="flex items-center justify-between gap-3 bg-[var(--w-surface)] rounded-[var(--w-r-md)] px-3.5 py-2.5" style={FX.soft}>
+                <span className="text-sm text-[color:var(--w-text)] min-w-0 truncate">{p.cantidad}× {p.producto}</span>
+                <span className="text-sm font-bold text-[color:var(--w-text-2)] shrink-0">{fmt(p.subtotal)}</span>
               </div>
             ))}
           </div>
         )}
-      </motion.div>
+      </div>
+      </Modal>
       {reciboId && <TicketModal tipo="recibo" orderId={reciboId} onClose={() => setReciboId(null)} />}
-    </motion.div>
+    </>
   )
 }

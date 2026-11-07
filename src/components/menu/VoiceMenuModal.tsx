@@ -118,23 +118,23 @@ export function VoiceMenuModal({ categories, onSaved, onClose }: {
     onClose()
   }
 
-  const inp: React.CSSProperties = { padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: '1px solid #CDD0DC', fontSize: '0.875rem', background: '#fff', color: '#2D3561', minWidth: 0, width: '100%' }
-  const lab: React.CSSProperties = { fontSize: '0.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 2, display: 'block' }
+  const inp: React.CSSProperties = { padding: '0.5rem 0.625rem', borderRadius: '0.625rem', border: '1px solid var(--w-border)', fontSize: '0.875rem', background: 'var(--w-on-accent)', color: 'var(--w-text)', minWidth: 0, width: '100%' }
+  const lab: React.CSSProperties = { fontSize: '0.625rem', fontWeight: 700, color: 'var(--w-text-3)', textTransform: 'uppercase', marginBottom: 2, display: 'block' }
 
   return createPortal(
-    <div onClick={() => !saving && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 760, maxHeight: '90vh', overflowY: 'auto', background: '#D8DAE4', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+    <div onClick={() => !saving && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--w-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 760, maxHeight: '90vh', overflowY: 'auto', background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <h3 style={{ margin: 0, fontWeight: 700, color: '#2D3561' }}>Subir menú por voz</h3>
+          <h3 style={{ margin: 0, fontWeight: 700, color: 'var(--w-text)' }}>Subir menú por voz</h3>
           <button type="button" onClick={escribir} disabled={saving || busyGroup !== null}
-            style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'underline', color: 'var(--w-terra, #FF5722)', opacity: saving || busyGroup !== null ? 0.5 : 1 }}>
+            style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'underline', color: 'var(--w-accent-text)', opacity: saving || busyGroup !== null ? 0.5 : 1 }}>
             Escribir en vez de hablar
           </button>
           <VoiceButton<{ transcript: string; dishes: VoiceDish[] }> kind="menu" label={dictados.length ? 'Dictar más' : 'Empezar a dictar'}
             disabled={saving || busyGroup !== null}
             onResult={onResult} context={() => ({ categories: categories.map(c => ({ value: c.value, label: c.label })) })} />
         </div>
-        <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280' }}>
+        <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--w-text-2)' }}>
           Di por ejemplo: “Cholao grande 14 mil, mediano 10 mil, con toppings limón y sal; limonada 5 mil, categoría bebidas”. Revisa y corrige antes de guardar.
         </p>
 
@@ -145,7 +145,7 @@ export function VoiceMenuModal({ categories, onSaved, onClose }: {
         ))}
 
         {rows.map((r, i) => (
-          <div key={i} style={{ background: '#E8EAF0', borderRadius: '0.875rem', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', position: 'relative' }}>
+          <div key={i} style={{ background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', position: 'relative' }}>
             <div><label style={lab}>Nombre</label><input style={inp} value={r.name} onChange={e => update(i, { name: e.target.value })} /></div>
             <div><label style={lab}>Precio</label><input style={inp} type="number" min="0" value={r.price} onChange={e => update(i, { price: e.target.value })} /></div>
             <div><label style={lab}>Categoría</label>
@@ -156,14 +156,14 @@ export function VoiceMenuModal({ categories, onSaved, onClose }: {
             <div><label style={lab}>Tamaños (Nombre: precio, …)</label><input style={inp} value={r.sizes} onChange={e => update(i, { sizes: e.target.value })} placeholder="Grande: 14000, Mediano: 10000" /></div>
             <div><label style={lab}>Toppings (Nombre: precio, …)</label><input style={inp} value={r.toppings} onChange={e => update(i, { toppings: e.target.value })} placeholder="Limón: 0, Chocolate: 2000" /></div>
             <button onClick={() => setRows(p => p.filter((_, j) => j !== i))} title="Quitar" aria-label="Quitar plato"
-              style={{ position: 'absolute', top: 6, right: 8, border: 'none', background: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
+              style={{ position: 'absolute', top: 6, right: 8, border: 'none', background: 'none', color: 'var(--w-danger)', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
           </div>
         ))}
 
         <div style={{ display: 'flex', gap: '0.625rem' }}>
-          <button onClick={onClose} disabled={saving} style={{ flex: 1, padding: '0.75rem', borderRadius: '0.875rem', border: 'none', fontWeight: 700, cursor: 'pointer', background: '#CDD0DC', color: '#6B7280' }}>Cancelar</button>
+          <button onClick={onClose} disabled={saving} style={{ flex: 1, padding: '0.75rem', borderRadius: '0.875rem', border: 'none', fontWeight: 700, cursor: 'pointer', background: 'var(--w-border)', color: 'var(--w-text-2)' }}>Cancelar</button>
           <button onClick={save} disabled={saving || rows.length === 0}
-            style={{ flex: 2, padding: '0.75rem', borderRadius: '0.875rem', border: 'none', fontWeight: 700, cursor: 'pointer', background: '#FF5722', color: '#fff', opacity: saving || rows.length === 0 ? 0.5 : 1 }}>
+            style={{ flex: 2, padding: '0.75rem', borderRadius: '0.875rem', border: 'none', fontWeight: 700, cursor: 'pointer', background: 'var(--w-accent)', color: 'var(--w-on-accent)', opacity: saving || rows.length === 0 ? 0.5 : 1 }}>
             {saving ? 'Guardando…' : `Guardar ${rows.length || ''} ${rows.length === 1 ? 'plato' : 'platos'} en el menú`}
           </button>
         </div>

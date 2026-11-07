@@ -20,6 +20,8 @@ import {
   gruposDe, selAV2, selIsValidV2, unitPriceForV2, describeSelV2, conListas, listasDesdeRpc,
 } from '../services/menuOptions'
 import { OptionGroupsV2 } from '../components/orders/OptionGroupsV2'
+import { applyBranding } from '../components/branding/BrandingManager'
+import { CategoryIcon } from '../components/CategoryIcon'
 import CartaAsistente, { MascotaMenu } from '../components/menu/CartaAsistente'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
@@ -33,11 +35,11 @@ const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
 
 // Tinte cálido por categoría — da variedad sin romper la paleta
 const CAT_TINT: Record<string, string> = {
-  entrada:   'var(--w-olive)',
-  principal: 'var(--w-terra)',
-  postre:    'var(--w-saffron)',
-  bebida:    'var(--w-wine)',
-  especial:  'var(--w-terra-dk)',
+  entrada:   'var(--w-success)',
+  principal: 'var(--w-accent)',
+  postre:    'var(--w-warning)',
+  bebida:    'var(--w-danger)',
+  especial:  'var(--w-accent-hover)',
 }
 
 
@@ -136,6 +138,19 @@ interface Comentario {
   ya_me_gusta:    boolean
 }
 
+// ── Iconos de línea (solo presentación) ──
+const ico = (d: React.ReactNode, size = 20) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>
+)
+const IconCart  = ({ size = 20 }: { size?: number }) => ico(<><circle cx="9" cy="20" r="1.5" /><circle cx="18" cy="20" r="1.5" /><path d="M2 3h3l2.4 12.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 7H6" /></>, size)
+const IconTrash = ({ size = 20 }: { size?: number }) => ico(<><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></>, size)
+const IconSearch = ({ size = 20 }: { size?: number }) => ico(<><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>, size)
+const IconHome  = ({ size = 22 }: { size?: number }) => ico(<path d="M3 11 12 3l9 8M5 10v10h14V10" />, size)
+const IconGrid  = ({ size = 22 }: { size?: number }) => ico(<><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></>, size)
+const IconBag   = ({ size = 22 }: { size?: number }) => ico(<><path d="M5 8h14l-1 12H6L5 8Z" /><path d="M9 8a3 3 0 0 1 6 0" /></>, size)
+const IconChat  = ({ size = 22 }: { size?: number }) => ico(<path d="M4 5h16v11H9l-5 4V5Z" />, size)
+const IconUtensils = ({ size = 28 }: { size?: number }) => ico(<><path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 21V3c-2 1-3 4-3 8h3" /></>, size)
+
 // ── Skeleton card (warm) ──────────────────────────────────────────
 const SkeletonCard = memo(() => (
   <div style={{ background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '0.75rem', boxShadow: 'var(--w-shadow-sm)' }}>
@@ -151,21 +166,21 @@ SkeletonCard.displayName = 'SkeletonCard'
 const DishImage = memo(({ dish, height }: { dish: Dish; height: number }) => {
   if (dish.image_url) {
     return (
-      <div style={{ width: '100%', height, borderRadius: '0.875rem', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ width: '100%', height, borderRadius: 'var(--w-r-md)', overflow: 'hidden', position: 'relative' }}>
         <img src={dish.image_url} alt={dish.name} loading="lazy" decoding="async"
           style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     )
   }
-  const tint = CAT_TINT[dish.category] ?? 'var(--w-terra)'
+  const tint = CAT_TINT[dish.category] ?? 'var(--w-accent)'
   return (
     <div style={{
-      width: '100%', height, borderRadius: '0.875rem', overflow: 'hidden', position: 'relative',
+      width: '100%', height, borderRadius: 'var(--w-r-md)', overflow: 'hidden', position: 'relative',
       background: `linear-gradient(150deg, color-mix(in oklch, ${tint} 22%, var(--w-surface)) 0%, var(--w-surface) 75%)`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <span style={{ fontFamily: 'var(--w-display)', fontWeight: 600, fontSize: height > 100 ? '3rem' : '2rem', color: tint, opacity: 0.55, lineHeight: 1 }}>
-        {dish.name.charAt(0).toUpperCase()}
+      <span style={{ color: 'var(--w-text-3)', opacity: 0.7, display: 'flex' }}>
+        <IconUtensils size={height > 100 ? 40 : 26} />
       </span>
     </div>
   )
@@ -266,11 +281,11 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
   }
 
   const chip = (active: boolean): React.CSSProperties => ({
-    padding: '0.5rem 0.9rem', borderRadius: '0.75rem', cursor: 'pointer', fontFamily: 'var(--w-sans)',
+    padding: '0.5rem 0.9rem', borderRadius: '0.75rem', cursor: 'pointer', fontFamily: 'var(--w-font)',
     fontWeight: 600, fontSize: '0.8125rem', transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
-    border: active ? '1px solid transparent' : '1px solid var(--w-line)',
-    background: active ? 'var(--w-terra)' : 'var(--w-surface)',
-    color: active ? '#fff' : 'var(--w-ink-soft)',
+    border: active ? '1px solid transparent' : '1px solid var(--w-border)',
+    background: active ? 'var(--w-accent)' : 'var(--w-surface)',
+    color: active ? 'var(--w-on-accent)' : 'var(--w-text-2)',
     boxShadow: active ? 'var(--w-shadow-terra)' : 'none',
   })
 
@@ -282,24 +297,24 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
         onClick={e => e.stopPropagation()}
-        className="lg"
+        className="bg-[var(--w-surface)] border border-[var(--w-border)] shadow-[var(--w-shadow-lg)]"
         style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}>
 
-        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-border)', margin: '0 auto 1.25rem' }} />
 
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center' }}>
           <div style={{ width: 72, height: 72, flexShrink: 0 }}><DishImage dish={dish} height={72} /></div>
           <div>
-            <h3 className="ed-display" style={{ fontSize: '1.375rem', margin: 0 }}>{dish.name}</h3>
-            {dish.description && <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.25rem 0 0', color: 'var(--w-ink-mut)' }}>{dish.description}</p>}
-            <p style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', margin: '0.375rem 0 0', fontSize: '1rem' }}>
+            <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em', color: 'var(--w-text)', fontSize: '1.375rem', margin: 0 }}>{dish.name}</h3>
+            {dish.description && <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.25rem 0 0', color: 'var(--w-text-3)' }}>{dish.description}</p>}
+            <p style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: 'var(--w-accent-text)', margin: '0.375rem 0 0', fontSize: '1rem' }}>
               {hasSizes ? `desde ${fmtCOP(Math.min(...sizes.map(s => s.precio)))}` : fmtCOP(dish.price)}
             </p>
           </div>
         </div>
 
         {initial?.previousNotes && (
-          <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 1.25rem', color: 'var(--w-ink-mut)', background: 'var(--w-bg)', border: '1px solid var(--w-line)', borderRadius: '0.75rem', padding: '0.625rem 0.75rem' }}>
+          <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 1.25rem', color: 'var(--w-text-3)', background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border)', borderRadius: '0.75rem', padding: '0.625rem 0.75rem' }}>
             Tu pedido decía: {initial.previousNotes}
           </p>
         )}
@@ -314,7 +329,7 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
                 </button>
               ))}
             </div>
-            <p className="ed-body" style={{ fontSize: '0.75rem', margin: '0.5rem 0 0', color: 'var(--w-ink-mut)' }}>
+            <p className="ed-body" style={{ fontSize: '0.75rem', margin: '0.5rem 0 0', color: 'var(--w-text-3)' }}>
               Cada unidad se elige por separado. Las nuevas empiezan igual que la que estabas viendo.
             </p>
           </div>
@@ -339,7 +354,7 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
         {v2 && (
           <OptionGroupsV2 groups={groupsV2} listas={menu.listas} sel={sel} setSel={setSel} chip={chip}
             kicker={{ className: 'ed-kicker', style: { marginBottom: '0.625rem' } }}
-            hint={{ className: 'ed-body', style: { fontSize: '0.75rem', color: 'var(--w-ink-mut)' } }} />
+            hint={{ className: 'ed-body', style: { fontSize: '0.75rem', color: 'var(--w-text-3)' } }} />
         )}
         {!v2 && optionGroups.map((g, gi) => {
           const need = flavorsNeeded(g, gi, sel)
@@ -365,12 +380,12 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
               {need > 0 && (
                 <>
                   {g.tipo === 'opcion' && (
-                    <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0 0 0.5rem' }}>
+                    <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-text-3)', margin: '0 0 0.5rem' }}>
                       Elige {need === 1 ? 'el sabor' : `${need} sabores`} de helado
                     </p>
                   )}
                   {flavorOptions.length === 0 ? (
-                    <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>
+                    <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-text-3)' }}>
                       (No hay sabores disponibles ahora)
                     </p>
                   ) : (
@@ -388,7 +403,7 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
                       })}
                     </div>
                   )}
-                  <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: '0.375rem 0 0' }}>
+                  <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-text-3)', margin: '0.375rem 0 0' }}>
                     {picked.length} / {need}
                   </p>
                 </>
@@ -432,21 +447,21 @@ export const CustomizeModal = memo(({ dish, menu, initial, confirmLabel, onAdd, 
           <textarea value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="Sin cebolla, término medio, alergia a nueces..."
             rows={2} maxLength={200}
-            style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
+            style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-border)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box' }} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', background: 'var(--w-bg)', borderRadius: '1rem', padding: '0.5rem 0.875rem', border: '1px solid var(--w-line)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', background: 'var(--w-surface-sunken)', borderRadius: '1rem', padding: '0.5rem 0.875rem', border: '1px solid var(--w-border)' }}>
             <button className="w-press" onClick={() => (perUnit ? removeUnit() : setEditQty(q => Math.max(1, q - 1)))} aria-label="Menos"
-              style={{ width: 30, height: 30, borderRadius: '0.625rem', border: '1px solid var(--w-line)', background: 'var(--w-surface)', fontWeight: 700, fontSize: '1.125rem', color: 'var(--w-ink)' }}>−</button>
-            <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-ink)', minWidth: 22, textAlign: 'center' }}>{qty}</span>
+              style={{ width: 44, height: 44, borderRadius: '0.625rem', border: '1px solid var(--w-border)', background: 'var(--w-surface)', fontWeight: 700, fontSize: '1.125rem', color: 'var(--w-text)' }}>−</button>
+            <span style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: 'var(--w-text)', minWidth: 22, textAlign: 'center' }}>{qty}</span>
             <button className="w-press" onClick={() => (perUnit ? addUnit() : setEditQty(q => Math.min(50, q + 1)))} aria-label="Más"
-              style={{ width: 30, height: 30, borderRadius: '0.625rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, fontSize: '1.125rem' }}>+</button>
+              style={{ width: 44, height: 44, borderRadius: '0.625rem', border: 'none', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '1.125rem' }}>+</button>
           </div>
-          <button className="lg-accent w-press"
+          <button className="w-press bg-[var(--w-accent)] text-[color:var(--w-on-accent)] rounded-[var(--w-r-md)] shadow-[var(--w-shadow-terra)] hover:bg-[var(--w-accent-hover)]"
             disabled={!optionsValid}
             onClick={confirm}
-            style={{ flex: 1, padding: '0.95rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: optionsValid ? 1 : 0.5, cursor: optionsValid ? 'pointer' : 'not-allowed' }}>
+            style={{ flex: 1, padding: '0.95rem', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: optionsValid ? 1 : 0.5, cursor: optionsValid ? 'pointer' : 'not-allowed' }}>
             {optionsValid ? `${confirmLabel ?? 'Agregar'} ${qty > 1 ? `×${qty}` : ''} · ${fmtCOP(totalPrice)}` : units.length > 1 ? 'Elige las opciones de cada unidad' : 'Elige las opciones'}
           </button>
         </div>
@@ -530,9 +545,9 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
   const summary = chosen.map(c => `${c.nombre} ${fmtQty(c)}`).join(' · ')
 
   const chip = (active: boolean): React.CSSProperties => ({
-    padding: '0.5rem 0.9rem', borderRadius: '0.75rem', cursor: 'pointer', fontFamily: 'var(--w-sans)',
-    fontWeight: 600, fontSize: '0.8125rem', border: active ? '1px solid transparent' : '1px solid var(--w-line)',
-    background: active ? 'var(--w-terra)' : 'var(--w-surface)', color: active ? '#fff' : 'var(--w-ink-soft)',
+    padding: '0.5rem 0.9rem', borderRadius: '0.75rem', cursor: 'pointer', fontFamily: 'var(--w-font)',
+    fontWeight: 600, fontSize: '0.8125rem', border: active ? '1px solid transparent' : '1px solid var(--w-border)',
+    background: active ? 'var(--w-accent)' : 'var(--w-surface)', color: active ? 'var(--w-on-accent)' : 'var(--w-text-2)',
     boxShadow: active ? 'var(--w-shadow-terra)' : 'none',
   })
 
@@ -561,13 +576,13 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
         onClick={e => e.stopPropagation()}
-        className="lg"
+        className="bg-[var(--w-surface)] border border-[var(--w-border)] shadow-[var(--w-shadow-lg)]"
         style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}>
 
-        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-border)', margin: '0 auto 1.25rem' }} />
 
-        <h3 className="ed-display" style={{ fontSize: '1.5rem', margin: '0 0 0.25rem' }}>Arma tu propio plato</h3>
-        <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 1.25rem', color: 'var(--w-ink-mut)' }}>
+        <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em', color: 'var(--w-text)', fontSize: '1.5rem', margin: '0 0 0.25rem' }}>Arma tu propio plato</h3>
+        <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 1.25rem', color: 'var(--w-text-3)' }}>
           Elige los ingredientes y arma algo único. El precio se calcula al instante.
         </p>
 
@@ -577,17 +592,17 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
             <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Tu plato</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {chosen.map(c => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.625rem 0.875rem', border: '1px solid var(--w-line)' }}>
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.625rem 0.875rem', border: '1px solid var(--w-border)' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontWeight: 600, color: 'var(--w-ink)', fontSize: '0.875rem', margin: 0, fontFamily: 'var(--w-display)' }}>{c.nombre}</p>
-                    <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>{fmtQty(c)} · {fmtCOP(Math.round(c.precioUnit * c.cantidad))}</p>
+                    <p style={{ fontWeight: 600, color: 'var(--w-text)', fontSize: '0.875rem', margin: 0, fontFamily: 'var(--w-font)' }}>{c.nombre}</p>
+                    <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-text-3)', margin: 0 }}>{fmtQty(c)} · {fmtCOP(Math.round(c.precioUnit * c.cantidad))}</p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <button className="w-press" onClick={() => bump(c.id, -1)}
-                      style={{ width: 28, height: 28, borderRadius: '0.5rem', border: '1px solid var(--w-line)', background: 'var(--w-surface)', fontWeight: 700, fontSize: '1rem', color: 'var(--w-ink)' }}>−</button>
+                      style={{ width: 44, height: 44, borderRadius: '0.5rem', border: '1px solid var(--w-border)', background: 'var(--w-surface)', fontWeight: 700, fontSize: '1rem', color: 'var(--w-text)' }}>−</button>
                     <button className="w-press" onClick={() => bump(c.id, 1)}
-                      style={{ width: 28, height: 28, borderRadius: '0.5rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, fontSize: '1rem' }}>+</button>
-                    <button onClick={() => remove(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-wine)', fontSize: '1rem', padding: '0 0.25rem' }}>✕</button>
+                      style={{ width: 44, height: 44, borderRadius: '0.5rem', border: 'none', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '1rem' }}>+</button>
+                    <button onClick={() => remove(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-danger)', fontSize: '1rem', padding: '0 0.25rem' }}>✕</button>
                   </div>
                 </div>
               ))}
@@ -598,14 +613,14 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
         {/* Buscar ingrediente */}
         <input type="text" value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar ingrediente..."
-          style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', marginBottom: '0.875rem' }} />
+          style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box', marginBottom: '0.875rem' }} />
 
         {/* Ingredientes disponibles */}
         <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Ingredientes disponibles</p>
         {loading ? (
-          <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Cargando...</p>
+          <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>Cargando...</p>
         ) : filtered.length === 0 ? (
-          <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>
+          <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>
             {search ? 'No hay ingredientes que coincidan' : 'No hay ingredientes disponibles por ahora.'}
           </p>
         ) : (
@@ -627,11 +642,11 @@ const CustomDishSheet = memo(({ onAdd, onClose, restaurantId }: {
           <textarea value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="Algún detalle especial..."
             rows={2} maxLength={200}
-            style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
+            style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-border)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box' }} />
         </div>
 
-        <button className="lg-accent w-press" disabled={!isValid} onClick={handleAdd}
-          style={{ width: '100%', padding: '0.95rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: isValid ? 1 : 0.5, cursor: isValid ? 'pointer' : 'not-allowed' }}>
+        <button className="w-press bg-[var(--w-accent)] text-[color:var(--w-on-accent)] rounded-[var(--w-r-md)] shadow-[var(--w-shadow-terra)] hover:bg-[var(--w-accent-hover)]" disabled={!isValid} onClick={handleAdd}
+          style={{ width: '100%', padding: '0.95rem', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: isValid ? 1 : 0.5, cursor: isValid ? 'pointer' : 'not-allowed' }}>
           {isValid ? `Agregar al pedido · ${fmtCOP(total)}` : 'Elige al menos un ingrediente'}
         </button>
       </motion.div>
@@ -755,43 +770,43 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
     const esMio = !!myTokens[c.id]
     return (
       <div key={c.id} style={{ marginLeft: isReply ? '1.5rem' : 0 }}>
-        <div className="glass-surface" style={{ borderRadius: '0.875rem', padding: '0.625rem 0.75rem' }}>
+        <div className="bg-[var(--w-surface-sunken)] border border-[var(--w-border)]" style={{ borderRadius: '0.875rem', padding: '0.625rem 0.75rem' }}>
           {editingId === c.id ? (
             <div>
               <textarea value={editTexto} onChange={e => setEditTexto(e.target.value)} rows={2} maxLength={500}
-                style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.625rem', padding: '0.5rem', border: '1px solid var(--w-line)', outline: 'none', resize: 'none', fontSize: '0.8125rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', marginBottom: '0.375rem' }} />
+                style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.625rem', padding: '0.5rem', border: '1px solid var(--w-border)', outline: 'none', resize: 'none', fontSize: '0.8125rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box', marginBottom: '0.375rem' }} />
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={() => guardarEdicion(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-olive)', background: 'none', border: 'none', cursor: 'pointer' }}>Guardar</button>
-                <button onClick={() => setEditingId(null)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={() => guardarEdicion(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-success)', background: 'none', border: 'none', cursor: 'pointer' }}>Guardar</button>
+                <button onClick={() => setEditingId(null)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-text-3)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancelar</button>
               </div>
             </div>
           ) : (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.1875rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--w-ink)' }}>{borrado ? '—' : c.cliente_nombre}</span>
-                <span style={{ fontSize: '0.625rem', color: 'var(--w-ink-mut)' }}>{timeAgo(c.created_at)}</span>
+                <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--w-text)' }}>{borrado ? '—' : c.cliente_nombre}</span>
+                <span style={{ fontSize: '0.625rem', color: 'var(--w-text-3)' }}>{timeAgo(c.created_at)}</span>
               </div>
-              <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 0.375rem', fontStyle: borrado ? 'italic' : 'normal', color: borrado ? 'var(--w-ink-mut)' : undefined }}>
+              <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0 0 0.375rem', fontStyle: borrado ? 'italic' : 'normal', color: borrado ? 'var(--w-text-3)' : undefined }}>
                 {borrado ? 'Comentario eliminado' : c.texto}
               </p>
               {!borrado && (
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <button onClick={() => likeComentario(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: c.ya_me_gusta ? 'var(--w-wine)' : 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <button onClick={() => likeComentario(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: c.ya_me_gusta ? 'var(--w-danger)' : 'var(--w-text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     {c.ya_me_gusta ? '❤️' : '🤍'} {c.likes_count > 0 ? c.likes_count : ''}
                   </button>
                   {!isReply && (
-                    <button onClick={() => { setReplyingTo(replyingTo === c.id ? null : c.id); setReplyTexto('') }} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <button onClick={() => { setReplyingTo(replyingTo === c.id ? null : c.id); setReplyTexto('') }} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                       Responder
                     </button>
                   )}
                   {esMio && (
                     <>
-                      <button onClick={() => { setEditingId(c.id); setEditTexto(c.texto) }} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Editar</button>
-                      <button onClick={() => eliminarComentario(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-wine)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Eliminar</button>
+                      <button onClick={() => { setEditingId(c.id); setEditTexto(c.texto) }} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Editar</button>
+                      <button onClick={() => eliminarComentario(c.id)} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Eliminar</button>
                     </>
                   )}
                   <button onClick={() => reportarComentario(c.id)} disabled={reportedIds.has(c.id)}
-                    style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', opacity: reportedIds.has(c.id) ? 0.4 : 1, background: 'none', border: 'none', cursor: reportedIds.has(c.id) ? 'default' : 'pointer', padding: 0, marginLeft: 'auto' }}>
+                    style={{ fontSize: '0.6875rem', color: 'var(--w-text-3)', opacity: reportedIds.has(c.id) ? 0.4 : 1, background: 'none', border: 'none', cursor: reportedIds.has(c.id) ? 'default' : 'pointer', padding: 0, marginLeft: 'auto' }}>
                     {reportedIds.has(c.id) ? 'Reportado' : '⚑'}
                   </button>
                 </div>
@@ -802,9 +817,9 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
         {replyingTo === c.id && (
           <div style={{ marginLeft: '1.5rem', marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
             <input type="text" value={replyTexto} onChange={e => setReplyTexto(e.target.value)} placeholder="Responder..." maxLength={500}
-              style={{ flex: 1, background: 'var(--w-bg)', borderRadius: '0.625rem', padding: '0.5rem 0.75rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.8125rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
+              style={{ flex: 1, background: 'var(--w-surface-sunken)', borderRadius: '0.625rem', padding: '0.5rem 0.75rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '0.8125rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box' }} />
             <button className="w-press" disabled={enviandoCom} onClick={() => postComentario(replyTexto, c.id)}
-              style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff', background: 'var(--w-terra)', border: 'none', borderRadius: '0.625rem', padding: '0 0.875rem' }}>
+              style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-on-accent)', background: 'var(--w-accent)', border: 'none', borderRadius: '0.625rem', padding: '0 0.875rem' }}>
               Enviar
             </button>
           </div>
@@ -869,15 +884,15 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
         onClick={e => e.stopPropagation()}
-        className="lg"
+        className="bg-[var(--w-surface)] border border-[var(--w-border)] shadow-[var(--w-shadow-lg)]"
         style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}>
 
-        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-border)', margin: '0 auto 1.25rem' }} />
 
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem', alignItems: 'center' }}>
           <div style={{ width: 56, height: 56, flexShrink: 0 }}><DishImage dish={dish} height={56} /></div>
           <div style={{ flex: 1 }}>
-            <h3 className="ed-display" style={{ fontSize: '1.1875rem', margin: 0 }}>{dish.name}</h3>
+            <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em', color: 'var(--w-text)', fontSize: '1.1875rem', margin: 0 }}>{dish.name}</h3>
             <p className="ed-kicker" style={{ margin: '0.25rem 0 0' }}>Likes y reseñas</p>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -897,8 +912,8 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
         <div style={{ marginBottom: '1.25rem' }}>
           <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>¿A quién tenemos el gusto de atender?</label>
           <input type="text" value={nombre} onChange={e => commitName(e.target.value)} onBlur={e => checkReaccion(e.target.value)} placeholder="El mismo nombre con el que pediste"
-            style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
-          <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: '0.375rem 0 0' }}>
+            style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box' }} />
+          <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-text-3)', margin: '0.375rem 0 0' }}>
             Solo puedes calificar platos que ya hayas pedido con ese nombre.
           </p>
         </div>
@@ -916,15 +931,15 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
             <textarea value={comentario} onChange={e => setComentario(e.target.value)}
               placeholder="Cuéntanos qué te pareció (opcional)"
               rows={2} maxLength={300}
-              style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-line)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', marginBottom: '0.75rem' }} />
-            {error && <p style={{ fontSize: '0.8rem', color: 'var(--w-wine)', margin: '0 0 0.75rem', fontWeight: 600 }}>{error}</p>}
-            <button className="lg-accent w-press" disabled={sending} onClick={enviarResena}
-              style={{ width: '100%', padding: '0.9rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: sending ? 0.6 : 1 }}>
+              style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem', border: '1px solid var(--w-border)', outline: 'none', resize: 'none', fontSize: '0.875rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box', marginBottom: '0.75rem' }} />
+            {error && <p style={{ fontSize: '0.8rem', color: 'var(--w-danger)', margin: '0 0 0.75rem', fontWeight: 600 }}>{error}</p>}
+            <button className="w-press bg-[var(--w-accent)] text-[color:var(--w-on-accent)] rounded-[var(--w-r-md)] shadow-[var(--w-shadow-terra)] hover:bg-[var(--w-accent-hover)]" disabled={sending} onClick={enviarResena}
+              style={{ width: '100%', padding: '0.9rem', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.9375rem', border: 'none', opacity: sending ? 0.6 : 1 }}>
               {sending ? 'Enviando...' : 'Enviar reseña'}
             </button>
           </div>
         ) : (
-          <p style={{ fontSize: '0.8125rem', color: 'var(--w-olive)', fontWeight: 700, textAlign: 'center', marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--w-success)', fontWeight: 700, textAlign: 'center', marginBottom: '1.5rem' }}>
             ✓ ¡Gracias! Tu reseña quedará visible cuando el restaurante la apruebe.
           </p>
         )}
@@ -932,15 +947,15 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
         <div>
           <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>Reseñas ({resenas.length})</p>
           {loading ? (
-            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Cargando...</p>
+            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>Cargando...</p>
           ) : resenas.length === 0 ? (
-            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Aún no hay reseñas aprobadas para este plato.</p>
+            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>Aún no hay reseñas aprobadas para este plato.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {resenas.map((r, i) => (
-                <div key={i} className="glass-surface" style={{ borderRadius: '0.875rem', padding: '0.75rem' }}>
+                <div key={i} className="bg-[var(--w-surface-sunken)] border border-[var(--w-border)]" style={{ borderRadius: '0.875rem', padding: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.25rem' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--w-ink)' }}>{r.cliente_nombre}</span>
+                    <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--w-text)' }}>{r.cliente_nombre}</span>
                     <span style={{ fontSize: '0.75rem' }}>{'⭐'.repeat(r.rating)}</span>
                   </div>
                   {r.comentario && <p className="ed-body" style={{ fontSize: '0.8125rem', margin: 0 }}>{r.comentario}</p>}
@@ -950,23 +965,23 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
           )}
         </div>
 
-        <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--w-line)' }}>
+        <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--w-border)' }}>
           <p className="ed-kicker" style={{ marginBottom: '0.625rem' }}>
             Comentarios ({comentarios.filter(c => c.estado === 'visible').length})
           </p>
 
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
             <input type="text" value={nuevoTexto} onChange={e => setNuevoTexto(e.target.value)} placeholder="Escribe un comentario..." maxLength={500}
-              style={{ flex: 1, background: 'var(--w-bg)', borderRadius: '0.75rem', padding: '0.625rem 0.875rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.8125rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
-            <button className="lg-accent w-press" disabled={enviandoCom} onClick={() => postComentario(nuevoTexto, null)}
+              style={{ flex: 1, background: 'var(--w-surface-sunken)', borderRadius: '0.75rem', padding: '0.625rem 0.875rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '0.8125rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box' }} />
+            <button className="w-press bg-[var(--w-accent)] text-[color:var(--w-on-accent)] rounded-[var(--w-r-md)] shadow-[var(--w-shadow-terra)] hover:bg-[var(--w-accent-hover)]" disabled={enviandoCom} onClick={() => postComentario(nuevoTexto, null)}
               style={{ fontSize: '0.75rem', fontWeight: 700, border: 'none', borderRadius: '0.75rem', padding: '0 1rem' }}>
               Enviar
             </button>
           </div>
-          {comentarioErr && <p style={{ fontSize: '0.75rem', color: 'var(--w-wine)', margin: '-0.5rem 0 0.75rem', fontWeight: 600 }}>{comentarioErr}</p>}
+          {comentarioErr && <p style={{ fontSize: '0.75rem', color: 'var(--w-danger)', margin: '-0.5rem 0 0.75rem', fontWeight: 600 }}>{comentarioErr}</p>}
 
           {comentarios.filter(c => !c.parent_id).length === 0 ? (
-            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Sé el primero en comentar este plato.</p>
+            <p className="ed-body" style={{ fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>Sé el primero en comentar este plato.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {comentarios.filter(c => !c.parent_id).map(top => (
@@ -984,7 +999,7 @@ const ReviewsSheet = memo(({ dish, initialName, onNameChange, onClose, onLikeCha
 })
 ReviewsSheet.displayName = 'ReviewsSheet'
 
-// ── Dish card (editorial, solid warm) ─────────────────────────────
+// ── Dish card (tarjeta oscura con foto, precio y "Agregar") ───────
 const DishCard = memo(({ dish, inCart, social, onCustomize, onOpenSocial, index = 0 }: {
   dish:         Dish
   inCart:       number
@@ -996,65 +1011,57 @@ const DishCard = memo(({ dish, inCart, social, onCustomize, onOpenSocial, index 
   <div
     className="w-lift w-rise"
     style={{
-      background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '0.75rem',
-      border: '1px solid var(--w-line)', boxShadow: 'var(--w-shadow-sm)',
-      display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative', cursor: 'pointer',
+      background: 'var(--w-surface)', borderRadius: 'var(--w-r-lg)', overflow: 'hidden',
+      border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)',
+      display: 'flex', flexDirection: 'column', position: 'relative', cursor: 'pointer',
       animationDelay: `${Math.min(index, 10) * 50}ms`,
     }}
     onClick={onCustomize}>
-    <DishImage dish={dish} height={120} />
-
-    <h3 className="ed-display" style={{ fontSize: '1.0625rem', fontWeight: 600, margin: '0.125rem 0 0', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>
-      {dish.name}
-    </h3>
-
-    {dish.description && (
-      <p className="ed-body" style={{ fontSize: '0.75rem', margin: 0, color: 'var(--w-ink-mut)', lineHeight: 1.45, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>
-        {dish.description}
-      </p>
-    )}
-
-    <div className="w-press" onClick={e => { e.stopPropagation(); onOpenSocial() }}
-      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: '0.25rem', columnGap: '0.625rem', cursor: 'pointer' }}>
+    <div style={{ position: 'relative' }}>
+      <DishImage dish={dish} height={130} />
       {social?.es_popular && (
-        <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: 'var(--w-terra)' }}>🔥 Popular</span>
+        <span style={{ position: 'absolute', top: 8, left: 8, padding: '0.1875rem 0.5rem', borderRadius: 9999, background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontSize: '0.6875rem', fontWeight: 800 }}>★ Popular</span>
       )}
-      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-ink-mut)' }}>
-        {social && social.rating_count > 0 ? `⭐ ${social.rating_avg} (${social.rating_count})` : '⭐ Opina'}
-      </span>
-      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-wine)' }}>
-        ❤️ {social?.likes_count ?? 0}
-      </span>
-      {!!social?.comentarios_count && (
-        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-ink-mut)' }}>
-          💬 {social.comentarios_count}
-        </span>
+      {inCart > 0 && (
+        <span style={{ position: 'absolute', top: 8, right: 8, minWidth: 22, height: 22, padding: '0 6px', borderRadius: 9999, background: 'var(--w-success-bg)', color: 'var(--w-success-text)', fontSize: '0.6875rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{inCart}</span>
       )}
     </div>
 
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '0.375rem' }}>
-      <span style={{ fontFamily: 'var(--w-sans)', fontWeight: 700, color: 'var(--w-terra)', fontSize: '1.0625rem' }}>
-        {dish.has_sizes && (dish.sizes?.length ?? 0) > 0
-          ? `desde ${fmtCOP(Math.min(...dish.sizes!.map(s => s.precio)))}`
-          : fmtCOP(dish.price)}
-      </span>
-      <button className="w-press" aria-label="Agregar"
-        style={{
-          width: 36, height: 36, borderRadius: '50%', border: 'none', flexShrink: 0,
-          background: inCart > 0 ? 'var(--w-olive)' : 'var(--w-terra)', color: '#fff',
-          fontSize: '1.25rem', fontWeight: 600, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: 'var(--w-shadow-terra)',
-        }}
-        onClick={e => { e.stopPropagation(); onCustomize() }}>
-        {inCart > 0 ? '✓' : '+'}
-      </button>
-    </div>
+    <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem', flex: 1 }}>
+      <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, color: 'var(--w-text)', fontSize: '0.9375rem', margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>
+        {dish.name}
+      </h3>
 
-    {inCart > 0 && (
-      <div style={{ position: 'absolute', top: '0.625rem', left: '0.625rem', minWidth: 22, height: 22, padding: '0 6px', borderRadius: '9999px', background: 'var(--w-olive)', color: '#fff', fontSize: '0.6875rem', fontWeight: 800, fontFamily: 'var(--w-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--w-shadow-sm)' }}>
-        {inCart}
+      {dish.description && (
+        <p style={{ fontSize: '0.75rem', margin: 0, color: 'var(--w-text-3)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>
+          {dish.description}
+        </p>
+      )}
+
+      <div className="w-press" onClick={e => { e.stopPropagation(); onOpenSocial() }}
+        style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: '0.625rem', cursor: 'pointer', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--w-text-3)' }}>
+        <span>{social && social.rating_count > 0 ? `⭐ ${social.rating_avg} (${social.rating_count})` : '⭐ Opina'}</span>
+        <span style={{ color: 'var(--w-danger)' }}>❤️ {social?.likes_count ?? 0}</span>
+        {!!social?.comentarios_count && <span>💬 {social.comentarios_count}</span>}
       </div>
-    )}
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.375rem', flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: 'var(--w-text)', fontSize: '1rem' }}>
+          {dish.has_sizes && (dish.sizes?.length ?? 0) > 0
+            ? `desde ${fmtCOP(Math.min(...dish.sizes!.map(s => s.precio)))}`
+            : fmtCOP(dish.price)}
+        </span>
+        <button className="w-press" aria-label={`Agregar ${dish.name}`}
+          style={{
+            minHeight: 36, padding: '0 0.75rem', borderRadius: 'var(--w-r-pill)', border: 'none', flexShrink: 0,
+            background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontSize: '0.75rem', fontWeight: 700,
+            display: 'flex', alignItems: 'center', gap: '0.375rem', boxShadow: 'var(--w-shadow-terra)', cursor: 'pointer',
+          }}
+          onClick={e => { e.stopPropagation(); onCustomize() }}>
+          <IconCart size={14} /> Agregar
+        </button>
+      </div>
+    </div>
   </div>
 ))
 DishCard.displayName = 'DishCard'
@@ -1109,7 +1116,7 @@ export default function PublicMenu() {
     const alRecibir = (e: MessageEvent) => {
       const d = e.data as { tipo?: string; color?: string; nombre?: string; logo?: string | null; portada?: string | null; cerrado?: boolean } | null
       if (e.origin !== window.location.origin || d?.tipo !== 'ros-preview') return
-      if (typeof d.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(d.color)) document.documentElement.style.setProperty('--w-terra', d.color)
+      if (typeof d.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(d.color)) applyBranding(d.color)
       if (typeof d.nombre === 'string') setBizName(d.nombre.slice(0, 80) || 'Mi Restaurante')
       const https = (u: unknown) => (typeof u === 'string' && /^https:\/\//i.test(u) ? u : null)
       setLogoUrl(https(d.logo))
@@ -1217,7 +1224,7 @@ export default function PublicMenu() {
         cerrado_mensaje: cr.data?.cerrado_mensaje as string | null,
       })
       // Marca del restaurante: aplicar su color como acento del menú
-      if (cr.data?.color_primario) document.documentElement.style.setProperty('--w-terra', cr.data.color_primario as string)
+      if (cr.data?.color_primario) applyBranding(cr.data.color_primario as string)
       // Categorías (nombre y orden), sabores y lo que caja marcó como agotado
       const baseCfg = parseMenuConfig(cr.data?.modules_enabled)
       setMenuCfg(baseCfg)
@@ -1429,19 +1436,12 @@ export default function PublicMenu() {
   const categoryNavItems = [{ key: 'all' as const, label: 'Todo' }, ...categories.map(c => ({ key: c, label: catLabel(c) }))]
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--w-bg)', fontFamily: 'var(--w-sans)', paddingBottom: '6rem' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--w-bg)', fontFamily: 'var(--w-font)', paddingBottom: '9rem' }}>
 
       {/* ── Cerrado (bloquea pedidos) ── */}
       {isClosedNow && (
-        <div style={{ background: 'var(--w-wine)', color: '#fff', textAlign: 'center', padding: '0.625rem 1rem', fontSize: '0.8125rem', fontWeight: 700, fontFamily: 'var(--w-sans)' }}>
+        <div style={{ background: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', textAlign: 'center', padding: '0.625rem 1rem', fontSize: '0.8125rem', fontWeight: 700, fontFamily: 'var(--w-font)' }}>
           {closedMessage}
-        </div>
-      )}
-
-      {/* ── Banner de promoción ── */}
-      {promo && !isClosedNow && (
-        <div style={{ background: 'var(--w-terra)', color: '#fff', textAlign: 'center', padding: '0.625rem 1rem', fontSize: '0.8125rem', fontWeight: 700, fontFamily: 'var(--w-sans)' }}>
-          {promo}
         </div>
       )}
 
@@ -1457,53 +1457,71 @@ export default function PublicMenu() {
         <a href={`https://wa.me/${brandExtra.whatsapp_numero}`} target="_blank" rel="noopener noreferrer"
           style={{ position: 'fixed', right: '1.1rem', bottom: '1.1rem', zIndex: 40, width: 52, height: 52, borderRadius: '50%', background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 16px rgba(0,0,0,0.25)' }}
           aria-label="Escribir por WhatsApp">
-          <svg viewBox="0 0 24 24" fill="#fff" style={{ width: 28, height: 28 }}><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 004.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.24.68-1.4 1.3-1.93 1.38-.5.08-1.12.11-1.81-.11-.42-.13-.95-.31-1.64-.6-2.89-1.25-4.78-4.15-4.93-4.34-.14-.19-1.18-1.57-1.18-3 0-1.42.75-2.12 1.01-2.41.27-.29.58-.36.78-.36.19 0 .39 0 .56.01.18.01.42-.07.66.5.24.58.83 2 .9 2.15.07.15.12.32.02.51-.09.19-.14.31-.28.48-.14.16-.29.36-.42.49-.14.14-.28.29-.12.57.15.28.68 1.12 1.46 1.82 1.01.9 1.85 1.18 2.13 1.31.29.14.45.11.62-.07.17-.18.72-.84.91-1.13.19-.29.38-.24.63-.14.26.09 1.65.78 1.94.92.28.14.47.21.54.33.07.13.07.72-.16 1.4z"/></svg>
+          <svg viewBox="0 0 24 24" fill="#fff" style={{ width: 44, height: 44 }}><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 004.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.24.68-1.4 1.3-1.93 1.38-.5.08-1.12.11-1.81-.11-.42-.13-.95-.31-1.64-.6-2.89-1.25-4.78-4.15-4.93-4.34-.14-.19-1.18-1.57-1.18-3 0-1.42.75-2.12 1.01-2.41.27-.29.58-.36.78-.36.19 0 .39 0 .56.01.18.01.42-.07.66.5.24.58.83 2 .9 2.15.07.15.12.32.02.51-.09.19-.14.31-.28.48-.14.16-.29.36-.42.49-.14.14-.28.29-.12.57.15.28.68 1.12 1.46 1.82 1.01.9 1.85 1.18 2.13 1.31.29.14.45.11.62-.07.17-.18.72-.84.91-1.13.19-.29.38-.24.63-.14.26.09 1.65.78 1.94.92.28.14.47.21.54.33.07.13.07.72-.16 1.4z"/></svg>
         </a>
       )}
 
-      {/* ── Editorial hero ── */}
-      <header className="menu-wrap" style={{ position: 'relative', padding: '2.25rem 1.5rem 1.5rem', margin: '0 auto', overflow: 'hidden' }}>
+      <div className="pm-shell">
+      {/* ── Barra lateral (escritorio) ── */}
+      <aside className="pm-side">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0 0.5rem' }}>
+          {logoUrl ? <img src={logoUrl} alt={bizName} style={{ height: 64, width: 'auto', maxWidth: 140, objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} /> : null}
+          <span style={{ fontWeight: 700, color: 'var(--w-text)', fontSize: '0.9375rem', textAlign: 'center' }}>{bizName}</span>
+        </div>
+        <button className="pm-nav-link" data-on="true" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}><IconHome size={20} /> Inicio</button>
+        <button className="pm-nav-link" onClick={() => document.getElementById('pm-menu')?.scrollIntoView({ behavior: 'smooth' })}><IconGrid size={20} /> Menú</button>
+        <button className="pm-nav-link" onClick={() => (orderId ? setShowTracking(true) : setShowCart(true))}><IconBag size={20} /> Mi pedido</button>
+        {brandExtra.whatsapp_numero && (
+          <a className="pm-nav-link" href={`https://wa.me/${brandExtra.whatsapp_numero}`} target="_blank" rel="noopener noreferrer"><IconChat size={20} /> Contacto</a>
+        )}
+      </aside>
+
+      <div style={{ minWidth: 0 }}>
+      {/* ── Cabecera ── */}
+      <header className="menu-wrap" style={{ position: 'relative', padding: '1rem 1rem 0.5rem', margin: '0 auto' }}>
         {mascotaUrl && <MascotaMenu url={mascotaUrl} nombre={bizName} />}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-          {logoUrl && (
-            <img src={logoUrl} alt={bizName}
-              style={{ height: 72, width: 'auto', maxWidth: 180, objectFit: 'contain', marginBottom: '1rem', borderRadius: '0.75rem' }}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.875rem' }}>
-            <span className="ed-kicker">Menú</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--w-line)' }} />
-            {mesa && <span className="ed-kicker" style={{ color: 'var(--w-ink-mut)' }}>Mesa {mesa}</span>}
+        <div className="pm-top-mobile" style={{ alignItems: 'center', gap: '0.75rem' }}>
+          {logoUrl ? <img src={logoUrl} alt={bizName} style={{ height: 44, width: 'auto', maxWidth: 140, objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} /> : null}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.15, color: 'var(--w-text)', fontSize: '1.25rem', margin: 0 }}>{bizName}</h1>
+            {mesa && <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--w-text-3)' }}>Mesa {mesa}</p>}
           </div>
-          <h1 className="ed-display" style={{ fontSize: 'clamp(2.5rem, 11vw, 4.25rem)', fontWeight: 600, margin: 0 }}>
-            {bizName}
-          </h1>
-          <p className="ed-body" style={{ marginTop: '0.75rem', fontSize: '0.9375rem', color: 'var(--w-ink-mut)', maxWidth: '34ch' }}>
-            Elige tus platos favoritos y pide directo desde tu mesa.
-          </p>
-          <CartaAsistente slug={null} restaurantId={restaurantId} mesa={mesa} />
-        </motion.div>
+          <button aria-label="Buscar" onClick={() => document.getElementById('pm-search')?.focus()}
+            style={{ width: 44, height: 44, borderRadius: '0.875rem', border: '1px solid var(--w-border)', background: 'var(--w-surface)', color: 'var(--w-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><IconSearch /></button>
+          <button aria-label="Ver carrito" onClick={() => setShowCart(true)}
+            style={{ position: 'relative', width: 44, height: 44, borderRadius: '0.875rem', border: '1px solid var(--w-border)', background: 'var(--w-surface)', color: 'var(--w-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <IconCart />
+            {cartCount > 0 && <span style={{ position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, padding: '0 5px', borderRadius: 9999, background: 'var(--w-danger)', color: '#fff', fontSize: '0.6875rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{cartCount}</span>}
+          </button>
+        </div>
+        <div className="pm-top-desktop" style={{ paddingTop: '0.5rem' }}>
+          <h1 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.15, color: 'var(--w-text)', fontSize: '1.75rem', margin: 0 }}>{bizName}</h1>
+          {mesa && <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>Mesa {mesa}</p>}
+        </div>
+        <CartaAsistente slug={null} restaurantId={restaurantId} mesa={mesa} />
       </header>
 
-      {/* ── Sticky category nav (liquid glass) ── */}
-      <div className="menu-wrap" style={{ position: 'sticky', top: 12, zIndex: 30, padding: '0 1rem', margin: '0.5rem auto 1.5rem' }}>
-        <div className="lg no-scrollbar" style={{ display: 'flex', gap: '0.375rem', overflowX: 'auto', padding: '0.5rem', borderRadius: '1rem' }}>
-          {categoryNavItems.map(({ key, label }) => {
-            const active = activeCat === key
-            return (
-              <button key={key} onClick={() => scrollToCategory(key)}
-                style={{
-                  flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '0.75rem',
-                  border: 'none', fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'var(--w-sans)',
-                  transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
-                  background: active ? 'var(--w-terra)' : 'transparent',
-                  color: active ? '#fff' : 'var(--w-ink-soft)',
-                  boxShadow: active ? 'var(--w-shadow-terra)' : 'none',
-                }}>
-                {label}
-              </button>
-            )
-          })}
+      {/* ── Banner de promoción (solo si el restaurante la tiene activa) ── */}
+      {promo && !isClosedNow && (
+        <div className="menu-wrap" style={{ padding: '0 1rem', margin: '0 auto 1rem' }}>
+          <div style={{ borderRadius: '1.5rem', padding: '1.5rem', background: 'linear-gradient(120deg, color-mix(in oklch, var(--w-accent) 35%, var(--w-surface)) 0%, var(--w-surface) 85%)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' }}>
+            <span style={{ display: 'inline-block', padding: '0.3rem 0.75rem', borderRadius: 9999, background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.75rem' }}>Promoción Especial</span>
+            <p style={{ fontFamily: 'var(--w-font)', fontWeight: 800, lineHeight: 1.15, color: 'var(--w-text)', fontSize: 'clamp(1.375rem, 5vw, 2rem)', margin: '0 0 1rem', maxWidth: '28ch' }}>{promo}</p>
+            <button onClick={() => document.getElementById('pm-menu')?.scrollIntoView({ behavior: 'smooth' })}
+              style={{ padding: '0.7rem 1.25rem', borderRadius: 'var(--w-r-pill)', border: 'none', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', boxShadow: 'var(--w-shadow-terra)' }}>¡Pide ahora! →</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Categorías (chips con icono) ── */}
+      <div className="menu-wrap" style={{ position: 'sticky', top: 0, zIndex: 30, padding: '0.5rem 1rem', margin: '0 auto 1rem', background: 'var(--w-bg)' }}>
+        <div className="no-scrollbar" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto' }}>
+          {categoryNavItems.map(({ key, label }) => (
+            <button key={key} className="pm-chip" data-on={activeCat === key} onClick={() => scrollToCategory(key)}>
+              {key === 'all' ? <IconGrid size={22} /> : <CategoryIcon category={key} size={22} />}
+              {key === 'all' ? 'Todas' : label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1513,10 +1531,10 @@ export default function PublicMenu() {
         <AnimatePresence>
           {showTracking && orderId && (
             <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
-              style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'var(--w-surface)', borderRadius: '1.25rem', border: '1px solid var(--w-line)', boxShadow: 'var(--w-shadow-md)' }}>
+              style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'var(--w-surface)', borderRadius: '1.25rem', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-md)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <p className="ed-kicker">Tu pedido{orderNumber ? ` · #${orderNumber}` : ''}</p>
-                <button onClick={() => setShowTracking(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1.125rem' }}>✕</button>
+                <button onClick={() => setShowTracking(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-text-3)', fontSize: '1.125rem' }}>✕</button>
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, marginBottom: '1rem' }}>
                 {[{ key: 'pending', label: 'Recibido' }, { key: 'cooking', label: 'En cocina' }, { key: 'ready', label: 'Listo' }, { key: 'completed', label: 'Entregado' }].map((step, i, arr) => {
@@ -1529,24 +1547,24 @@ export default function PublicMenu() {
                     <div key={step.key} style={{ display: 'flex', alignItems: 'center', flex: i < arr.length - 1 ? 1 : 'none' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.375rem' }}>
                         <motion.div animate={active ? { scale: [1, 1.18, 1] } : {}} transition={{ repeat: active ? Infinity : 0, duration: 1.6, ease: 'easeInOut' }}
-                          style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 800, color: done ? '#fff' : 'var(--w-ink-mut)', background: done ? (active ? 'var(--w-terra)' : 'var(--w-olive)') : 'var(--w-bg)', border: done ? 'none' : '1px solid var(--w-line)' }}>
+                          style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 800, color: done ? 'var(--w-on-accent)' : 'var(--w-text-3)', background: done ? (active ? 'var(--w-accent)' : 'var(--w-success)') : 'var(--w-surface-sunken)', border: done ? 'none' : '1px solid var(--w-border)' }}>
                           {done && !active ? '✓' : stepIdx + 1}
                         </motion.div>
-                        <p style={{ fontSize: '0.625rem', fontWeight: 700, color: done ? 'var(--w-ink)' : 'var(--w-ink-mut)', margin: 0, textAlign: 'center' }}>{step.label}</p>
+                        <p style={{ fontSize: '0.625rem', fontWeight: 700, color: done ? 'var(--w-text)' : 'var(--w-text-3)', margin: 0, textAlign: 'center' }}>{step.label}</p>
                       </div>
                       {i < arr.length - 1 && (
-                        <div style={{ flex: 1, height: 2, borderRadius: 2, margin: '0 0.25rem 1.125rem', background: current > stepIdx ? 'var(--w-olive)' : 'var(--w-line)' }} />
+                        <div style={{ flex: 1, height: 2, borderRadius: 2, margin: '0 0.25rem 1.125rem', background: current > stepIdx ? 'var(--w-success)' : 'var(--w-border)' }} />
                       )}
                     </div>
                   )
                 })}
               </div>
               <div style={{
-                background: orderStatus === 'pending' && !isPaid ? 'color-mix(in oklch, var(--w-saffron) 15%, var(--w-bg))' : 'var(--w-bg)',
+                background: orderStatus === 'pending' && !isPaid ? 'color-mix(in oklch, var(--w-warning) 15%, var(--w-surface-sunken))' : 'var(--w-surface-sunken)',
                 borderRadius: '0.875rem', padding: '0.875rem 1rem',
-                border: orderStatus === 'pending' && !isPaid ? '1px solid var(--w-saffron)' : '1px solid var(--w-line)',
+                border: orderStatus === 'pending' && !isPaid ? '1px solid var(--w-warning)' : '1px solid var(--w-border)',
               }}>
-                <p style={{ fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontSize: '0.875rem' }}>
+                <p style={{ fontWeight: 600, color: 'var(--w-text)', margin: 0, fontSize: '0.875rem' }}>
                   {orderStatus === 'pending' && !isPaid && 'Acércate a caja y paga para que se procese tu pedido.'}
                   {orderStatus === 'pending' && isPaid  && 'Tu pedido fue recibido. Pronto comenzamos a prepararlo.'}
                   {orderStatus === 'cooking'   && 'Estamos preparando tu pedido. Ya casi está.'}
@@ -1575,7 +1593,7 @@ export default function PublicMenu() {
                     } finally { setPayingOnline(false) }
                   }}
                   className="w-press"
-                  style={{ marginTop: '1rem', width: '100%', padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-terra)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: payingOnline ? 'not-allowed' : 'pointer', opacity: payingOnline ? 0.7 : 1 }}>
+                  style={{ marginTop: '1rem', width: '100%', padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.95rem', cursor: payingOnline ? 'not-allowed' : 'pointer', opacity: payingOnline ? 0.7 : 1 }}>
                   {payingOnline ? 'Abriendo pago…' : '💳 Pagar en línea'}
                 </button>
               )}
@@ -1599,7 +1617,7 @@ export default function PublicMenu() {
                       })))
                     }}
                     className="w-press"
-                    style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-saffron)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: editingOrder ? 'not-allowed' : 'pointer', opacity: editingOrder ? 0.7 : 1 }}>
+                    style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-warning-bg)', color: 'var(--w-warning-text)', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.95rem', cursor: editingOrder ? 'not-allowed' : 'pointer', opacity: editingOrder ? 0.7 : 1 }}>
                     {editingOrder ? 'Abriendo...' : '✏️ Editar'}
                   </button>}
                   <button
@@ -1617,7 +1635,7 @@ export default function PublicMenu() {
                       } finally { setCancelling(false) }
                     }}
                     className="w-press"
-                    style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-wine)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: cancelling ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.7 : 1 }}>
+                    style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.9rem', background: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.95rem', cursor: cancelling ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.7 : 1 }}>
                     {cancelling ? 'Cancelando...' : '🗑️ Cancelar'}
                   </button>
                 </div>
@@ -1629,7 +1647,7 @@ export default function PublicMenu() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '1rem' }}
+                    style={{ position: 'fixed', inset: 0, background: 'var(--w-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '1rem' }}
                     onClick={() => !savingEdit && setEditingOrder(false)}>
                     <motion.div
                       initial={{ scale: 0.9, opacity: 0 }}
@@ -1637,10 +1655,10 @@ export default function PublicMenu() {
                       exit={{ scale: 0.9, opacity: 0 }}
                       style={{ background: 'var(--w-surface)', borderRadius: '1.125rem', padding: '1.5rem', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflow: 'auto' }}
                       onClick={e => e.stopPropagation()}>
-                      <h3 style={{ fontFamily: 'var(--w-display)', fontWeight: 600, fontSize: '1.25rem', margin: '0 0 1rem', color: 'var(--w-ink)' }}>Editar pedido</h3>
+                      <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 600, fontSize: '1.25rem', margin: '0 0 1rem', color: 'var(--w-text)' }}>Editar pedido</h3>
 
                       {editLoading || editLines.length === 0 ? (
-                        <p style={{ color: 'var(--w-ink-mut)', textAlign: 'center', padding: '2rem 0' }}>
+                        <p style={{ color: 'var(--w-text-3)', textAlign: 'center', padding: '2rem 0' }}>
                           {editLoading ? 'Cargando…' : 'Quitaste todos los productos. Si ya no quieres nada, cancela el pedido.'}
                         </p>
                       ) : (
@@ -1648,31 +1666,31 @@ export default function PublicMenu() {
                           {editLines.map(l => {
                             const d = l.dishId ? dishes.find(x => x.id === l.dishId) : undefined
                             return (
-                              <div key={l.idx} style={{ background: 'var(--w-bg)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)' }}>
+                              <div key={l.idx} style={{ background: 'var(--w-surface-sunken)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-border)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
                                   <div style={{ minWidth: 0 }}>
-                                    <p style={{ fontWeight: 600, margin: 0, color: 'var(--w-ink)', fontSize: '0.9375rem' }}>{l.quantity}× {l.name}</p>
-                                    {l.notes && <p style={{ color: 'var(--w-ink-mut)', margin: '0.125rem 0 0', fontSize: '0.8125rem' }}>{l.notes}</p>}
+                                    <p style={{ fontWeight: 600, margin: 0, color: 'var(--w-text)', fontSize: '0.9375rem' }}>{l.quantity}× {l.name}</p>
+                                    {l.notes && <p style={{ color: 'var(--w-text-3)', margin: '0.125rem 0 0', fontSize: '0.8125rem' }}>{l.notes}</p>}
                                   </div>
-                                  <p style={{ fontWeight: 700, margin: 0, color: 'var(--w-ink)', whiteSpace: 'nowrap' }}>{fmtCOP(Math.round(l.unitPrice * l.quantity))}</p>
+                                  <p style={{ fontWeight: 700, margin: 0, color: 'var(--w-text)', whiteSpace: 'nowrap' }}>{fmtCOP(Math.round(l.unitPrice * l.quantity))}</p>
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.625rem', alignItems: 'center' }}>
                                   {d ? (
                                     <button onClick={() => setEditLineIdx(l.idx)}
-                                      style={{ flex: 1, padding: '0.55rem', border: 'none', borderRadius: '0.625rem', background: 'var(--w-saffron)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--w-sans)' }}>
+                                      style={{ flex: 1, padding: '0.55rem', border: 'none', borderRadius: '0.625rem', background: 'var(--w-warning-bg)', color: 'var(--w-warning-text)', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--w-font)' }}>
                                       Editar
                                     </button>
                                   ) : (
                                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                       <button onClick={() => setEditLines(prev => prev.map(x => x.idx === l.idx ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))}
-                                        style={{ width: 34, height: 34, borderRadius: '0.5rem', border: '1px solid var(--w-line)', background: 'var(--w-surface)', color: 'var(--w-ink)', fontWeight: 700, cursor: 'pointer' }}>−</button>
-                                      <span style={{ minWidth: '1.5rem', textAlign: 'center', fontWeight: 700, color: 'var(--w-ink)' }}>{l.quantity}</span>
+                                        style={{ width: 44, height: 44, borderRadius: '0.5rem', border: '1px solid var(--w-border)', background: 'var(--w-surface)', color: 'var(--w-text)', fontWeight: 700, cursor: 'pointer' }}>−</button>
+                                      <span style={{ minWidth: '1.5rem', textAlign: 'center', fontWeight: 700, color: 'var(--w-text)' }}>{l.quantity}</span>
                                       <button onClick={() => setEditLines(prev => prev.map(x => x.idx === l.idx ? { ...x, quantity: Math.min(50, x.quantity + 1) } : x))}
-                                        style={{ width: 34, height: 34, borderRadius: '0.5rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>+</button>
+                                        style={{ width: 44, height: 44, borderRadius: '0.5rem', border: 'none', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, cursor: 'pointer' }}>+</button>
                                     </div>
                                   )}
                                   <button onClick={() => setEditLines(prev => prev.filter(x => x.idx !== l.idx))}
-                                    style={{ padding: '0.55rem 0.875rem', border: 'none', borderRadius: '0.625rem', background: 'var(--w-wine)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--w-sans)' }}>
+                                    style={{ padding: '0.55rem 0.875rem', border: 'none', borderRadius: '0.625rem', background: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--w-font)' }}>
                                     Quitar
                                   </button>
                                 </div>
@@ -1682,9 +1700,9 @@ export default function PublicMenu() {
                         </div>
                       )}
 
-                      <div style={{ background: 'var(--w-bg)', padding: '1rem', borderRadius: '0.875rem', marginBottom: '1.5rem', border: '1px solid var(--w-line)' }}>
-                        <p style={{ margin: 0, color: 'var(--w-ink-mut)', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Total nuevo</p>
-                        <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-terra)' }}>{fmtCOP(Math.round(editLines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)))}</p>
+                      <div style={{ background: 'var(--w-surface-sunken)', padding: '1rem', borderRadius: '0.875rem', marginBottom: '1.5rem', border: '1px solid var(--w-border)' }}>
+                        <p style={{ margin: 0, color: 'var(--w-text-3)', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Total nuevo</p>
+                        <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-accent-text)' }}>{fmtCOP(Math.round(editLines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)))}</p>
                       </div>
 
                       <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -1708,13 +1726,13 @@ export default function PublicMenu() {
                               setSavingEdit(false)
                             }
                           }}
-                          style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.875rem', background: 'var(--w-terra)', color: '#fff', fontFamily: 'var(--w-sans)', fontWeight: 700, cursor: savingEdit ? 'not-allowed' : 'pointer', opacity: savingEdit ? 0.7 : 1 }}>
+                          style={{ flex: 1, padding: '0.9rem', border: 'none', borderRadius: '0.875rem', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontFamily: 'var(--w-font)', fontWeight: 700, cursor: savingEdit ? 'not-allowed' : 'pointer', opacity: savingEdit ? 0.7 : 1 }}>
                           {savingEdit ? 'Guardando...' : '✓ Guardar cambios'}
                         </button>
                         <button
                           disabled={savingEdit}
                           onClick={() => setEditingOrder(false)}
-                          style={{ flex: 1, padding: '0.9rem', border: '1px solid var(--w-line)', borderRadius: '0.875rem', background: 'var(--w-surface)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 700, cursor: 'pointer' }}>
+                          style={{ flex: 1, padding: '0.9rem', border: '1px solid var(--w-border)', borderRadius: '0.875rem', background: 'var(--w-surface)', color: 'var(--w-text)', fontFamily: 'var(--w-font)', fontWeight: 700, cursor: 'pointer' }}>
                           Cancelar
                         </button>
                       </div>
@@ -1730,21 +1748,23 @@ export default function PublicMenu() {
         <AnimatePresence>
           {sent && (
             <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              style={{ background: 'color-mix(in oklch, var(--w-olive) 14%, var(--w-surface))', border: '1px solid var(--w-olive)', borderRadius: '1rem', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+              style={{ background: 'color-mix(in oklch, var(--w-success) 14%, var(--w-surface))', border: '1px solid var(--w-success)', borderRadius: '1rem', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
               <div style={{ flex: 1 }}>
-                <p style={{ fontFamily: 'var(--w-display)', fontWeight: 600, color: 'var(--w-ink)', margin: 0, fontSize: '1.0625rem' }}>Pedido enviado</p>
-                <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-ink-mut)' }}>Revisa el estado de tu pedido abajo.</p>
+                <p style={{ fontFamily: 'var(--w-font)', fontWeight: 600, color: 'var(--w-text)', margin: 0, fontSize: '1.0625rem' }}>Pedido enviado</p>
+                <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-text-3)' }}>Revisa el estado de tu pedido abajo.</p>
               </div>
-              <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1.125rem' }}>✕</button>
+              <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-text-3)', fontSize: '1.125rem' }}>✕</button>
             </motion.div>
           )}
         </AnimatePresence>
 
+        <h2 id="pm-menu" style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: 'var(--w-text)', fontSize: '1.375rem', margin: '0 0 1rem', paddingLeft: '0.75rem', borderLeft: '4px solid var(--w-accent)', lineHeight: 1.1, scrollMarginTop: '5rem' }}>Nuestro Menú</h2>
+
         {/* ── Search ── */}
         <div style={{ position: 'relative', marginBottom: '1.75rem' }}>
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+          <input id="pm-search" type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Buscar en el menú..."
-            style={{ width: '100%', background: 'var(--w-surface)', borderRadius: '1rem', padding: '0.875rem 1.125rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box', boxShadow: 'var(--w-shadow-sm)' }} />
+            style={{ width: '100%', background: 'var(--w-surface)', borderRadius: '1rem', padding: '0.875rem 1.125rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box', boxShadow: 'var(--w-shadow-sm)' }} />
         </div>
 
         {/* ── Arma tu propio plato ── */}
@@ -1753,12 +1773,12 @@ export default function PublicMenu() {
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             whileTap={{ scale: 0.99 }}
             onClick={() => setShowCustom(true)}
-            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: '1.75rem', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem 1.25rem', background: 'linear-gradient(135deg, color-mix(in oklch, var(--w-terra) 16%, var(--w-surface)) 0%, var(--w-surface) 70%)', boxShadow: 'var(--w-shadow-sm)', display: 'flex', alignItems: 'center', gap: '1rem', fontFamily: 'var(--w-sans)' }}>
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: '1.75rem', border: '1px solid var(--w-border)', borderRadius: '1.25rem', padding: '1.125rem 1.25rem', background: 'linear-gradient(135deg, color-mix(in oklch, var(--w-accent) 16%, var(--w-surface)) 0%, var(--w-surface) 70%)', boxShadow: 'var(--w-shadow-sm)', display: 'flex', alignItems: 'center', gap: '1rem', fontFamily: 'var(--w-font)' }}>
             <div style={{ flex: 1 }}>
-              <p className="ed-display" style={{ fontSize: '1.1875rem', fontWeight: 600, margin: 0, color: 'var(--w-ink)' }}>Arma tu propio plato</p>
-              <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.1875rem 0 0', color: 'var(--w-ink-mut)' }}>Elige los ingredientes y crea algo único.</p>
+              <p style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em', fontSize: '1.1875rem', margin: 0, color: 'var(--w-text)' }}>Arma tu propio plato</p>
+              <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.1875rem 0 0', color: 'var(--w-text-3)' }}>Elige los ingredientes y crea algo único.</p>
             </div>
-            <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: '50%', background: 'var(--w-terra)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem', fontWeight: 700, boxShadow: 'var(--w-shadow-terra)' }}>+</span>
+            <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: '50%', background: 'var(--w-accent)', color: 'var(--w-on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem', fontWeight: 700, boxShadow: 'var(--w-shadow-terra)' }}>+</span>
           </motion.button>
         )}
 
@@ -1770,8 +1790,8 @@ export default function PublicMenu() {
         ) : isSearching ? (
           filteredFlat.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-              <p className="ed-display" style={{ fontSize: '1.5rem', color: 'var(--w-ink-mut)', margin: 0 }}>Sin resultados</p>
-              <p className="ed-body" style={{ color: 'var(--w-ink-mut)', marginTop: '0.5rem' }}>No encontramos ese plato.</p>
+              <p style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em', fontSize: '1.5rem', color: 'var(--w-text-3)', margin: 0 }}>Sin resultados</p>
+              <p className="ed-body" style={{ color: 'var(--w-text-3)', marginTop: '0.5rem' }}>No encontramos ese plato.</p>
             </div>
           ) : (
             <div className="menu-grid">
@@ -1789,11 +1809,11 @@ export default function PublicMenu() {
               return (
                 <section key={cat} ref={setSectionRef(cat)} data-cat={cat}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginBottom: '1.125rem' }}>
-                    <h2 className="ed-display" style={{ fontSize: '1.625rem', fontWeight: 600, margin: 0 }}>
+                    <h2 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em', color: 'var(--w-text)', fontSize: '1.375rem', margin: 0 }}>
                       {catLabel(cat)}
                     </h2>
-                    <div style={{ flex: 1, height: 1, background: 'var(--w-line)' }} />
-                    <span className="ed-kicker" style={{ color: 'var(--w-ink-mut)' }}>{catDishes.length}</span>
+                    <div style={{ flex: 1, height: 1, background: 'var(--w-border)' }} />
+                    <span className="ed-kicker" style={{ color: 'var(--w-text-3)' }}>{catDishes.length}</span>
                   </div>
                   <div className="menu-grid">
                     {catDishes.map((dish, i) => {
@@ -1810,48 +1830,101 @@ export default function PublicMenu() {
 
       {/* ── Footer: contacto y ubicación ── */}
       {(brandExtra.direccion || brandExtra.instagram_url || brandExtra.facebook_url) && (
-        <footer className="menu-wrap" style={{ margin: '2rem auto 0', padding: '1.5rem', textAlign: 'center', borderTop: '1px solid var(--w-line)' }}>
+        <footer className="menu-wrap" style={{ margin: '2rem auto 0', padding: '1.5rem', textAlign: 'center', borderTop: '1px solid var(--w-border)' }}>
           {brandExtra.direccion && (
             <a href={`https://maps.google.com/?q=${encodeURIComponent(brandExtra.direccion)}`} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'inline-block', fontSize: '0.8125rem', color: 'var(--w-ink-mut)', marginBottom: '0.75rem', textDecoration: 'none' }}>
+              style={{ display: 'inline-block', fontSize: '0.8125rem', color: 'var(--w-text-3)', marginBottom: '0.75rem', textDecoration: 'none' }}>
               📍 {brandExtra.direccion}
             </a>
           )}
           <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
             {brandExtra.instagram_url && (
-              <a href={brandExtra.instagram_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-terra)', textDecoration: 'none' }}>Instagram</a>
+              <a href={brandExtra.instagram_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-accent-text)', textDecoration: 'none' }}>Instagram</a>
             )}
             {brandExtra.facebook_url && (
-              <a href={brandExtra.facebook_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-terra)', textDecoration: 'none' }}>Facebook</a>
+              <a href={brandExtra.facebook_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-accent-text)', textDecoration: 'none' }}>Facebook</a>
             )}
           </div>
         </footer>
       )}
+
+      </div>
+
+      {/* ── Panel "Tu pedido" (escritorio) ── */}
+      <aside className="pm-panel">
+        <h2 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: 'var(--w-text)', fontSize: '1.125rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ color: 'var(--w-accent)', display: 'flex' }}><IconCart size={22} /></span> Tu pedido
+        </h2>
+        {cart.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--w-text-3)', fontSize: '0.875rem' }}>
+            <img src={mascotaUrl || '/brand/resti/resti-transparente.png'} alt="" style={{ width: 96, height: 96, objectFit: 'contain', margin: '0 auto 0.75rem', display: 'block' }} />
+            Agrega tus productos<br />para comenzar
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '40vh', overflowY: 'auto' }}>
+            {cart.map(item => (
+              <div key={item.uid} style={{ display: 'flex', gap: '0.625rem', alignItems: 'center', padding: '0.625rem 0', borderBottom: '1px solid var(--w-border)' }}>
+                <div style={{ width: 48, height: 48, flexShrink: 0 }}><DishImage dish={item.dish} height={48} /></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: '0.8125rem', color: 'var(--w-text)' }}>{item.qty}× {item.dish.name}</p>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: '0.8125rem', color: 'var(--w-accent-text)' }}>{fmtCOP(item.price * item.qty)}</p>
+                </div>
+                <button onClick={() => removeCartItem(item.uid)} aria-label={`Quitar ${item.dish.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-text-2)', display: 'flex', padding: 4 }}><IconTrash size={18} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid var(--w-border)', paddingTop: '0.875rem' }}>
+          <span style={{ fontWeight: 700, color: 'var(--w-text)' }}>Total:</span>
+          <span style={{ fontWeight: 800, fontSize: '1.5rem', color: 'var(--w-accent-text)' }}>{fmtCOP(cartTotal)}</span>
+        </div>
+        <button className="w-press" disabled={cartCount === 0} onClick={() => setShowCart(true)}
+          style={{ width: '100%', padding: '0.95rem', border: 'none', borderRadius: 'var(--w-r-md)', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '0.9375rem', boxShadow: 'var(--w-shadow-terra)', opacity: cartCount === 0 ? 0.5 : 1, cursor: cartCount === 0 ? 'not-allowed' : 'pointer' }}>
+          Finalizar pedido →
+        </button>
+        {cartCount > 0 && (
+          <button onClick={() => setCart([])}
+            style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border)', background: 'var(--w-surface-sunken)', color: 'var(--w-text-2)', fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem' }}>
+            <IconTrash size={16} /> Limpiar carrito
+          </button>
+        )}
+      </aside>
+      </div>
 
       {/* ── Floating cart (liquid glass accent) ── */}
       {/* Se oculta cuando el carrito o un modal están abiertos, para no
           chocar con el botón de confirmar. */}
       <AnimatePresence>
         {cartCount > 0 && !showCart && !customizing && !showCustom && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0, opacity: 0, y: 20 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 28 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowCart(true)}
-            className="lg-accent"
-            style={{ position: 'fixed', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)', zIndex: 50, display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.875rem 1.5rem', border: 'none', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', fontFamily: 'var(--w-sans)', whiteSpace: 'nowrap' }}>
-            <motion.span key={cartCount} initial={{ scale: 1.4 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}
-              style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: '9999px', background: '#fff', color: 'var(--w-terra)', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {cartCount}
-            </motion.span>
-            <span>Ver pedido</span>
-            <span style={{ opacity: 0.5 }}>·</span>
-            <span>{fmtCOP(cartTotal)}</span>
-          </motion.button>
+          <motion.div className="pm-bottom-bar"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            style={{ position: 'fixed', left: '0.75rem', right: '0.75rem', bottom: 'calc(4.75rem + env(safe-area-inset-bottom))', zIndex: 50, display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.5rem 0.5rem 1rem', borderRadius: '1.25rem', background: 'var(--w-surface)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-lg)' }}>
+            <div style={{ position: 'relative', color: 'var(--w-accent)', display: 'flex' }}>
+              <IconCart size={26} />
+              <span style={{ position: 'absolute', top: -8, right: -10, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 9999, background: 'var(--w-danger)', color: '#fff', fontSize: '0.625rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{cartCount}</span>
+            </div>
+            <span style={{ fontWeight: 800, fontSize: '1.0625rem', color: 'var(--w-text)', flex: 1 }}>{fmtCOP(cartTotal)}</span>
+            <button className="w-press" onClick={() => setShowCart(true)}
+              style={{ padding: '0.8rem 1.25rem', border: 'none', borderRadius: '0.875rem', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              Finalizar pedido →
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Barra inferior (celular) ── */}
+      <nav className="pm-bottom-bar" style={{ position: 'fixed', left: '0.75rem', right: '0.75rem', bottom: 'calc(0.5rem + env(safe-area-inset-bottom))', zIndex: 45, display: 'flex', justifyContent: 'space-around', padding: '0.5rem', borderRadius: '1.25rem', background: 'var(--w-surface)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-lg)' }}>
+        {[
+          { label: 'Inicio',  icon: <IconHome />, on: true,  go: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
+          { label: 'Menú',    icon: <IconGrid />, on: false, go: () => document.getElementById('pm-menu')?.scrollIntoView({ behavior: 'smooth' }) },
+          { label: 'Pedidos', icon: <IconBag />,  on: false, go: () => (orderId ? setShowTracking(true) : setShowCart(true)) },
+        ].map(t => (
+          <button key={t.label} onClick={t.go}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '0.25rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.6875rem', fontWeight: 600, fontFamily: 'var(--w-font)', color: t.on ? 'var(--w-accent-text)' : 'var(--w-text-2)' }}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </nav>
 
       {/* ── Customize modal ── */}
       <AnimatePresence>
@@ -1903,29 +1976,36 @@ export default function PublicMenu() {
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 480, damping: 42, mass: 0.85 }}
               onClick={e => e.stopPropagation()}
-              className="lg"
+              className="bg-[var(--w-surface)] border border-[var(--w-border)] shadow-[var(--w-shadow-lg)]"
               style={{ width: '100%', maxWidth: 480, borderRadius: '1.75rem 1.75rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}>
 
-              <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-line)', margin: '0 auto 1.25rem' }} />
-              <h3 className="ed-display" style={{ fontWeight: 600, fontSize: '1.5rem', margin: '0 0 1.25rem' }}>Tu pedido</h3>
+              <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--w-border)', margin: '0 auto 1rem' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', marginBottom: '1rem' }}>
+                <div style={{ position: 'relative', color: 'var(--w-accent)', display: 'flex' }}>
+                  <IconCart size={34} />
+                  <span style={{ position: 'absolute', top: -8, right: -10, minWidth: 20, height: 20, padding: '0 5px', borderRadius: 9999, background: 'var(--w-danger)', color: '#fff', fontSize: '0.6875rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{cartCount}</span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, color: 'var(--w-text)', fontSize: '1.375rem', margin: 0 }}>Tu carrito</h3>
+                  <p style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-text-3)' }}>Revisa tu pedido antes de finalizar</p>
+                </div>
+                <button onClick={() => setShowCart(false)} aria-label="Cerrar"
+                  style={{ width: 40, height: 40, borderRadius: '0.875rem', border: '1px solid var(--w-border)', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontSize: '1.125rem', cursor: 'pointer' }}>✕</button>
+              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '1rem', borderTop: '1px solid var(--w-border)' }}>
                 {cart.map(item => (
-                  <div key={item.uid} style={{ background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.875rem 1rem', border: '1px solid var(--w-line)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start', flex: 1 }}>
-                        <span style={{ minWidth: 24, height: 24, padding: '0 6px', borderRadius: '0.5rem', background: 'var(--w-terra)', color: '#fff', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{item.qty}</span>
-                        <div>
-                          <p style={{ fontWeight: 600, color: 'var(--w-ink)', fontSize: '0.9375rem', margin: 0, fontFamily: 'var(--w-display)' }}>{item.dish.name}</p>
-                          {item.optsText && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>{item.optsText}</p>}
-                          {item.notes && <p className="ed-body" style={{ fontSize: '0.6875rem', color: 'var(--w-ink-mut)', margin: 0 }}>Nota: {item.notes}</p>}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                        <p style={{ fontWeight: 700, color: 'var(--w-ink)', fontSize: '0.875rem', margin: 0, fontFamily: 'var(--w-sans)' }}>{fmtCOP(item.price * item.qty)}</p>
-                        <button onClick={() => removeCartItem(item.uid)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-wine)', fontSize: '1rem', padding: 0 }}>✕</button>
-                      </div>
+                  <div key={item.uid} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', padding: '0.75rem 0', borderBottom: '1px solid var(--w-border)' }}>
+                    <div style={{ width: 68, height: 68, flexShrink: 0 }}><DishImage dish={item.dish} height={68} /></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 700, color: 'var(--w-text)', fontSize: '0.9375rem', margin: 0, fontFamily: 'var(--w-font)' }}>{item.dish.name}</p>
+                      {(item.optsText || item.dish.description) && <p style={{ fontSize: '0.6875rem', color: 'var(--w-text-3)', margin: '0.125rem 0 0', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>{item.optsText || item.dish.description}</p>}
+                      {item.notes && <p style={{ fontSize: '0.6875rem', color: 'var(--w-text-3)', margin: 0 }}>Nota: {item.notes}</p>}
+                      <p style={{ fontWeight: 700, color: 'var(--w-accent-text)', fontSize: '0.9375rem', margin: '0.25rem 0 0', fontFamily: 'var(--w-font)' }}>{fmtCOP(item.price * item.qty)}</p>
                     </div>
+                    <span style={{ padding: '0.375rem 0.625rem', borderRadius: '0.75rem', background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border)', color: 'var(--w-text)', fontWeight: 700, fontSize: '0.8125rem' }}>×{item.qty}</span>
+                    <button onClick={() => removeCartItem(item.uid)} aria-label={`Quitar ${item.dish.name}`}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-text-2)', padding: '0.5rem', display: 'flex' }}><IconTrash /></button>
                   </div>
                 ))}
               </div>
@@ -1935,52 +2015,61 @@ export default function PublicMenu() {
                   <div>
                     <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>Mesa</label>
                     <input type="number" value={mesa} onChange={e => setMesa(e.target.value)} placeholder="Nº"
-                      style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '1rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 600, textAlign: 'center', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '1rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', fontWeight: 600, textAlign: 'center', boxSizing: 'border-box' }} />
                   </div>
                 )}
                 <div style={{ gridColumn: mesa ? '1 / -1' : undefined }}>
                   <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>¿A quién tenemos el gusto de atender?</label>
                   <input type="text" value={clientName} onChange={e => rememberName(e.target.value)} placeholder="Ej: María"
-                    style={{ width: '100%', background: 'var(--w-bg)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-line)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box' }} />
                 </div>
               </div>
 
               {isClosedNow && (
-                <p style={{ fontSize: '0.8rem', color: 'var(--w-wine)', marginBottom: '1rem', textAlign: 'center', fontWeight: 700 }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--w-danger)', marginBottom: '1rem', textAlign: 'center', fontWeight: 700 }}>
                   {closedMessage}
                 </p>
               )}
               {!isClosedNow && !canConfirm && (
-                <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', marginBottom: '1rem', textAlign: 'center' }}>
-                  Ingresa tu <strong style={{ color: 'var(--w-ink)' }}>nombre</strong> o el número de <strong style={{ color: 'var(--w-ink)' }}>mesa</strong> para continuar
+                <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-text-3)', marginBottom: '1rem', textAlign: 'center' }}>
+                  Ingresa tu <strong style={{ color: 'var(--w-text)' }}>nombre</strong> o el número de <strong style={{ color: 'var(--w-text)' }}>mesa</strong> para continuar
                 </p>
               )}
               {!isClosedNow && !!brandExtra.propina_sugerida_pct && (
-                <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', marginBottom: '1rem', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--w-text-3)', marginBottom: '1rem', textAlign: 'center' }}>
                   Propina sugerida ({brandExtra.propina_sugerida_pct}%): {fmtCOP(Math.round(cartTotal * brandExtra.propina_sugerida_pct / 100))} — se paga aparte, a tu criterio
                 </p>
               )}
               {canConfirm && !mesa.trim() && clientName.trim() && (
-                <p style={{ fontSize: '0.75rem', color: 'var(--w-olive)', marginBottom: '1rem', textAlign: 'center', fontWeight: 700 }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--w-success)', marginBottom: '1rem', textAlign: 'center', fontWeight: 700 }}>
                   ✓ Pedido a nombre de {clientName.trim()}
                 </p>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '1rem', borderTop: '1px solid var(--w-line)', marginBottom: '1.25rem' }}>
-                <span className="ed-kicker">Total</span>
-                <span className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', color: 'var(--w-terra)' }}>{fmtCOP(cartTotal)}</span>
+              <div style={{ background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border)', borderRadius: '1.125rem', padding: '1rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--w-text-2)', fontSize: '0.9375rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--w-border)' }}>
+                  <span>Subtotal</span><span style={{ fontWeight: 700, color: 'var(--w-text)' }}>{fmtCOP(cartTotal)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '0.75rem' }}>
+                  <span style={{ fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1.0625rem', color: 'var(--w-text)' }}>Total a pagar</span>
+                  <span style={{ fontFamily: 'var(--w-font)', fontWeight: 800, fontSize: '1.625rem', color: 'var(--w-accent-text)' }}>{fmtCOP(cartTotal)}</span>
+                </div>
               </div>
 
               {sendError && (
-                <div style={{ background: 'color-mix(in oklch, var(--w-wine) 12%, var(--w-surface))', border: '1px solid var(--w-wine)', color: 'var(--w-wine)', borderRadius: '0.875rem', padding: '0.75rem 1rem', marginBottom: '0.875rem', fontSize: '0.8125rem', fontWeight: 500 }}>
+                <div style={{ background: 'color-mix(in oklch, var(--w-danger) 12%, var(--w-surface))', border: '1px solid var(--w-danger)', color: 'var(--w-danger)', borderRadius: '0.875rem', padding: '0.75rem 1rem', marginBottom: '0.875rem', fontSize: '0.8125rem', fontWeight: 500 }}>
                   {sendError}
                 </div>
               )}
 
-              <button className="lg-accent w-press"
+              <button className="w-press bg-[var(--w-accent)] text-[color:var(--w-on-accent)] rounded-[var(--w-r-md)] shadow-[var(--w-shadow-terra)] hover:bg-[var(--w-accent-hover)]"
                 onClick={() => { setSendError(null); sendOrder() }} disabled={sending || !canConfirm}
-                style={{ width: '100%', padding: '1.05rem', border: 'none', fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--w-sans)', cursor: !canConfirm ? 'not-allowed' : 'pointer', opacity: !canConfirm ? 0.5 : 1 }}>
-                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : !canConfirm ? 'Ingresa nombre o mesa' : `Pedir · ${fmtCOP(cartTotal)}`}
+                style={{ width: '100%', padding: '1.05rem', border: 'none', fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--w-font)', cursor: !canConfirm ? 'not-allowed' : 'pointer', opacity: !canConfirm ? 0.5 : 1 }}>
+                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : !canConfirm ? 'Ingresa nombre o mesa' : 'Finalizar pedido →'}
+              </button>
+              <button onClick={() => setShowCart(false)}
+                style={{ width: '100%', marginTop: '0.625rem', padding: '0.95rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border)', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontWeight: 600, fontSize: '0.9375rem', fontFamily: 'var(--w-font)', cursor: 'pointer' }}>
+                ← Seguir comprando
               </button>
             </motion.div>
           </motion.div>

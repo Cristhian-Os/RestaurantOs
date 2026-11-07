@@ -40,11 +40,11 @@ interface Fila {
   error:      string | null
 }
 
-const S = {
-  out:   { boxShadow: 'var(--shadow-out)' },
-  outSm: { boxShadow: 'var(--shadow-out-sm)' },
-  inset: { boxShadow: 'var(--shadow-in)' },
-  coral: { boxShadow: 'var(--shadow-coral)' },
+const FX = {
+  card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  soft:  { boxShadow: 'var(--w-shadow-sm)' },
+  field: { border: '1px solid var(--w-border)' },
+  cta:   { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
 const METODOS: { id: Metodo; label: string }[] = [
@@ -65,15 +65,15 @@ const nuevaFila = (nombre: string, monto: number): Fila => ({
 const MoneyInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
     <input ref={ref} type="number" inputMode="numeric" min={0}
-      className={cn('w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-base font-bold text-[#2D3561] outline-none', className)}
-      style={S.inset} {...props} />
+      className={cn('w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-base font-bold text-[color:var(--w-text)] outline-none', className)}
+      style={FX.field} {...props} />
   ),
 )
 MoneyInput.displayName = 'MoneyInput'
 
 const Campo = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <label className="block">
-    <span className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase tracking-wider mb-1">{label}</span>
+    <span className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-1">{label}</span>
     {children}
   </label>
 )
@@ -205,42 +205,42 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 bg-[var(--w-overlay)] z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={onClose}
     >
       <motion.div
         initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         onClick={e => e.stopPropagation()}
-        className="bg-[#D8DAE4] rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-lg max-h-[92vh] overflow-y-auto"
-        style={S.out}
+        className="bg-[var(--w-surface-raised)] rounded-t-[var(--w-r-xl)] sm:rounded-[var(--w-r-xl)] p-5 w-full max-w-lg max-h-[92dvh] overflow-y-auto"
+        style={FX.card}
         role="dialog" aria-label="Dividir cuenta"
       >
         {/* Encabezado y barra de avance */}
         <div className="flex items-start justify-between mb-3">
           <div>
-            <p className="text-xs font-bold text-[#FF5722] uppercase tracking-wider">Dividir cuenta</p>
-            <h3 className="font-bold text-[#2D3561] text-lg mt-0.5">
+            <p className="text-xs font-bold text-[color:var(--w-accent-text)] uppercase tracking-wider">Dividir cuenta</p>
+            <h3 className="font-bold text-[color:var(--w-text)] text-lg mt-0.5">
               {destinoPedido(order)}
-              {order.customer_name && <span className="text-[#FF5722]"> · {order.customer_name}</span>}
+              {order.customer_name && <span className="text-[color:var(--w-accent-text)]"> · {order.customer_name}</span>}
             </h3>
           </div>
-          <span className="text-2xl font-bold text-[#FF5722]">{fmt(order.total)}</span>
+          <span className="text-2xl font-bold text-[color:var(--w-accent-text)]">{fmt(order.total)}</span>
         </div>
 
         <div className="mb-4" aria-live="polite">
-          <div className="h-2.5 rounded-full bg-[#CDD0DC] overflow-hidden" style={S.inset}>
-            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, (pagado / Math.max(order.total, 1)) * 100)}%` }} />
+          <div className="h-2.5 rounded-full bg-[var(--w-surface-sunken)] overflow-hidden" style={FX.field}>
+            <div className="h-full rounded-full bg-[var(--w-success-bg)] border border-[var(--w-success)] transition-all" style={{ width: `${Math.min(100, (pagado / Math.max(order.total, 1)) * 100)}%` }} />
           </div>
-          <p className="text-sm font-bold mt-1.5 text-[#2D3561]">
-            Cobrado {fmt(pagado)} · <span className={falta > 0 ? 'text-[#FF5722]' : 'text-emerald-600'}>{falta > 0 ? `falta ${fmt(falta)}` : 'cuenta completa'}</span>
+          <p className="text-sm font-bold mt-1.5 text-[color:var(--w-text)]">
+            Cobrado {fmt(pagado)} · <span className={falta > 0 ? 'text-[color:var(--w-accent-text)]' : 'text-[color:var(--w-success-text)]'}>{falta > 0 ? `falta ${fmt(falta)}` : 'cuenta completa'}</span>
           </p>
         </div>
 
         {pagos.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-4">
             {pagos.map(p => (
-              <span key={p.id} className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-1">
+              <span key={p.id} className="text-xs font-semibold bg-[var(--w-success-bg)] border border-[var(--w-success)] text-[color:var(--w-success-text)] rounded-full px-2.5 py-1">
                 ✓ {p.comensal || 'Pago'} · {METODOS.find(m => m.id === p.payment_method)?.label} · {fmt(p.monto)}{p.propina > 0 ? ` (+${fmt(p.propina)} propina)` : ''}
               </span>
             ))}
@@ -250,8 +250,8 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
         {locales.length > 0 && (
           <div className="flex flex-col gap-1.5 mb-4" aria-live="polite">
             {locales.map(p => (
-              <span key={p.idem} className={cn('text-xs font-semibold rounded-xl px-2.5 py-1.5 border',
-                p.estado === 'conflicto' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-800 border-amber-200')}>
+              <span key={p.idem} className={cn('text-xs font-semibold rounded-[var(--w-r-md)] px-2.5 py-1.5 border',
+                p.estado === 'conflicto' ? 'bg-[var(--w-danger-bg)] border border-[var(--w-danger)] text-[color:var(--w-danger-text)]' : 'bg-[var(--w-warning-bg)] border border-[var(--w-warning)] text-[color:var(--w-warning-text)]')}>
                 {p.estado === 'conflicto' ? `⚠ ${p.resumen}: el servidor lo rechazó (${p.motivo}). Revísalo con el administrador.` : `⏳ ${p.resumen} · guardado sin internet, falta enviarlo`}
               </span>
             ))}
@@ -262,15 +262,15 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
           <div className="text-center py-4">
             {enCola > 0 ? (
               <>
-                <p className="text-lg font-bold text-amber-700 mb-1">Cuenta cubierta (con pagos sin enviar)</p>
-                <p className="text-xs text-[#6B7280] mb-3">El pedido se cierra solo cuando vuelva el internet y se envíen los pagos guardados.</p>
-                <button onClick={onClose} className="w-full min-h-[48px] rounded-2xl font-bold text-white bg-[#FF5722]" style={S.coral}>Cerrar</button>
+                <p className="text-lg font-bold text-[color:var(--w-warning-text)] mb-1">Cuenta cubierta (con pagos sin enviar)</p>
+                <p className="text-xs text-[color:var(--w-text-2)] mb-3">El pedido se cierra solo cuando vuelva el internet y se envíen los pagos guardados.</p>
+                <button onClick={onClose} className="w-full min-h-[48px] rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={FX.cta}>Cerrar</button>
               </>
             ) : (
               <>
-                <p className="text-lg font-bold text-emerald-600 mb-3">Cuenta cobrada por completo</p>
+                <p className="text-lg font-bold text-[color:var(--w-success-text)] mb-3">Cuenta cobrada por completo</p>
                 <button onClick={onFinished}
-                  className="w-full min-h-[48px] rounded-2xl font-bold text-white bg-[#FF5722]" style={S.coral}>
+                  className="w-full min-h-[48px] rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={FX.cta}>
                   Listo
                 </button>
               </>
@@ -285,8 +285,8 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
                   disabled={m === 'persona' && !tienePersonas}
                   title={m === 'persona' && !tienePersonas ? 'Este pedido no se tomó por persona' : undefined}
                   onClick={() => cambiarModo(m)}
-                  className={cn('min-h-[44px] rounded-xl text-xs font-bold px-1', modo === m ? 'text-white' : 'text-[#6B7280]', m === 'persona' && !tienePersonas && 'opacity-40')}
-                  style={modo === m ? { background: 'var(--accent)', ...S.coral } : { background: 'var(--bg)', ...S.outSm }}>
+                  className={cn('min-h-[44px] rounded-[var(--w-r-md)] text-xs font-bold px-1', modo === m ? 'text-[color:var(--w-on-accent)]' : 'text-[color:var(--w-text-2)]', m === 'persona' && !tienePersonas && 'opacity-40')}
+                  style={modo === m ? { background: 'var(--w-accent)', ...FX.cta } : { background: 'var(--w-surface)', ...FX.soft }}>
                   {label}
                 </button>
               ))}
@@ -298,7 +298,7 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
                   <MoneyInput value={nIguales} onChange={e => setNIguales(e.target.value)} />
                 </Campo></div>
                 <button onClick={() => armar('iguales', falta, pagos, num(nIguales))}
-                  className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-[#2D3561]" style={S.outSm}>
+                  className="min-h-[44px] px-4 rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-text)]" style={FX.soft}>
                   Dividir
                 </button>
               </div>
@@ -311,12 +311,12 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
                 const propina = Math.max(num(f.propina), 0)
                 const cambio = f.metodo === 'efectivo' && f.recibido !== '' && num(f.recibido) >= monto + propina ? num(f.recibido) - monto - propina : 0
                 return (
-                  <div key={f.key} className="rounded-2xl p-3 bg-[#E3E5EE]" style={S.outSm}>
+                  <div key={f.key} className="rounded-[var(--w-r-lg)] p-3 bg-[var(--w-border)]" style={FX.soft}>
                     <div className="grid grid-cols-2 gap-2 mb-2">
                       <Campo label="Persona">
                         <input value={f.nombre} onChange={e => editar(f.key, { nombre: e.target.value })} maxLength={60}
                           placeholder="Persona"
-                          className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-base text-[#2D3561] outline-none" style={S.inset} />
+                          className="w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-base text-[color:var(--w-text)] outline-none" style={FX.field} />
                       </Campo>
                       <Campo label="Paga">
                         <MoneyInput value={f.monto} onChange={e => editar(f.key, { monto: e.target.value })} />
@@ -327,8 +327,8 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
                       {METODOS.map(m => (
                         <button key={m.id} role="radio" aria-checked={f.metodo === m.id}
                           onClick={() => editar(f.key, { metodo: m.id })}
-                          className={cn('min-h-[44px] rounded-xl text-xs font-bold', f.metodo === m.id ? 'text-white' : 'text-[#6B7280]')}
-                          style={f.metodo === m.id ? { background: 'var(--accent)', ...S.coral } : { background: 'var(--bg)', ...S.outSm }}>
+                          className={cn('min-h-[44px] rounded-[var(--w-r-md)] text-xs font-bold', f.metodo === m.id ? 'text-[color:var(--w-on-accent)]' : 'text-[color:var(--w-text-2)]')}
+                          style={f.metodo === m.id ? { background: 'var(--w-accent)', ...FX.cta } : { background: 'var(--w-surface)', ...FX.soft }}>
                           {m.label}
                         </button>
                       ))}
@@ -347,35 +347,35 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
                         <Campo label="Referencia (opcional)">
                           <input value={f.referencia} maxLength={60} onChange={e => editar(f.key, { referencia: e.target.value })}
                             placeholder="Últimos dígitos"
-                            className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 py-2 text-base text-[#2D3561] outline-none" style={S.inset} />
+                            className="w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-base text-[color:var(--w-text)] outline-none" style={FX.field} />
                         </Campo>
                       )}
                     </div>
 
                     {!!propinaSugeridaPct && monto > 0 && (
                       <button type="button" onClick={() => editar(f.key, { propina: String(Math.round(monto * propinaSugeridaPct / 100)) })}
-                        className="text-xs font-bold text-[#FF5722] mb-2 min-h-[44px] sm:min-h-0">
+                        className="text-xs font-bold text-[color:var(--w-accent-text)] mb-2 min-h-[44px] sm:min-h-0">
                         Propina sugerida {propinaSugeridaPct}% · {fmt(monto * propinaSugeridaPct / 100)}
                       </button>
                     )}
 
                     {cambio > 0 && (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 mb-2 flex items-center justify-between">
-                        <span className="text-sm font-bold text-emerald-700">Cambio</span>
-                        <span className="text-lg font-bold text-emerald-600">{fmt(cambio)}</span>
+                      <div className="bg-[var(--w-success-bg)] border border-[var(--w-success)] rounded-[var(--w-r-md)] px-3 py-2 mb-2 flex items-center justify-between">
+                        <span className="text-sm font-bold text-[color:var(--w-success-text)]">Cambio</span>
+                        <span className="text-lg font-bold text-[color:var(--w-success-text)]">{fmt(cambio)}</span>
                       </div>
                     )}
-                    {f.error && <p role="alert" className="text-xs text-red-600 font-semibold mb-2">{f.error}</p>}
+                    {f.error && <p role="alert" className="text-xs text-[color:var(--w-danger-text)] font-semibold mb-2">{f.error}</p>}
 
                     <div className="flex gap-2">
                       <button onClick={() => cobrar(f)} disabled={f.estado === 'cobrando' || monto <= 0}
-                        className={cn('flex-1 min-h-[48px] rounded-2xl font-bold text-white text-sm bg-[#FF5722]', (f.estado === 'cobrando' || monto <= 0) && 'opacity-60')}
-                        style={S.coral}>
+                        className={cn('flex-1 min-h-[48px] rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] text-sm bg-[var(--w-accent)]', (f.estado === 'cobrando' || monto <= 0) && 'opacity-60')}
+                        style={FX.cta}>
                         {f.estado === 'cobrando' ? 'Procesando…' : `Cobrar ${f.nombre.trim() || 'a esta persona'} · ${fmt(monto)}`}
                       </button>
                       {filas.length > 1 && (
                         <button onClick={() => setFilas(prev => prev.filter(x => x.key !== f.key))} aria-label="Quitar persona"
-                          className="min-h-[48px] min-w-[48px] rounded-2xl text-[#9CA3AF] font-bold" style={S.outSm}>✕</button>
+                          className="min-h-[48px] min-w-[48px] rounded-[var(--w-r-lg)] text-[color:var(--w-text-3)] font-bold" style={FX.soft}>✕</button>
                       )}
                     </div>
                   </div>
@@ -385,18 +385,18 @@ export function SplitPayModal({ order, propinaSugeridaPct, onClose, onFinished }
 
             {modo !== 'persona' && (
               <button onClick={() => setFilas(prev => [...prev, nuevaFila('', Math.max(falta - asignado, 0))])}
-                className="text-sm font-bold text-[#FF5722] min-h-[44px] mt-1">
+                className="text-sm font-bold text-[color:var(--w-accent-text)] min-h-[44px] mt-1">
                 + Agregar persona
               </button>
             )}
 
-            <p className={cn('text-xs font-semibold mt-1', Math.abs(asignado - falta) < 1 ? 'text-emerald-600' : 'text-[#6B7280]')}>
+            <p className={cn('text-xs font-semibold mt-1', Math.abs(asignado - falta) < 1 ? 'text-[color:var(--w-success-text)]' : 'text-[color:var(--w-text-2)]')}>
               Por cobrar en pantalla: {fmt(asignado)} de {fmt(falta)} que faltan
             </p>
           </>
         )}
 
-        <button onClick={onClose} className="w-full min-h-[48px] rounded-2xl font-bold text-[#6B7280] mt-4" style={S.out}>
+        <button onClick={onClose} className="w-full min-h-[48px] rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-text-2)] mt-4" style={FX.card}>
           {falta > 0 && pagado > 0 ? 'Cerrar (queda lo que falta por cobrar)' : 'Cerrar'}
         </button>
       </motion.div>

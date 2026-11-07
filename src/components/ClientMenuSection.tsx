@@ -34,10 +34,10 @@ interface CategoryMeta {
 }
 
 const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
+  neoOut:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  neoIn:   { boxShadow: 'none', border: '1px solid var(--w-border)' },
+  neoOutSm:{ border: '1px solid var(--w-border-strong)' },
+  coral:   { boxShadow: 'var(--w-shadow-terra)' },
 }
 
 export const ClientMenuSection = memo(() => {
@@ -200,14 +200,14 @@ export const ClientMenuSection = memo(() => {
   if (submitted) return (
     <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
       className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="w-20 h-20 rounded-3xl bg-emerald-500 flex items-center justify-center text-4xl"
-        style={{ boxShadow: 'var(--shadow-green)' }}>
+      <div className="w-20 h-20 rounded-[var(--w-r-xl)] bg-[var(--w-success-bg)] flex items-center justify-center text-4xl"
+        style={{ boxShadow: 'var(--w-shadow-md)' }}>
        
       </div>
-      <h2 className="text-xl font-bold text-[#2D3561]">¡Pedido enviado!</h2>
-      <p className="text-sm text-[#9CA3AF] text-center">Para que pase a cocina, paga en caja (efectivo, transferencia o Nequi/Daviplata).</p>
+      <h2 className="text-xl font-bold text-[color:var(--w-text)]">¡Pedido enviado!</h2>
+      <p className="text-sm text-[color:var(--w-text-3)] text-center">Para que pase a cocina, paga en caja (efectivo, transferencia o Nequi/Daviplata).</p>
       <button onClick={() => setSubmitted(false)}
-        className="px-6 py-2.5 rounded-2xl text-sm font-bold text-white bg-[#FF5722]" style={S.coral}>
+        className="px-6 py-2.5 rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={S.coral}>
         Pedir más
       </button>
     </motion.div>
@@ -218,27 +218,27 @@ export const ClientMenuSection = memo(() => {
       {/* Header */}
       <ScrollReveal delay={0} y={20}>
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-[#2D3561]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <h2 className="text-xl font-bold text-[color:var(--w-text)]" style={{ fontFamily: 'var(--w-font)' }}>
             Nuestro Menú
           </h2>
           {totalItems > 0 && (
-            <div className="flex items-center gap-2 bg-[#D8DAE4] px-4 py-2 rounded-2xl" style={S.neoOutSm}>
-              <span className="text-xs text-[#9CA3AF]">Carrito</span>
-              <span className="text-sm font-bold text-[#FF5722]">{totalItems}</span>
-              <span className="text-xs text-[#6B7280]">·</span>
-              <span className="text-sm font-bold text-[#2D3561]">${totalPrice.toFixed(2)}</span>
+            <div className="flex items-center gap-2 bg-[var(--w-surface)] px-4 py-2 rounded-[var(--w-r-md)]" style={S.neoOutSm}>
+              <span className="text-xs text-[color:var(--w-text-3)]">Carrito</span>
+              <span className="text-sm font-bold text-[color:var(--w-accent)]">{totalItems}</span>
+              <span className="text-xs text-[color:var(--w-text-2)]">·</span>
+              <span className="text-sm font-bold text-[color:var(--w-text)]">${totalPrice.toFixed(2)}</span>
             </div>
           )}
         </div>
       </ScrollReveal>
 
       {/* Buscador */}
-      <div className="bg-[#D8DAE4] rounded-2xl px-4 py-3 flex items-center gap-3" style={S.neoIn}>
-        <span className="text-[#9CA3AF]"></span>
+      <div className="bg-[var(--w-surface)] rounded-[var(--w-r-md)] px-4 py-3 flex items-center gap-3" style={S.neoIn}>
+        <span className="text-[color:var(--w-text-3)]"></span>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar plato..."
-          className="flex-1 bg-transparent text-sm text-[#2D3561] outline-none placeholder-[#9CA3AF]" />
-        {search && <button onClick={() => setSearch('')} className="text-[#9CA3AF] text-xs">✕</button>}
+          className="flex-1 bg-transparent text-sm text-[color:var(--w-text)] outline-none placeholder-[color:var(--w-text-3)]" />
+        {search && <button onClick={() => setSearch('')} className="text-[color:var(--w-text-3)] text-xs">✕</button>}
       </div>
 
       {/* Botón para crear plato custom */}
@@ -247,7 +247,7 @@ export const ClientMenuSection = memo(() => {
           onClick={() => setShowCustom(true)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="w-full py-3 rounded-2xl font-bold text-white text-sm btn-gradient"
+          className="w-full py-3 rounded-[var(--w-r-md)] font-bold text-[color:var(--w-on-accent)] text-sm bg-[var(--w-accent)]"
           style={S.coral}
         >
           Crear mi propio plato (con ingredientes disponibles)
@@ -261,7 +261,7 @@ export const ClientMenuSection = memo(() => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-[var(--w-overlay)] flex items-center justify-center z-50 p-4"
             onClick={() => setShowCustom(false)}
           >
             <motion.div
@@ -269,7 +269,7 @@ export const ClientMenuSection = memo(() => {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={e => e.stopPropagation()}
-              className="bg-white rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto"
+              className="bg-[var(--w-surface)] rounded-[var(--w-r-xl)] shadow-[var(--w-shadow-lg)] max-h-[90vh] overflow-y-auto"
             >
               <CustomDishBuilder
                 onDishCreated={handleCustomDishCreated}
@@ -284,24 +284,24 @@ export const ClientMenuSection = memo(() => {
       <ScrollReveal delay={0.1} y={16}>
         <div className="flex gap-2 overflow-x-auto pb-2">
           <button onClick={() => setCategory('all')}
-            className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold transition-all duration-200"
+            className="shrink-0 px-4 py-2 rounded-[var(--w-r-md)] text-xs font-bold transition-all duration-200"
             style={activeCategory === 'all'
-              ? { background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%)', color: 'white', ...S.coral }
-              : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
+              ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...S.coral }
+              : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...S.neoOutSm }}>
             Todo
           </button>
           {availableCategories.map(cat => {
-            const catColor = catMeta[cat]?.color || 'var(--accent)'
+            const catColor = catMeta[cat]?.color || 'var(--w-accent)'
             return (
               <button key={cat} onClick={() => setCategory(cat)}
-                className="shrink-0 px-4 py-2 rounded-2xl text-xs font-bold transition-all duration-200"
+                className="shrink-0 px-4 py-2 rounded-[var(--w-r-md)] text-xs font-bold transition-all duration-200"
                 style={activeCategory === cat
                   ? {
                       background: `linear-gradient(135deg, ${catColor} 0%, ${catColor}dd 100%)`,
-                      color: 'white',
+                      color: 'var(--w-on-accent)',
                       boxShadow: `0 2px 8px ${catColor}40`
                     }
-                  : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}>
+                  : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...S.neoOutSm }}>
                 {catLabel(cat)}
               </button>
             )
@@ -313,13 +313,13 @@ export const ClientMenuSection = memo(() => {
       {loading ? (
         <div className="grid grid-cols-2 gap-4">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-[#D8DAE4] rounded-3xl h-52 animate-pulse" style={S.neoOut} />
+            <div key={i} className="bg-[var(--w-surface)] rounded-[var(--w-r-xl)] h-52 animate-pulse" style={S.neoOut} />
           ))}
         </div>
       ) : filteredDishes.length === 0 ? (
-        <div className="bg-[#D8DAE4] rounded-3xl p-12 text-center" style={S.neoIn}>
+        <div className="bg-[var(--w-surface)] rounded-[var(--w-r-xl)] p-12 text-center" style={S.neoIn}>
           <p className="text-3xl mb-2"></p>
-          <p className="text-sm font-bold text-[#2D3561]">Sin platos encontrados</p>
+          <p className="text-sm font-bold text-[color:var(--w-text)]">Sin platos encontrados</p>
         </div>
       ) : (
         <ScrollRevealList stagger={0.06} className="grid grid-cols-2 gap-4">
@@ -338,46 +338,46 @@ export const ClientMenuSection = memo(() => {
         {totalItems > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }} className="mt-4">
-            <div className="bg-[#D8DAE4] rounded-3xl p-5" style={S.neoOut}>
-              <h3 className="font-bold text-[#2D3561] mb-3">Tu pedido</h3>
+            <div className="bg-[var(--w-surface)] rounded-[var(--w-r-xl)] p-5" style={S.neoOut}>
+              <h3 className="font-bold text-[color:var(--w-text)] mb-3">Tu pedido</h3>
 
               {cart.map(item => (
-                <div key={item.dish.id} className="flex items-center justify-between py-2 border-b border-[#E0E3EC] last:border-0">
+                <div key={item.dish.id} className="flex items-center justify-between py-2 border-b border-[color:var(--w-border)] last:border-0">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
                       <button onClick={() => handleRemove(item.dish.id)}
-                        className="w-6 h-6 rounded-lg text-xs font-bold text-[#6B7280]" style={S.neoOutSm}>−</button>
-                      <span className="text-sm font-bold text-[#FF5722] w-5 text-center">{item.quantity}</span>
+                        className="w-6 h-6 rounded-lg text-xs font-bold text-[color:var(--w-text-2)]" style={S.neoOutSm}>−</button>
+                      <span className="text-sm font-bold text-[color:var(--w-accent)] w-5 text-center">{item.quantity}</span>
                       <button onClick={() => handleAdd(item.dish)}
-                        className="w-6 h-6 rounded-lg text-xs font-bold text-white bg-[#FF5722]" style={S.coral}>+</button>
+                        className="w-6 h-6 rounded-lg text-xs font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={S.coral}>+</button>
                     </div>
-                    <span className="text-sm text-[#6B7280]">{item.dish.name}</span>
+                    <span className="text-sm text-[color:var(--w-text-2)]">{item.dish.name}</span>
                   </div>
-                  <span className="text-sm font-bold text-[#2D3561]">
+                  <span className="text-sm font-bold text-[color:var(--w-text)]">
                     ${Math.round(item.dish.price * item.quantity).toLocaleString('es-CO')}
                   </span>
                 </div>
               ))}
 
               <div className="flex items-center justify-between pt-3 mt-1">
-                <span className="text-sm font-bold text-[#2D3561]">Total</span>
-                <span className="text-xl font-bold text-[#FF5722]">${totalPrice.toFixed(2)}</span>
+                <span className="text-sm font-bold text-[color:var(--w-text)]">Total</span>
+                <span className="text-xl font-bold text-[color:var(--w-accent)]">${totalPrice.toFixed(2)}</span>
               </div>
 
               {/* Número de mesa para self-ordering */}
               <div className="mt-4">
-                <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-[color:var(--w-text-3)] mb-2">
                   Tu número de mesa
                 </label>
                 <input type="number" value={tableNum} onChange={e => setTableNum(e.target.value)}
                   placeholder="Ej: 5"
-                  className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] outline-none"
+                  className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-4 py-3 text-sm text-[color:var(--w-text)] outline-none"
                   style={S.neoIn} />
               </div>
 
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleOrder}
                 disabled={submitting || !tableNum}
-                className={`w-full py-3.5 rounded-2xl font-bold text-white mt-4 text-sm btn-gradient ${submitting || !tableNum ? 'opacity-60' : ''}`}
+                className={`w-full py-3.5 rounded-[var(--w-r-md)] font-bold text-[color:var(--w-on-accent)] mt-4 text-sm bg-[var(--w-accent)] ${submitting || !tableNum ? 'opacity-60' : ''}`}
                 style={S.coral}>
                 {submitting ? 'Enviando...' : 'Enviar pedido a cocina'}
               </motion.button>

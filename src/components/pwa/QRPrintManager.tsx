@@ -115,7 +115,7 @@ export function QRPrintManager() {
           </div>
           {!valid && <span style={{ color: 'crimson' }}>Medidas entre 3 y 30 cm.</span>}
           <small>{open?.length ?? 0} etiqueta(s) de {dims.w}×{dims.h} cm. Si caben varias, se acomodan en hojas Carta con guía de corte. Vista previa de la primera hoja:</small>
-          {preview && valid && <iframe title="Vista previa" src={`${preview}#toolbar=0&navpanes=0&view=Fit`} style={{ width: '100%', height: 360, border: '1px solid #ddd' }} />}
+          {preview && valid && <iframe title="Vista previa" src={`${preview}#toolbar=0&navpanes=0&view=Fit`} style={{ width: '100%', height: 360, border: '1px solid var(--w-border)' }} />}
         </div>
       </Modal>
     </div>

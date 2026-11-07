@@ -55,7 +55,7 @@ export function VendedoresPanel() {
   }
   const verContrato = (v: Vendedor) => v.contrato_ruta && abrirPrivado('contratos-vendedores', v.contrato_ruta).catch(e => setMsg((e as Error).message))
 
-  if (error) return <div style={{ ...tarjeta, color: 'var(--tag-red-text, #b91c1c)' }}>No se pudo cargar: {error}</div>
+  if (error) return <div style={{ ...tarjeta, color: 'var(--w-danger-text)' }}>No se pudo cargar: {error}</div>
   if (!lista) return <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando…</div>
 
   return (
@@ -75,8 +75,8 @@ export function VendedoresPanel() {
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div>
               <strong style={{ fontSize: '1.0625rem' }}>{v.nombre}</strong>{' '}
-              <span style={{ fontSize: '0.6875rem', fontWeight: 700, padding: '0.1rem 0.5rem', borderRadius: '9999px', background: v.tipo === 'aliado' ? 'var(--tag-purple-bg)' : 'var(--bg-surface, #CDD0DC)' }}>{v.tipo === 'aliado' ? 'ALIADO' : 'VENDEDOR'}</span>{' '}
-              <span style={{ fontSize: '0.6875rem', fontWeight: 700, padding: '0.1rem 0.5rem', borderRadius: '9999px', background: v.activo ? '#cdeccd' : '#f5cfcf', color: v.activo ? '#1b5e20' : '#8c1d18' }}>{v.activo ? 'CÓDIGO ACTIVO' : 'CÓDIGO INACTIVO'}</span>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 700, padding: '0.1rem 0.5rem', borderRadius: '9999px', background: v.tipo === 'aliado' ? 'var(--w-info-bg)' : 'var(--w-surface-sunken)' }}>{v.tipo === 'aliado' ? 'ALIADO' : 'VENDEDOR'}</span>{' '}
+              <span style={{ fontSize: '0.6875rem', fontWeight: 700, padding: '0.1rem 0.5rem', borderRadius: '9999px', background: v.activo ? 'var(--w-success-bg)' : 'var(--w-danger-bg)', color: v.activo ? 'var(--w-success)' : 'var(--w-danger)' }}>{v.activo ? 'CÓDIGO ACTIVO' : 'CÓDIGO INACTIVO'}</span>
               <div style={{ fontSize: '0.9375rem', marginTop: '0.25rem' }}>Código: <strong style={{ fontFamily: 'monospace' }}>{v.codigo}</strong></div>
             </div>
             <div style={{ textAlign: 'right', fontSize: '0.8125rem' }}>
@@ -94,7 +94,7 @@ export function VendedoresPanel() {
             <button style={botonSuave} onClick={() => copiar(v)}>Copiar enlace de referido</button>
             <button style={botonSuave} onClick={() => setProsp(v)}>Prospectos</button>
             <button style={botonSuave} onClick={() => setForm({ id: v.id, orig: v })}>Editar</button>
-            <button style={{ ...boton, background: v.activo ? '#b3261e' : '#2e7d32', color: '#fff' }} onClick={() => setEstado(v)}>{v.activo ? 'Desactivar código' : 'Activar código'}</button>
+            <button style={{ ...boton, background: v.activo ? 'var(--w-danger)' : 'var(--w-success)', color: 'var(--w-on-accent)' }} onClick={() => setEstado(v)}>{v.activo ? 'Desactivar código' : 'Activar código'}</button>
           </div>
         </div>
       ))}
@@ -212,7 +212,7 @@ function FormularioVendedor({ id, orig, onClose, onHecho }: { id: string | null;
       )}
       <div style={{ marginTop: '0.75rem' }}><Campo titulo="Notas"><input style={campo} value={f.notas} maxLength={2000} onChange={e => set('notas', e.target.value)} /></Campo></div>
       {id && <div style={{ marginTop: '0.5rem' }}><Campo titulo="Motivo (obligatorio si cambias contrato, condiciones o vigencia)"><input style={campo} value={f.motivo} maxLength={500} onChange={e => set('motivo', e.target.value)} /></Campo></div>}
-      {msg && <p role="alert" style={{ color: 'var(--tag-red-text, #b91c1c)', fontSize: '0.875rem' }}>{msg}</p>}
+      {msg && <p role="alert" style={{ color: 'var(--w-danger-text)', fontSize: '0.875rem' }}>{msg}</p>}
       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
         <button style={botonSuave} onClick={onClose}>Cancelar</button>
         <button style={botonPrimario} disabled={busy} onClick={guardar}>{busy ? 'Guardando…' : 'Guardar'}</button>
@@ -248,10 +248,10 @@ function EstadoCodigo({ v, onClose, onHecho }: { v: Vendedor; onClose: () => voi
         </>
       )}
       <div style={{ marginTop: '0.5rem' }}><Campo titulo="Motivo"><input style={campo} value={motivo} maxLength={500} onChange={e => setMotivo(e.target.value)} /></Campo></div>
-      {msg && <p role="alert" style={{ color: 'var(--tag-red-text, #b91c1c)', fontSize: '0.875rem' }}>{msg}</p>}
+      {msg && <p role="alert" style={{ color: 'var(--w-danger-text)', fontSize: '0.875rem' }}>{msg}</p>}
       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
         <button style={botonSuave} onClick={onClose}>Cancelar</button>
-        <button style={{ ...boton, background: activar ? '#2e7d32' : '#b3261e', color: '#fff' }} onClick={aplicar}>{activar ? 'Activar' : 'Desactivar'}</button>
+        <button style={{ ...boton, background: activar ? 'var(--w-success)' : 'var(--w-danger)', color: 'var(--w-on-accent)' }} onClick={aplicar}>{activar ? 'Activar' : 'Desactivar'}</button>
       </div>
     </Modal>
   )
@@ -288,11 +288,11 @@ function Prospectos({ v, onClose }: { v: Vendedor; onClose: () => void }) {
         <input style={{ ...campo, flex: '1 1 8rem', width: 'auto' }} placeholder="Contacto" value={contacto} onChange={e => setContacto(e.target.value)} />
         <button style={botonPrimario} onClick={agregar}>Agregar</button>
       </div>
-      {msg && <p role="alert" style={{ color: 'var(--tag-red-text, #b91c1c)', fontSize: '0.875rem' }}>{msg}</p>}
+      {msg && <p role="alert" style={{ color: 'var(--w-danger-text)', fontSize: '0.875rem' }}>{msg}</p>}
       <ul style={{ listStyle: 'none', padding: 0, margin: '0.75rem 0 0', display: 'grid', gap: '0.375rem' }}>
         {lista.length === 0 && <li style={suave}>Sin prospectos todavía.</li>}
         {lista.map(p => (
-          <li key={p.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--bg-surface, #CDD0DC)', paddingTop: '0.375rem' }}>
+          <li key={p.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--w-surface-sunken)', paddingTop: '0.375rem' }}>
             <span style={{ flex: '1 1 12rem' }}><strong>{p.nombre_negocio}</strong> <span style={suave}>{p.ciudad ?? ''} · registrado {fechaCorta(p.fecha_registro)} · vence {fechaCorta(p.vence_at)}</span></span>
             <select style={{ ...campo, width: 'auto', minHeight: '2.25rem', padding: '0.25rem 0.5rem' }} value={p.etapa} aria-label={`Etapa de ${p.nombre_negocio}`} onChange={e => etapa(p, e.target.value)}>
               {ETAPAS.map(x => <option key={x} value={x}>{x}</option>)}

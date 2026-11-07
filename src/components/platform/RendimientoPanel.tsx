@@ -33,7 +33,7 @@ function Barras({ items, color }: { items: { etiqueta: string; valor: number; te
       {items.map(i => (
         <div key={i.etiqueta} style={{ display: 'grid', gridTemplateColumns: 'minmax(5rem, 9rem) 1fr auto', gap: '0.5rem', alignItems: 'center', fontSize: '0.8125rem' }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.etiqueta}</span>
-          <div style={{ background: 'var(--bg-surface, #CDD0DC)', borderRadius: '0.375rem', height: '0.875rem' }}>
+          <div style={{ background: 'var(--w-surface-sunken)', borderRadius: '0.375rem', height: '0.875rem' }}>
             <div style={{ width: `${(i.valor / max) * 100}%`, minWidth: i.valor > 0 ? '2px' : 0, height: '100%', background: color, borderRadius: '0.375rem' }} />
           </div>
           <strong>{i.texto}</strong>
@@ -92,7 +92,7 @@ export function RendimientoPanel() {
     XLSX.writeFile(wb, `rendimiento_${d.desde}_a_${d.hasta}.xlsx`)
   }
 
-  if (error) return <div style={{ ...tarjeta, color: 'var(--tag-red-text, #b91c1c)' }}>No se pudo cargar: {error}</div>
+  if (error) return <div style={{ ...tarjeta, color: 'var(--w-danger-text)' }}>No se pudo cargar: {error}</div>
   if (!d) return <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando…</div>
 
   return (
@@ -126,7 +126,7 @@ export function RendimientoPanel() {
           </div>
           <div style={{ display: 'flex', gap: '0.25rem', height: '0.5rem', marginTop: '0.625rem' }} aria-label="Embudo: prospectos, demos, pruebas y cierres">
             {[f.prospectos, f.demos, f.pruebas_activas, f.cerrados_periodo].map((n, j) => (
-              <div key={j} title={['Prospectos', 'Demos', 'Pruebas', 'Cerrados'][j]} style={{ flex: Math.max(n, 0.2), background: ['#9aa3c7', '#6f7bb8', '#d9a400', '#2e9e5b'][j], borderRadius: '0.25rem' }} />
+              <div key={j} title={['Prospectos', 'Demos', 'Pruebas', 'Cerrados'][j]} style={{ flex: Math.max(n, 0.2), background: ['var(--w-border-strong)', 'var(--w-info)', 'var(--w-warning)', 'var(--w-success)'][j], borderRadius: '0.25rem' }} />
             ))}
           </div>
         </div>
@@ -136,15 +136,15 @@ export function RendimientoPanel() {
         <>
           <div style={tarjeta}>
             <h3 style={{ margin: '0 0 0.75rem' }}>Comisión generada por vendedor (periodo)</h3>
-            <Barras color="var(--w-terra, #C2570C)" items={filas.map(f => ({ etiqueta: f.nombre, valor: f.comision_periodo, texto: cop(f.comision_periodo) }))} />
+            <Barras color="var(--w-accent)" items={filas.map(f => ({ etiqueta: f.nombre, valor: f.comision_periodo, texto: cop(f.comision_periodo) }))} />
           </div>
           <div style={tarjeta}>
             <h3 style={{ margin: '0 0 0.75rem' }}>Clientes nuevos por mes (todo el equipo)</h3>
-            <Columnas serie={d.serie} campo="clientes_nuevos" color="#2e9e5b" formato={n => String(n)} />
+            <Columnas serie={d.serie} campo="clientes_nuevos" color="var(--w-success)" formato={n => String(n)} />
           </div>
           <div style={tarjeta}>
             <h3 style={{ margin: '0 0 0.75rem' }}>Comisiones por mes (todo el equipo)</h3>
-            <Columnas serie={d.serie} campo="comisiones" color="#6f7bb8" formato={n => cop(n)} />
+            <Columnas serie={d.serie} campo="comisiones" color="var(--w-info)" formato={n => cop(n)} />
           </div>
         </>
       )}

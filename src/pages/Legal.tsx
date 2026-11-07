@@ -100,32 +100,34 @@ export default function Legal() {
   const title = isPrivacy ? 'Política de Privacidad' : 'Términos y Condiciones'
 
   return (
-    <div style={{ background: 'var(--w-bg)', color: 'var(--w-ink)', minHeight: '100vh', fontFamily: 'var(--w-sans)' }}>
-      <div style={{ maxWidth: 760, margin: '0 auto', padding: '3rem 1.5rem 5rem' }}>
-        <button onClick={() => go('/')} className="w-press"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', color: 'var(--w-ink-mut)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '1.5rem' }}>
+    <div style={{ background: 'var(--w-bg)', color: 'var(--w-text)', minHeight: '100dvh', fontFamily: 'var(--w-font)' }}>
+      <div style={{ maxWidth: 760, margin: '0 auto', padding: 'clamp(1.5rem, 5vw, 3rem) 1rem clamp(3rem, 8vw, 5rem)' }}>
+        <button onClick={() => go('/')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', color: 'var(--w-text-3)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '0.5rem', minHeight: 'var(--w-tap)' }}>
           ← Volver al inicio
         </button>
 
-        <h1 className="ed-display" style={{ fontSize: 'clamp(2rem, 5vw, 2.75rem)', fontWeight: 600, margin: '0 0 0.5rem' }}>{title}</h1>
-        <p className="ed-body" style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', marginBottom: '2.5rem' }}>
+        <h1 style={{ fontSize: 'var(--w-fs-screen)', fontWeight: 700, margin: '0 0 0.5rem' }}>{title}</h1>
+        <p style={{ fontSize: 'var(--w-fs-label)', color: 'var(--w-text-3)', marginBottom: '1.5rem' }}>
           Última actualización: {new Date().toLocaleDateString('es', { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
 
+        <div style={{ background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', boxShadow: 'var(--w-shadow-sm)', padding: 'clamp(1.25rem, 4vw, 2rem)' }}>
         {secs.map(s => (
           <div key={s.h} style={{ marginBottom: '2rem' }}>
-            <h2 className="ed-display" style={{ fontSize: '1.25rem', fontWeight: 600, margin: '0 0 0.75rem', color: s.warn ? 'var(--w-wine)' : undefined }}>{s.h}</h2>
-            <div style={s.warn ? { borderLeft: '3px solid var(--w-wine)', paddingLeft: '1rem' } : undefined}>
+            <h2 style={{ fontSize: 'var(--w-fs-title)', fontWeight: 700, margin: '0 0 0.75rem', color: s.warn ? 'var(--w-danger-text)' : 'var(--w-text)' }}>{s.h}</h2>
+            <div style={s.warn ? { borderLeft: '3px solid var(--w-danger)', paddingLeft: '1rem' } : undefined}>
               {s.p.map((txt, i) => (
-                <p key={i} className="ed-body" style={{ fontSize: '0.95rem', color: 'var(--w-ink-soft)', lineHeight: 1.7, margin: '0 0 0.75rem' }}>{txt}</p>
+                <p key={i} style={{ fontSize: 'var(--w-fs-body)', color: 'var(--w-text-2)', lineHeight: 1.7, margin: '0 0 0.75rem' }}>{txt}</p>
               ))}
             </div>
           </div>
         ))}
+        </div>
 
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
-          <button onClick={() => go('/terminos')} className="w-press" style={{ fontSize: '0.85rem', color: isPrivacy ? 'var(--w-terra)' : 'var(--w-ink-mut)', fontWeight: isPrivacy ? 700 : 400, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)' }}>Términos y Condiciones</button>
-          <button onClick={() => go('/privacidad')} className="w-press" style={{ fontSize: '0.85rem', color: isPrivacy ? 'var(--w-ink-mut)' : 'var(--w-terra)', fontWeight: isPrivacy ? 400 : 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)' }}>Política de Privacidad</button>
+        <div style={{ display: 'flex', gap: '0 1.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+          <button onClick={() => go('/terminos')} style={{ fontSize: '0.85rem', color: isPrivacy ? 'var(--w-accent-text)' : 'var(--w-text-3)', fontWeight: isPrivacy ? 700 : 400, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--w-font)', minHeight: 'var(--w-tap)' }}>Términos y Condiciones</button>
+          <button onClick={() => go('/privacidad')} style={{ fontSize: '0.85rem', color: isPrivacy ? 'var(--w-text-3)' : 'var(--w-accent-text)', fontWeight: isPrivacy ? 400 : 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--w-font)', minHeight: 'var(--w-tap)' }}>Política de Privacidad</button>
         </div>
       </div>
     </div>

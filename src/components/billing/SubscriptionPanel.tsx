@@ -7,6 +7,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
+import { Button } from '../ui/Button'
+import { Toggle } from '../ui/Toggle'
+import { Tabs } from '../ui/Tabs'
 import { formatCOP, formatCentsCOP, openWompiCheckout, type SubStatus } from '../../config/billing'
 import { usePlanes } from '../../config/usePlanes'
 import type { PlanId } from '../../config/plans'
@@ -39,10 +43,10 @@ interface PayStatus {
 }
 
 const STATUS_META: Record<SubStatus, { label: string; color: string; bg: string }> = {
-  trialing: { label: 'Por activar', color: '#8a6d3b', bg: 'rgba(201,160,64,0.14)' },
-  active:   { label: 'Activa',      color: '#1D7A46', bg: 'rgba(29,122,70,0.12)'  },
-  past_due: { label: 'En mora',     color: '#B0341D', bg: 'rgba(176,52,29,0.12)'  },
-  canceled: { label: 'Cancelada',   color: '#6b6b6b', bg: 'rgba(0,0,0,0.06)'      },
+  trialing: { label: 'Por activar', color: 'var(--w-warning-text)', bg: 'var(--w-warning-bg)' },
+  active:   { label: 'Activa',      color: 'var(--w-success-text)', bg: 'var(--w-success-bg)'  },
+  past_due: { label: 'En mora',     color: 'var(--w-danger-text)', bg: 'var(--w-danger-bg)'  },
+  canceled: { label: 'Cancelada',   color: 'var(--w-text-3)', bg: 'var(--w-surface-sunken)'      },
 }
 
 const fmtDate = (s: string | null) => s ? new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
@@ -135,73 +139,58 @@ export default function SubscriptionPanel() {
     } finally { setSavingCfg(false) }
   }, [rid, cfg])
 
-  if (loading) return <div style={{ padding: '2rem', color: 'var(--w-ink-mut)' }}>Cargando…</div>
+  if (loading) return <div style={{ padding: '2rem', color: 'var(--w-text-3)' }}>Cargando…</div>
 
-  const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.5rem' }
-  const label: React.CSSProperties = { display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--w-ink-soft)', marginBottom: '0.4rem' }
-  const inputBox: React.CSSProperties = { width: '100%', padding: '0.7rem 0.9rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }
+  const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', padding: '1.5rem' }
+  const label: React.CSSProperties = { display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--w-text-2)', marginBottom: '0.4rem' }
+  const inputBox: React.CSSProperties = { width: '100%', padding: '0.7rem 0.9rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontFamily: 'var(--w-font)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }
   const st = sub ? STATUS_META[sub.status] : STATUS_META.trialing
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans)' }}>
-      <div>
-        <h2 className="ed-display" style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0, color: 'var(--w-ink)' }}>Suscripción</h2>
-        <p style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', margin: '0.25rem 0 0' }}>Tu plan, tus pagos y la facturación de tu restaurante.</p>
-      </div>
+    <div className="mx-auto w-full max-w-[1100px]" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-font)' }}>
+      <ModuleHeader icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="3" /><path d="M2 10h20" /></svg>} title="Suscripción" subtitle="Tu plan, tus pagos y la facturación de tu restaurante." />
 
       {/* Estado del plan */}
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--w-ink-mut)' }}>Plan actual</p>
-            <p style={{ margin: '0.15rem 0 0', fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-ink)', }}>{planes?.find(p => p.id === sub?.plan)?.nombre ?? (sub?.plan === 'trial' ? 'Prueba gratis' : sub?.plan ?? '—')}</p>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--w-text-3)' }}>Plan actual</p>
+            <p style={{ margin: '0.15rem 0 0', fontSize: '1.5rem', fontWeight: 700, color: 'var(--w-text)', }}>{planes?.find(p => p.id === sub?.plan)?.nombre ?? (sub?.plan === 'trial' ? 'Prueba gratis' : sub?.plan ?? '—')}</p>
           </div>
           <span style={{ padding: '0.35rem 0.8rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, color: st.color, background: st.bg }}>{st.label}</span>
         </div>
 
         {sub?.is_promo && (
-          <div style={{ marginTop: '1rem', padding: '0.8rem 1rem', borderRadius: '0.75rem', background: 'rgba(29,122,70,0.10)', color: '#1D7A46', fontSize: '0.85rem', fontWeight: 600 }}>
+          <div style={{ marginTop: '1rem', padding: '0.8rem 1rem', borderRadius: 'var(--w-r-md)', background: 'var(--w-success-bg)', color: 'var(--w-success-text)', fontSize: '0.85rem', fontWeight: 600 }}>
             🎉 Restaurante fundador — plan gratuito de por vida. No se te cobrará nunca.
           </div>
         )}
 
         {!sub?.is_promo && (
-          <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '0.75rem' }}>
-            <div>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>Precio mensual</p>
-              <p style={{ margin: '0.1rem 0 0', fontWeight: 700, color: 'var(--w-ink)' }}>{sub?.amount_in_cents ? formatCentsCOP(sub.amount_in_cents) : '—'}</p>
-            </div>
-            <div>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>
-                {sub?.status === 'trialing' ? 'Acceso vence' : sub?.status === 'past_due' ? 'Mora vence' : 'Próximo cobro'}
-              </p>
-              <p style={{ margin: '0.1rem 0 0', fontWeight: 700, color: 'var(--w-ink)' }}>
-                {fmtDate(sub?.status === 'past_due' ? sub?.grace_ends_at : sub?.status === 'trialing' ? sub?.trial_ends_at : sub?.current_period_end ?? null)}
-              </p>
-            </div>
+          <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '0.75rem' }}>
+            <StatCard label="Precio mensual" value={sub?.amount_in_cents ? formatCentsCOP(sub.amount_in_cents) : '—'} icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>} />
+            <StatCard tone="info" label={sub?.status === 'trialing' ? 'Acceso vence' : sub?.status === 'past_due' ? 'Mora vence' : 'Próximo cobro'}
+              value={<span className="text-[length:var(--w-fs-body-lg)]">{fmtDate(sub?.status === 'past_due' ? sub?.grace_ends_at : sub?.status === 'trialing' ? sub?.trial_ends_at : sub?.current_period_end ?? null)}</span>}
+              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 11h18" /></svg>} />
           </div>
         )}
 
         {!sub?.is_promo && planes && (
           <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {(['mensual', 'anual'] as const).map(c => (
-                <button key={c} onClick={() => setCiclo(c)} className="w-press"
-                  style={{ flex: 1, padding: '0.55rem', borderRadius: '0.7rem', border: `1px solid ${ciclo === c ? 'var(--w-terra)' : 'var(--w-line)'}`, background: ciclo === c ? 'rgba(201,106,60,0.10)' : 'var(--w-bg)', color: 'var(--w-ink)', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
-                  {c === 'mensual' ? 'Mensual' : 'Anual · pagas 10,5 meses'}
-                </button>
-              ))}
+            <div>
+              <Tabs label="Ciclo de pago" value={ciclo} onChange={setCiclo}
+                items={[{ key: 'mensual', label: 'Mensual' }, { key: 'anual', label: 'Anual · pagas 10,5 meses' }]} />
             </div>
             {planes.map(p => {
               const d = p[ciclo]
               const activo = sel === p.id
               return (
                 <button key={p.id} disabled={!p.disponible} onClick={() => setSel(p.id)} className="w-press"
-                  style={{ textAlign: 'left', padding: '0.8rem 1rem', borderRadius: '0.85rem', border: `2px solid ${activo ? 'var(--w-terra)' : 'var(--w-line)'}`, background: 'var(--w-bg)', color: 'var(--w-ink)', opacity: p.disponible ? 1 : 0.55, cursor: p.disponible ? 'pointer' : 'not-allowed' }}>
+                  style={{ textAlign: 'left', padding: '0.8rem 1rem', borderRadius: 'var(--w-r-md)', border: `2px solid ${activo ? 'var(--w-accent)' : 'var(--w-border)'}`, background: 'var(--w-bg)', color: 'var(--w-text)', opacity: p.disponible ? 1 : 0.55, cursor: p.disponible ? 'pointer' : 'not-allowed' }}>
                   <span style={{ fontWeight: 700 }}>{p.nombre}</span>
                   {!p.disponible
                     ? <span style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>Próximamente</span>
-                    : <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--w-ink-mut)', marginTop: '0.15rem' }}>
+                    : <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--w-text-3)', marginTop: '0.15rem' }}>
                         {formatCOP(d.total_cop)} {ciclo === 'anual' ? 'al año' : 'al mes'} con IVA ({formatCOP(d.base_cop)} + IVA {formatCOP(d.iva_cop)})
                       </span>}
                 </button>
@@ -211,17 +200,16 @@ export default function SubscriptionPanel() {
         )}
 
         {!sub?.is_promo && (
-          <button onClick={pagar} disabled={paying} className="lg-accent w-press"
-            style={{ marginTop: '1.25rem', width: '100%', padding: '0.95rem', border: 'none', borderRadius: '0.9rem', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.95rem', cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.7 : 1, background: 'var(--w-terra)', color: '#fff' }}>
+          <Button size="lg" className="mt-5 w-full" onClick={pagar} loading={paying}>
             {paying ? 'Abriendo pago…' : sub?.status === 'active' ? 'Renovar plan' : 'Pagar plan'}
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Pagos en línea para comensales — disponible para todos los restaurantes */}
       <div style={card}>
         <span style={label}>Pagos en línea de tus clientes</span>
-        <p style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', margin: '0 0 1rem' }}>
+        <p style={{ fontSize: '0.85rem', color: 'var(--w-text-3)', margin: '0 0 1rem' }}>
           Conecta tu propia cuenta de Wompi para que tus comensales paguen su cuenta desde el menú y el dinero llegue directo a <b>tu</b> banco.
         </p>
 
@@ -241,14 +229,13 @@ export default function SubscriptionPanel() {
                 placeholder={has ? '•••• ya configurado — déjalo vacío para no cambiarlo' : 'pega aquí tu llave/secreto de Wompi'} />
             </div>
           ))}
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.9rem', color: 'var(--w-ink)', cursor: 'pointer', marginTop: '0.25rem' }}>
-            <input type="checkbox" checked={cfg.enabled} onChange={e => setCfg(c => ({ ...c, enabled: e.target.checked }))} />
-            Activar pagos en línea para mis comensales
-          </label>
-          <button onClick={guardarCfg} disabled={savingCfg} className="w-press"
-            style={{ marginTop: '0.5rem', alignSelf: 'flex-start', padding: '0.7rem 1.2rem', border: '1px solid var(--w-line)', borderRadius: '0.8rem', background: 'var(--w-bg)', color: 'var(--w-ink)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
-            {savingCfg ? 'Guardando…' : 'Guardar configuración de pagos'}
-          </button>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--w-text)' }}>Activar pagos en línea para mis comensales</span>
+            <Toggle checked={cfg.enabled} onChange={v => setCfg(c => ({ ...c, enabled: v }))} label="Activar pagos en línea para mis comensales" />
+          </div>
+          <Button size="lg" className="mt-2 w-full" onClick={guardarCfg} loading={savingCfg}>
+            {savingCfg ? 'Guardando…' : 'Guardar cambios ✓'}
+          </Button>
         </div>
       </div>
     </div>

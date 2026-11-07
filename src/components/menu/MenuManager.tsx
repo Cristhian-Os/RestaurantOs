@@ -19,12 +19,16 @@ import type { Dish, DishCategory, DishOptionGroup, OptionGroupV2 } from '../../t
 import { useMenuConfig } from '../../hooks/useMenuConfig'
 import { gruposDe } from '../../services/menuOptions'
 import { DishGroupsEditor, validarGrupos } from './DishGroupsEditor'
+import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
+import { Toggle } from '../ui/Toggle'
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 
 const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
+  neoOut:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  neoOutSm:{ border: '1px solid var(--w-border-strong)' },
+  neoIn:   { boxShadow: 'none', border: '1px solid var(--w-border)' },
+  coral:   { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
 interface Category { value: string; label: string; emoji: string; color?: string }
@@ -228,7 +232,7 @@ function EmojiPortal({ anchorRef, onSelect, onClose }: EmojiPortalProps) {
         top: pos.top,
         left: Math.min(pos.left, window.innerWidth - 320),
         zIndex: 99999,
-        backgroundColor: 'var(--bg, #D8DAE4)',
+        backgroundColor: 'var(--w-surface)',
         borderRadius: '1rem',
         padding: '0.75rem',
         display: 'grid',
@@ -237,8 +241,8 @@ function EmojiPortal({ anchorRef, onSelect, onClose }: EmojiPortalProps) {
         width: 320,
         maxHeight: 280,
         overflowY: 'auto',
-        boxShadow: 'var(--shadow-out)',
-        border: 'var(--shadow-out)',
+        boxShadow: 'var(--w-shadow-md)',
+        border: '1px solid var(--w-border)',
       }}
     >
       {EMOJI_OPTIONS.map(e => (
@@ -296,14 +300,14 @@ function ColorPortal({ anchorRef, onSelect, onClose }: ColorPortalProps) {
         top: pos.top,
         left: Math.min(pos.left, window.innerWidth - 280),
         zIndex: 99999,
-        backgroundColor: 'var(--bg, #D8DAE4)',
+        backgroundColor: 'var(--w-surface)',
         borderRadius: '1rem',
         padding: '0.75rem',
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
         gap: '0.5rem',
         width: 260,
-        boxShadow: 'var(--shadow-out)',
+        boxShadow: 'var(--w-shadow-md)',
       }}
     >
       {COLOR_PALETTE.map(c => (
@@ -322,7 +326,7 @@ function ColorPortal({ anchorRef, onSelect, onClose }: ColorPortalProps) {
           }}
           onMouseEnter={e => {
             e.currentTarget.style.transform = 'scale(1.05)'
-            e.currentTarget.style.borderColor = 'rgba(0,0,0,0.3)'
+            e.currentTarget.style.borderColor = 'var(--w-border-strong)'
           }}
           onMouseLeave={e => {
             e.currentTarget.style.transform = 'scale(1)'
@@ -779,43 +783,29 @@ export const MenuManager = memo(() => {
     inactivos: dishes.filter(d => !d.available).length,
   }
 
-  const bg    = 'var(--bg, #D8DAE4)'
-  const bgSurf= 'var(--bg-surface, #CDD0DC)'
-  const txt   = 'var(--text-primary, #2D3561)'
-  const txtMid= 'var(--text-secondary, #5A617A)'
-  const txtLt = 'var(--text-muted, #8B92AA)'
-  const acc   = 'var(--accent, #FF5722)'
+  const bg    = 'var(--w-surface)'
+  const bgSurf= 'var(--w-surface-sunken)'
+  const txt   = 'var(--w-text)'
+  const txtMid= 'var(--w-text-2)'
+  const txtLt = 'var(--w-text-3)'
+  const acc   = 'var(--w-accent)'
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold" style={{ fontFamily: 'DM Sans, sans-serif', color: txt }}>
-          🍽️ Menú
-        </h2>
-        <div className="flex gap-2">
-          <button onClick={() => setShowReviews(!showReviews)}
-            className="flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-2xl"
-            style={{ backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
+      {/* Encabezado de módulo */}
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1-3 4-3 8h3v10"/></svg>}
+        title="Menú"
+        subtitle="Administra tus platos, categorías y reseñas."
+        actions={<>
+          <Button variant="secondary" onClick={() => setShowReviews(!showReviews)}>
             💬 Reseñas{(pendingReviews.length + reportedComments.length) > 0 ? ` (${pendingReviews.length + reportedComments.length})` : ''}
-          </button>
-          <button onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-2xl"
-            style={{ backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
-            ⚙️ Configurar
-          </button>
-          <button onClick={() => setShowVoiceMenu(true)}
-            className="flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-2xl"
-            style={{ backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
-            🎙️ Menú por voz
-          </button>
-          <motion.button whileTap={{ scale: 0.96 }} onClick={openCreate}
-            className="flex items-center gap-2 text-sm font-bold text-white px-4 py-2.5 rounded-2xl"
-            style={{ backgroundColor: acc, ...S.coral }}>
-            + Nuevo plato
-          </motion.button>
-        </div>
-      </div>
+          </Button>
+          <Button variant="secondary" onClick={() => setShowSettings(!showSettings)}>⚙️ Configurar</Button>
+          <Button variant="secondary" onClick={() => setShowVoiceMenu(true)}>🎙️ Menú por voz</Button>
+          <Button onClick={openCreate}>+ Nuevo plato</Button>
+        </>}
+      />
 
       {showVoiceMenu && (
         <VoiceMenuModal categories={categories} onSaved={fetchDishes} onClose={() => setShowVoiceMenu(false)} />
@@ -831,21 +821,21 @@ export const MenuManager = memo(() => {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
           >
-            <div className="glass-card no-hover rounded-3xl p-6 space-y-5">
+            <div className="bg-[var(--w-surface)] border border-[var(--w-border)] shadow-[var(--w-shadow-sm)] rounded-[var(--w-r-xl)] p-6 space-y-5">
               <h3 className="font-bold" style={{ color: txt }}>⚙️ Configuración general</h3>
 
               {/* Nombre del establecimiento */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                <label className="block text-xs font-bold mb-2" style={{ color: txtLt }}>
                   Nombre del establecimiento
                 </label>
                 <div className="flex gap-2">
                   <input value={bizName} onChange={e => setBizName(e.target.value)}
                     placeholder="Ej: Heladería Doña María"
-                    className="flex-1 rounded-xl px-4 py-3 text-sm outline-none"
+                    className="flex-1 rounded-[var(--w-r-md)] px-4 py-3 text-sm outline-none"
                     style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
                   <button onClick={handleSaveBizName} disabled={savingName}
-                    className="px-4 py-2 rounded-xl text-sm font-bold text-white shrink-0"
+                    className="px-4 py-2 rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-on-accent)] shrink-0"
                     style={{ backgroundColor: acc, ...S.coral }}>
                     {savingName ? '...' : 'Guardar'}
                   </button>
@@ -854,16 +844,16 @@ export const MenuManager = memo(() => {
 
               {/* Número de mesas */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                <label className="block text-xs font-bold mb-2" style={{ color: txtLt }}>
                   Número total de mesas
                 </label>
                 <div className="flex gap-2">
                   <input type="number" min="1" max="200" value={tableCount}
                     onChange={e => setTableCount(e.target.value)} placeholder="Ej: 15"
-                    className="flex-1 rounded-xl px-4 py-3 text-sm outline-none"
+                    className="flex-1 rounded-[var(--w-r-md)] px-4 py-3 text-sm outline-none"
                     style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
                   <button onClick={handleSaveTables} disabled={savingTables}
-                    className="px-4 py-2 rounded-xl text-sm font-bold text-white shrink-0"
+                    className="px-4 py-2 rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-on-accent)] shrink-0"
                     style={{ backgroundColor: acc, ...S.coral }}>
                     {savingTables ? '...' : 'Actualizar'}
                   </button>
@@ -872,7 +862,7 @@ export const MenuManager = memo(() => {
 
               {/* Categorías */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                <label className="block text-xs font-bold mb-2" style={{ color: txtLt }}>
                   Categorías del menú
                 </label>
                 <p className="text-xs mb-2" style={{ color: txtLt }}>
@@ -881,7 +871,7 @@ export const MenuManager = memo(() => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                   {categories.map((cat, idx) => (
                     <div key={cat.value}
-                      className="flex items-center gap-2 rounded-xl px-3 py-2"
+                      className="flex items-center gap-2 rounded-[var(--w-r-md)] px-3 py-2"
                       style={{ backgroundColor: bgSurf, ...S.neoIn }}>
 
                       <span className="flex flex-col shrink-0">
@@ -922,7 +912,7 @@ export const MenuManager = memo(() => {
                           backgroundColor: cat.color || '#FF6B4A',
                           border: 'none',
                           cursor: 'pointer',
-                          boxShadow: 'var(--shadow-out-sm)',
+                          boxShadow: 'var(--w-shadow-sm)',
                         }}
                         title="Cambiar color"
                       />
@@ -952,7 +942,7 @@ export const MenuManager = memo(() => {
                             <button onClick={() => { setEditingCat(cat.value); setCatLabel(cat.label) }}
                               style={{ color: txtLt, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem' }} title="Editar nombre">✏️</button>
                             <button onClick={() => handleDeleteCategory(cat.value)}
-                              style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem' }} title="Eliminar">🗑️</button>
+                              style={{ color: 'var(--w-danger)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem' }} title="Eliminar">🗑️</button>
                           </>
                       }
                     </div>
@@ -960,14 +950,14 @@ export const MenuManager = memo(() => {
                 </div>
 
                 {/* Nueva categoría */}
-                <div className="rounded-xl p-3 space-y-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
-                  <p className="text-xs font-bold" style={{ color: txtLt }}>+ Nueva categoría</p>
+                <div className="rounded-[var(--w-r-md)] p-3 space-y-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                  <p className="text-[length:var(--w-fs-label)] font-semibold" style={{ color: txtMid }}>+ Nueva categoría</p>
                   <div className="flex gap-2">
                     {/* Botón emoji con portal */}
                     <button
                       ref={newCatEmojiRef}
                       onClick={() => setShowNewCatPicker(p => !p)}
-                      className="w-11 h-11 rounded-xl text-xl flex items-center justify-center"
+                      className="w-11 h-11 rounded-[var(--w-r-md)] text-xl flex items-center justify-center"
                       style={{ backgroundColor: bg, border: 'none', cursor: 'pointer', ...S.neoOutSm }}>
                       {newCatEmoji}
                     </button>
@@ -1007,11 +997,11 @@ export const MenuManager = memo(() => {
                     <input value={newCatLabel} onChange={e => setNewCatLabel(e.target.value)}
                       placeholder="Nombre de categoría"
                       onKeyDown={e => { if (e.key === 'Enter') handleAddCategory() }}
-                      className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
+                      className="flex-1 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none"
                       style={{ backgroundColor: bg, color: txt, border: 'none', ...S.neoIn }} />
                     <motion.button whileTap={{ scale: 0.95 }} onClick={handleAddCategory}
                       disabled={savingCat || !newCatLabel.trim()}
-                      className="px-3 py-2 rounded-xl text-sm font-bold text-white shrink-0"
+                      className="px-3 py-2 rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-on-accent)] shrink-0"
                       style={{
                         backgroundColor: !newCatLabel.trim() ? bgSurf : acc,
                         border: 'none', cursor: !newCatLabel.trim() ? 'not-allowed' : 'pointer',
@@ -1024,8 +1014,8 @@ export const MenuManager = memo(() => {
               </div>
 
               {v2 && (
-                <div className="rounded-xl p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
-                  <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: txtLt }}>Sabores y opciones</p>
+                <div className="rounded-[var(--w-r-md)] p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                  <p className="text-xs font-bold mb-1" style={{ color: txtLt }}>Sabores y opciones</p>
                   <p className="text-xs" style={{ color: txt }}>
                     Tus sabores, leches, salsas y demás opciones ahora se administran en <strong>Listas y opciones</strong> (menú de la izquierda). Los cambios que hagas ahí valen para todos los platos que usan cada lista.
                   </p>
@@ -1034,7 +1024,7 @@ export const MenuManager = memo(() => {
               {!v2 && (<>
               {/* Sabores de helado */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                <label className="block text-xs font-bold mb-2" style={{ color: txtLt }}>
                   Sabores de helado
                 </label>
                 <p className="text-xs mb-2" style={{ color: txtLt }}>
@@ -1048,22 +1038,22 @@ export const MenuManager = memo(() => {
                         style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }}>
                         {f}
                         <button onClick={() => handleDeleteFlavor(f)} title="Eliminar"
-                          style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1 }}>✕</button>
+                          style={{ color: 'var(--w-danger)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1 }}>✕</button>
                       </span>
                     ))}
                   </div>
                 )}
-                <div className="rounded-xl p-3 space-y-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
-                  <p className="text-xs font-bold" style={{ color: txtLt }}>+ Nuevo sabor</p>
+                <div className="rounded-[var(--w-r-md)] p-3 space-y-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                  <p className="text-[length:var(--w-fs-label)] font-semibold" style={{ color: txtMid }}>+ Nuevo sabor</p>
                   <div className="flex gap-2">
                     <input value={newFlavor} onChange={e => setNewFlavor(e.target.value)}
                       placeholder="Ej: Ron con pasas"
                       onKeyDown={e => { if (e.key === 'Enter') handleAddFlavor() }}
-                      className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
+                      className="flex-1 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none"
                       style={{ backgroundColor: bg, color: txt, border: 'none', ...S.neoIn }} />
                     <motion.button whileTap={{ scale: 0.95 }} onClick={handleAddFlavor}
                       disabled={!newFlavor.trim()}
-                      className="px-3 py-2 rounded-xl text-sm font-bold text-white shrink-0"
+                      className="px-3 py-2 rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-on-accent)] shrink-0"
                       style={{
                         backgroundColor: !newFlavor.trim() ? bg : acc,
                         border: 'none', cursor: !newFlavor.trim() ? 'not-allowed' : 'pointer',
@@ -1077,7 +1067,7 @@ export const MenuManager = memo(() => {
 
               {/* Sabores de jugos */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                <label className="block text-xs font-bold mb-2" style={{ color: txtLt }}>
                   Sabores de jugos
                 </label>
                 <p className="text-xs mb-2" style={{ color: txtLt }}>
@@ -1091,22 +1081,22 @@ export const MenuManager = memo(() => {
                         style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }}>
                         {f}
                         <button onClick={() => handleDeleteJugoFlavor(f)} title="Eliminar"
-                          style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1 }}>✕</button>
+                          style={{ color: 'var(--w-danger)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1 }}>✕</button>
                       </span>
                     ))}
                   </div>
                 )}
-                <div className="rounded-xl p-3 space-y-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
-                  <p className="text-xs font-bold" style={{ color: txtLt }}>+ Nuevo sabor</p>
+                <div className="rounded-[var(--w-r-md)] p-3 space-y-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                  <p className="text-[length:var(--w-fs-label)] font-semibold" style={{ color: txtMid }}>+ Nuevo sabor</p>
                   <div className="flex gap-2">
                     <input value={newJugoFlavor} onChange={e => setNewJugoFlavor(e.target.value)}
                       placeholder="Ej: Mango"
                       onKeyDown={e => { if (e.key === 'Enter') handleAddJugoFlavor() }}
-                      className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
+                      className="flex-1 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none"
                       style={{ backgroundColor: bg, color: txt, border: 'none', ...S.neoIn }} />
                     <motion.button whileTap={{ scale: 0.95 }} onClick={handleAddJugoFlavor}
                       disabled={!newJugoFlavor.trim()}
-                      className="px-3 py-2 rounded-xl text-sm font-bold text-white shrink-0"
+                      className="px-3 py-2 rounded-[var(--w-r-md)] text-sm font-bold text-[color:var(--w-on-accent)] shrink-0"
                       style={{
                         backgroundColor: !newJugoFlavor.trim() ? bg : acc,
                         border: 'none', cursor: !newJugoFlavor.trim() ? 'not-allowed' : 'pointer',
@@ -1127,11 +1117,11 @@ export const MenuManager = memo(() => {
       <AnimatePresence>
         {showReviews && (
           <motion.div key="reviews" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25, ease: 'easeOut' }}>
-            <div className="glass-card no-hover rounded-3xl p-6 space-y-5">
+            <div className="bg-[var(--w-surface)] border border-[var(--w-border)] shadow-[var(--w-shadow-sm)] rounded-[var(--w-r-xl)] p-6 space-y-5">
               <h3 className="font-bold" style={{ color: txt }}>💬 Interacciones de comensales</h3>
 
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                <p className="text-xs font-bold mb-2" style={{ color: txtLt }}>
                   Reseñas pendientes de aprobar {pendingReviews.length > 0 && `(${pendingReviews.length})`}
                 </p>
                 {loadingReviews ? (
@@ -1141,7 +1131,7 @@ export const MenuManager = memo(() => {
                 ) : (
                   <div className="space-y-2">
                     {pendingReviews.map(r => (
-                      <div key={r.id} className="rounded-2xl p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                      <div key={r.id} className="rounded-[var(--w-r-md)] p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span className="text-sm font-bold" style={{ color: txt }}>{r.dishes?.name ?? 'Plato'}</span>
                           <span style={{ fontSize: '0.75rem' }}>{'⭐'.repeat(r.rating)}</span>
@@ -1150,11 +1140,11 @@ export const MenuManager = memo(() => {
                         {r.comentario && <p className="text-sm mb-2" style={{ color: txt }}>{r.comentario}</p>}
                         <div className="flex gap-2">
                           <button disabled={moderatingId === r.id} onClick={() => moderarResena(r.id, 'aprobada')}
-                            className="text-xs font-bold px-3 py-1.5 rounded-xl text-white" style={{ backgroundColor: 'var(--green)' }}>
+                            className="text-xs font-bold px-3 py-1.5 rounded-[var(--w-r-md)]" style={{ backgroundColor: 'var(--w-success-bg)', color: 'var(--w-success-text)', border: '1px solid var(--w-success)' }}>
                             ✓ Aprobar
                           </button>
                           <button disabled={moderatingId === r.id} onClick={() => moderarResena(r.id, 'rechazada')}
-                            className="text-xs font-bold px-3 py-1.5 rounded-xl text-white" style={{ backgroundColor: '#EF4444' }}>
+                            className="text-xs font-bold px-3 py-1.5 rounded-[var(--w-r-md)]" style={{ backgroundColor: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', border: '1px solid var(--w-danger)' }}>
                             ✕ Rechazar
                           </button>
                         </div>
@@ -1165,7 +1155,7 @@ export const MenuManager = memo(() => {
               </div>
 
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                <p className="text-xs font-bold mb-2" style={{ color: txtLt }}>
                   Comentarios reportados {reportedComments.length > 0 && `(${reportedComments.length})`}
                 </p>
                 {reportedComments.length === 0 ? (
@@ -1173,20 +1163,20 @@ export const MenuManager = memo(() => {
                 ) : (
                   <div className="space-y-2">
                     {reportedComments.map(c => (
-                      <div key={c.id} className="rounded-2xl p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                      <div key={c.id} className="rounded-[var(--w-r-md)] p-3" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span className="text-sm font-bold" style={{ color: txt }}>{c.dishes?.name ?? 'Plato'}</span>
-                          <span className="text-xs font-bold" style={{ color: '#EF4444' }}>🚩 {c.reportado_count}</span>
+                          <span className="text-xs font-bold" style={{ color: 'var(--w-danger)' }}>🚩 {c.reportado_count}</span>
                         </div>
                         <p className="text-xs mb-1" style={{ color: txtMid }}>— {c.cliente_nombre}</p>
                         <p className="text-sm mb-2" style={{ color: txt }}>{c.texto}</p>
                         <div className="flex gap-2">
                           <button disabled={moderatingId === c.id} onClick={() => moderarComentario(c.id, 'ocultar')}
-                            className="text-xs font-bold px-3 py-1.5 rounded-xl text-white" style={{ backgroundColor: '#EF4444' }}>
+                            className="text-xs font-bold px-3 py-1.5 rounded-[var(--w-r-md)]" style={{ backgroundColor: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', border: '1px solid var(--w-danger)' }}>
                             Ocultar
                           </button>
                           <button disabled={moderatingId === c.id} onClick={() => moderarComentario(c.id, 'ignorar')}
-                            className="text-xs font-bold px-3 py-1.5 rounded-xl" style={{ backgroundColor: bg, color: txtMid }}>
+                            className="text-xs font-bold px-3 py-1.5 rounded-[var(--w-r-md)]" style={{ backgroundColor: bg, color: txtMid }}>
                             Ignorar reporte
                           </button>
                         </div>
@@ -1198,14 +1188,14 @@ export const MenuManager = memo(() => {
 
               {socialOverview.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                  <p className="text-xs font-bold mb-2" style={{ color: txtLt }}>
                     Qué gusta y qué no, por plato
                   </p>
                   <div className="space-y-1.5">
                     {socialOverview.map(row => {
                       const dishName = dishes.find(d => d.id === row.dish_id)?.name ?? 'Plato'
                       return (
-                        <div key={row.dish_id} className="flex items-center justify-between text-sm rounded-xl px-3 py-2" style={{ backgroundColor: bgSurf }}>
+                        <div key={row.dish_id} className="flex items-center justify-between text-sm rounded-[var(--w-r-md)] px-3 py-2" style={{ backgroundColor: bgSurf }}>
                           <span style={{ color: txt }}>{row.es_popular && '🔥 '}{dishName}</span>
                           <span style={{ color: txtMid }}>
                             ❤️ {row.likes_count}  ·  👎 {row.dislikes_count}
@@ -1223,42 +1213,36 @@ export const MenuManager = memo(() => {
         )}
       </AnimatePresence>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Total',     val: stats.total,     color: txt         },
-          { label: 'Activos',   val: stats.activos,   color: 'var(--green)'   },
-          { label: 'Inactivos', val: stats.inactivos, color: '#EF4444'   },
-        ].map(s => (
-          <div key={s.label} className="rounded-2xl p-3 text-center" style={{ backgroundColor: bg, ...S.neoOutSm }}>
-            <p className="text-xl font-bold" style={{ color: s.color }}>{s.val}</p>
-            <p className="text-[0.625rem]" style={{ color: txtLt }}>{s.label}</p>
-          </div>
-        ))}
+      {/* Resumen */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1">
+        <StatCard label="Platos totales" value={stats.total} tone="accent" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1-3 4-3 8h3v10"/></svg>} />
+        <StatCard label="Activos" value={stats.activos} tone="success" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10"/></svg>} />
+        <StatCard label="Inactivos" value={stats.inactivos} tone="warning" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5v14M15 5v14"/></svg>} />
       </div>
 
       {/* Filtros */}
       <div className="space-y-3">
-        <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ backgroundColor: bg, ...S.neoIn }}>
+        <div className="flex min-h-[44px] items-center gap-3 rounded-[var(--w-r-md)] border border-[var(--w-border-strong)] bg-[var(--w-surface)] px-4">
           <span style={{ color: txtLt }}>🔍</span>
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Buscar plato o tag..."
-            className="flex-1 bg-transparent text-sm outline-none"
+            aria-label="Buscar plato"
+            className="min-h-[44px] flex-1 bg-transparent text-sm outline-none"
             style={{ color: txt }} />
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          <button onClick={() => setFilterCat('all')}
-            className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold"
-            style={filterCat === 'all' ? { background: acc, color: '#fff', ...S.coral } : { backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
-            Todos
-          </button>
-          {categories.map(c => (
-            <button key={c.value} onClick={() => setFilterCat(c.value)}
-              className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold"
-              style={filterCat === c.value ? { background: acc, color: '#fff', ...S.coral } : { backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
-              {c.emoji} {c.label}
-            </button>
-          ))}
+        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+          {[{ value: 'all', emoji: '', label: 'Todos' }, ...categories].map(c => {
+            const on = filterCat === c.value
+            return (
+              <button key={c.value} onClick={() => setFilterCat(c.value)} aria-pressed={on}
+                className="min-h-[44px] shrink-0 whitespace-nowrap rounded-[var(--w-r-pill)] px-4 text-sm font-semibold transition-colors"
+                style={on
+                  ? { background: acc, color: 'var(--w-on-accent)' }
+                  : { backgroundColor: bgSurf, color: txtMid }}>
+                {c.emoji} {c.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -1272,71 +1256,81 @@ export const MenuManager = memo(() => {
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
           >
-            <div className="glass-card no-hover rounded-3xl p-6">
-              <h3 className="font-bold mb-5" style={{ color: txt }}>
-                {editing ? `✏️ Editar: ${editing.name}` : '➕ Nuevo plato'}
+            <div className="bg-[var(--w-surface)] border border-[var(--w-border)] shadow-[var(--w-shadow-sm)] rounded-[var(--w-r-xl)] p-6">
+              <h3 className="mb-1 flex items-center gap-2 font-bold" style={{ color: txt, fontSize: 'var(--w-fs-title)' }}>
+                <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-[var(--w-r-sm)] bg-[var(--w-accent-soft)] text-[color:var(--w-accent-text)]">
+                  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1-3 4-3 8h3v10"/></svg>
+                </span>
+                {editing ? 'Editar plato' : 'Agregar nuevo plato'}
               </h3>
+              <p className="mb-5" style={{ color: txtLt, fontSize: 'var(--w-fs-label)' }}>
+                {editing ? `Actualiza la información de ${editing.name} en tu menú` : 'Completa la información del plato para agregarlo al menú'}
+              </p>
 
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_17rem]">
               {/* Foto */}
-              <div className="flex items-center gap-4 mb-5">
-                <div onClick={() => imageRef.current?.click()}
-                  className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 cursor-pointer flex items-center justify-center"
-                  style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+              <div className="lg:col-start-2 lg:row-start-1">
+                <div onClick={() => imageRef.current?.click()} role="button" tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') imageRef.current?.click() }}
+                  className="flex min-h-[11rem] cursor-pointer flex-col items-center justify-center gap-1 overflow-hidden rounded-[var(--w-r-lg)] border border-dashed border-[var(--w-border-strong)] text-center"
+                  style={{ backgroundColor: bgSurf }}>
                   {form.image_preview
-                    ? <img src={form.image_preview} alt="preview" className="w-full h-full object-cover" />
-                    : <span className="text-3xl">{categories.find(c => c.value === form.category)?.emoji ?? '🍽️'}</span>
+                    ? <img src={form.image_preview} alt="preview" className="h-44 w-full object-cover" />
+                    : <>
+                        <span className="text-4xl">{categories.find(c => c.value === form.category)?.emoji ?? '🍽️'}</span>
+                        <p className="text-sm font-bold" style={{ color: txt }}>Subir imagen</p>
+                        <p className="text-xs" style={{ color: txtLt }}>JPG/PNG/WebP · máx 4MB</p>
+                      </>
                   }
                 </div>
-                <div>
-                  <p className="text-xs font-bold" style={{ color: txt }}>Foto del plato</p>
-                  <p className="text-xs mt-0.5" style={{ color: txtLt }}>JPG/PNG/WebP · máx 4MB</p>
+                {form.image_preview && (
                   <button onClick={() => imageRef.current?.click()}
-                    className="text-xs font-bold mt-1"
-                    style={{ color: acc, background: 'none', border: 'none', cursor: 'pointer' }}>
-                    {form.image_preview ? 'Cambiar imagen' : 'Agregar imagen'}
+                    className="mt-2 min-h-[44px] w-full rounded-[var(--w-r-md)] border border-[var(--w-border-strong)] text-xs font-bold"
+                    style={{ color: txtMid, background: bg, cursor: 'pointer' }}>
+                    Cambiar imagen
                   </button>
-                </div>
+                )}
                 <input ref={imageRef} type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:col-start-1 lg:row-start-1">
                 <div className="sm:col-span-2">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Nombre *</label>
+                    <label className="block text-[length:var(--w-fs-label)] font-semibold" style={{ color: txtMid }}>Nombre *</label>
                     <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setForm(p => ({ ...p, name: limpiarTranscripcion(r.transcript) }))} />
                   </div>
                   <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                     placeholder="Ej: Sundae Tropical"
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    className="w-full rounded-[var(--w-r-md)] px-4 py-3 text-sm outline-none"
                     style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
                 </div>
                 <div className="sm:col-span-2">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Descripción</label>
+                    <label className="block text-[length:var(--w-fs-label)] font-semibold" style={{ color: txtMid }}>Descripción</label>
                     <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setForm(p => ({ ...p, description: ((p.description ? p.description + ' ' : '') + r.transcript.trim()).slice(0, 500) }))} />
                   </div>
                   <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                     placeholder="Breve descripción..." rows={2} maxLength={500}
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
+                    className="w-full rounded-[var(--w-r-md)] px-4 py-3 text-sm outline-none resize-none"
                     style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
                 </div>
                 {!form.has_sizes && (
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>Precio *</label>
+                    <label className="block text-xs font-bold mb-2" style={{ color: txtLt }}>Precio *</label>
                     <input type="number" step="0.01" min="0" value={form.price}
                       onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
                       placeholder="0"
-                      className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                      className="w-full rounded-[var(--w-r-md)] px-4 py-3 text-sm outline-none"
                       style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>
+                  <label className="block text-xs font-bold mb-2" style={{ color: txtLt }}>
                     Tags <span style={{ color: txtLt, fontWeight: 400, textTransform: 'none' }}>(separados por coma)</span>
                   </label>
                   <input value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))}
                     placeholder="vegano, sin gluten, picante"
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    className="w-full rounded-[var(--w-r-md)] px-4 py-3 text-sm outline-none"
                     style={{ backgroundColor: bgSurf, color: txt, ...S.neoIn }} />
                   {form.tags && (
                     <div className="flex flex-wrap gap-1 mt-2">
@@ -1350,13 +1344,13 @@ export const MenuManager = memo(() => {
                   )}
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: txtLt }}>Categoría *</label>
+                  <label className="block text-xs font-bold mb-2" style={{ color: txtLt }}>Categoría *</label>
                   <div className="grid grid-cols-5 gap-2">
                     {categories.map(c => (
                       <button key={c.value} onClick={() => setForm(p => ({ ...p, category: c.value }))}
-                        className="py-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all w-full"
+                        className="py-2.5 rounded-[var(--w-r-md)] text-xs font-bold flex flex-col items-center gap-1 transition-all w-full"
                         style={form.category === c.value
-                          ? { background: acc, color: 'white', ...S.coral }
+                          ? { background: acc, color: 'var(--w-on-accent)', ...S.coral }
                           : { backgroundColor: bg, color: txtMid, ...S.neoOutSm }}>
                         <span className="text-base leading-none">{c.emoji}</span>
                         <span className="truncate w-full text-center text-[0.625rem]">{c.label}</span>
@@ -1367,24 +1361,16 @@ export const MenuManager = memo(() => {
 
                 <div className="sm:col-span-2 flex flex-col gap-3">
                   {/* Disponibilidad */}
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <div className={`relative w-11 h-6 rounded-full transition-colors`}
-                      style={{ backgroundColor: form.available ? acc : bgSurf }}
-                      onClick={() => setForm(p => ({ ...p, available: !p.available }))}>
-                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.available ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <Toggle checked={form.available} label="Plato disponible" onChange={v => setForm(p => ({ ...p, available: v }))} />
                     <span className="text-sm font-medium" style={{ color: txt }}>
-                      {form.available ? '✅ Disponible en el menú' : '⏸️ No disponible'}
+                      {form.available ? 'Plato disponible en el menú' : 'Plato no disponible'}
                     </span>
-                  </label>
+                  </div>
 
                   {/* Tamaños */}
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <div className="relative w-11 h-6 rounded-full transition-colors"
-                      style={{ backgroundColor: form.has_sizes ? acc : bgSurf }}
-                      onClick={() => setForm(p => ({ ...p, has_sizes: !p.has_sizes }))}>
-                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.has_sizes ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <Toggle checked={form.has_sizes} label="Tiene tamaños" onChange={v => setForm(p => ({ ...p, has_sizes: v }))} />
                     <div>
                       <span className="text-sm font-medium" style={{ color: txt }}>
                         {form.has_sizes ? '📏 Tiene tamaños (Pequeño / Mediano / Grande)' : '1️⃣ Tamaño único'}
@@ -1393,31 +1379,31 @@ export const MenuManager = memo(() => {
                         {form.has_sizes ? 'El cliente elige tamaño y paga el precio de ese tamaño' : 'Sin selector de tamaño para el cliente'}
                       </p>
                     </div>
-                  </label>
+                  </div>
 
                   {/* Editor de tamaños con precio */}
                   {form.has_sizes && (
-                    <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
-                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Tamaños y precios</p>
+                    <div className="rounded-[var(--w-r-md)] p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                      <p className="text-[length:var(--w-fs-label)] font-semibold" style={{ color: txtMid }}>Tamaños y precios</p>
                       {form.sizes.map((s, i) => (
                         <div key={i} className="flex gap-2 items-center">
                           <input value={s.nombre}
                             onChange={e => setForm(p => ({ ...p, sizes: p.sizes.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x) }))}
                             placeholder="Tamaño (ej: Pequeño)"
-                            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none min-w-0"
+                            className="flex-1 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none min-w-0"
                             style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                           <input type="number" min="0" value={s.precio}
                             onChange={e => setForm(p => ({ ...p, sizes: p.sizes.map((x, j) => j === i ? { ...x, precio: e.target.value } : x) }))}
                             placeholder="Precio"
-                            className="w-24 rounded-xl px-3 py-2 text-sm outline-none text-right"
+                            className="w-24 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none text-right"
                             style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                           <button onClick={() => setForm(p => ({ ...p, sizes: p.sizes.length > 1 ? p.sizes.filter((_, j) => j !== i) : p.sizes }))}
                             className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" title="Quitar"
-                            style={{ color: '#EF4444', backgroundColor: bg, ...S.neoOutSm }}>✕</button>
+                            style={{ color: 'var(--w-danger)', backgroundColor: bg, ...S.neoOutSm }}>✕</button>
                         </div>
                       ))}
                       <button onClick={() => setForm(p => ({ ...p, sizes: [...p.sizes, { nombre: '', precio: '' }] }))}
-                        className="self-start text-xs font-bold px-3 py-1.5 rounded-xl"
+                        className="self-start text-xs font-bold px-3 py-1.5 rounded-[var(--w-r-md)]"
                         style={{ color: acc, backgroundColor: bg, ...S.neoOutSm }}>
                         + Agregar tamaño
                       </button>
@@ -1426,7 +1412,7 @@ export const MenuManager = memo(() => {
 
                   {/* ── Opciones: helado / queso ── */}
                   <div className="pt-3 mt-1 border-t" style={{ borderColor: bgSurf }}>
-                    <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: txtLt }}>Opciones del plato</p>
+                    <p className="text-xs font-bold mb-1" style={{ color: txtLt }}>Opciones del plato</p>
                     <p className="text-[0.6875rem] mb-3" style={{ color: txtLt }}>
                       Los sabores de helado y de jugos se gestionan en ⚙️ Ajustes → “Sabores de helado” / “Sabores de jugos”.
                     </p>
@@ -1443,7 +1429,7 @@ export const MenuManager = memo(() => {
                       <div className="relative w-11 h-6 rounded-full transition-colors shrink-0"
                         style={{ backgroundColor: form.quesoHelado ? acc : bgSurf }}
                         onClick={() => setForm(p => ({ ...p, quesoHelado: !p.quesoHelado }))}>
-                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.quesoHelado ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-[var(--w-on-accent)] shadow transition-transform ${form.quesoHelado ? 'translate-x-5' : 'translate-x-0.5'}`} />
                       </div>
                       <div>
                         <span className="text-sm font-medium" style={{ color: txt }}>Opción “Con queso / Con helado”</span>
@@ -1459,7 +1445,7 @@ export const MenuManager = memo(() => {
                         <div className="relative w-11 h-6 rounded-full transition-colors shrink-0"
                           style={{ backgroundColor: form.quesoHeladoMulti ? acc : bgSurf }}
                           onClick={() => setForm(p => ({ ...p, quesoHeladoMulti: !p.quesoHeladoMulti }))}>
-                          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.quesoHeladoMulti ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-[var(--w-on-accent)] shadow transition-transform ${form.quesoHeladoMulti ? 'translate-x-5' : 'translate-x-0.5'}`} />
                         </div>
                         <div>
                           <span className="text-sm font-medium" style={{ color: txt }}>Permitir elegir los dos</span>
@@ -1482,16 +1468,16 @@ export const MenuManager = memo(() => {
                         <input type="number" min="0" max="6" value={form.heladoCount}
                           onChange={e => setForm(p => ({ ...p, heladoCount: e.target.value }))}
                           placeholder="0"
-                          className="w-20 rounded-xl px-3 py-2 text-sm outline-none text-center shrink-0"
+                          className="w-20 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none text-center shrink-0"
                           style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                       </div>
                     )}
                     </>)}
 
                     {/* Toppings opcionales del plato (el cliente marca los que quiera) */}
-                    <div className="mt-3 mb-3 rounded-2xl p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                    <div className="mt-3 mb-3 rounded-[var(--w-r-md)] p-3 flex flex-col gap-2" style={{ backgroundColor: bgSurf, ...S.neoIn }}>
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: txtLt }}>Toppings (opcionales)</p>
+                        <p className="text-[length:var(--w-fs-label)] font-semibold" style={{ color: txtMid }}>Toppings (opcionales)</p>
                         <VoiceButton<{ toppings: { nombre: string; precio: number }[] }> kind="topping" label="Dictar toppings"
                           onResult={r => setForm(p => ({ ...p, toppings: [...p.toppings, ...(r.toppings ?? []).filter(t => !p.toppings.some(x => x.nombre.toLowerCase() === t.nombre.toLowerCase())).map(t => ({ nombre: t.nombre, precio: String(t.precio ?? 0) }))] }))} />
                       </div>
@@ -1501,20 +1487,20 @@ export const MenuManager = memo(() => {
                           <input value={t.nombre}
                             onChange={e => setForm(p => ({ ...p, toppings: p.toppings.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x) }))}
                             placeholder="Topping (ej: Leche condensada)"
-                            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none min-w-0"
+                            className="flex-1 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none min-w-0"
                             style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                           <input type="number" min="0" value={t.precio}
                             onChange={e => setForm(p => ({ ...p, toppings: p.toppings.map((x, j) => j === i ? { ...x, precio: e.target.value } : x) }))}
                             placeholder="0"
-                            className="w-24 rounded-xl px-3 py-2 text-sm outline-none text-right"
+                            className="w-24 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none text-right"
                             style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                           <button onClick={() => setForm(p => ({ ...p, toppings: p.toppings.filter((_, j) => j !== i) }))}
                             className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" title="Quitar"
-                            style={{ color: '#EF4444', backgroundColor: bg, ...S.neoOutSm }}>✕</button>
+                            style={{ color: 'var(--w-danger)', backgroundColor: bg, ...S.neoOutSm }}>✕</button>
                         </div>
                       ))}
                       <button onClick={() => setForm(p => ({ ...p, toppings: [...p.toppings, { nombre: '', precio: '0' }] }))}
-                        className="self-start text-xs font-bold px-3 py-1.5 rounded-xl"
+                        className="self-start text-xs font-bold px-3 py-1.5 rounded-[var(--w-r-md)]"
                         style={{ color: acc, backgroundColor: bg, ...S.neoOutSm }}>
                         + Agregar topping
                       </button>
@@ -1532,25 +1518,22 @@ export const MenuManager = memo(() => {
                       <input type="number" min="0" max="6" value={form.jugoCount}
                         onChange={e => setForm(p => ({ ...p, jugoCount: e.target.value }))}
                         placeholder="0"
-                        className="w-20 rounded-xl px-3 py-2 text-sm outline-none text-center shrink-0"
+                        className="w-20 rounded-[var(--w-r-md)] px-3 py-2 text-sm outline-none text-center shrink-0"
                         style={{ backgroundColor: bg, color: txt, ...S.neoOutSm }} />
                     </div>
                     )}
                   </div>
                 </div>
               </div>
+              </div>
 
-              {formError && <p className="text-xs text-red-500 font-medium mt-3">⚠️ {formError}</p>}
+              {formError && <p className="text-xs text-[color:var(--w-danger-text)] font-medium mt-3">⚠️ {formError}</p>}
 
-              <div className="flex gap-3 mt-5">
-                <button onClick={() => { setShowForm(false); setForm(FORM_EMPTY) }}
-                  className="flex-1 py-3 rounded-2xl text-sm font-bold"
-                  style={{ backgroundColor: bg, color: txtMid, ...S.neoOut }}>Cancelar</button>
-                <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
-                  className="flex-1 py-3 rounded-2xl text-sm font-bold text-white"
-                  style={{ backgroundColor: acc, opacity: saving ? 0.7 : 1, ...S.coral }}>
-                  {saving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear plato'}
-                </motion.button>
+              <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button variant="secondary" className="sm:min-w-[9rem]" onClick={() => { setShowForm(false); setForm(FORM_EMPTY) }}>✕ Cancelar</Button>
+                <Button className="w-full sm:w-auto sm:min-w-[12rem]" onClick={handleSave} loading={saving}>
+                  {saving ? 'Guardando...' : editing ? 'Actualizar plato ✓' : 'Guardar plato ✓'}
+                </Button>
               </div>
             </div>
           </motion.div>
@@ -1561,82 +1544,55 @@ export const MenuManager = memo(() => {
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[...Array(6)].map((_,i) => (
-            <div key={i} className="rounded-2xl h-24 skeleton" />
+            <div key={i} className="rounded-[var(--w-r-md)] h-24 skeleton" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-3xl p-12 text-center" style={{ backgroundColor: bg, ...S.neoIn }}>
+        <div className="rounded-[var(--w-r-xl)] p-12 text-center" style={{ backgroundColor: bg, ...S.neoIn }}>
           <p className="text-4xl mb-2">🍽️</p>
           <p className="font-bold" style={{ color: txt }}>Sin platos</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(dish => {
             const cat = categories.find(c => c.value === dish.category)
+            const btn = 'flex h-11 w-11 items-center justify-center rounded-[var(--w-r-md)] border border-[var(--w-border-strong)] bg-[var(--w-surface)] text-base'
             return (
               <motion.div key={dish.id} layout
-                className={`glass-card-sm p-4 flex items-center gap-3 ${!dish.available ? 'opacity-60' : ''}`}
-                whileHover={{ y: -2 }}
+                className={`overflow-hidden rounded-[var(--w-r-lg)] border border-[var(--w-border)] bg-[var(--w-surface)] shadow-[var(--w-shadow-sm)] ${!dish.available ? 'opacity-70' : ''}`}
                 transition={{ duration: 0.15 }}>
-                <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-2xl"
-                  style={{ backgroundColor: bgSurf, ...S.neoIn }}>
+                <div className="flex h-36 items-center justify-center text-5xl" style={{ backgroundColor: bgSurf }}>
                   {dish.image_url
-                    ? <img src={dish.image_url} alt={dish.name} className="w-full h-full object-cover" loading="lazy" />
-                    : cat?.emoji
-                  }
+                    ? <img src={dish.image_url} alt={dish.name} className="h-full w-full object-cover" loading="lazy" />
+                    : cat?.emoji}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-bold text-sm truncate" style={{ color: txt }}>{dish.name}</p>
-                    {!dish.available && <span className="tag-sm tag-red shrink-0">OFF</span>}
-                    {dish.has_sizes   && <span className="tag-sm tag-blue shrink-0">📏</span>}
-                    {(dish.options ?? []).length > 0 && <span className="tag-sm tag-blue shrink-0">🍦</span>}
+                <div className="space-y-2 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-bold" style={{ color: txt, fontSize: 'var(--w-fs-body-lg)' }}>{dish.name}</p>
+                    <p className="shrink-0 font-bold" style={{ color: txt, fontSize: 'var(--w-fs-body-lg)' }}>${dish.price.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
                   </div>
-                  {(dish.tags ?? []).length > 0 && (
-                    <div className="flex gap-1 mt-0.5 flex-wrap">
-                      {(dish.tags ?? []).slice(0,3).map(t => (
-                        <span key={t} className="text-[0.5625rem] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ backgroundColor: bgSurf, color: txtMid }}>#{t}</span>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-sm font-bold mt-0.5" style={{ color: acc }}>${dish.price.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-                </div>
-                <div className="flex flex-col gap-1.5 shrink-0">
-                  <button onClick={() => openEdit(dish)}
-                    className="w-8 h-8 rounded-xl text-xs flex items-center justify-center transition-transform hover:scale-110"
-                    style={{ ...S.neoOutSm, color: txtMid }}>✏️</button>
-                  <button onClick={() => handleToggle(dish)}
-                    className="w-8 h-8 rounded-xl text-xs flex items-center justify-center transition-transform hover:scale-110"
-                    style={S.neoOutSm}>{dish.available ? '⏸️' : '▶️'}</button>
-
-                  {/* Borrado con confirmación inline — sin window.confirm */}
-                  {confirmDeleteId === dish.id ? (
-                    <div className="flex flex-col gap-1">
-                      <button
-                        onClick={() => handleDelete(dish)}
-                        className="w-8 h-8 rounded-xl text-xs flex items-center justify-center font-bold text-white animate-pulse"
-                        style={{ backgroundColor: '#EF4444', boxShadow: '0 0 0 2px #EF4444' }}
-                        title="Confirmar eliminación">
-                        ✓
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="w-8 h-8 rounded-xl text-xs flex items-center justify-center"
-                        style={{ ...S.neoOutSm, color: txtMid }}
-                        title="Cancelar">
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => requestDelete(dish.id)}
-                      className="w-8 h-8 rounded-xl text-xs flex items-center justify-center text-red-400 transition-transform hover:scale-110"
-                      style={S.neoOutSm}
-                      title="Eliminar plato">
-                      🗑️
-                    </button>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge tone={dish.available ? 'success' : 'danger'}>{dish.available ? 'Disponible' : 'No disponible'}</Badge>
+                    {cat && <Badge tone="neutral">{cat.emoji} {cat.label}</Badge>}
+                    {dish.has_sizes && <Badge tone="info">Tamaños</Badge>}
+                    {(dish.options ?? []).length > 0 && <Badge tone="info">Opciones</Badge>}
+                    {(dish.tags ?? []).slice(0, 3).map(t => <Badge key={t} tone="neutral">#{t}</Badge>)}
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button onClick={() => openEdit(dish)} className={btn} style={{ color: txtMid }} aria-label="Editar plato" title="Editar">✏️</button>
+                    <span className="ml-auto"><Toggle checked={dish.available} label={dish.available ? 'Pausar plato' : 'Activar plato'} onChange={() => handleToggle(dish)} /></span>
+                    {/* Borrado con confirmación inline — sin window.confirm */}
+                    {confirmDeleteId === dish.id ? (
+                      <>
+                        <button onClick={() => handleDelete(dish)} className={btn + ' animate-pulse font-bold'}
+                          style={{ backgroundColor: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', borderColor: 'var(--w-danger)' }}
+                          aria-label="Confirmar eliminación" title="Confirmar eliminación">✓</button>
+                        <button onClick={() => setConfirmDeleteId(null)} className={btn} style={{ color: txtMid }} aria-label="Cancelar" title="Cancelar">✕</button>
+                      </>
+                    ) : (
+                      <button onClick={() => requestDelete(dish.id)} className={btn} style={{ color: 'var(--w-danger-text)' }} aria-label="Eliminar plato" title="Eliminar plato">🗑️</button>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )

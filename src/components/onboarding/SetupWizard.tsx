@@ -81,17 +81,17 @@ const COLS_MENU: Col[] = [
 ]
 
 const input: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.875rem', borderRadius: '0.75rem', minHeight: '2.75rem',
-  border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)',
-  fontSize: '1rem', outline: 'none', fontFamily: 'var(--w-sans)',
+  width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.875rem', borderRadius: 'var(--w-r-md)', minHeight: '2.75rem',
+  border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)',
+  fontSize: '1rem', outline: 'none', fontFamily: 'var(--w-font)',
 }
 const btn: React.CSSProperties = {
-  border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem',
-  borderRadius: '0.75rem', padding: '0.7rem 1.1rem', minHeight: '2.75rem',
+  border: 'none', cursor: 'pointer', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.9375rem',
+  borderRadius: 'var(--w-r-md)', padding: '0.7rem 1.1rem', minHeight: '2.75rem',
 }
-const primary: React.CSSProperties = { ...btn, background: 'var(--w-terra)', color: '#fff' }
-const ghost: React.CSSProperties = { ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }
-const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }
+const primary: React.CSSProperties = { ...btn, background: 'var(--w-accent)', color: 'var(--w-on-accent)' }
+const ghost: React.CSSProperties = { ...btn, background: 'var(--w-bg)', color: 'var(--w-text)', border: '1px solid var(--w-border)' }
+const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }
 
 // Todo lo que viene de un archivo o del portapapeles es texto: nunca se interpreta como fórmula.
 const limpiar = (v: unknown) => String(v ?? '').trim().replace(/^[=+@]+/, '')
@@ -204,7 +204,7 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, gui
       </div>
       {pegar && (
         <div style={card}>
-          <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>
+          <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', color: 'var(--w-text-3)' }}>
             Copia las filas desde Excel y pégalas aquí. Orden de columnas: <b>{cols.map(c => c.label).join(' · ')}</b>
           </p>
           <textarea style={{ ...input, minHeight: '6rem' }} value={texto} onChange={e => setTexto(e.target.value)} aria-label="Filas pegadas" />
@@ -228,7 +228,7 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, gui
               inputMode={c.num ? 'decimal' : undefined} list={c.list ? 'wiz-cats' : undefined} maxLength={c.key === 'descripcion' ? 500 : 120}
               onChange={e => cambiar(i, c.key, e.target.value)} />
           ))}
-          <button style={{ ...ghost, color: 'var(--w-wine)' }} onClick={() => setFilas(fs => fs.length > 1 ? fs.filter((_, j) => j !== i) : [vacia()])} aria-label="Quitar fila">Quitar</button>
+          <button style={{ ...ghost, color: 'var(--w-danger-text)' }} onClick={() => setFilas(fs => fs.length > 1 ? fs.filter((_, j) => j !== i) : [vacia()])} aria-label="Quitar fila">Quitar</button>
         </div>
       ))}
       {categorias && <datalist id="wiz-cats">{categorias.map(c => <option key={c} value={c} />)}</datalist>}
@@ -239,7 +239,7 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, gui
         </button>
       </div>
       {aviso.length > 0 && (
-        <div style={{ ...card, borderColor: 'var(--w-wine)' }}>
+        <div style={{ ...card, borderColor: 'var(--w-danger-text)' }}>
           {guia
             ? <RestiGuia texto="Hubo filas que no pude guardar; las demás ya quedaron listas. Corrígelas y vuelve a guardar:" pose="think" />
             : <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Revisa estas filas (las demás ya quedaron guardadas):</p>}
@@ -252,8 +252,8 @@ function CargaTabla({ cols, rpc, sugeridos, categorias, validar, onGuardado, gui
 
 const Titulo = ({ t, s }: { t: string; s: string }) => (
   <div style={{ marginBottom: '1rem' }}>
-    <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.75rem', margin: 0 }}>{t}</h2>
-    <p style={{ margin: '0.25rem 0 0', fontSize: '0.9375rem', color: 'var(--w-ink-mut)' }}>{s}</p>
+    <h2 style={{ fontWeight: 700, fontSize: 'var(--w-fs-screen)', lineHeight: 1.15, margin: 0, color: 'var(--w-text)' }}>{t}</h2>
+    <p style={{ margin: '0.25rem 0 0', fontSize: '0.9375rem', color: 'var(--w-text-3)' }}>{s}</p>
   </div>
 )
 
@@ -442,7 +442,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
 
   const pendiente = (ok: boolean, txt: string, ir?: NavView) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', padding: '0.375rem 0' }}>
-      <span style={{ fontWeight: 800, color: ok ? 'var(--w-olive)' : 'var(--w-ink-mut)' }}>{ok ? '✓' : '○'}</span>
+      <span style={{ fontWeight: 800, color: ok ? 'var(--w-success-text)' : 'var(--w-text-3)' }}>{ok ? '✓' : '○'}</span>
       <span style={{ flex: 1, minWidth: '10rem' }}>{txt}</span>
       {!ok && ir && <button style={ghost} onClick={() => onClose(ir)}>Hacerlo ahora</button>}
     </div>
@@ -450,23 +450,23 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Configura tu restaurante"
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--w-bg)', overflowY: 'auto', fontFamily: 'var(--w-sans)', color: 'var(--w-ink)' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--w-bg)', overflowY: 'auto', fontFamily: 'var(--w-font)', color: 'var(--w-text)' }}>
       <div style={{ maxWidth: '48rem', margin: '0 auto', padding: '1rem 1rem 6rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <p className="ed-kicker" style={{ margin: 0 }}>Paso {paso} de {PASOS.length} · {PASOS[paso - 1]}</p>
+          <p style={{ margin: 0, fontSize: 'var(--w-fs-label)', fontWeight: 600, color: 'var(--w-accent-text)' }}>Paso {paso} de {PASOS.length} · {PASOS[paso - 1]}</p>
           <button style={ghost} onClick={() => onClose()}>Cerrar y seguir después</button>
         </div>
-        <div style={{ height: '0.5rem', borderRadius: '999px', background: 'var(--w-line)', margin: '0.75rem 0 1.25rem', overflow: 'hidden' }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: 'var(--w-terra)', transition: 'width 0.3s' }} />
+        <div style={{ height: '0.5rem', borderRadius: '999px', background: 'var(--w-border)', margin: '0.75rem 0 1.25rem', overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: 'var(--w-accent)', transition: 'width 0.3s' }} />
         </div>
 
-        {cargando ? <p style={{ color: 'var(--w-ink-mut)' }}>Cargando…</p> : (<>
+        {cargando ? <p style={{ color: 'var(--w-text-3)' }}>Cargando…</p> : (<>
           {(() => { const g = textoGuia(); return g && <RestiGuia texto={g.texto} pose={g.pose} /> })()}
           {paso === 1 && sub === 'preguntas' && (<>
             <Titulo t="Cuéntanos de tu negocio" s="Estas preguntas nos ayudan a dejar tu menú y tus opciones como las necesitas. Responde lo que sepas con tus palabras; puedes dejar en blanco lo que no." />
             {elegidas.filter(p => p.preguntas.length > 0).map(p => (
               <div key={p.key} style={{ ...card, marginBottom: '0.75rem' }}>
-                <p className="ed-kicker" style={{ margin: '0 0 0.75rem' }}>{p.emoji} {p.nombre}</p>
+                <p style={{ margin: '0 0 0.75rem', fontSize: 'var(--w-fs-label)', fontWeight: 600, color: 'var(--w-accent-text)' }}>{p.emoji} {p.nombre}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
                   {p.preguntas.map((q, i) => {
                     const id = `preg-${p.key}-${q.id}`
@@ -476,14 +476,14 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
                         <textarea id={id} rows={2} maxLength={2000} placeholder="Escribe tu respuesta aquí"
                           value={respuestas[`${p.key}|${q.id}`] ?? ''}
                           onChange={e => setRespuestas(r => ({ ...r, [`${p.key}|${q.id}`]: e.target.value }))}
-                          style={{ ...input, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'var(--w-sans)' }} />
+                          style={{ ...input, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'var(--w-font)' }} />
                       </div>
                     )
                   })}
                 </div>
               </div>
             ))}
-            <p style={{ margin: '0.5rem 0 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>
               Tus respuestas las lee el equipo de RestaurantOS para ajustar tu configuración. No son obligatorias y las puedes cambiar después.
             </p>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
@@ -503,7 +503,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
                 : TIPOS
               ).map(t => (
                 <button key={t.id} onClick={() => (plantillas.length > 0 ? alternar(t.id) : setTipos([t.id]))} aria-pressed={tipos.includes(t.id)}
-                  style={{ ...card, cursor: 'pointer', textAlign: 'center', borderColor: tipos.includes(t.id) ? 'var(--w-terra)' : 'var(--w-line)', borderWidth: tipos.includes(t.id) ? 2 : 1, minHeight: '5.5rem', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontWeight: 700 }}>
+                  style={{ ...card, cursor: 'pointer', textAlign: 'center', borderColor: tipos.includes(t.id) ? 'var(--w-accent)' : 'var(--w-border)', borderWidth: tipos.includes(t.id) ? 2 : 1, minHeight: '5.5rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', fontWeight: 700 }}>
                   <div style={{ fontSize: '1.75rem' }}>{t.emoji}</div>{t.label}
                 </button>
               ))}
@@ -592,8 +592,8 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
             {slug && (
               <div style={{ ...card, marginTop: '0.75rem' }}>
                 <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Tu menú público</p>
-                <a href={`/menu/${slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--w-terra)', fontWeight: 700, wordBreak: 'break-all' }}>{window.location.origin}/menu/{slug}</a>
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Un QR por mesa para que tus clientes abran el menú y pidan desde su celular.</p>
+                <a href={`/menu/${slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--w-accent)', fontWeight: 700, wordBreak: 'break-all' }}>{window.location.origin}/menu/{slug}</a>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--w-text-3)' }}>Un QR por mesa para que tus clientes abran el menú y pidan desde su celular.</p>
                 <div style={{ marginTop: '0.5rem' }}>
                   <button style={ghost} onClick={() => setVerQr(v => !v)}>{verQr ? 'Ocultar los QR' : '🖨 Imprimir los QR de mis mesas (PDF)'}</button>
                 </div>
@@ -603,7 +603,7 @@ export function SetupWizard({ onClose, onFinished }: { onClose: (ir?: NavView) =
             <div style={{ ...card, marginTop: '0.75rem' }}>
               <p style={{ margin: '0 0 0.375rem', fontWeight: 700 }}>Haz tu primer pedido de prueba</p>
               <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'grid', gap: '0.5rem', fontSize: '0.9375rem' }}>
-                <li>Abre tu menú y pide un plato como si fueras un cliente.{slug && <> <a href={`/menu/${slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--w-terra)', fontWeight: 700 }}>Abrir mi menú</a></>}</li>
+                <li>Abre tu menú y pide un plato como si fueras un cliente.{slug && <> <a href={`/menu/${slug}`} target="_blank" rel="noreferrer" style={{ color: 'var(--w-accent)', fontWeight: 700 }}>Abrir mi menú</a></>}</li>
                 <li>Míralo llegar a la pantalla de <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('kitchen')}>Cocina</button></li>
                 <li>Cóbralo en <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('cashier')}>Caja</button></li>
                 <li>Revisa en <button style={{ ...ghost, minHeight: '2.25rem', padding: '0.25rem 0.75rem' }} onClick={() => onClose('inventory')}>Inventario</button> que el stock de sus ingredientes bajó solo.</li>

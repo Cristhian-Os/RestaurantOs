@@ -2,22 +2,14 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { inventoryService } from '../../services/inventoryService'
 import Table from 'antd/es/table'
-import Tag from 'antd/es/tag'
-import Button from 'antd/es/button'
 import message from 'antd/es/message'
 import Empty from 'antd/es/empty'
 import Spin from 'antd/es/spin'
-import Statistic from 'antd/es/statistic'
-import Row from 'antd/es/row'
-import Col from 'antd/es/col'
-import Card from 'antd/es/card'
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
+import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
+import { Tabs } from '../ui/Tabs'
 import type { ListaCompras } from '../../types/inventory'
-
-const S = {
-  neoOut: { boxShadow: 'var(--shadow-out)' },
-  neoOutSm: { boxShadow: 'var(--shadow-out-sm)' },
-  coral: { boxShadow: 'var(--shadow-coral)' },
-}
 
 // Postgres numeric llega como string vía Supabase/PostgREST — nunca confiar en el tipo TS
 const fmtCOP = (n: unknown) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO')
@@ -130,14 +122,14 @@ export function ShoppingList() {
       dataIndex: 'nombre',
       key: 'nombre',
       width: 150,
-      render: (text: string) => <span className="font-semibold text-neo-dark">{text}</span>,
+      render: (text: string) => <span className="font-semibold text-[color:var(--w-text)]">{text}</span>,
     },
     {
       title: 'Unidad',
       dataIndex: 'unidad_medida',
       key: 'unidad',
       width: 80,
-      render: (text: string) => <span className="text-sm text-neo-mid">{text}</span>,
+      render: (text: string) => <span className="text-sm text-[color:var(--w-text-2)]">{text}</span>,
     },
     {
       title: 'Stock Actual',
@@ -145,7 +137,7 @@ export function ShoppingList() {
       key: 'stock_actual',
       width: 100,
       render: (val: number) => (
-        <span className={Number(val) <= 0 ? 'text-red-600 font-bold' : 'text-neo-dark'}>
+        <span className={Number(val) <= 0 ? 'text-[color:var(--w-danger-text)] font-bold' : 'text-[color:var(--w-text)]'}>
           {Number(val).toFixed(2)}
         </span>
       ),
@@ -156,7 +148,7 @@ export function ShoppingList() {
       dataIndex: 'stock_minimo',
       key: 'stock_minimo',
       width: 100,
-      render: (val: number) => <span className="text-sm text-neo-mid">{Number(val).toFixed(2)}</span>,
+      render: (val: number) => <span className="text-sm text-[color:var(--w-text-2)]">{Number(val).toFixed(2)}</span>,
     },
     {
       title: 'Qty Sugerida',
@@ -164,7 +156,7 @@ export function ShoppingList() {
       key: 'cantidad_sugerida',
       width: 110,
       render: (val: number) => (
-        <span className="font-bold text-neo-coral">{Number(val).toFixed(2)}</span>
+        <span className="font-bold text-[color:var(--w-accent-text)]">{Number(val).toFixed(2)}</span>
       ),
     },
     {
@@ -173,7 +165,7 @@ export function ShoppingList() {
       key: 'costo_unitario',
       width: 100,
       render: (val: number) => (
-        <span className="text-sm text-neo-dark">{fmtCOP(val)}</span>
+        <span className="text-sm text-[color:var(--w-text)]">{fmtCOP(val)}</span>
       ),
     },
     {
@@ -182,7 +174,7 @@ export function ShoppingList() {
       key: 'costo_total',
       width: 110,
       render: (val: number) => (
-        <span className="font-bold text-neo-dark">{fmtCOP(val)}</span>
+        <span className="font-bold text-[color:var(--w-text)]">{fmtCOP(val)}</span>
       ),
       sorter: (a: ListaCompras, b: ListaCompras) => Number(a.costo_total) - Number(b.costo_total),
     },
@@ -192,13 +184,8 @@ export function ShoppingList() {
       key: 'prioridad',
       width: 100,
       render: (val: 'URGENTE' | 'ALTO' | 'NORMAL') => {
-        const colors = { URGENTE: 'red', ALTO: 'orange', NORMAL: 'green' }
-        const icons = { URGENTE: '', ALTO: '', NORMAL: '' }
-        return (
-          <Tag color={colors[val]} className="cursor-pointer">
-            {icons[val]} {val}
-          </Tag>
-        )
+        const tones = { URGENTE: 'danger', ALTO: 'warning', NORMAL: 'success' } as const
+        return <Badge tone={tones[val]}>{val}</Badge>
       },
       filters: [
         { text: 'Urgente', value: 'URGENTE' },
@@ -212,99 +199,39 @@ export function ShoppingList() {
   // Render
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-neo-dark mb-1">Lista de Compras Automática</h2>
-          <p className="text-sm text-neo-mid">Generada automáticamente según stock de ingredientes</p>
-        </div>
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg>}
+        title="Lista de compras"
+        subtitle="Generada automáticamente según stock de ingredientes"
+        actions={<>
+          <Button variant="secondary" onClick={handleDownloadCSV}>CSV</Button>
+          <Button variant="secondary" onClick={handleDownloadJSON}>JSON</Button>
+          <Button onClick={() => listaQuery.refetch()}>Refrescar</Button>
+        </>}
+      />
 
-        <div className="flex gap-2">
-          <Button onClick={handleDownloadCSV} className="bg-neo-base text-neo-dark">
-            CSV
-          </Button>
-          <Button onClick={handleDownloadJSON} className="bg-neo-base text-neo-dark">
-            JSON
-          </Button>
-          <Button type="primary" onClick={() => listaQuery.refetch()} className="bg-neo-coral hover:bg-neo-coralDark">
-            Refrescar
-          </Button>
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Items a comprar" value={totalItems} tone="accent" />
+        <StatCard label="Costo total" value={fmtCOP(totalCost)} tone="accent" />
+        <StatCard label="Urgentes" value={urgenteCount} tone="danger" />
+        <StatCard label="Prioritarios" value={altoCount} tone="warning" />
       </div>
 
-      {/* Métricas */}
-      <Row gutter={16}>
-        <Col xs={24} sm={12} md={6}>
-          <Card size="small" style={S.neoOutSm}>
-            <Statistic
-              title="Items a Comprar"
-              value={totalItems}
-              prefix=""
-              valueStyle={{ color: 'var(--text-primary)' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card size="small" style={S.coral}>
-            <Statistic
-              title="Costo Total"
-              value={totalCost}
-              formatter={(val) => fmtCOP(val)}
-              valueStyle={{ color: 'var(--accent)' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card size="small" style={S.neoOutSm}>
-            <Statistic
-              title="Urgentes"
-              value={urgenteCount}
-              prefix=""
-              valueStyle={{ color: '#dc2626' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card size="small" style={S.neoOutSm}>
-            <Statistic
-              title="Prioritarios"
-              value={altoCount}
-              prefix=""
-              valueStyle={{ color: '#ea580c' }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Filtros */}
-      <div className="flex gap-2">
-        {['TODOS', 'URGENTE', 'ALTO', 'NORMAL'].map((priority) => (
-          <Button
-            key={priority}
-            onClick={() => setFilteredPriority(priority as any)}
-            type={filteredPriority === priority ? 'primary' : 'default'}
-            className={
-              filteredPriority === priority
-                ? 'bg-neo-coral text-white'
-                : 'bg-neo-base text-neo-dark'
-            }
-          >
-            {priority === 'TODOS' && 'Todos'}
-            {priority === 'URGENTE' && 'Urgentes'}
-            {priority === 'ALTO' && 'Altos'}
-            {priority === 'NORMAL' && 'Normales'}
-            <span className="ml-1 font-bold">
-              ({(listaQuery.data || []).filter((i) =>
-                priority === 'TODOS' ? true : i.prioridad === priority
-              ).length})
-            </span>
-          </Button>
-        ))}
+      <div className="max-w-full overflow-x-auto pb-1">
+        <Tabs
+          label="Filtrar por prioridad"
+          value={filteredPriority}
+          onChange={setFilteredPriority}
+          items={(['TODOS', 'URGENTE', 'ALTO', 'NORMAL'] as const).map(priority => ({
+            key: priority,
+            label: `${{ TODOS: 'Todos', URGENTE: 'Urgentes', ALTO: 'Altos', NORMAL: 'Normales' }[priority]} (${(listaQuery.data || []).filter(i => priority === 'TODOS' ? true : i.prioridad === priority).length})`,
+          }))}
+        />
       </div>
 
       {/* Tabla */}
       <Spin spinning={listaQuery.isLoading}>
-        <div className="rounded-3xl overflow-hidden" style={S.neoOut}>
+        <div className="overflow-hidden rounded-[var(--w-r-lg)] border border-[var(--w-border)] bg-[var(--w-surface)]" style={{ boxShadow: 'var(--w-shadow-sm)' }}>
           <Table
             columns={columns}
             dataSource={filteredData}
@@ -322,8 +249,7 @@ export function ShoppingList() {
       {/* Info */}
       {filteredData.length > 0 && (
         <div
-          className="p-4 rounded-2xl bg-neo-light text-sm text-neo-mid"
-          style={S.neoOutSm}
+          className="rounded-[var(--w-r-lg)] border border-[var(--w-border)] bg-[var(--w-surface-sunken)] p-4 text-sm text-[color:var(--w-text-2)]"
         >
           <strong>Total:</strong> {totalItems} ingredientes •{' '}
           <strong>Inversión:</strong> {fmtCOP(totalCost)} • Fecha:{' '}

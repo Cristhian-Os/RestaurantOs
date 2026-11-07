@@ -98,12 +98,15 @@ export const WaiterNotifications = memo(() => {
 
   return (
     <div style={{
-      position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+      position: 'fixed', bottom: 'calc(216px + env(safe-area-inset-bottom))',
+      ...(window.innerWidth >= 900
+        ? { left: 16, bottom: 'calc(96px + env(safe-area-inset-bottom))' }
+        : { left: '50%', transform: 'translateX(-50%)' }),
       zIndex: 200, display: 'flex', flexDirection: 'column-reverse', gap: '0.5rem',
       width: '92%', maxWidth: 400, pointerEvents: 'none',
     }}>
       <AnimatePresence>
-        {ready.map(order => (
+        {ready.slice(0, 2).map(order => (
           <motion.div
             key={order.id}
             initial={{ opacity: 0, y: 48, scale: 0.88 }}
@@ -113,29 +116,31 @@ export const WaiterNotifications = memo(() => {
             style={{ pointerEvents: 'auto' }}
           >
             <div style={{
-              backgroundColor: 'var(--bg)',
-              borderRadius: '1.25rem',
-              padding: '0.875rem 1rem',
-              display: 'flex', alignItems: 'center', gap: '0.875rem',
-              border: '2.5px solid #10B981',
-              boxShadow: 'var(--shadow-green)',
+              backgroundColor: 'var(--w-surface)',
+              borderRadius: '1rem',
+              padding: '0.5rem 0.625rem',
+              display: 'flex', alignItems: 'center', gap: '0.625rem',
+              border: '1.5px solid var(--w-success)',
+              boxShadow: 'var(--w-shadow-sm)',
             }}>
               {/* Ícono animado */}
               <motion.div
                 animate={{ scale: [1, 1.15, 1] }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
                 style={{
-                  width: 42, height: 42, borderRadius: '0.875rem',
-                  backgroundColor: 'var(--green)', flexShrink: 0,
+                  width: 34, height: 34, borderRadius: '0.75rem',
+                  backgroundColor: 'var(--w-success)', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem',
-                  boxShadow: 'var(--shadow-green)',
-                }}></motion.div>
+                  boxShadow: 'var(--w-shadow-sm)',
+                }}>
+                <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="var(--w-on-accent)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.5 4.5L19 7" /></svg>
+              </motion.div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontSize: '0.9375rem', fontFamily: 'DM Sans, sans-serif' }}>
+                <p style={{ fontWeight: 800, color: 'var(--w-text)', margin: 0, fontSize: '0.875rem', fontFamily: 'var(--w-font)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {order.table_num ? `Mesa ${order.table_num}` : TIPO_LABEL[order.tipo_pedido ?? ''] ?? 'Pedido'} — ¡Listo!
                 </p>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--green)', margin: 0, fontWeight: 600 }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--w-success)', margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   Entregar ahora{order.customer_name ? ` · ${order.customer_name}` : ''}
                 </p>
               </div>
@@ -143,7 +148,7 @@ export const WaiterNotifications = memo(() => {
               <button
                 onClick={() => markDelivered(order.id)}
                 style={{
-                  background: 'var(--green)', border: 'none', cursor: 'pointer', color: '#fff',
+                  background: 'var(--w-success)', border: 'none', cursor: 'pointer', color: 'var(--w-on-accent)',
                   fontSize: '0.75rem', fontWeight: 700, padding: '0.5rem 0.75rem', borderRadius: '0.625rem',
                   flexShrink: 0, whiteSpace: 'nowrap',
                 }}>Ya lo tengo</button>

@@ -23,8 +23,8 @@ function useAncho(): number {
 }
 
 const chip = (on: boolean): React.CSSProperties => ({
-  border: `1px solid ${on ? 'var(--w-terra)' : 'var(--w-line)'}`, background: on ? 'var(--w-terra)' : 'var(--w-bg)', color: on ? '#fff' : 'var(--w-ink)',
-  borderRadius: '999px', padding: '0.4rem 0.9rem', minHeight: '2.5rem', fontWeight: 700, fontFamily: 'var(--w-sans)', fontSize: '0.8125rem', cursor: 'pointer',
+  border: `1px solid ${on ? 'var(--w-accent)' : 'var(--w-border)'}`, background: on ? 'var(--w-accent)' : 'var(--w-bg)', color: on ? 'var(--w-on-accent)' : 'var(--w-text)',
+  borderRadius: '999px', padding: '0.4rem 0.9rem', minHeight: '2.5rem', fontWeight: 700, fontFamily: 'var(--w-font)', fontSize: '0.8125rem', cursor: 'pointer',
 })
 
 export function MarcaConVistaPrevia({ slug }: { slug: string | null }) {
@@ -63,12 +63,12 @@ export function MarcaConVistaPrevia({ slug }: { slug: string | null }) {
         <button style={chip(cerrado)} onClick={() => setCerrado(true)}>Cerrado</button>
       </div>
       {slug ? (
-        <div style={{ width: dividida ? ancha : '100%', maxWidth: '100%', height: dividida ? 640 : 'calc(100vh - 9rem)', borderRadius: dividida ? '2rem' : '1rem', border: dividida ? '8px solid var(--w-ink)' : '1px solid var(--w-line)', overflow: 'hidden', background: 'var(--w-bg)' }}>
+        <div style={{ width: dividida ? ancha : '100%', maxWidth: '100%', height: dividida ? 640 : 'calc(100vh - 9rem)', borderRadius: dividida ? '2rem' : '1rem', border: dividida ? '8px solid var(--w-text)' : '1px solid var(--w-border)', overflow: 'hidden', background: 'var(--w-bg)' }}>
           <iframe ref={iframeRef} title="Así se ve tu menú" src={`${window.location.origin}/menu/${slug}?preview=1`} style={{ width: '100%', height: '100%', border: 'none' }} />
         </div>
-      ) : <p style={{ color: 'var(--w-ink-mut)' }}>Cuando tu restaurante tenga dirección web propia, aquí verás cómo queda tu menú.</p>}
+      ) : <p style={{ color: 'var(--w-text-3)' }}>Cuando tu restaurante tenga dirección web propia, aquí verás cómo queda tu menú.</p>}
       {ilegible && (
-        <p role="alert" style={{ margin: 0, maxWidth: ancha, fontSize: '0.8125rem', color: '#B0341D', fontWeight: 600 }}>
+        <p role="alert" style={{ margin: 0, maxWidth: ancha, fontSize: '0.8125rem', color: 'var(--w-danger-text)', fontWeight: 600 }}>
           ⚠ Este color es muy claro: el texto blanco de los botones se leerá mal. Prueba uno más oscuro.
         </p>
       )}
@@ -81,7 +81,7 @@ export function MarcaConVistaPrevia({ slug }: { slug: string | null }) {
       {dividida && <div style={{ position: 'sticky', top: '1rem', flexShrink: 0 }}>{vista}</div>}
       {!dividida && (
         <>
-          <button onClick={() => setAbierta(true)} style={{ position: 'fixed', right: '1rem', bottom: '5.5rem', zIndex: 60, borderRadius: '999px', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, padding: '0.85rem 1.25rem', minHeight: '3rem', boxShadow: '0 6px 20px rgba(0,0,0,0.25)', cursor: 'pointer', fontFamily: 'var(--w-sans)' }}>
+          <button onClick={() => setAbierta(true)} style={{ position: 'fixed', right: '1rem', bottom: '5.5rem', zIndex: 60, borderRadius: '999px', border: 'none', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontWeight: 700, padding: '0.85rem 1.25rem', minHeight: '3rem', boxShadow: 'var(--w-shadow-lg)', cursor: 'pointer', fontFamily: 'var(--w-font)' }}>
             👁 Ver cómo queda
           </button>
           {abierta && (

@@ -48,15 +48,15 @@ const ProposalRow = forwardRef<HTMLLIElement, RowProps>(({ proposal, error, disa
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }}
       className={cn(
         'relative flex items-start gap-3 rounded-2xl border bg-[var(--w-surface)] p-3 pr-10 list-none',
-        problem ? 'border-[var(--w-wine)]' : 'border-[var(--w-line)]',
+        problem ? 'border-[var(--w-danger-text)]' : 'border-[var(--w-border)]',
       )}>
       <div className="min-w-0 flex-1">
-        <p className="m-0 text-sm font-bold text-[var(--w-ink)]">{proposal.title}</p>
-        {proposal.detail && <p className="m-0 mt-0.5 text-sm text-[var(--w-ink-soft)]">{proposal.detail}</p>}
-        {problem && <p className="m-0 mt-1 text-xs font-semibold text-[var(--w-wine)]">{problem}</p>}
+        <p className="m-0 text-sm font-bold text-[var(--w-text)]">{proposal.title}</p>
+        {proposal.detail && <p className="m-0 mt-0.5 text-sm text-[var(--w-text-2)]">{proposal.detail}</p>}
+        {problem && <p className="m-0 mt-1 text-xs font-semibold text-[var(--w-danger-text)]">{problem}</p>}
       </div>
       <button type="button" onClick={onRemove} disabled={disabled} aria-label="Quitar este cambio" title="Quitar"
-        className="absolute right-2 top-2 h-7 w-7 cursor-pointer rounded-lg border-none bg-transparent text-base text-[var(--w-ink-mut)] hover:text-[var(--w-wine)] disabled:opacity-50">
+        className="absolute right-2 top-2 h-7 w-7 cursor-pointer rounded-lg border-none bg-transparent text-base text-[var(--w-text-3)] hover:text-[var(--w-danger-text)] disabled:opacity-50">
         ✕
       </button>
     </motion.li>
@@ -158,11 +158,11 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
   return createPortal(
     <div onClick={() => !applying && onClose()} className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4">
       <div onClick={e => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-xl flex-col gap-3 overflow-y-auto rounded-3xl border border-[var(--w-line)] bg-[var(--w-bg)] p-4">
+        className="flex max-h-[90vh] w-full max-w-xl flex-col gap-3 overflow-y-auto rounded-3xl border border-[var(--w-border)] bg-[var(--w-bg)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="m-0 text-lg font-bold text-[var(--w-ink)]">Comando de voz</h3>
+          <h3 className="m-0 text-lg font-bold text-[var(--w-text)]">Comando de voz</h3>
           <button type="button" onClick={escribir} disabled={applying || busyGroup !== null}
-            className="cursor-pointer border-none bg-transparent p-0 text-xs font-semibold text-[var(--w-terra)] underline disabled:opacity-50">
+            className="cursor-pointer border-none bg-transparent p-0 text-xs font-semibold text-[var(--w-accent)] underline disabled:opacity-50">
             Escribir en vez de hablar
           </button>
           <VoiceButton<{ transcript: string; actions: RawAction[] }>
@@ -174,7 +174,7 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
             }} />
         </div>
 
-        <p className="m-0 text-xs text-[var(--w-ink-mut)]">
+        <p className="m-0 text-xs text-[var(--w-text-3)]">
           Di por ejemplo: {role === 'admin'
             ? '“sube el cholao grande a 15 mil”, “se acabó la fresa”, “agrégale 3 kilos al limón”, “mesa 4 ocupada”, “la receta del cholao lleva 200 gramos de fresa y 100 de leche”, “gasto de 50 mil en gas”, “compré a Frutas Pérez 2 kilos de fresa a 8 mil el kilo”, “agrega al proveedor Frutas Pérez, vende fruta, su teléfono es 300 123 4567”, “el correo de Frutas Pérez es ventas arroba frutasperez punto com”, “Juan trabaja el lunes de 8 a 5”, “ponle una tarea a María: limpiar la nevera”.'
             : '“se acabó la limonada”, “se acabó la fresa”, “quedan 2 kilos de limón”, “mesa 4 ocupada”, “gasto de 30 mil en domicilio”, “le pagué 50 mil a Coca-Cola”, “compré a Frutas Pérez 2 kilos de fresa a 8 mil el kilo”.'}
@@ -197,11 +197,11 @@ export function VoiceCommandModal({ userId, role, onApplied, onClose }: Props) {
 
         <div className="flex gap-2.5">
           <button type="button" onClick={onClose} disabled={applying}
-            className="flex-1 cursor-pointer rounded-2xl border-none bg-[var(--w-surface)] p-3 font-bold text-[var(--w-ink-soft)] disabled:opacity-50">
+            className="flex-1 cursor-pointer rounded-2xl border-none bg-[var(--w-surface)] p-3 font-bold text-[var(--w-text-2)] disabled:opacity-50">
             Cancelar
           </button>
           <button type="button" onClick={apply} disabled={applying || applicable === 0}
-            className="flex-[2] cursor-pointer rounded-2xl border-none bg-[var(--w-terra)] p-3 font-bold text-white disabled:opacity-50">
+            className="flex-[2] cursor-pointer rounded-2xl border-none bg-[var(--w-accent)] p-3 font-bold text-white disabled:opacity-50">
             {applying ? 'Aplicando…' : applicable > 0 ? `Aplicar ${applicable} ${applicable === 1 ? 'cambio' : 'cambios'}` : 'Aplicar'}
           </button>
         </div>

@@ -5,8 +5,11 @@
  * y se ven con URLs firmadas de corta duración.
  */
 import { useState, useEffect, useCallback, memo } from 'react'
+import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
+import { IconBubble } from '../tasks/ModuleHeader'
 
 interface Checkin {
   id:            string
@@ -76,37 +79,38 @@ export const ShiftCheckinsReview = memo(() => {
   if (rows.length === 0) return null
 
   return (
-    <div style={{ background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '1rem', border: '2px solid var(--w-saffron)', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-      <h3 className="ed-display" style={{ margin: 0, fontWeight: 600, fontSize: '1.25rem' }}>
-        Llegadas por aprobar <span style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', fontWeight: 400 }}>({rows.length})</span>
+    <div style={{ background: 'var(--w-surface)', borderRadius: 'var(--w-r-lg)', padding: '1rem', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+      <h3 style={{ margin: 0, fontWeight: 700, fontSize: 'var(--w-fs-title)', color: 'var(--w-text)', fontFamily: 'var(--w-font)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <IconBubble tone="warning" size={36}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        </IconBubble>
+        Llegadas por aprobar <Badge tone="warning">{rows.length} pendientes</Badge>
       </h3>
       {rows.map(r => (
         <div key={r.id} style={{ display: 'flex', gap: '0.875rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
           {r.photo
-            ? <img src={r.photo} alt={`Llegada de ${r.name}`} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: '0.875rem', transform: 'scaleX(-1)' }} />
-            : <div style={{ width: 120, height: 120, borderRadius: '0.875rem', background: 'var(--w-bg)' }} />}
+            ? <img src={r.photo} alt={`Llegada de ${r.name}`} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 'var(--w-r-md)', transform: 'scaleX(-1)' }} />
+            : <div aria-hidden style={{ width: 120, height: 120, borderRadius: 'var(--w-r-md)', background: 'var(--w-accent-soft)', color: 'var(--w-accent-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '2rem', fontFamily: 'var(--w-font)' }}>
+                {r.name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || '?'}
+              </div>}
           <div style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-            <p style={{ margin: 0, fontWeight: 700, fontFamily: 'var(--w-sans)' }}>{r.name}</p>
-            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--w-ink-mut)', fontFamily: 'var(--w-sans)' }}>
+            <p style={{ margin: 0, fontWeight: 700, fontFamily: 'var(--w-font)' }}>{r.name}</p>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--w-text-3)', fontFamily: 'var(--w-font)' }}>
               Turno {r.shift} · llegó {new Date(r.checked_in_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
             </p>
             {rejecting === r.id ? (
               <>
                 <input value={note} onChange={e => setNote(e.target.value)} maxLength={300} placeholder="Motivo (opcional)"
-                  style={{ padding: '0.5rem 0.75rem', borderRadius: '0.625rem', border: '1px solid var(--w-line)', fontSize: '0.875rem', background: 'var(--w-bg)' }} />
+                  style={{ minHeight: 44, padding: '0.5rem 0.75rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', fontSize: '0.875rem', color: 'var(--w-text)', background: 'var(--w-surface)', fontFamily: 'var(--w-font)' }} />
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={() => review(r.id, false)} disabled={busy === r.id}
-                    style={{ flex: 1, padding: '0.625rem', borderRadius: '0.75rem', border: 'none', background: 'var(--w-wine)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Rechazar</button>
-                  <button onClick={() => { setReject(null); setNote('') }}
-                    style={{ flex: 1, padding: '0.625rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                  <Button variant="danger" className="flex-1" onClick={() => review(r.id, false)} disabled={busy === r.id}>Rechazar</Button>
+                  <Button variant="secondary" className="flex-1" onClick={() => { setReject(null); setNote('') }}>Cancelar</Button>
                 </div>
               </>
             ) : (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={() => review(r.id, true)} disabled={busy === r.id}
-                  style={{ flex: 1, padding: '0.625rem', borderRadius: '0.75rem', border: 'none', background: 'var(--w-olive)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy === r.id ? 0.6 : 1 }}>Aprobar</button>
-                <button onClick={() => setReject(r.id)}
-                  style={{ flex: 1, padding: '0.625rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', fontWeight: 700, cursor: 'pointer' }}>Rechazar</button>
+                <Button className="flex-1" onClick={() => review(r.id, true)} disabled={busy === r.id}>Aprobar</Button>
+                <Button variant="secondary" className="flex-1" onClick={() => setReject(r.id)}>Rechazar</Button>
               </div>
             )}
           </div>

@@ -4,7 +4,12 @@
  * Cuando una sugerencia pasa a "hecho" se muestra resaltada una vez (y se marca como vista).
  */
 import { useCallback, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { supabase } from '../../services/supabaseClient'
+import { Card } from '../ui/Card'
+import { Badge } from '../ui/Badge'
+import { StatePanel } from '../ui/StatePanel'
+import { ModuleHeader, IconBubble } from '../tasks/ModuleHeader'
 
 export const EVENTO_ABRIR_OPINION = 'ros:abrir-opinion'
 export const EVENTO_OPINION_GUARDADA = 'ros:opinion-guardada'
@@ -16,10 +21,11 @@ const ESTADO: Record<string, string> = {
   nuevo: 'Recibida', revisado: 'En revisión', planeado: 'Planeada', en_progreso: 'En construcción', hecho: '¡Lista!', descartado: 'No por ahora',
 }
 const TIPO: Record<string, string> = { fallo: 'Fallo', mejora: 'Mejora', personalizacion: 'Personalización', pregunta: 'Pregunta', otro: 'Otro' }
-const ATAJOS: { id: AtajoOpinion; texto: string }[] = [
-  { id: 'fallo', texto: 'Reportar un fallo' },
-  { id: 'mejora', texto: 'Sugerir una mejora' },
-  { id: 'personalizacion', texto: 'Personalizar mi restaurante' },
+const ico = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24' } as const
+const ATAJOS: { id: AtajoOpinion; texto: string; tone: 'danger' | 'accent' | 'info'; icon: ReactNode }[] = [
+  { id: 'fallo', texto: 'Reportar un fallo', tone: 'danger', icon: <svg {...ico}><path d="M12 3 2.5 20h19z"/><path d="M12 10v4M12 17.5v.01"/></svg> },
+  { id: 'mejora', texto: 'Sugerir una mejora', tone: 'accent', icon: <svg {...ico}><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg> },
+  { id: 'personalizacion', texto: 'Personalizar mi restaurante', tone: 'info', icon: <svg {...ico}><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.5-.8 1.2-1.7-.4-1 .3-2.3 1.5-2.3H17a4 4 0 0 0 4-4c0-5-4-10-9-10z"/><circle cx="7.5" cy="11" r=".8"/><circle cx="12" cy="7.5" r=".8"/><circle cx="16.5" cy="11" r=".8"/></svg> },
 ]
 
 export const abrirChatOpinion = (atajo?: AtajoOpinion) => window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_OPINION, { detail: { atajo } }))
@@ -52,49 +58,52 @@ export function OpinionSection() {
     return () => window.removeEventListener(EVENTO_OPINION_GUARDADA, cargar)
   }, [cargar])
 
-  const caja: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.25rem' }
-
   return (
-    <div style={{ maxWidth: 680, margin: '0 auto', display: 'grid', gap: '1rem', fontFamily: 'var(--w-sans)' }}>
-      <div>
-        <h2 className="ed-display" style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0, color: 'var(--w-ink)' }}>Opinión y sugerencias</h2>
-        <p style={{ fontSize: '0.85rem', color: 'var(--w-ink-mut)', margin: '0.25rem 0 0' }}>
-          Cuéntale a Resti qué falló, qué mejorarías o cómo quieres personalizar tu restaurante. Lo leemos y lo tenemos en cuenta.
-        </p>
-      </div>
+    <div className="mx-auto grid max-w-[980px] gap-4" style={{ fontFamily: 'var(--w-font)' }}>
+      <ModuleHeader
+        icon={<svg {...ico}><path d="M12 21s-7-4.4-9.2-9A5.3 5.3 0 0 1 12 6.2 5.3 5.3 0 0 1 21.2 12C19 16.6 12 21 12 21z"/></svg>}
+        title="Opinión y sugerencias"
+        subtitle="Cuéntale a Resti qué falló, qué mejorarías o cómo quieres personalizar tu restaurante. Lo leemos y lo tenemos en cuenta."
+      />
 
-      <div style={{ ...caja, display: 'grid', gap: '0.6rem' }}>
+      <div className="grid gap-3 sm:grid-cols-3">
         {ATAJOS.map(a => (
-          <button key={a.id} onClick={() => abrirChatOpinion(a.id)} className="w-press"
-            style={{ textAlign: 'left', padding: '0.85rem 1rem', minHeight: '2.75rem', borderRadius: '0.85rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
-            {a.texto}
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => abrirChatOpinion(a.id)}
+            className="flex min-h-[88px] items-center gap-3 rounded-[var(--w-r-lg)] border border-[var(--w-border)] bg-[var(--w-surface)] p-4 text-left transition-colors hover:bg-[var(--w-surface-sunken)]"
+            style={{ boxShadow: 'var(--w-shadow-sm)' }}
+          >
+            <IconBubble tone={a.tone} size={44}>{a.icon}</IconBubble>
+            <span className="font-semibold text-[color:var(--w-text)] text-[length:var(--w-fs-body)]">{a.texto}</span>
           </button>
         ))}
-        <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', margin: '0.25rem 0 0' }}>
-          Lo que escribas se guarda para mejorar RestaurantOS. No escribas contraseñas ni datos de tarjetas.
-        </p>
       </div>
+      <p style={{ fontSize: 'var(--w-fs-caption)', color: 'var(--w-text-3)', margin: 0 }}>
+        Lo que escribas se guarda para mejorar RestaurantOS. No escribas contraseñas ni datos de tarjetas.
+      </p>
 
-      <div style={caja}>
-        <h3 style={{ margin: '0 0 0.6rem', fontSize: '1rem', color: 'var(--w-ink)' }}>Mis sugerencias</h3>
-        {error && <p style={{ margin: 0, color: '#b91c1c', fontSize: '0.85rem' }}>No se pudo cargar: {error}</p>}
-        {!error && items === null && <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--w-ink-mut)' }}>Cargando…</p>}
-        {!error && items?.length === 0 && <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--w-ink-mut)' }}>Aún no has enviado ninguna. Usa uno de los botones de arriba.</p>}
+      <Card>
+        <h3 style={{ margin: '0 0 0.75rem', fontSize: 'var(--w-fs-title)', fontWeight: 700, color: 'var(--w-text)' }}>Mis sugerencias</h3>
+        {error && <p style={{ margin: 0, color: 'var(--w-danger-text)', fontSize: 'var(--w-fs-label)' }}>No se pudo cargar: {error}</p>}
+        {!error && items === null && <p style={{ margin: 0, fontSize: 'var(--w-fs-label)', color: 'var(--w-text-3)' }}>Cargando…</p>}
+        {!error && items?.length === 0 && <StatePanel kind="empty" title="Aún no has enviado ninguna" text="Usa uno de los botones de arriba." />}
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.5rem' }}>
           {(items ?? []).map(i => (
-            <li key={i.id} style={{ padding: '0.7rem 0.9rem', borderRadius: '0.85rem', background: recien.has(i.id) ? 'rgba(29,122,70,0.12)' : 'var(--w-bg)', border: recien.has(i.id) ? '1px solid #1D7A46' : '1px solid var(--w-line)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <strong style={{ color: 'var(--w-ink)', fontSize: '0.9rem' }}>#{i.numero} · {i.titulo}</strong>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: i.estado === 'hecho' ? '#1D7A46' : 'var(--w-ink-mut)' }}>{ESTADO[i.estado] ?? i.estado}</span>
+            <li key={i.id} style={{ padding: '0.75rem 1rem', borderRadius: 'var(--w-r-md)', background: recien.has(i.id) ? 'var(--w-success-bg)' : 'var(--w-surface-sunken)', border: recien.has(i.id) ? '1px solid var(--w-success)' : '1px solid var(--w-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <strong style={{ color: 'var(--w-text)', fontSize: 'var(--w-fs-body)' }}>#{i.numero} · {i.titulo}</strong>
+                <Badge tone={i.estado === 'hecho' ? 'success' : 'neutral'}>{ESTADO[i.estado] ?? i.estado}</Badge>
               </div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>
+              <span style={{ fontSize: 'var(--w-fs-caption)', color: 'var(--w-text-3)' }}>
                 {TIPO[i.tipo] ?? i.tipo} · {new Date(i.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                 {recien.has(i.id) ? ' · ¡Ya está hecha! Gracias por la idea.' : ''}
               </span>
             </li>
           ))}
         </ul>
-      </div>
+      </Card>
     </div>
   )
 }

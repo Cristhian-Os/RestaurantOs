@@ -30,7 +30,7 @@ export function PlatformLeads() {
     if (e) setError(e.message); else cargar()
   }
 
-  if (error) return <p role="alert" style={{ color: 'var(--w-wine, #B0341D)' }}>No se pudieron cargar los leads: {error}</p>
+  if (error) return <p role="alert" style={{ color: 'var(--w-danger-text)' }}>No se pudieron cargar los leads: {error}</p>
   if (!leads) return <p style={suave}>Cargando…</p>
   const lista = leads.filter(l => !filtro || l.estado === filtro)
 
@@ -38,7 +38,7 @@ export function PlatformLeads() {
     <div style={{ display: 'grid', gap: '0.75rem' }}>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <select aria-label="Estado" value={filtro} onChange={e => setFiltro(e.target.value)}
-          style={{ padding: '0.5rem 0.6rem', minHeight: '2.5rem', borderRadius: '0.6rem', border: '1px solid var(--w-line, #bbb)' }}>
+          style={{ padding: '0.5rem 0.6rem', minHeight: '2.5rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border)' }}>
           <option value="">Todos</option>{ESTADOS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <span style={suave}>{lista.length} {lista.length === 1 ? 'lead' : 'leads'}</span>

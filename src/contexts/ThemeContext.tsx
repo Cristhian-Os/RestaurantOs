@@ -129,15 +129,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         theme={{
           algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
           token: {
-            colorPrimary:     isDark ? '#84C25E' : '#4F7A47',
-            colorInfo:        isDark ? '#84C25E' : '#4F7A47',
-            colorBgBase:      isDark ? '#16171A' : '#F4EEE4',
-            colorBgContainer: isDark ? '#202227' : '#FBF6EE',
-            colorBgElevated:  isDark ? '#202227' : '#FDFAF4',
-            colorTextBase:    isDark ? '#F4F5F7' : '#2B2018',
+            // Mismos valores que src/styles/tokens.css (antd no lee variables CSS)
+            colorPrimary:     '#FF5A00',
+            colorInfo:        isDark ? '#5B9BFF' : '#2563EB',
+            colorBgBase:      isDark ? '#101010' : '#FAFAF8',
+            colorBgContainer: isDark ? '#171717' : '#FFFFFF',
+            colorBgElevated:  isDark ? '#202020' : '#FFFFFF',
+            colorTextBase:    isDark ? '#F5F5F2' : '#101010',
+            colorBorder:      isDark ? '#2C2C2A' : '#E6E6E1',
             borderRadius:     12,
             fontSize:         16,   // antd usa px: se sube a la par de la letra de la app (html 112.5%)
-            fontFamily:       "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif",
+            fontFamily:       "'Inter Variable', ui-sans-serif, system-ui, sans-serif",
           },
         }}
       >

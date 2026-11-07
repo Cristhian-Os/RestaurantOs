@@ -3,6 +3,8 @@
  * nombre, teléfono y qué producto provee. La ven caja y admin; solo el admin la edita
  * (lo exige también la base de datos).
  */
+import { Button } from '../ui/Button'
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 import { useCallback, useEffect, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
@@ -16,11 +18,11 @@ const EMPTY: Form = { nombre: '', telefono: '', email: '', producto: '', notas: 
 
 const input: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.875rem', borderRadius: '0.75rem',
-  border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)',
-  fontSize: '0.9375rem', outline: 'none', fontFamily: 'var(--w-sans)',
+  border: '1px solid var(--w-border)', background: 'var(--w-bg)', color: 'var(--w-text)',
+  fontSize: '0.9375rem', outline: 'none', fontFamily: 'var(--w-font)',
 }
 const btn: React.CSSProperties = {
-  border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.875rem',
+  border: 'none', cursor: 'pointer', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.875rem',
   borderRadius: '0.75rem', padding: '0.65rem 1rem',
 }
 
@@ -62,6 +64,7 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
   const [editId, setEditId]   = useState<string | null>(null)
   const [edit, setEdit]       = useState<Form>(EMPTY)
   const [saving, setSaving]   = useState(false)
+  const [abierto, setAbierto] = useState(false)
 
   const fetchList = useCallback(async () => {
     const { data, error } = await supabase.from('proveedores').select('id, nombre, telefono, email, producto, notas').order('nombre')
@@ -78,7 +81,7 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
     const { error } = await supabase.from('proveedores').insert(toRow(nuevo))
     setSaving(false)
     if (error) { message.error('Error: ' + error.message); return }
-    setNuevo(EMPTY)
+    setNuevo(EMPTY); setAbierto(false)
     message.success('Proveedor agregado')
     fetchList()
   }
@@ -102,55 +105,62 @@ export function Proveedores({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans)' }}>
-      <div>
-        <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', margin: 0 }}>Proveedores</h2>
-        <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>A quién llamar y qué trae cada uno.{!canEdit && ' Solo el administrador puede editar la lista.'}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-font)' }}>
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 4h14v12H1zM15 9h4l3 3v4h-7" /><circle cx="5.5" cy="18.5" r="2" /><circle cx="18.5" cy="18.5" r="2" /></svg>}
+        title="Proveedores"
+        subtitle={`A quién llamar y qué trae cada uno.${!canEdit ? ' Solo el administrador puede editar la lista.' : ''}`}
+        actions={canEdit ? <Button onClick={() => setAbierto(v => !v)}>+ Nuevo proveedor</Button> : undefined}
+      />
+
+      <div style={{ maxWidth: '20rem' }}>
+        <StatCard label="Proveedores" value={list.length} icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1-5h16l1 5M4 9v11h16V9M9 20v-6h6v6" /></svg>} />
       </div>
 
-      {canEdit && <section style={{ background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }}>
-        <p className="ed-kicker" style={{ margin: '0 0 0.625rem' }}>Nuevo proveedor</p>
+      {canEdit && abierto && <section style={{ background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: '1.25rem', padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)' }}>
+        <p style={{ margin: '0 0 0.625rem', fontWeight: 700, color: 'var(--w-text)' }}>Nuevo proveedor</p>
         <Fields value={nuevo} onChange={setNuevo} />
-        <button onClick={agregar} disabled={saving} style={{ ...btn, marginTop: '0.75rem', background: 'var(--w-terra)', color: '#fff', opacity: saving ? 0.7 : 1 }}>
-          + Agregar proveedor
-        </button>
+        <Button className="mt-3 w-full" onClick={agregar} loading={saving}>Guardar cambios ✓</Button>
       </section>}
 
       {loading ? (
-        <p style={{ color: 'var(--w-ink-mut)' }}>Cargando…</p>
+        <p style={{ color: 'var(--w-text-3)' }}>Cargando…</p>
       ) : list.length === 0 ? (
-        <p style={{ color: 'var(--w-ink-mut)', textAlign: 'center', padding: '2rem 0' }}>Aún no hay proveedores.</p>
+        <p style={{ color: 'var(--w-text-3)', textAlign: 'center', padding: '2rem 0' }}>Aún no hay proveedores.</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))', gap: '0.75rem' }}>
           {list.map(p => (
-            <div key={p.id} style={{ background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1rem', padding: '0.875rem 1rem' }}>
+            <div key={p.id} style={{ background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: '1rem', padding: '0.875rem 1rem' }}>
               {editId === p.id ? (
                 <>
                   <Fields value={edit} onChange={setEdit} />
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.625rem' }}>
-                    <button onClick={guardar} disabled={saving} style={{ ...btn, background: 'var(--w-terra)', color: '#fff' }}>Guardar</button>
-                    <button onClick={() => setEditId(null)} style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>Cancelar</button>
+                    <button onClick={guardar} disabled={saving} style={{ ...btn, background: 'var(--w-accent)', color: 'var(--w-on-accent)' }}>Guardar</button>
+                    <button onClick={() => setEditId(null)} style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-text)', border: '1px solid var(--w-border)' }}>Cancelar</button>
                   </div>
                 </>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: '12rem' }}>
-                    <p style={{ margin: 0, fontWeight: 700, color: 'var(--w-ink)', fontSize: '1rem' }}>{p.nombre}</p>
-                    <p style={{ margin: '0.125rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>
+                  <span aria-hidden style={{ width: '2.75rem', height: '2.75rem', borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', fontWeight: 700, background: 'var(--w-accent-soft)', color: 'var(--w-accent-text)' }}>
+                    {p.nombre.trim().slice(0, 2).toUpperCase()}
+                  </span>
+                  <div style={{ flex: 1, minWidth: '9rem' }}>
+                    <p style={{ margin: 0, fontWeight: 700, color: 'var(--w-text)', fontSize: '1rem' }}>{p.nombre}</p>
+                    <p style={{ margin: '0.125rem 0 0', fontSize: '0.875rem', color: 'var(--w-text-3)' }}>
                       {p.producto || 'Sin producto'}
-                      {p.telefono && <> · <a href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`} style={{ color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'none' }}>{p.telefono}</a></>}
+                      {p.telefono && <> · <a href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`} style={{ color: 'var(--w-accent)', fontWeight: 700, textDecoration: 'none' }}>{p.telefono}</a></>}
                     </p>
                     {p.email && (
                       <p style={{ margin: '0.125rem 0 0', fontSize: '0.875rem' }}>
-                        <a href={`mailto:${p.email}`} style={{ color: 'var(--w-terra)', fontWeight: 700, textDecoration: 'none' }}>{p.email}</a>
+                        <a href={`mailto:${p.email}`} style={{ color: 'var(--w-accent)', fontWeight: 700, textDecoration: 'none' }}>{p.email}</a>
                       </p>
                     )}
-                    {p.notas && <p style={{ margin: '0.125rem 0 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>{p.notas}</p>}
+                    {p.notas && <p style={{ margin: '0.125rem 0 0', fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>{p.notas}</p>}
                   </div>
                   {canEdit && <>
                   <button onClick={() => { setEditId(p.id); setEdit({ nombre: p.nombre, telefono: p.telefono ?? '', email: p.email ?? '', producto: p.producto ?? '', notas: p.notas ?? '' }) }}
-                    style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>Editar</button>
-                  <button onClick={() => eliminar(p)} style={{ ...btn, background: 'var(--w-wine)', color: '#fff' }}>Eliminar</button>
+                    style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-text)', border: '1px solid var(--w-border)' }}>Editar</button>
+                  <button onClick={() => eliminar(p)} style={{ ...btn, background: 'var(--w-danger)', color: 'var(--w-on-accent)' }}>Eliminar</button>
                   </>}
                 </div>
               )}

@@ -3,6 +3,10 @@
  * la base de datos y el servidor ya comprobó que el texto no trae cifras inventadas. Aquí solo se muestra, con su cifra y su fuente.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
+import type { Tone } from '../ui/Badge'
+import { ModuleHeader } from '../tasks/ModuleHeader'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 
@@ -19,13 +23,12 @@ interface Reporte {
 }
 
 const COLS = 'id, tipo, periodo_desde, periodo_hasta, estado, resultado, datos, created_at'
-const CONF: Record<Confianza, { t: string; c: string }> = { seguro: { t: 'Seguro', c: '#047857' }, probable: { t: 'Probable', c: '#B45309' }, suposicion: { t: 'Suposición', c: '#7C3AED' } }
+const CONF: Record<Confianza, { t: string; tone: Tone }> = { seguro: { t: 'Seguro', tone: 'success' }, probable: { t: 'Probable', tone: 'warning' }, suposicion: { t: 'Suposición', tone: 'info' } }
 const cop = (n: unknown) => (typeof n === 'number' ? `$${Math.round(n).toLocaleString('es-CO')}` : '—')
 const fecha = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
 const rango = (r: Reporte) => `${fecha(r.periodo_desde)} al ${fecha(r.periodo_hasta)}`
 
-const caja: React.CSSProperties = { background: 'var(--bg-surface, #D8DAE4)', borderRadius: '1.5rem', padding: '1.25rem', boxShadow: 'var(--shadow-out)' }
-const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: '0.75rem', padding: '0.6rem 1rem', minHeight: '2.75rem', fontFamily: 'inherit' }
+const caja: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', padding: '1.25rem', boxShadow: 'var(--w-shadow-sm)', fontFamily: 'var(--w-font)' }
 
 async function mensajeDeError(e: unknown): Promise<string> {
   try { const r = (e as { context?: Response }).context; if (r) { const j = await r.json(); if (j?.error) return String(j.error) } } catch { /* sin detalle */ }
@@ -80,67 +83,65 @@ export function ResumenIA() {
   const d = actual?.datos
   return (
     <section className="mb-8" style={caja} aria-label="Resumen con inteligencia artificial">
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-        <h2 className="text-2xl font-bold text-neo-dark" style={{ margin: 0 }}>Resumen con IA</h2>
-        {activa && (
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button style={{ ...boton, background: 'var(--w-terra, #C2570C)', color: '#fff' }} disabled={generando !== null} onClick={() => generar('semanal')}>
-              {generando === 'semanal' ? 'Generando…' : 'Resumen de la semana pasada'}
-            </button>
-            <button style={{ ...boton, background: 'var(--bg, #E4E6EE)', color: 'inherit' }} disabled={generando !== null} onClick={() => generar('mensual')}>
-              {generando === 'mensual' ? 'Generando…' : 'Resumen del mes pasado'}
-            </button>
-          </div>
-        )}
-      </div>
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15.5l-1.8-4.7L5.5 9l4.7-1.3z"/><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/></svg>}
+        title="Resumen con IA"
+        subtitle="Generado con inteligencia artificial a partir de tus cifras. Revísalo antes de decidir."
+        actions={activa ? <>
+          <Button disabled={generando !== null} loading={generando === 'semanal'} onClick={() => generar('semanal')}>
+            {generando === 'semanal' ? 'Generando…' : 'Resumen de la semana pasada'}
+          </Button>
+          <Button variant="secondary" disabled={generando !== null} loading={generando === 'mensual'} onClick={() => generar('mensual')}>
+            {generando === 'mensual' ? 'Generando…' : 'Resumen del mes pasado'}
+          </Button>
+        </> : undefined}
+      />
 
-      <p className="text-xs text-neo-mid" style={{ margin: '0 0 0.75rem' }}>Generado con inteligencia artificial a partir de tus cifras. Revísalo antes de decidir.</p>
-
-      {!activa && <p className="text-sm text-neo-mid" style={{ margin: 0 }}>La IA todavía no está activa para tu restaurante. Cuando se active podrás generar aquí el resumen de la semana y del mes.</p>}
-      {aviso && <p role="alert" className="text-sm" style={{ margin: '0 0 0.75rem', color: '#B0341D', fontWeight: 600 }}>{aviso}</p>}
+      {!activa && <p className="text-sm text-[color:var(--w-text-2)]" style={{ margin: 0 }}>La IA todavía no está activa para tu restaurante. Cuando se active podrás generar aquí el resumen de la semana y del mes.</p>}
+      {aviso && <p role="alert" className="text-sm" style={{ margin: '0 0 0.75rem', color: 'var(--w-danger-text)', fontWeight: 600 }}>{aviso}</p>}
 
       {actual && (
         <div>
-          <p className="text-xs font-bold text-neo-mid" style={{ margin: '0 0 0.5rem' }}>
+          <p className="text-xs font-bold text-[color:var(--w-text-2)]" style={{ margin: '0 0 0.5rem' }}>
             {actual.tipo === 'mensual' ? 'Resumen mensual' : 'Resumen semanal'} · {rango(actual)}
           </p>
 
           {r ? (
             <>
-              <p className="text-base text-neo-dark" style={{ margin: '0 0 1rem' }}>{r.resumen}</p>
-              <h3 className="font-bold text-neo-dark" style={{ margin: '0 0 0.5rem' }}>Qué pasó</h3>
+              <p className="text-base text-[color:var(--w-text)]" style={{ margin: '0 0 1rem' }}>{r.resumen}</p>
+              <h3 className="font-bold text-[color:var(--w-text)]" style={{ margin: '0 0 0.5rem' }}>Qué pasó</h3>
               <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1rem' }}>
                 {r.hallazgos.map((h, i) => (
-                  <div key={i} style={{ background: 'var(--bg, #E4E6EE)', borderRadius: '1rem', padding: '0.75rem 1rem' }}>
-                    <p className="text-sm text-neo-dark" style={{ margin: 0 }}>{h.texto}</p>
-                    <p className="text-xs text-neo-mid" style={{ margin: '0.25rem 0 0.5rem' }}><strong>{h.cifra}</strong> · dato: {h.fuente}</p>
+                  <div key={i} style={{ background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-md)', padding: '0.75rem 1rem' }}>
+                    <p className="text-sm text-[color:var(--w-text)]" style={{ margin: 0 }}>{h.texto}</p>
+                    <p className="text-xs text-[color:var(--w-text-2)]" style={{ margin: '0.25rem 0 0.5rem' }}><strong>{h.cifra}</strong> · dato: {h.fuente}</p>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <button aria-pressed={votos[i] === true} onClick={() => votar(i, true)} style={{ ...boton, minHeight: '2.5rem', padding: '0.4rem 0.8rem', fontSize: '0.8125rem', background: votos[i] === true ? '#047857' : 'transparent', color: votos[i] === true ? '#fff' : 'inherit', border: '1px solid #9CA3AF' }}>👍 Me sirvió</button>
-                      <button aria-pressed={votos[i] === false} onClick={() => votar(i, false)} style={{ ...boton, minHeight: '2.5rem', padding: '0.4rem 0.8rem', fontSize: '0.8125rem', background: votos[i] === false ? '#B0341D' : 'transparent', color: votos[i] === false ? '#fff' : 'inherit', border: '1px solid #9CA3AF' }}>👎 No me sirvió</button>
+                      <Button size="sm" className="min-h-[44px]" variant={votos[i] === true ? 'primary' : 'secondary'} aria-pressed={votos[i] === true} onClick={() => votar(i, true)}>👍 Me sirvió</Button>
+                      <Button size="sm" className="min-h-[44px]" variant={votos[i] === false ? 'danger' : 'secondary'} aria-pressed={votos[i] === false} onClick={() => votar(i, false)}>👎 No me sirvió</Button>
                     </div>
                   </div>
                 ))}
               </div>
               {r.acciones.length > 0 && (
                 <>
-                  <h3 className="font-bold text-neo-dark" style={{ margin: '0 0 0.25rem' }}>Qué podrías hacer</h3>
-                  <p className="text-xs text-neo-mid" style={{ margin: '0 0 0.5rem' }}>Son sugerencias, no cifras. La decisión es tuya.</p>
+                  <h3 className="font-bold text-[color:var(--w-text)]" style={{ margin: '0 0 0.25rem' }}>Qué podrías hacer</h3>
+                  <p className="text-xs text-[color:var(--w-text-2)]" style={{ margin: '0 0 0.5rem' }}>Son sugerencias, no cifras. La decisión es tuya.</p>
                   <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', display: 'grid', gap: '0.4rem' }}>
                     {r.acciones.map((a, i) => (
-                      <li key={i} className="text-sm text-neo-dark">{a.texto} <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: CONF[a.confianza].c, border: `1px solid ${CONF[a.confianza].c}`, borderRadius: 999, padding: '0.05rem 0.5rem', whiteSpace: 'nowrap' }}>{CONF[a.confianza].t}</span></li>
+                      <li key={i} className="text-sm text-[color:var(--w-text)]">{a.texto} <Badge tone={CONF[a.confianza].tone}>{CONF[a.confianza].t}</Badge></li>
                     ))}
                   </ul>
                 </>
               )}
               {r.datos_faltantes.length > 0 && (
-                <div style={{ background: '#FEF3C7', color: '#78350F', borderRadius: '1rem', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+                <div style={{ background: 'var(--w-warning-bg)', color: 'var(--w-warning-text)', borderRadius: 'var(--w-r-md)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
                   <strong className="text-sm">Lo que no se pudo analizar por falta de datos</strong>
                   <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>{r.datos_faltantes.map((x, i) => <li key={i} className="text-sm">{x}</li>)}</ul>
                 </div>
               )}
             </>
           ) : (
-            <div style={{ background: '#FEF3C7', color: '#78350F', borderRadius: '1rem', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+            <div style={{ background: 'var(--w-warning-bg)', color: 'var(--w-warning-text)', borderRadius: 'var(--w-r-md)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
               <p className="text-sm" style={{ margin: 0 }}>No se pudo redactar este resumen con seguridad (la IA escribió cifras que no coinciden con tus datos y se descartó). Estas son las cifras reales del periodo:</p>
               <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
                 <li className="text-sm">Ventas: {cop(d?.ventas?.total)} en {d?.ventas?.pedidos ?? 0} pedidos</li>
@@ -150,20 +151,19 @@ export function ResumenIA() {
             </div>
           )}
 
-          <button style={{ ...boton, background: 'transparent', border: '1px solid #9CA3AF', color: 'inherit' }} onClick={() => setDetalle(v => !v)}>{detalle ? 'Ocultar detalle' : 'Ver detalle: las cifras que lo respaldan'}</button>
-          {detalle && <pre style={{ marginTop: '0.75rem', maxHeight: 320, overflow: 'auto', fontSize: '0.75rem', background: 'var(--bg, #E4E6EE)', borderRadius: '1rem', padding: '0.75rem' }}>{JSON.stringify(actual.datos, null, 2)}</pre>}
+          <Button variant="secondary" onClick={() => setDetalle(v => !v)}>{detalle ? 'Ocultar detalle' : 'Ver detalle: las cifras que lo respaldan'}</Button>
+          {detalle && <pre style={{ marginTop: '0.75rem', maxHeight: 320, overflow: 'auto', fontSize: '0.75rem', background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-md)', padding: '0.75rem' }}>{JSON.stringify(actual.datos, null, 2)}</pre>}
         </div>
       )}
 
       {historial.length > 1 && (
         <div style={{ marginTop: '1rem' }}>
-          <h3 className="font-bold text-neo-dark" style={{ margin: '0 0 0.5rem', fontSize: '0.9375rem' }}>Historial</h3>
+          <h3 className="font-bold text-[color:var(--w-text)]" style={{ margin: '0 0 0.5rem', fontSize: '0.9375rem' }}>Historial</h3>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {historial.map(h => (
-              <button key={h.id} onClick={() => setActual(h)} aria-pressed={actual?.id === h.id}
-                style={{ ...boton, minHeight: '2.5rem', padding: '0.4rem 0.8rem', fontSize: '0.8125rem', background: actual?.id === h.id ? 'var(--w-terra, #C2570C)' : 'var(--bg, #E4E6EE)', color: actual?.id === h.id ? '#fff' : 'inherit' }}>
+              <Button key={h.id} size="sm" className="min-h-[44px]" variant={actual?.id === h.id ? 'primary' : 'secondary'} onClick={() => setActual(h)} aria-pressed={actual?.id === h.id}>
                 {h.tipo === 'mensual' ? 'Mes' : 'Semana'} · {rango(h)}
-              </button>
+              </Button>
             ))}
           </div>
         </div>

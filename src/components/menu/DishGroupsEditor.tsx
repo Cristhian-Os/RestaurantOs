@@ -63,7 +63,7 @@ export function DishGroupsEditor({ groups, onChange, listas, listaNombres, theme
                 maxLength={60} aria-label="Nombre del grupo" style={{ ...field, flex: '1 1 12rem', fontWeight: 700 }} />
               <button onClick={() => mover(i, -1)} disabled={i === 0} style={smallBtn} aria-label="Subir grupo">▲</button>
               <button onClick={() => mover(i, 1)} disabled={i === groups.length - 1} style={smallBtn} aria-label="Bajar grupo">▼</button>
-              <button onClick={() => onChange(groups.filter((_, k) => k !== i))} style={{ ...smallBtn, color: '#EF4444' }} aria-label="Quitar grupo">✕</button>
+              <button onClick={() => onChange(groups.filter((_, k) => k !== i))} style={{ ...smallBtn, color: 'var(--w-danger)' }} aria-label="Quitar grupo">✕</button>
             </div>
 
             <div className="flex gap-2 items-center flex-wrap text-xs" style={{ color: theme.txtLt }}>
@@ -116,7 +116,7 @@ export function DishGroupsEditor({ groups, onChange, listas, listaNombres, theme
                         onChange={e => setItems(i, items.map((x, n) => (n === k ? { ...x, precio_extra: Math.max(0, Number(e.target.value) || 0) } : x)))}
                         style={{ ...field, width: '5.5rem' }} />
                     </label>
-                    <button onClick={() => setItems(i, items.filter((_, n) => n !== k))} style={{ ...smallBtn, color: '#EF4444' }} aria-label="Quitar opción">✕</button>
+                    <button onClick={() => setItems(i, items.filter((_, n) => n !== k))} style={{ ...smallBtn, color: 'var(--w-danger)' }} aria-label="Quitar opción">✕</button>
                   </div>
                 ))}
                 <button onClick={() => setItems(i, [...items, { label: '', activo: true, precio_extra: 0 }])} style={{ ...smallBtn, alignSelf: 'flex-start' }}>+ Agregar opción</button>
@@ -133,7 +133,7 @@ export function DishGroupsEditor({ groups, onChange, listas, listaNombres, theme
           <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: theme.txtLt }}>Vista previa (así lo ve el cliente)</p>
           <OptionGroupsV2 groups={groups.filter(g => g.nombre.trim())} listas={listas} sel={preview} setSel={fn => setPreview(fn)}
             chip={(on) => ({ padding: '0.4rem 0.8rem', borderRadius: '0.75rem', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', border: 'none',
-              background: on ? theme.acc : theme.bg, color: on ? '#fff' : theme.txt })}
+              background: on ? theme.acc : theme.bg, color: on ? 'var(--w-on-accent)' : theme.txt })}
             kicker={{ className: 'text-xs font-bold uppercase tracking-wider mb-2', style: { color: theme.txtLt } }}
             hint={{ className: 'text-xs', style: { color: theme.txtLt } }} groupGap="0.875rem" />
         </div>

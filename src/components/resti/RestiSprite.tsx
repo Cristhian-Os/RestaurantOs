@@ -33,7 +33,7 @@ export function RestiHat({ size = 58 }: { size?: number }) {
     style={{ display: 'block', width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />
 }
 
-const BLANCO = '#FFFFFF', SOMBRA = '#E6DAC8', PIEL = '#F4E3CC', NARANJA = '#F26A1B', OSCURO = '#3A3A42'
+const BLANCO = '#FFFFFF', SOMBRA = '#E6DAC8', PIEL = '#F4E3CC', NARANJA = 'var(--w-accent)', OSCURO = '#3A3A42'
 
 /** Brazo: cuelga del hombro (x,y) y gira `deg` grados (0 = hacia abajo, -90 = hacia la derecha de la imagen). */
 const Brazo = ({ x, y, deg }: { x: number; y: number; deg: number }) => (

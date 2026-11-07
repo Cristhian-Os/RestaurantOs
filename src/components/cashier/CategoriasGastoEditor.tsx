@@ -13,10 +13,10 @@ import { cn } from '../../lib/cn'
 import { CATEGORIAS_GASTO, claveUnica, nombreIgual } from '../../services/gastosResumen'
 import type { CategoriaFila } from '../../hooks/useCategoriasGasto'
 
-const S = {
-  neoOut:   { boxShadow: 'var(--shadow-out)' },
-  neoOutSm: { boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:    { boxShadow: 'var(--shadow-in)' },
+const FX = {
+  card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  soft:  { boxShadow: 'var(--w-shadow-sm)' },
+  field: { border: '1px solid var(--w-border)' },
 } as const
 
 interface PostgrestLikeError { code?: string; message: string }
@@ -84,32 +84,32 @@ export const CategoriasGastoEditor = forwardRef<HTMLDivElement, CategoriasGastoE
       f.activa ? 'Categoría quitada · los gastos anteriores la conservan' : 'Categoría reactivada',
     )
 
-    const boton = 'px-3 min-h-[44px] rounded-xl text-xs font-bold border-none cursor-pointer disabled:opacity-50'
+    const boton = 'px-3 min-h-[44px] rounded-[var(--w-r-md)] text-xs font-bold border-none cursor-pointer disabled:opacity-50'
 
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
-        className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4">
+        className="fixed inset-0 bg-[var(--w-overlay)] z-50 flex items-end sm:items-center justify-center sm:p-4">
         <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
           onClick={e => e.stopPropagation()}
-          className="bg-[#CDD0DC] w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-4" style={S.neoOut}>
+          className="bg-[var(--w-surface-raised)] w-full max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-[var(--w-r-xl)] sm:rounded-[var(--w-r-xl)] p-5" style={FX.card}>
           <div ref={ref} className={cn('flex flex-col gap-3', className)} {...rest}>
             <div className="flex items-center justify-between gap-2">
-              <h3 className="m-0 font-bold text-[#2D3561] text-lg">Categorías de gastos</h3>
+              <h3 className="m-0 font-bold text-[color:var(--w-text)] text-lg">Categorías de gastos</h3>
               <button type="button" onClick={onClose} aria-label="Cerrar"
-                className="w-9 h-9 rounded-xl border-none cursor-pointer bg-[#D8DAE4] text-[#6B7280] text-lg" style={S.neoOutSm}>✕</button>
+                className="w-9 h-9 rounded-[var(--w-r-md)] border-none cursor-pointer bg-[var(--w-surface)] text-[color:var(--w-text-2)] text-lg" style={FX.soft}>✕</button>
             </div>
 
-            <p className="m-0 text-xs text-[#6B7280]">
+            <p className="m-0 text-xs text-[color:var(--w-text-2)]">
               Así se agrupan los gastos en el corte diario, el mensual y el historial. Si cambias un nombre, cambia también en los gastos anteriores.
             </p>
 
             {usaSugeridas && (
-              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 flex flex-col gap-2">
-                <p className="m-0 text-xs text-amber-800">
+              <div className="bg-[var(--w-warning-bg)] border border-[var(--w-warning)] rounded-[var(--w-r-lg)] p-3 flex flex-col gap-2">
+                <p className="m-0 text-xs text-[color:var(--w-warning-text)]">
                   Todavía no tienes categorías propias: se están usando las sugeridas. Créalas para poder editarlas.
                 </p>
                 <button type="button" disabled={saving} onClick={() => void crearSugeridas()}
-                  className={cn(boton, 'bg-[#FF5722] text-white')}>
+                  className={cn(boton, 'bg-[var(--w-accent)] text-[color:var(--w-on-accent)]')}>
                   {saving ? 'Creando…' : 'Crear las categorías sugeridas'}
                 </button>
               </div>
@@ -119,16 +119,16 @@ export const CategoriasGastoEditor = forwardRef<HTMLDivElement, CategoriasGastoE
               const valor = drafts[f.id] ?? f.nombre
               const cambio = valor.trim() !== f.nombre
               return (
-                <div key={f.id} className={cn('flex items-center gap-2 bg-[#D8DAE4] rounded-2xl p-2', !f.activa && 'opacity-60')} style={S.neoOutSm}>
+                <div key={f.id} className={cn('flex items-center gap-2 bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-2', !f.activa && 'opacity-60')} style={FX.soft}>
                   <input value={valor} maxLength={60} aria-label={`Nombre de la categoría ${f.nombre}`}
                     onChange={e => setDrafts(d => ({ ...d, [f.id]: e.target.value }))}
                     onKeyDown={e => { if (e.key === 'Enter') void renombrar(f) }}
-                    className="flex-1 min-w-0 min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 text-sm font-semibold text-[#2D3561] outline-none" style={S.neoIn} />
+                    className="flex-1 min-w-0 min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 text-sm font-semibold text-[color:var(--w-text)] outline-none" style={FX.field} />
                   {cambio ? (
-                    <button type="button" disabled={saving} onClick={() => void renombrar(f)} className={cn(boton, 'bg-[#FF5722] text-white')}>Guardar</button>
+                    <button type="button" disabled={saving} onClick={() => void renombrar(f)} className={cn(boton, 'bg-[var(--w-accent)] text-[color:var(--w-on-accent)]')}>Guardar</button>
                   ) : (
                     <button type="button" disabled={saving} onClick={() => void alternar(f)}
-                      className={cn(boton, 'bg-[#CDD0DC]', f.activa ? 'text-red-600' : 'text-emerald-700')}>
+                      className={cn(boton, 'bg-[var(--w-surface-sunken)]', f.activa ? 'text-[color:var(--w-danger-text)]' : 'text-[color:var(--w-success-text)]')}>
                       {f.activa ? 'Quitar' : 'Reactivar'}
                     </button>
                   )}
@@ -138,15 +138,15 @@ export const CategoriasGastoEditor = forwardRef<HTMLDivElement, CategoriasGastoE
 
             <div className="flex gap-2 items-end">
               <div className="flex-1 min-w-0">
-                <label className="block text-[0.625rem] font-bold text-[#9CA3AF] uppercase mb-1">Nueva categoría</label>
+                <label className="block text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-text-3)] uppercase mb-1">Nueva categoría</label>
                 <input value={nuevo} maxLength={60} placeholder="Ej: Publicidad" onChange={e => setNuevo(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') void agregar() }}
-                  className="w-full min-h-[44px] bg-[#CDD0DC] rounded-xl px-3 text-sm text-[#2D3561] outline-none" style={S.neoIn} />
+                  className="w-full min-h-[44px] bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 text-sm text-[color:var(--w-text)] outline-none" style={FX.field} />
               </div>
               <button type="button" disabled={saving || usaSugeridas} onClick={() => void agregar()}
-                className={cn(boton, 'bg-[#FF5722] text-white')}>Agregar</button>
+                className={cn(boton, 'bg-[var(--w-accent)] text-[color:var(--w-on-accent)]')}>Agregar</button>
             </div>
-            {usaSugeridas && <p className="m-0 text-[0.6875rem] text-[#9CA3AF]">Primero crea las sugeridas y luego podrás agregar las tuyas.</p>}
+            {usaSugeridas && <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Primero crea las sugeridas y luego podrás agregar las tuyas.</p>}
           </div>
         </motion.div>
       </motion.div>

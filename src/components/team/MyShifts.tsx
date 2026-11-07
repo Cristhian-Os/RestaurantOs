@@ -5,6 +5,11 @@
  * las filas al propio empleado.
  */
 import { useState, useEffect, useCallback, memo } from 'react'
+import { ModuleHeader } from '../tasks/ModuleHeader'
+import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
+import type { Tone } from '../ui/Badge'
+import { StatePanel } from '../ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
 import { pushNotificationService } from '../../services/pushNotificationService'
@@ -27,6 +32,14 @@ interface Checkin {
 }
 
 const hhmm = (t: string) => t.slice(0, 5)
+
+// Franja según la hora de entrada (solo etiqueta visual).
+const franja = (start: string): { label: string; tone: Tone } => {
+  const h = Number(start.slice(0, 2))
+  if (h < 12) return { label: 'Mañana', tone: 'success' }
+  if (h < 18) return { label: 'Tarde', tone: 'accent' }
+  return { label: 'Noche', tone: 'info' }
+}
 
 // Fecha sin hora → día local sin corrimiento de zona horaria.
 const dayLabel = (iso: string, today: string): string => {
@@ -92,37 +105,34 @@ export const MyShifts = memo(({ profile }: { profile: Profile }) => {
     fetchShifts()
   }
 
-  if (loading) return <p style={{ color: 'var(--w-ink-mut)', fontFamily: 'var(--w-sans)' }}>Cargando tus turnos…</p>
+  if (loading) return <p style={{ color: 'var(--w-text-3)', fontFamily: 'var(--w-font)' }}>Cargando tus turnos…</p>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div>
-        <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', margin: 0 }}>Mis turnos</h2>
-        <p style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)', margin: 0, fontFamily: 'var(--w-sans)' }}>
-          {shifts.length === 0 ? 'Sin turnos próximos' : `${shifts.length} ${shifts.length === 1 ? 'turno asignado' : 'turnos asignados'}`}
-        </p>
-      </div>
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>}
+        title="Mis turnos"
+        subtitle={shifts.length === 0 ? 'Sin turnos próximos' : `${shifts.length} ${shifts.length === 1 ? 'turno asignado' : 'turnos asignados'}`}
+      />
 
       {shifts.length === 0 ? (
-        <div style={{ background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '3rem 1rem', textAlign: 'center', border: '1px solid var(--w-line)' }}>
-          <p className="ed-display" style={{ fontSize: '1.25rem', color: 'var(--w-ink)', margin: 0 }}>Aún no tienes turnos asignados</p>
-          <p style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)', marginTop: '0.5rem', fontFamily: 'var(--w-sans)' }}>
-            Cuando el administrador te asigne uno, aparecerá aquí.
-          </p>
-        </div>
-      ) : shifts.map(s => {
+        <StatePanel kind="empty" title="Aún no tienes turnos asignados" text="Cuando el administrador te asigne uno, aparecerá aquí." />
+      ) : <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', alignItems: 'start' }}>{shifts.map(s => {
         const isToday = s.work_date === today
         return (
           <div key={s.id} style={{
-            background: 'var(--w-surface)', borderRadius: '1.125rem', padding: '1rem 1.25rem',
-            border: isToday ? '2px solid var(--w-terra)' : '1px solid var(--w-line)',
+            background: 'var(--w-surface)', borderRadius: 'var(--w-r-lg)', padding: '1rem 1.25rem',
+            border: isToday ? '2px solid var(--w-accent)' : '1px solid var(--w-border)',
             boxShadow: 'var(--w-shadow-sm)', display: 'flex', flexDirection: 'column', gap: '0.25rem',
           }}>
-            <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
-              color: isToday ? 'var(--w-terra)' : 'var(--w-ink-mut)', fontFamily: 'var(--w-sans)' }}>
-              {dayLabel(s.work_date, today)}
-            </p>
-            <p className="ed-display" style={{ margin: 0, fontWeight: 600, fontSize: '1.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                color: isToday ? 'var(--w-accent-text)' : 'var(--w-text-3)', fontFamily: 'var(--w-font)' }}>
+                {dayLabel(s.work_date, today)}
+              </p>
+              <Badge tone={franja(s.shift_start).tone}>{franja(s.shift_start).label}</Badge>
+            </div>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: '1.75rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)' }}>
               {hhmm(s.shift_start)} – {hhmm(s.shift_end)}
             </p>
             {isToday && (() => {
@@ -130,28 +140,27 @@ export const MyShifts = memo(({ profile }: { profile: Profile }) => {
               if (!ck || ck.status === 'rejected') return (
                 <>
                   {ck?.status === 'rejected' && (
-                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-wine)', fontFamily: 'var(--w-sans)' }}>
+                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--w-danger-text)', fontFamily: 'var(--w-font)' }}>
                       Llegada rechazada{ck.review_note ? `: ${ck.review_note}` : ''}. Toma otra foto.
                     </p>
                   )}
-                  <button onClick={() => setCapturing(s)}
-                    style={{ marginTop: '0.5rem', padding: '0.875rem', borderRadius: '0.875rem', border: 'none', background: 'var(--w-terra)', color: '#fff', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', fontFamily: 'var(--w-sans)' }}>
-                    Ya llegué · tomar foto
-                  </button>
+                  <Button size="lg" className="mt-2 w-full" onClick={() => setCapturing(s)}>Ya llegué · tomar foto</Button>
                 </>
               )
               return (
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', fontWeight: 700, fontFamily: 'var(--w-sans)', color: ck.status === 'approved' ? 'var(--w-olive)' : 'var(--w-saffron)' }}>
-                  {ck.status === 'approved' ? '✓ Llegada aprobada' : 'Llegada enviada · esperando aprobación'}
-                </p>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <Badge tone={ck.status === 'approved' ? 'success' : 'warning'}>
+                    {ck.status === 'approved' ? 'Llegada aprobada' : 'Llegada enviada · esperando aprobación'}
+                  </Badge>
+                </div>
               )
             })()}
             {s.notes && (
-              <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--w-ink-soft)', fontFamily: 'var(--w-sans)' }}>{s.notes}</p>
+              <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--w-text-2)', fontFamily: 'var(--w-font)' }}>{s.notes}</p>
             )}
           </div>
         )
-      })}
+      })}</div>}
 
       {capturing && (
         <CameraCapture

@@ -24,11 +24,11 @@ const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 // Todo lo que viene de un archivo es texto: nunca se interpreta como fórmula.
 const limpiar = (v: unknown) => String(v ?? '').trim().replace(/^[=+@]+/, '')
 
-const btn: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', borderRadius: '0.75rem', padding: '0.7rem 1.1rem', minHeight: '2.75rem' }
-const primary: React.CSSProperties = { ...btn, background: 'var(--w-terra)', color: '#fff' }
-const ghost: React.CSSProperties = { ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }
-const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '0.875rem' }
-const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.6rem 0.75rem', borderRadius: '0.75rem', minHeight: '2.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontSize: '1rem', fontFamily: 'var(--w-sans)' }
+const btn: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.9375rem', borderRadius: 'var(--w-r-md)', padding: '0.7rem 1.1rem', minHeight: '2.75rem' }
+const primary: React.CSSProperties = { ...btn, background: 'var(--w-accent)', color: 'var(--w-on-accent)' }
+const ghost: React.CSSProperties = { ...btn, background: 'var(--w-bg)', color: 'var(--w-text)', border: '1px solid var(--w-border)' }
+const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', padding: '0.875rem' }
+const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.6rem 0.75rem', borderRadius: 'var(--w-r-md)', minHeight: '2.75rem', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontSize: '1rem', fontFamily: 'var(--w-font)' }
 
 export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void }) {
   const [platos, setPlatos] = useState<Plato[] | null>(null)
@@ -71,7 +71,7 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
   })
   const costo = detalle.reduce((s, x) => s + x.costo, 0)
   const margen = plato && plato.price > 0 ? ((plato.price - costo) / plato.price) * 100 : null
-  const colorMargen = margen === null ? 'var(--w-ink-mut)' : margen >= 50 ? '#1D7A46' : margen >= 30 ? '#B7791F' : '#B0341D'
+  const colorMargen = margen === null ? 'var(--w-text-3)' : margen >= 50 ? 'var(--w-success)' : margen >= 30 ? 'var(--w-warning)' : 'var(--w-danger)'
   const sinCosto = detalle.some(x => x.ing && x.ing.costo_unitario === 0)
 
   const cambiar = (i: number, k: keyof Linea, v: string) => setLineas(ls => ls.map((l, j) => {
@@ -157,7 +157,7 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
         <div style={{ flex: 1, minWidth: '12rem' }}>
           <strong>{conReceta.size} de {platos.length} platos con receta</strong>
           <div style={{ height: '0.5rem', borderRadius: '999px', background: 'var(--w-bg)', marginTop: '0.375rem', overflow: 'hidden' }}>
-            <div style={{ width: `${Math.round((conReceta.size / platos.length) * 100)}%`, height: '100%', background: 'var(--w-terra)' }} />
+            <div style={{ width: `${Math.round((conReceta.size / platos.length) * 100)}%`, height: '100%', background: 'var(--w-accent)' }} />
           </div>
         </div>
         <button style={ghost} onClick={() => setExcel(e => !e)}>📋 Cargar por Excel</button>
@@ -165,7 +165,7 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
 
       {excel && (
         <div style={card}>
-          <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>
+          <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', color: 'var(--w-text-3)' }}>
             Columnas: <b>plato · ingrediente · cantidad · unidad</b>. El plato y el ingrediente deben existir con ese nombre. Si hay un error no se guarda nada y te digo qué fila corregir. Reemplaza la receta de cada plato que aparezca.
           </p>
           <textarea style={{ ...input, minHeight: '6rem' }} value={texto} onChange={e => setTexto(e.target.value)} aria-label="Filas pegadas" />
@@ -178,7 +178,7 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
           </div>
           {erroresExcel.length > 0 && (
             <div style={{ marginTop: '0.75rem' }}>
-              <strong style={{ color: 'var(--w-wine)' }}>No se guardó nada. Corrige estas filas:</strong>
+              <strong style={{ color: 'var(--w-danger-text)' }}>No se guardó nada. Corrige estas filas:</strong>
               {erroresExcel.map((e, i) => <p key={i} style={{ margin: '0.125rem 0', fontSize: '0.875rem' }}>Fila {e.fila}: {e.motivo}</p>)}
             </div>
           )}
@@ -188,9 +188,9 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
       {!plato && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(14rem, 1fr))', gap: '0.5rem' }}>
           {platos.map(p => (
-            <button key={p.id} onClick={() => abrir(p)} style={{ ...card, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--w-ink)', border: conReceta.has(p.id) ? '1px solid #1D7A46' : '1px solid var(--w-line)', minHeight: '3.5rem' }}>
+            <button key={p.id} onClick={() => abrir(p)} style={{ ...card, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--w-text)', border: conReceta.has(p.id) ? '1px solid var(--w-success)' : '1px solid var(--w-border)', minHeight: '3.5rem' }}>
               <strong>{p.name}</strong>
-              <div style={{ fontSize: '0.8125rem', color: conReceta.has(p.id) ? '#1D7A46' : 'var(--w-ink-mut)' }}>{conReceta.has(p.id) ? '✔ Con receta' : 'Sin receta · toca para agregarla'} · {cop(p.price)}</div>
+              <div style={{ fontSize: '0.8125rem', color: conReceta.has(p.id) ? 'var(--w-success)' : 'var(--w-text-3)' }}>{conReceta.has(p.id) ? '✔ Con receta' : 'Sin receta · toca para agregarla'} · {cop(p.price)}</div>
             </button>
           ))}
         </div>
@@ -199,7 +199,7 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
       {plato && (
         <div style={card}>
           <h3 style={{ margin: '0 0 0.25rem' }}>¿Qué lleva “{plato.name}”?</h3>
-          <p style={{ margin: '0 0 0.75rem', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Escribe cuánto de cada ingrediente usas en <b>un</b> plato. Cada vez que lo vendas, se descuenta solo del inventario.</p>
+          <p style={{ margin: '0 0 0.75rem', fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>Escribe cuánto de cada ingrediente usas en <b>un</b> plato. Cada vez que lo vendas, se descuenta solo del inventario.</p>
           {lineas.map((l, i) => {
             const ing = ingPorId.get(l.ingId); const compat = ing ? Object.keys(FACTOR[ing.unidad_medida] ?? {}) : UNIDADES
             return (
@@ -212,7 +212,7 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
                 <select style={input} value={l.unidad} aria-label="Unidad" onChange={e => cambiar(i, 'unidad', e.target.value)}>
                   {compat.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
-                <button style={{ ...ghost, color: 'var(--w-wine)' }} onClick={() => setLineas(ls => ls.filter((_, j) => j !== i))} aria-label="Quitar ingrediente">Quitar</button>
+                <button style={{ ...ghost, color: 'var(--w-danger-text)' }} onClick={() => setLineas(ls => ls.filter((_, j) => j !== i))} aria-label="Quitar ingrediente">Quitar</button>
               </div>
             )
           })}
@@ -228,10 +228,10 @@ export function RecetasPaso({ rid, onListo }: { rid: string; onListo: () => void
               <button style={primary} onClick={() => void crearIngrediente()}>Crear</button>
             </div>
           )}
-          <div style={{ padding: '0.625rem 0.75rem', borderRadius: '0.75rem', background: 'var(--w-bg)', border: `1px solid ${colorMargen}`, marginBottom: '0.75rem' }}>
+          <div style={{ padding: '0.625rem 0.75rem', borderRadius: 'var(--w-r-md)', background: 'var(--w-bg)', border: `1px solid ${colorMargen}`, marginBottom: '0.75rem' }}>
             <strong>Costo del plato: {cop(costo)}</strong>{' · '}Precio: {cop(plato.price)}{' · '}
             <strong style={{ color: colorMargen }}>{margen === null ? 'Sin precio' : `Margen ${Math.round(margen)}% (te deja ${cop(plato.price - costo)})`}</strong>
-            {sinCosto && <div style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>Algún ingrediente no tiene costo en el inventario: el margen puede verse mejor de lo real.</div>}
+            {sinCosto && <div style={{ fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>Algún ingrediente no tiene costo en el inventario: el margen puede verse mejor de lo real.</div>}
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button style={{ ...primary, opacity: guardando ? 0.7 : 1 }} disabled={guardando} onClick={() => void guardarReceta()}>Guardar receta</button>

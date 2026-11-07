@@ -4,9 +4,6 @@
    Dark mode completo, contraste correcto, animaciones GPU
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Nunito:wght@400;500;600;700;800&display=swap');
-/* Sistema Fase 1 — Outfit (display redondeada) + Plus Jakarta Sans (UI) */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -16,39 +13,39 @@
 /* MIGRADO a paleta cálida editorial. Los nombres legacy se conservan
    para que los componentes aún no reescritos adopten el tema cálido. */
 :root, [data-theme="light"] {
-  --bg:              #F4EEE4;  /* lino cálido (base/cards) */
-  --bg-surface:      #FBF6EE;  /* crema (inputs/insets)    */
-  --bg-raised:       #FDFAF4;  /* crema elevada            */
-  --text-primary:    #2B2018;  /* espresso                 */
-  --text-secondary:  #5C5147;
-  --text-muted:      #8C8073;
-  --accent:          #FF6B4A;  /* coral — acento Fase 1    */
-  --accent-dk:       #E8532F;
-  --accent-rgb:      255, 107, 74;
-  --green:           #6FA04D;  /* verde éxito (más vivo)   */
-  --amber:           #C97A45;  /* arcilla/rust             */
-  --blue:            #7C8AA0;  /* azul apagado cálido      */
+  --bg:              var(--w-bg);  /* lino cálido (base/cards) */
+  --bg-surface:      var(--w-surface);  /* crema (inputs/insets)    */
+  --bg-raised:       var(--w-surface-raised);  /* crema elevada            */
+  --text-primary:    var(--w-text);  /* espresso                 */
+  --text-secondary:  var(--w-text-2);
+  --text-muted:      var(--w-text-3);
+  --accent:          var(--w-accent);  /* coral — acento Fase 1    */
+  --accent-dk:       var(--w-accent-hover);
+  --accent-rgb:      255, 90, 0;
+  --green:           var(--w-success);  /* verde éxito (más vivo)   */
+  --amber:           var(--w-warning);  /* arcilla/rust             */
+  --blue:            var(--w-info);  /* azul apagado cálido      */
 
   /* Sombras cálidas suaves (sin neumorfismo) */
-  --shadow-out:    0 4px 12px rgba(70,50,35,0.10), 0 8px 24px rgba(70,50,35,0.08);
-  --shadow-out-sm: 0 1px 2px rgba(70,50,35,0.06),  0 2px 6px rgba(70,50,35,0.08);
-  --shadow-out-lg: 0 12px 32px rgba(70,50,35,0.14),0 24px 60px rgba(70,50,35,0.12);
-  --shadow-in:     inset 0 1px 2px rgba(70,50,35,0.08);
-  --shadow-in-sm:  inset 0 1px 2px rgba(70,50,35,0.06);
-  --shadow-coral:  0 2px 8px rgba(255,107,74,0.25);
+  --shadow-out:    0 4px 12px rgba(16,16,16,0.10), 0 8px 24px rgba(16,16,16,0.08);
+  --shadow-out-sm: 0 1px 2px rgba(16,16,16,0.06),  0 2px 6px rgba(16,16,16,0.08);
+  --shadow-out-lg: 0 12px 32px rgba(16,16,16,0.14),0 24px 60px rgba(16,16,16,0.12);
+  --shadow-in:     inset 0 1px 2px rgba(16,16,16,0.08);
+  --shadow-in-sm:  inset 0 1px 2px rgba(16,16,16,0.06);
+  --shadow-coral:  0 2px 8px rgba(255,90,0,0.25);
   --shadow-green:  0 2px 8px rgba(111,160,77,0.20);
   --shadow-amber:  0 2px 8px rgba(201,122,69,0.20);
 
   /* Glass system — cálido */
-  --glass-bg:         rgba(251, 246, 238, 0.72);
-  --glass-bg-inner:   rgba(244, 238, 228, 0.65);
+  --glass-bg:         rgba(255, 255, 255, 0.72);
+  --glass-bg-inner:   rgba(241, 241, 239, 0.65);
   --glass-border:     rgba(255, 255, 255, 0.65);
   --glass-border-sub: rgba(255, 255, 255, 0.40);
-  --glass-shadow:     0 8px 32px rgba(70,50,35,0.12), 0 2px 8px rgba(70,50,35,0.08);
+  --glass-shadow:     0 8px 32px rgba(16,16,16,0.12), 0 2px 8px rgba(16,16,16,0.08);
   --glass-highlight:  rgba(255, 255, 255, 0.70);
 
   /* Divider */
-  --divider: rgba(70, 50, 35, 0.12);
+  --divider: rgba(16, 16, 16, 0.10);
 
   /* Subtle bg gradient for depth */
   --bg-gradient: none;
@@ -72,25 +69,25 @@
 
 /* ── Variables CSS — Tema Oscuro ──────────────────────────── */
 [data-theme="dark"] {
-  --bg:              #16171A;  /* negro neutro */
-  --bg-surface:      #202227;
-  --bg-raised:       #202227;
-  --text-primary:    #F4F5F7;  /* casi blanco */
-  --text-secondary:  #C2C4C9;
-  --text-muted:      #8A8D94;
-  --accent:          #FF8166;  /* coral brillante (oscuro) */
-  --accent-dk:       #FF6B4A;
-  --accent-rgb:      255, 129, 102;
-  --green:           #8FBF63;  /* verde éxito */
-  --amber:           #D98C55;  /* arcilla/rust */
-  --blue:            #93A0B5;
+  --bg:              var(--w-bg);  /* negro neutro */
+  --bg-surface:      var(--w-surface);
+  --bg-raised:       var(--w-surface-raised);
+  --text-primary:    var(--w-text);  /* casi blanco */
+  --text-secondary:  var(--w-text-2);
+  --text-muted:      var(--w-text-3);
+  --accent:          var(--w-accent);  /* coral brillante (oscuro) */
+  --accent-dk:       var(--w-accent-hover);
+  --accent-rgb:      255, 90, 0;
+  --green:           var(--w-success);  /* verde éxito */
+  --amber:           var(--w-warning);  /* arcilla/rust */
+  --blue:            var(--w-info);
 
   --shadow-out:    0 4px 14px rgba(0,0,0,0.42), 0 10px 28px rgba(0,0,0,0.36);
   --shadow-out-sm: 0 1px 2px rgba(0,0,0,0.30),  0 2px 8px rgba(0,0,0,0.32);
   --shadow-out-lg: 0 16px 40px rgba(0,0,0,0.52),0 28px 64px rgba(0,0,0,0.40);
   --shadow-in:     inset 0 1px 2px rgba(0,0,0,0.40);
   --shadow-in-sm:  inset 0 1px 2px rgba(0,0,0,0.30);
-  --shadow-coral:  0 2px 10px rgba(255,129,102,0.32);
+  --shadow-coral:  0 2px 10px rgba(255,90,0,0.32);
   --shadow-green:  0 2px 10px rgba(143,191,99,0.24);
   --shadow-amber:  0 2px 10px rgba(217,140,85,0.26);
 
@@ -133,7 +130,7 @@
     background-color: var(--bg);
     background-image: var(--bg-gradient, none);
     background-attachment: fixed;
-    font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--w-font);
     min-height: 100vh;
     min-height: 100dvh;
     -webkit-font-smoothing: antialiased;
@@ -481,54 +478,18 @@
    editorial. Aditivo: convive con el sistema neo/glass legacy.
    Animaciones solo transform/opacity (GPU), ease-out exponencial.
    ══════════════════════════════════════════════════════════ */
-:root {
-  /* — Paleta tierra cálida (OKLCH, neutros tintados al hue cálido) — */
-  --w-bg:        oklch(0.955 0.012 75);   /* lino cálido        */
-  --w-bg-2:      oklch(0.925 0.016 70);   /* lino más profundo  */
-  --w-surface:   oklch(0.985 0.008 80);   /* crema (tarjetas)   */
-  --w-ink:       oklch(0.255 0.022 55);   /* espresso (texto)   */
-  --w-ink-soft:  oklch(0.430 0.028 55);   /* texto secundario   */
-  --w-ink-mut:   oklch(0.585 0.025 60);   /* texto tenue        */
-  --w-line:      oklch(0.255 0.022 55 / 0.12); /* divisores      */
-
-  /* Acento principal Fase 1: coral/tangerina — juvenil, premium, gastronómico */
-  --w-terra:     #FF6B4A;
-  --w-terra-dk:  #E8532F;
-  --w-olive:     oklch(0.560 0.115 48);   /* arcilla/rust (secundario, contraste) */
-  --w-saffron:   oklch(0.760 0.110 72);   /* miel (detalle)     */
-  --w-wine:      oklch(0.430 0.130 20);   /* vino (alertas)     */
-
-  --w-terra-rgb: 255, 107, 74;
-
-  /* — Sombras cálidas (tintadas, no grises) — */
-  --w-shadow-sm: 0 1px 2px oklch(0.255 0.04 55 / 0.06), 0 2px 6px oklch(0.255 0.04 55 / 0.08);
-  --w-shadow-md: 0 4px 12px oklch(0.255 0.04 55 / 0.10), 0 8px 24px oklch(0.255 0.04 55 / 0.10);
-  --w-shadow-lg: 0 12px 32px oklch(0.255 0.04 55 / 0.16), 0 24px 60px oklch(0.255 0.04 55 / 0.14);
-  --w-shadow-terra: 0 2px 8px oklch(0.515 0.105 148 / 0.24);
-
-  /* — Tipografía — */
-  --w-display: 'Outfit', ui-sans-serif, system-ui, sans-serif;
-  --w-sans:    'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
-
-  /* — Motion Fase 1: easing juguetón con rebote — */
-  --w-ease-bounce: cubic-bezier(.34, 1.56, .64, 1);
-
-  /* — Neumorfismo cálido (nuevo en Fase 1, sobre --w-surface) — */
-  --w-neu-dark:  oklch(0.255 0.022 55 / 0.16);
-  --w-neu-light: oklch(1 0 0 / 0.9);
-}
 
 /* — Liquid Glass (Apple) — translúcido, especular, refractado — */
 .lg {
   position: relative;
-  background: oklch(0.985 0.008 80 / 0.55);
-  backdrop-filter: blur(20px) saturate(180%) brightness(1.04);
-  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.04);
-  border: 1px solid oklch(1 0 0 / 0.55);
+  background: var(--w-glass-bg);
+  backdrop-filter: blur(var(--w-glass-blur)) saturate(var(--w-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--w-glass-blur)) saturate(var(--w-glass-saturate));
+  border: 1px solid var(--w-glass-border);
   box-shadow:
     var(--w-shadow-md),
     inset 0 1px 1px oklch(1 0 0 / 0.65),       /* highlight superior */
-    inset 0 -1px 1px oklch(0.255 0.04 55 / 0.06);
+    inset 0 -1px 1px rgba(16, 16, 16, 0.06);
   border-radius: 1.5rem;
   overflow: hidden;
   isolation: isolate;
@@ -545,7 +506,7 @@
     oklch(1 0 0 / 0.85) 0%,
     oklch(1 0 0 / 0.10) 30%,
     transparent 55%,
-    oklch(0.515 0.105 148 / 0.10) 100%
+    transparent 100%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
@@ -648,35 +609,8 @@
 }
 
 /* ── Tema oscuro cálido (noche en la cocina, no negro frío) ── */
-[data-theme="dark"] {
-  --w-bg:        oklch(0.155 0.002 250);  /* negro neutro (fondo)     */
-  --w-bg-2:      oklch(0.115 0.002 250);  /* casi negro               */
-  --w-surface:   oklch(0.205 0.003 250);  /* tarjetas elevadas        */
-  --w-ink:       oklch(0.965 0.002 250);  /* casi blanco (texto)      */
-  --w-ink-soft:  oklch(0.800 0.004 250);
-  --w-ink-mut:   oklch(0.640 0.005 250);
-  --w-line:      oklch(1 0 0 / 0.12);
-
-  --w-terra:     #FF8166;  /* coral más brillante (oscuro) */
-  --w-terra-dk:  #FF6B4A;
-  --w-olive:     oklch(0.620 0.120 48);   /* arcilla/rust       */
-  --w-saffron:   oklch(0.785 0.110 72);   /* miel               */
-  --w-wine:      oklch(0.620 0.150 22);
-  --w-terra-rgb: 255, 129, 102;
-
-  --w-shadow-sm: 0 1px 2px oklch(0 0 0 / 0.30), 0 2px 8px oklch(0 0 0 / 0.32);
-  --w-shadow-md: 0 4px 14px oklch(0 0 0 / 0.42), 0 10px 28px oklch(0 0 0 / 0.36);
-  --w-shadow-lg: 0 16px 40px oklch(0 0 0 / 0.52), 0 28px 64px oklch(0 0 0 / 0.40);
-  --w-shadow-terra: 0 2px 10px oklch(0.70 0.14 40 / 0.32);
-
-  /* Neumorfismo en oscuro — gris carbón, nunca negro puro */
-  --w-neu-dark:  oklch(0 0 0 / 0.55);
-  --w-neu-light: oklch(0.32 0.005 250 / 0.55);
-}
 /* Liquid glass en oscuro — panel translúcido oscuro */
 [data-theme="dark"] .lg {
-  background: oklch(0.205 0.003 250 / 0.60);
-  border-color: oklch(1 0 0 / 0.10);
   box-shadow: var(--w-shadow-md), inset 0 1px 1px oklch(1 0 0 / 0.08), inset 0 -1px 1px oklch(0 0 0 / 0.20);
 }
 [data-theme="dark"] .lg::before {
@@ -792,3 +726,32 @@
 [data-theme="dark"] .dish-grid-gradient {
   background: linear-gradient(180deg, var(--w-surface) 0%, rgba(255, 129, 102, 0.04) 100%);
 }
+
+/* ── Menú público: carcasa (barra lateral + contenido + panel "Tu pedido") ── */
+.pm-shell { display: block; }
+.pm-side, .pm-panel { display: none; }
+.pm-top-mobile { display: flex; }
+.pm-chip {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.375rem;
+  min-width: 4.25rem; padding: 0.625rem 0.75rem; border-radius: 1rem; cursor: pointer;
+  font-family: var(--w-font); font-size: 0.75rem; font-weight: 600;
+  background: var(--w-surface); color: var(--w-text-2); border: 1px solid var(--w-border);
+  transition: background 0.2s, color 0.2s;
+}
+.pm-chip[data-on="true"] { background: var(--w-accent); color: var(--w-on-accent); border-color: transparent; box-shadow: var(--w-shadow-terra); }
+.pm-nav-link {
+  display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.7rem 0.875rem; border-radius: 0.875rem;
+  border: none; background: transparent; color: var(--w-text-2); font-family: var(--w-font); font-size: 0.875rem; font-weight: 600;
+  cursor: pointer; text-align: left; text-decoration: none;
+}
+.pm-nav-link[data-on="true"] { background: var(--w-accent); color: var(--w-on-accent); }
+@media (min-width: 1024px) {
+  .pm-shell { display: grid; grid-template-columns: 13rem minmax(0, 1fr) 19rem; gap: 1.5rem; align-items: start; padding: 0 1.5rem; max-width: 1500px; margin: 0 auto; }
+  .pm-side { display: flex; flex-direction: column; gap: 1rem; position: sticky; top: 1rem; padding: 1.25rem 0.75rem; border-radius: 1.5rem; background: var(--w-surface); border: 1px solid var(--w-border); }
+  .pm-panel { display: flex; flex-direction: column; gap: 1rem; position: sticky; top: 1rem; padding: 1.25rem; border-radius: 1.5rem; background: var(--w-surface); border: 1px solid var(--w-border); }
+  .pm-top-mobile, .pm-bottom-bar { display: none !important; }
+  .pm-shell .menu-wrap { max-width: none; padding-left: 0 !important; padding-right: 0 !important; }
+  .pm-shell .menu-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.pm-top-desktop { display: none; }
+@media (min-width: 1024px) { .pm-top-desktop { display: block; } }

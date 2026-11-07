@@ -5,6 +5,7 @@
  * solo puede ser la que se toma ahora mismo.
  */
 import { useEffect, useRef, useState } from 'react'
+import { Button } from '../ui/Button'
 
 interface Props {
   title:     string
@@ -60,37 +61,31 @@ export function CameraCapture({ title, onCapture, onClose }: Props) {
     try { await onCapture(shot.blob) } finally { setSending(false) }
   }
 
-  const btn: React.CSSProperties = { flex: 1, padding: '0.875rem', borderRadius: '0.875rem', border: 'none', fontWeight: 700, fontSize: '0.9375rem', cursor: 'pointer', fontFamily: 'var(--w-sans)' }
-
   return (
     <div onClick={() => !sending && onClose()}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--w-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 420, background: 'var(--w-surface)', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-        <h3 className="ed-display" style={{ margin: 0, fontWeight: 600, fontSize: '1.25rem' }}>{title}</h3>
+        style={{ width: '100%', maxWidth: 420, background: 'var(--w-surface-raised)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-lg)', borderRadius: 'var(--w-r-xl)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+        <h3 style={{ margin: 0, fontWeight: 700, fontSize: 'var(--w-fs-title)', color: 'var(--w-text)', fontFamily: 'var(--w-font)' }}>{title}</h3>
 
         {error ? (
-          <p style={{ margin: 0, color: 'var(--w-wine)', fontSize: '0.875rem', fontFamily: 'var(--w-sans)' }}>{error}</p>
+          <p style={{ margin: 0, color: 'var(--w-danger-text)', fontSize: '0.875rem', fontFamily: 'var(--w-font)' }}>{error}</p>
         ) : shot ? (
-          <img src={shot.url} alt="Tu foto de llegada" style={{ width: '100%', borderRadius: '0.875rem', transform: 'scaleX(-1)' }} />
+          <img src={shot.url} alt="Tu foto de llegada" style={{ width: '100%', borderRadius: 'var(--w-r-md)', transform: 'scaleX(-1)' }} />
         ) : (
           <video ref={videoRef} autoPlay playsInline muted onLoadedData={() => setReady(true)}
-            style={{ width: '100%', borderRadius: '0.875rem', background: '#000', transform: 'scaleX(-1)' }} />
+            style={{ width: '100%', borderRadius: 'var(--w-r-md)', background: '#000', transform: 'scaleX(-1)' }} />
         )}
 
         <div style={{ display: 'flex', gap: '0.625rem' }}>
-          <button onClick={onClose} disabled={sending} style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink-soft)', border: '1px solid var(--w-line)' }}>
-            Cancelar
-          </button>
+          <Button variant="secondary" className="flex-1" onClick={onClose} disabled={sending}>Cancelar</Button>
           {!error && (shot ? (
             <>
-              <button onClick={() => setShot(null)} disabled={sending} style={{ ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }}>Repetir</button>
-              <button onClick={send} disabled={sending} style={{ ...btn, background: 'var(--w-olive)', color: '#fff', opacity: sending ? 0.6 : 1 }}>
-                {sending ? 'Enviando…' : 'Enviar'}
-              </button>
+              <Button variant="secondary" className="flex-1" onClick={() => setShot(null)} disabled={sending}>Repetir</Button>
+              <Button className="flex-1" onClick={send} loading={sending}>{sending ? 'Enviando…' : 'Enviar'}</Button>
             </>
           ) : (
-            <button onClick={take} disabled={!ready} style={{ ...btn, background: 'var(--w-terra)', color: '#fff', opacity: ready ? 1 : 0.5 }}>Tomar foto</button>
+            <Button className="flex-1" onClick={take} disabled={!ready}>Tomar foto</Button>
           ))}
         </div>
       </div>

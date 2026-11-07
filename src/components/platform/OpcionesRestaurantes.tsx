@@ -10,10 +10,10 @@ interface Fila { restaurant_id: string; nombre: string; slug: string; activo: bo
 interface Respuesta { template_key: string; pregunta_id: string; pregunta: string; respuesta: string; updated_at: string }
 interface PlantillaActiva { key: string; nombre: string }
 
-const bg = 'var(--bg, #D8DAE4)', bgSurf = 'var(--bg-surface, #CDD0DC)', txt = 'var(--text-primary, #2D3561)', txtSec = 'var(--text-secondary, #6b7280)'
-const caja: React.CSSProperties = { borderRadius: '1rem', padding: '1rem 1.25rem', backgroundColor: bg, boxShadow: 'var(--shadow-out)' }
-const boton = (primario = false): React.CSSProperties => ({ border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8125rem', borderRadius: '0.75rem', padding: '0.5rem 0.9rem', minHeight: '2.5rem', background: primario ? 'var(--w-terra, #C2570C)' : bgSurf, color: primario ? '#fff' : txt })
-const campo: React.CSSProperties = { padding: '0.45rem 0.6rem', borderRadius: '0.75rem', border: '1px solid var(--w-line, #ccc)', background: 'var(--w-bg, #fff)', color: 'var(--w-ink, #222)', fontSize: '0.875rem', minHeight: '2.5rem' }
+const bg = 'var(--w-surface)', bgSurf = 'var(--w-surface-sunken)', txt = 'var(--w-text)', txtSec = 'var(--w-text-2)'
+const caja: React.CSSProperties = { borderRadius: '1rem', padding: '1rem 1.25rem', backgroundColor: bg, border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' }
+const boton = (primario = false): React.CSSProperties => ({ border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8125rem', borderRadius: 'var(--w-r-md)', padding: '0.5rem 0.9rem', minHeight: '2.5rem', background: primario ? 'var(--w-accent)' : bgSurf, color: primario ? 'var(--w-on-accent)' : txt })
+const campo: React.CSSProperties = { padding: '0.45rem 0.6rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontSize: '0.875rem', minHeight: '2.5rem' }
 
 export function OpcionesRestaurantes() {
   const [filas, setFilas] = useState<Fila[] | null>(null)
@@ -85,7 +85,7 @@ export function OpcionesRestaurantes() {
     setRespuestas((data as Respuesta[]) ?? []); setAbierto(f.restaurant_id)
   }
 
-  if (error) return <div role="alert" style={{ ...caja, color: 'var(--tag-red-text, #b91c1c)', boxShadow: 'var(--shadow-in)' }}>No se pudo cargar: {error}</div>
+  if (error) return <div role="alert" style={{ ...caja, color: 'var(--w-danger-text)', boxShadow: 'inset 0 0 0 1px var(--w-border)' }}>No se pudo cargar: {error}</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -95,16 +95,16 @@ export function OpcionesRestaurantes() {
           Aquí enciendes las listas y opciones nuevas restaurante por restaurante (empiezan apagadas), agregas plantillas y lees lo que cada administrador respondió en el asistente.
         </p>
       </div>
-      {aviso && <div style={{ ...caja, boxShadow: 'var(--shadow-in)', color: txt }}>{aviso}</div>}
+      {aviso && <div style={{ ...caja, boxShadow: 'inset 0 0 0 1px var(--w-border)', color: txt }}>{aviso}</div>}
       {!filas ? <div style={{ padding: '2rem', textAlign: 'center', color: txtSec }}>Cargando…</div> : filas.map(f => (
         <div key={f.restaurant_id} style={{ ...caja, opacity: f.activo ? 1 : 0.6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <div>
               <div style={{ fontWeight: 700, color: txt }}>{f.nombre} <span style={{ fontWeight: 400, color: txtSec, fontSize: '0.8125rem' }}>/{f.slug}</span></div>
               <div style={{ fontSize: '0.8125rem', color: txtSec, marginTop: '0.125rem' }}>
-                Opciones nuevas: <strong style={{ color: f.options_v2 ? 'var(--w-olive, #2f6b3d)' : txtSec }}>{f.options_v2 ? 'ENCENDIDAS' : 'apagadas'}</strong>
+                Opciones nuevas: <strong style={{ color: f.options_v2 ? 'var(--w-success-text)' : txtSec }}>{f.options_v2 ? 'ENCENDIDAS' : 'apagadas'}</strong>
                 {' · '}Plantillas: {f.plantillas.length > 0 ? f.plantillas.map(k => todas[k] ?? k).join(', ') : 'ninguna'}
-                {' · '}Resti: <strong style={{ color: resti[f.restaurant_id] ? 'var(--w-olive, #2f6b3d)' : txtSec }}>{resti[f.restaurant_id] ? 'ENCENDIDO' : 'apagado'}</strong>
+                {' · '}Resti: <strong style={{ color: resti[f.restaurant_id] ? 'var(--w-success-text)' : txtSec }}>{resti[f.restaurant_id] ? 'ENCENDIDO' : 'apagado'}</strong>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

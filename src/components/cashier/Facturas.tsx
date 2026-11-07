@@ -3,6 +3,7 @@
  * Admin y cajero suben y consultan; solo el admin edita y elimina (también lo exige la base).
  * Las fotos son privadas: se ven con enlaces temporales. La foto es un soporte interno.
  */
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
@@ -19,16 +20,16 @@ interface Proveedor { id: string; nombre: string }
 
 const input: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.875rem', borderRadius: '0.75rem',
-  border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)',
-  fontSize: '0.9375rem', outline: 'none', fontFamily: 'var(--w-sans)',
+  border: '1px solid var(--w-border)', background: 'var(--w-bg)', color: 'var(--w-text)',
+  fontSize: '0.9375rem', outline: 'none', fontFamily: 'var(--w-font)',
 }
 const btn: React.CSSProperties = {
-  border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.875rem',
+  border: 'none', cursor: 'pointer', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.875rem',
   borderRadius: '0.75rem', padding: '0.65rem 1rem',
 }
-const primario: React.CSSProperties = { ...btn, background: 'var(--w-terracotta, #c4552d)', color: '#fff' }
-const suave: React.CSSProperties = { ...btn, background: 'var(--w-line)', color: 'var(--w-ink)' }
-const label: React.CSSProperties = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-ink-soft, #777)', display: 'block', marginBottom: '0.25rem' }
+const primario: React.CSSProperties = { ...btn, background: 'var(--w-accent)', color: 'var(--w-on-accent)' }
+const suave: React.CSSProperties = { ...btn, background: 'var(--w-border)', color: 'var(--w-text)' }
+const label: React.CSSProperties = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-text-2)', display: 'block', marginBottom: '0.25rem' }
 
 const primeroDeMes = () => hoyBogota().slice(0, 8) + '01'
 const fechaCorta = (f: string) => new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -36,9 +37,9 @@ const fechaCorta = (f: string) => new Date(f + 'T12:00:00').toLocaleDateString('
 function Modal({ children, onClose, ancho = '34rem' }: { children: React.ReactNode; onClose: () => void; ancho?: string }) {
   return (
     <div role="dialog" aria-modal="true" onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      style={{ position: 'fixed', inset: 0, background: 'var(--w-overlay)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: 'var(--w-card, #fff)', borderRadius: '1rem', width: '100%', maxWidth: ancho, maxHeight: '92vh', overflowY: 'auto', padding: '1.25rem' }}>
+        style={{ background: 'var(--w-surface)', borderRadius: '1rem', width: '100%', maxWidth: ancho, maxHeight: '92vh', overflowY: 'auto', padding: '1.25rem' }}>
         {children}
       </div>
     </div>
@@ -132,23 +133,23 @@ function SubirFactura({ rid, proveedores, onProveedor, onClose, onHecho }: {
 
   return (
     <Modal onClose={onClose}>
-      <h3 style={{ margin: '0 0 0.75rem', fontFamily: 'var(--w-serif, inherit)' }}>Subir factura</h3>
+      <h3 style={{ margin: '0 0 0.75rem', fontFamily: 'var(--w-font)' }}>Subir factura</h3>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <button type="button" style={primario} disabled={procesando} onClick={() => camara.current?.click()}>📷 Tomar foto</button>
         <button type="button" style={suave} disabled={procesando} onClick={() => galeria.current?.click()}>🖼️ Elegir de la galería</button>
         <input ref={camara} type="file" accept="image/*" capture="environment" hidden onChange={e => { agregar(e.target.files); e.target.value = '' }} />
         <input ref={galeria} type="file" accept="image/*" multiple hidden onChange={e => { agregar(e.target.files); e.target.value = '' }} />
       </div>
-      <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-soft, #777)', margin: '0.5rem 0' }}>
+      <p style={{ fontSize: '0.75rem', color: 'var(--w-text-2)', margin: '0.5rem 0' }}>
         {procesando ? 'Preparando foto…' : `${fotos.length} de ${MAX_FOTOS} fotos. Si la factura tiene varias páginas, agrégalas todas.`}
       </p>
       {fotos.length > 0 && (
-        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', paddingBottom: '0.5rem' }}>
           {fotos.map((f, i) => (
             <div key={f.url} style={{ position: 'relative', flex: '0 0 auto' }}>
               <img src={f.url} alt={`Página ${i + 1}`} style={{ height: '6rem', borderRadius: '0.5rem', display: 'block' }} />
               <button type="button" aria-label="Quitar foto" onClick={() => setFotos(p => p.filter((_, j) => j !== i))}
-                style={{ ...btn, position: 'absolute', top: 2, right: 2, padding: '0.1rem 0.45rem', background: 'rgba(0,0,0,0.65)', color: '#fff' }}>×</button>
+                style={{ ...btn, position: 'absolute', top: 2, right: 2, padding: '0.1rem 0.45rem', background: 'var(--w-overlay)', color: 'var(--w-on-accent)' }}>×</button>
             </div>
           ))}
         </div>
@@ -166,7 +167,7 @@ function SubirFactura({ rid, proveedores, onProveedor, onClose, onHecho }: {
           Registrar también como gasto de caja
         </label>
       </div>
-      <p style={{ fontSize: '0.6875rem', color: 'var(--w-ink-soft, #777)', margin: '0.75rem 0' }}>
+      <p style={{ fontSize: '0.6875rem', color: 'var(--w-text-2)', margin: '0.75rem 0' }}>
         La foto es un soporte interno; no reemplaza la factura electrónica ni el soporte contable que exige la DIAN.
       </p>
       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
@@ -212,29 +213,29 @@ function DetalleFactura({ f, esAdmin, proveedores, onProveedor, enlaces, quien, 
   return (
     <Modal onClose={onClose} ancho="46rem">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
-        <h3 style={{ margin: 0, fontFamily: 'var(--w-serif, inherit)' }}>{f.proveedor_nombre ?? 'Sin proveedor'} · {formatCOP(f.monto)}</h3>
+        <h3 style={{ margin: 0, fontFamily: 'var(--w-font)' }}>{f.proveedor_nombre ?? 'Sin proveedor'} · {formatCOP(f.monto)}</h3>
         <button type="button" style={suave} onClick={onClose}>Cerrar</button>
       </div>
-      <p style={{ fontSize: '0.8125rem', color: 'var(--w-ink-soft, #777)', margin: '0.25rem 0 0.75rem' }}>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--w-text-2)', margin: '0.25rem 0 0.75rem' }}>
         {fechaCorta(f.fecha)}{quien ? ` · subida por ${quien}` : ''}{f.gasto_id ? ' · registrada como gasto de caja' : ''}
         {f.nota ? <><br />{f.nota}</> : null}
       </p>
       <div style={{ display: 'grid', gap: '0.75rem' }}>
         {f.fotos.map((ruta, i) => enlaces[ruta] ? (
           <div key={ruta}>
-            <div style={{ overflow: 'auto', maxHeight: zoom === ruta ? '70vh' : undefined, borderRadius: '0.5rem', border: '1px solid var(--w-line)' }}>
+            <div style={{ overflow: 'auto', maxHeight: zoom === ruta ? '70vh' : undefined, borderRadius: '0.5rem', border: '1px solid var(--w-border)' }}>
               <img src={enlaces[ruta]} alt={`Factura, página ${i + 1}`} onClick={() => setZoom(z => z === ruta ? null : ruta)}
                 style={{ display: 'block', width: zoom === ruta ? '220%' : '100%', maxWidth: zoom === ruta ? 'none' : '100%', cursor: zoom === ruta ? 'zoom-out' : 'zoom-in' }} />
             </div>
             <a href={enlaces[ruta]} download={`factura-${f.fecha}-${i + 1}.jpg`} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: '0.75rem', color: 'var(--w-terracotta, #c4552d)' }}>Descargar foto {f.fotos.length > 1 ? i + 1 : ''}</a>
+              style={{ fontSize: '0.75rem', color: 'var(--w-accent)' }}>Descargar foto {f.fotos.length > 1 ? i + 1 : ''}</a>
           </div>
         ) : <p key={ruta} style={{ fontSize: '0.8125rem' }}>No pude cargar la foto {i + 1}.</p>)}
       </div>
       {esAdmin && !editando && (
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
           <button type="button" style={suave} onClick={() => setEditando(true)}>Editar datos</button>
-          <button type="button" style={{ ...btn, background: '#b3261e', color: '#fff' }} disabled={ocupado} onClick={borrar}>Eliminar</button>
+          <button type="button" style={{ ...btn, background: 'var(--w-danger)', color: 'var(--w-on-accent)' }} disabled={ocupado} onClick={borrar}>Eliminar</button>
         </div>
       )}
       {esAdmin && editando && (
@@ -329,18 +330,15 @@ export function Facturas({ profile }: { profile: Profile }) {
 
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <div>
-          <h2 style={{ margin: 0, fontFamily: 'var(--w-serif, inherit)' }}>Facturas de compra</h2>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'var(--w-ink-soft, #777)' }}>
-            Soporte interno con foto. No reemplaza la factura electrónica ni el soporte contable de la DIAN.
-          </p>
-        </div>
-        <button type="button" style={primario} disabled={!rid} onClick={() => setSubir(true)}>+ Subir factura</button>
-      </div>
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2zM9 7h6M9 11h6" /></svg>}
+        title="Facturas de compra"
+        subtitle="Soporte interno con foto. No reemplaza la factura electrónica ni el soporte contable de la DIAN."
+        actions={<button type="button" style={primario} disabled={!rid} onClick={() => setSubir(true)}>+ Subir factura</button>}
+      />
 
       {cola.length > 0 && (
-        <div style={{ background: '#fff4d6', color: '#5c4400', borderRadius: '0.75rem', padding: '0.75rem 1rem', fontSize: '0.8125rem' }}>
+        <div style={{ background: 'var(--w-warning-bg)', color: 'var(--w-warning-text)', borderRadius: '0.75rem', padding: '0.75rem 1rem', fontSize: '0.8125rem' }}>
           <strong>Pendiente de subir ({cola.length}):</strong> estas facturas están guardadas en este dispositivo y se subirán cuando haya señal.
           {cola.filter(c => c.error).map(c => <div key={c.id}>· {fechaCorta(c.fecha)} {formatCOP(c.monto)}: {c.error}</div>)}
           <div style={{ marginTop: '0.5rem' }}>
@@ -362,24 +360,27 @@ export function Facturas({ profile }: { profile: Profile }) {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <strong>{visibles.length} factura(s) · Total {formatCOP(total)}</strong>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(10rem, 14rem))', gap: '0.75rem' }}>
+          <StatCard label="Facturas registradas" value={visibles.length} tone="info" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2zM9 7h6M9 11h6" /></svg>} />
+          <StatCard label="Total del periodo" value={formatCOP(total)} tone="success" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>} />
+        </div>
         <button type="button" style={suave} disabled={visibles.length === 0}
           onClick={() => exportarExcel(visibles, nombres, desde, hasta).catch(e => message.error((e as Error).message))}>Descargar Excel</button>
       </div>
 
       {cargando ? <p>Cargando…</p> : visibles.length === 0 ? (
-        <p style={{ color: 'var(--w-ink-soft, #777)' }}>No hay facturas en este periodo. Usa “Subir factura” para guardar la primera.</p>
+        <p style={{ color: 'var(--w-text-2)' }}>No hay facturas en este periodo. Usa “Subir factura” para guardar la primera.</p>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(10.5rem, 1fr))', gap: '0.75rem' }}>
           {visibles.map(f => (
             <button key={f.id} type="button" onClick={() => abrir(f)}
-              style={{ textAlign: 'left', padding: 0, cursor: 'pointer', border: '1px solid var(--w-line)', borderRadius: '0.875rem', overflow: 'hidden', background: 'var(--w-card, #fff)', fontFamily: 'var(--w-sans)' }}>
-              <div style={{ height: '8rem', background: 'var(--w-line)' }}>
+              style={{ textAlign: 'left', padding: 0, cursor: 'pointer', border: '1px solid var(--w-border)', borderRadius: '0.875rem', overflow: 'hidden', background: 'var(--w-surface)', fontFamily: 'var(--w-font)' }}>
+              <div style={{ height: '8rem', background: 'var(--w-border)' }}>
                 {enlaces[f.fotos[0]] && <img src={enlaces[f.fotos[0]]} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
               </div>
               <div style={{ padding: '0.5rem 0.625rem' }}>
                 <div style={{ fontWeight: 700, fontSize: '0.9375rem' }}>{formatCOP(f.monto)}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--w-ink-soft, #777)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--w-text-2)' }}>
                   {fechaCorta(f.fecha)}<br />{f.proveedor_nombre ?? 'Sin proveedor'}{f.fotos.length > 1 ? ` · ${f.fotos.length} fotos` : ''}
                 </div>
               </div>

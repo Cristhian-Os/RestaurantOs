@@ -16,19 +16,19 @@ import { CategoryIcon } from './CategoryIcon'
 
 // ─── Constantes de estilo (fuera del componente para evitar recreación) ─
 const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
+  neoOut:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  neoOutSm:{ border: '1px solid var(--w-border-strong)' },
+  neoIn:   { boxShadow: 'none', border: '1px solid var(--w-border)' },
+  coral:   { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
 // ─── Configuración visual por categoría ──────────────────────
 const CATEGORY_CONFIG = {
-  entrada:   { label: 'Entrada',   color: 'bg-emerald-100 text-emerald-700' },
-  principal: { label: 'Principal', color: 'bg-blue-100 text-blue-700'     },
-  postre:    { label: 'Postre',    color: 'bg-pink-100 text-pink-700'      },
-  bebida:    { label: 'Bebida',    color: 'bg-cyan-100 text-cyan-700'      },
-  especial:  { label: 'Especial',  color: 'bg-amber-100 text-amber-700'    },
+  entrada:   { label: 'Entrada',   color: 'bg-[var(--w-success-bg)] text-[color:var(--w-success-text)]' },
+  principal: { label: 'Principal', color: 'bg-[var(--w-info-bg)] text-[color:var(--w-info-text)]'     },
+  postre:    { label: 'Postre',    color: 'bg-[var(--w-accent-soft)] text-[color:var(--w-accent-text)]'      },
+  bebida:    { label: 'Bebida',    color: 'bg-[var(--w-info-bg)] text-[color:var(--w-info-text)]'      },
+  especial:  { label: 'Especial',  color: 'bg-[var(--w-warning-bg)] text-[color:var(--w-warning-text)]'    },
 } as const
 
 // ─── Transiciones tipadas para FM v12 ────────────────────────
@@ -55,8 +55,8 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
   const cat = CATEGORY_CONFIG[dish.category as keyof typeof CATEGORY_CONFIG]
   const icon = categoryIcon ?? <CategoryIcon category={dish.category} size={40} />
   const label = categoryLabel ?? cat?.label ?? dish.category
-  const color = cat?.color ?? 'bg-gray-100 text-gray-600'
-  const badgeColor = categoryColor || '#FF5722'
+  const color = cat?.color ?? 'bg-[var(--w-surface-sunken)] text-[color:var(--w-text-2)]'
+  const badgeColor = categoryColor || 'var(--w-accent)'
 
   const handleAdd = useCallback(() => {
     if (!dish.available) return
@@ -69,12 +69,12 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
 
   // Glass color: usa categoryColor si existe, sino fallback al gris por defecto
   const glassColor = categoryColor
-    ? `color-mix(in srgb, ${categoryColor}33, #D8DAE4)`  // 20% opacidad del color
-    : '#D8DAE4'
+    ? `color-mix(in srgb, ${categoryColor}33, var(--w-surface))`  // 20% opacidad del color
+    : 'var(--w-surface)'
 
   return (
     <div
-      className="rounded-3xl p-4 flex flex-col gap-3 relative"
+      className="rounded-[var(--w-r-xl)] p-4 flex flex-col gap-3 relative"
       style={{ ...S.neoOut, backgroundColor: glassColor }}
     >
       {/* ── Badge de cantidad en carrito ── */}
@@ -85,7 +85,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1, transition: springBouncy }}
             exit={{ scale: 0, opacity: 0, transition: fadeOut }}
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center z-10"
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full text-[color:var(--w-on-accent)] text-xs font-bold flex items-center justify-center z-10"
             style={{
               backgroundColor: badgeColor,
               boxShadow: `0 2px 8px ${badgeColor}66`
@@ -98,7 +98,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
 
       {/* ── Imagen o placeholder ── */}
       {dish.image_url ? (
-        <div className="w-full h-36 rounded-2xl overflow-hidden" style={S.neoIn}>
+        <div className="w-full h-36 rounded-[var(--w-r-md)] overflow-hidden" style={S.neoIn}>
           <img
             src={dish.image_url}
             alt={dish.name}
@@ -109,7 +109,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
         </div>
       ) : (
         <div
-          className="w-full h-28 rounded-2xl flex items-center justify-center text-[#9CA3AF]"
+          className="w-full h-28 rounded-[var(--w-r-md)] flex items-center justify-center text-[color:var(--w-text-3)]"
           style={S.neoIn}
           aria-hidden="true"
         >
@@ -121,8 +121,8 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
       <div className="flex flex-col gap-1.5 flex-1">
         <div className="flex items-start justify-between gap-2">
           <h3
-            className="text-sm font-bold text-[#2D3561] leading-tight"
-            style={{ fontFamily: 'DM Sans, sans-serif' }}
+            className="text-sm font-bold text-[color:var(--w-text)] leading-tight"
+            style={{ fontFamily: 'var(--w-font)' }}
           >
             {dish.name}
           </h3>
@@ -131,7 +131,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
           </span>
         </div>
 
-        <p className="text-xs text-[#9CA3AF] line-clamp-2 leading-relaxed">
+        <p className="text-xs text-[color:var(--w-text-3)] line-clamp-2 leading-relaxed">
           {dish.description}
         </p>
 
@@ -140,7 +140,7 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
             {dish.tags.map(tag => (
               <span
                 key={tag}
-                className="text-[0.625rem] text-[#6B7280] bg-[#CDD0DC] px-2 py-0.5 rounded-full"
+                className="text-[0.625rem] text-[color:var(--w-text-2)] bg-[var(--w-surface-sunken)] px-2 py-0.5 rounded-full"
                 style={S.neoOutSm}
               >
                 {tag}
@@ -153,8 +153,8 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
       {/* ── Precio + botón agregar ── */}
       <div className="flex items-center justify-between mt-1">
         <span
-          className="text-lg font-bold text-[#FF5722]"
-          style={{ fontFamily: 'DM Sans, sans-serif' }}
+          className="text-lg font-bold text-[color:var(--w-accent)]"
+          style={{ fontFamily: 'var(--w-font)' }}
         >
           ${Math.round(dish.price).toLocaleString('es-CO')}
         </span>
@@ -166,19 +166,19 @@ export const DishCard = memo<DishCardProps>(({ dish, onAdd, quantity = 0, catego
           disabled={!dish.available}
           aria-label={`Agregar ${dish.name} al pedido`}
           className={[
-            'min-w-[44px] min-h-[44px] px-4 rounded-2xl text-xs font-bold',
+            'min-w-[44px] min-h-[44px] px-4 rounded-[var(--w-r-md)] text-xs font-bold',
             'flex items-center justify-center gap-1.5',
             'transition-colors duration-200',
             dish.available
               ? justAdded
-                ? 'bg-emerald-500 text-white'
-                : 'bg-[#FF5722] text-white hover:bg-[#E64A19]'
-              : 'bg-[#CDD0DC] text-[#9CA3AF] cursor-not-allowed',
+                ? 'bg-[var(--w-success-bg)] text-[color:var(--w-success-text)]'
+                : 'bg-[var(--w-accent)] text-[color:var(--w-on-accent)] hover:bg-[var(--w-accent-hover)]'
+              : 'bg-[var(--w-surface-sunken)] text-[color:var(--w-text-3)] cursor-not-allowed',
           ].join(' ')}
           style={
             dish.available
               ? justAdded
-                ? { boxShadow: '4px 4px 12px rgba(16,185,129,0.35)' }
+                ? { boxShadow: 'var(--w-shadow-md)' }
                 : S.coral
               : S.neoIn
           }

@@ -17,8 +17,8 @@ interface Seguimiento {
 }
 
 const S = {
-  out: { boxShadow: 'var(--shadow-out)' },
-  in:  { boxShadow: 'var(--shadow-in)' },
+  out: { boxShadow: 'var(--w-shadow-md)' },
+  in:  { boxShadow: 'inset 0 0 0 1px var(--w-border)' },
 } as const
 
 interface Contact {
@@ -56,10 +56,10 @@ const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 export const PlatformOverview = memo(() => {
-  const bg     = 'var(--bg, #D8DAE4)'
-  const bgSurf = 'var(--bg-surface, #CDD0DC)'
-  const txt    = 'var(--text-primary, #2D3561)'
-  const txtSec = 'var(--text-secondary, #6b7280)'
+  const bg     = 'var(--w-surface)'
+  const bgSurf = 'var(--w-surface-sunken)'
+  const txt    = 'var(--w-text)'
+  const txtSec = 'var(--w-text-2)'
 
   const [restaurants, setRestaurants] = useState<RestaurantRow[] | null>(null)
   const [logs,        setLogs]        = useState<ChatLog[] | null>(null)
@@ -121,8 +121,8 @@ export const PlatformOverview = memo(() => {
     if (e) { setAviso(e.message); return }
     setCred({ titulo: 'Contraseña restablecida', email, pass })
   }
-  const campo: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.875rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontSize: '1rem', minHeight: '2.75rem' }
-  const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: '0.75rem', padding: '0.6rem 1rem', minHeight: '2.75rem' }
+  const campo: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.875rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontSize: '1rem', minHeight: '2.75rem' }
+  const boton: React.CSSProperties = { border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', borderRadius: 'var(--w-r-md)', padding: '0.6rem 1rem', minHeight: '2.75rem' }
 
   useEffect(() => {
     cargarSeguimiento()
@@ -139,7 +139,7 @@ export const PlatformOverview = memo(() => {
   }, [])
 
   if (error) return (
-    <div style={{ borderRadius: '1rem', padding: '1.5rem', backgroundColor: bg, ...S.in, color: 'var(--tag-red-text, #b91c1c)' }}>
+    <div style={{ borderRadius: '1rem', padding: '1.5rem', backgroundColor: bg, ...S.in, color: 'var(--w-danger-text)' }}>
       No se pudo cargar: {error}
     </div>
   )
@@ -147,13 +147,13 @@ export const PlatformOverview = memo(() => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       {cred && (
-        <div style={{ borderRadius: '1rem', padding: '1.25rem', backgroundColor: bg, border: '2px solid var(--w-terra, #C2570C)', ...S.out }}>
+        <div style={{ borderRadius: '1rem', padding: '1.25rem', backgroundColor: bg, border: '2px solid var(--w-accent)', ...S.out }}>
           <div style={{ fontWeight: 700, color: txt, marginBottom: '0.5rem' }}>{cred.titulo}</div>
           <div style={{ fontSize: '0.875rem', color: txtSec }}>Correo: <strong style={{ color: txt }}>{cred.email}</strong></div>
           <div style={{ fontSize: '0.875rem', color: txtSec, margin: '0.25rem 0 0.75rem' }}>Contraseña temporal: <strong style={{ color: txt, fontFamily: 'monospace', fontSize: '1.05rem' }}>{cred.pass}</strong></div>
           <p style={{ fontSize: '0.8125rem', color: txtSec, margin: '0 0 0.75rem' }}>Se muestra solo esta vez. Entrégala por un canal privado: al entrar, el administrador deberá cambiarla.</p>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button style={{ ...boton, background: 'var(--w-terra, #C2570C)', color: '#fff' }} onClick={() => navigator.clipboard?.writeText(`Correo: ${cred.email}\nContraseña temporal: ${cred.pass}`)}>Copiar</button>
+            <button style={{ ...boton, background: 'var(--w-accent)', color: 'var(--w-on-accent)' }} onClick={() => navigator.clipboard?.writeText(`Correo: ${cred.email}\nContraseña temporal: ${cred.pass}`)}>Copiar</button>
             <button style={{ ...boton, background: bgSurf, color: txt }} onClick={() => setCred(null)}>Ya la guardé</button>
           </div>
         </div>
@@ -161,7 +161,7 @@ export const PlatformOverview = memo(() => {
       {aviso && <div style={{ borderRadius: '1rem', padding: '0.875rem 1.25rem', backgroundColor: bg, color: txt, ...S.in }}>{aviso}</div>}
       {fichaId && <FichaRestaurante id={fichaId} onClose={() => setFichaId(null)} onCambio={recargar} />}
       <div style={{ borderRadius: '1rem', padding: '1.25rem', backgroundColor: bg, ...S.out }}>
-        <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.25rem', color: txt, margin: '0 0 0.25rem' }}>Nuevo restaurante</h2>
+        <h2 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1.25rem', color: txt, margin: '0 0 0.25rem' }}>Nuevo restaurante</h2>
         <p style={{ fontSize: '0.8125rem', color: txtSec, margin: '0 0 0.875rem' }}>El registro público está cerrado. Crea el restaurante cuando el cliente pague; el administrador recibe una contraseña temporal.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))', gap: '0.5rem' }}>
           <input style={campo} placeholder="Nombre del restaurante" aria-label="Nombre del restaurante" value={nuevo.nombre} onChange={e => setNuevo(n => ({ ...n, nombre: e.target.value }))} />
@@ -182,10 +182,10 @@ export const PlatformOverview = memo(() => {
           <input style={campo} placeholder="Detalle (cuál red, qué restaurante…)" aria-label="Detalle del origen" maxLength={200} value={nuevo.detalle} onChange={e => setNuevo(n => ({ ...n, detalle: e.target.value }))} />
           <input style={campo} placeholder="Código de vendedor o aliado (opcional)" aria-label="Código de vendedor" maxLength={30} autoCapitalize="characters" value={nuevo.codigo} onChange={e => setNuevo(n => ({ ...n, codigo: e.target.value.toUpperCase() }))} />
         </div>
-        <button disabled={busy} onClick={crearRestaurante} style={{ ...boton, marginTop: '0.75rem', background: 'var(--w-terra, #C2570C)', color: '#fff', opacity: busy ? 0.7 : 1 }}>{busy ? 'Creando…' : 'Crear restaurante'}</button>
+        <button disabled={busy} onClick={crearRestaurante} style={{ ...boton, marginTop: '0.75rem', background: 'var(--w-accent)', color: 'var(--w-on-accent)', opacity: busy ? 0.7 : 1 }}>{busy ? 'Creando…' : 'Crear restaurante'}</button>
       </div>
       <div>
-        <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: '0 0 1rem' }}>
+        <h2 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: '0 0 1rem' }}>
           Restaurantes {restaurants && `(${restaurants.length})`}
         </h2>
         {restaurants && (
@@ -221,8 +221,8 @@ export const PlatformOverview = memo(() => {
                   <div>
                     <div style={{ fontWeight: 700, color: txt, fontSize: '1rem' }}>
                       {r.name}
-                      {!r.active && <span style={{ marginLeft: '0.5rem', fontSize: '0.625rem', backgroundColor: 'var(--tag-red-bg)', color: 'var(--tag-red-text)', fontWeight: 700, padding: '0.0625rem 0.375rem', borderRadius: '9999px' }}>INACTIVO</span>}
-                      {r.is_promo && <span style={{ marginLeft: '0.5rem', fontSize: '0.625rem', backgroundColor: 'var(--tag-purple-bg)', color: 'var(--tag-purple-text)', fontWeight: 700, padding: '0.0625rem 0.375rem', borderRadius: '9999px' }}>PROMO DE POR VIDA</span>}
+                      {!r.active && <span style={{ marginLeft: '0.5rem', fontSize: '0.625rem', backgroundColor: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', fontWeight: 700, padding: '0.0625rem 0.375rem', borderRadius: '9999px' }}>INACTIVO</span>}
+                      {r.is_promo && <span style={{ marginLeft: '0.5rem', fontSize: '0.625rem', backgroundColor: 'var(--w-info-bg)', color: 'var(--w-info-text)', fontWeight: 700, padding: '0.0625rem 0.375rem', borderRadius: '9999px' }}>PROMO DE POR VIDA</span>}
                     </div>
                     <div style={{ fontSize: '0.8125rem', color: txtSec, marginTop: '0.125rem' }}>
                       /{r.slug} · {r.country ?? 'país sin registrar'} · cliente desde {fmtDate(r.created_at)}
@@ -266,7 +266,7 @@ export const PlatformOverview = memo(() => {
       </div>
 
       <div>
-        <h2 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: '0 0 1rem' }}>
+        <h2 style={{ fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1.5rem', color: txt, margin: '0 0 1rem' }}>
           Conversaciones del chatbot {logs && `(últimas ${logs.length})`}
         </h2>
         {!logs ? (

@@ -9,6 +9,7 @@
  *
  * Reemplaza al OrderForm anterior.
  */
+import { ModuleHeader } from '../tasks/ModuleHeader'
 import { BARRA_NOTE } from '../../lib/destino'
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -30,12 +31,11 @@ import {
 import { OptionGroupsV2 } from './OptionGroupsV2'
 
 // ─── Estilos neomórficos ──────────────────────────────────────
-const S = {
-  neoOut:  { boxShadow: 'var(--shadow-out)' },
-  neoOutSm:{ boxShadow: 'var(--shadow-out-sm)' },
-  neoIn:   { boxShadow: 'var(--shadow-in)' },
-  coral:   { boxShadow: 'var(--shadow-coral)' },
-  green:   { boxShadow: 'var(--shadow-green)' },
+const FX = {
+  card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  soft:  { boxShadow: 'var(--w-shadow-sm)' },
+  field: { border: '1px solid var(--w-border)' },
+  cta:   { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
 const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
@@ -190,33 +190,33 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
   const chipStyle = (active: boolean): React.CSSProperties => ({
     padding: '0.5rem 0.9rem', borderRadius: '0.75rem', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer',
     ...(active
-      ? { background: 'var(--accent)', color: 'white', ...S.coral }
-      : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }),
+      ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta }
+      : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.soft }),
   })
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}
       className="fixed inset-0 z-[1000] flex items-end justify-center"
-      style={{ background: 'rgba(0,0,0,0.4)' }}
+      style={{ background: 'var(--w-overlay)' }}
     >
       <motion.div
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 480, damping: 42 }}
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-md bg-[#D8DAE4] rounded-t-3xl p-6"
-        style={{ maxHeight: '88vh', overflowY: 'auto', ...S.neoOut }}
+        className="w-full max-w-md bg-[var(--w-surface)] rounded-t-[var(--w-r-xl)] p-6"
+        style={{ maxHeight: '88vh', overflowY: 'auto', ...FX.card }}
       >
-        <div className="w-9 h-1 rounded-full bg-[#CDD0DC] mx-auto mb-5" />
-        <h3 className="font-bold text-[#2D3561] mb-1">{dish.name}</h3>
-        <p className="text-xs text-[#9CA3AF] mb-4">{initial ? 'Cambia lo que necesites y guarda' : 'Elige las opciones para agregar al pedido'}</p>
+        <div className="w-9 h-1 rounded-full bg-[var(--w-surface-sunken)] mx-auto mb-5" />
+        <h3 className="font-bold text-[color:var(--w-text)] mb-1">{dish.name}</h3>
+        <p className="text-xs text-[color:var(--w-text-3)] mb-4">{initial ? 'Cambia lo que necesites y guarda' : 'Elige las opciones para agregar al pedido'}</p>
         {initial?.previousNotes && (
-          <p className="text-xs text-[#6B7280] mb-4 rounded-xl px-3 py-2 bg-[#CDD0DC]">Pedido original: {initial.previousNotes}</p>
+          <p className="text-xs text-[color:var(--w-text-2)] mb-4 rounded-[var(--w-r-md)] px-3 py-2 bg-[var(--w-surface-sunken)]">Pedido original: {initial.previousNotes}</p>
         )}
 
         {perUnit && units.length > 1 && (
           <div className="mb-5">
-            <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Unidad {act + 1} de {units.length}</p>
+            <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">Unidad {act + 1} de {units.length}</p>
             <div className="flex flex-wrap gap-2">
               {units.map((u, i) => (
                 <button key={i} onClick={() => setActive(i)} aria-label={`Unidad ${i + 1}`} style={chipStyle(i === act)}>
@@ -224,13 +224,13 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
                 </button>
               ))}
             </div>
-            <p className="text-xs text-[#9CA3AF] mt-2">Cada unidad se elige por separado. Las nuevas empiezan igual que la que estabas viendo.</p>
+            <p className="text-xs text-[color:var(--w-text-3)] mt-2">Cada unidad se elige por separado. Las nuevas empiezan igual que la que estabas viendo.</p>
           </div>
         )}
 
         {hasSizes && (
           <div className="mb-5">
-            <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Tamaño</p>
+            <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">Tamaño</p>
             <div className="flex flex-wrap gap-2">
               {sizes.map(s => (
                 <button key={s.nombre} onClick={() => setSel(p => ({ ...p, size: s.nombre }))} style={chipStyle(sel.size === s.nombre)}>
@@ -243,8 +243,8 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
 
         {v2 && (
           <OptionGroupsV2 groups={groupsV2} listas={menu.listas} sel={sel} setSel={setSel} chip={chipStyle}
-            kicker={{ className: 'text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2' }}
-            hint={{ className: 'text-xs text-[#9CA3AF]' }} />
+            kicker={{ className: 'text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2' }}
+            hint={{ className: 'text-xs text-[color:var(--w-text-3)]' }} />
         )}
         {!v2 && optionGroups.map((g, gi) => {
           const need = flavorsNeeded(g, gi, sel)
@@ -254,7 +254,7 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
           const picked = sel.helado?.[String(gi)] ?? []
           return (
             <div key={gi} className="mb-5">
-              <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
+              <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">
                 {g.nombre}{(g.tipo === 'helado' || g.tipo === 'jugo') ? ` · elige ${need}` : ''}
               </p>
               {g.tipo === 'opcion' && (
@@ -269,7 +269,7 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
               )}
               {need > 0 && (
                 flavorOptions.length === 0 ? (
-                  <p className="text-xs text-[#9CA3AF]">(No hay sabores disponibles ahora)</p>
+                  <p className="text-xs text-[color:var(--w-text-3)]">(No hay sabores disponibles ahora)</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {flavorOptions.map(f => {
@@ -292,7 +292,7 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
 
         {toppings.length > 0 && (
           <div className="mb-5">
-            <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Toppings</p>
+            <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">Toppings</p>
             <div className="flex flex-wrap gap-2">
               {toppings.map(t => {
                 const on = !!sel.toppings?.includes(t.nombre)
@@ -308,7 +308,7 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
 
         {tags.length > 0 && (
           <div className="mb-5">
-            <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Adicionales</p>
+            <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">Adicionales</p>
             <div className="flex flex-wrap gap-2">
               {tags.map(t => (
                 <button key={t} onClick={() => setSel(s => ({ ...s, extras: toggleIn(s.extras, t) }))} style={chipStyle(!!sel.extras?.includes(t))}>
@@ -321,7 +321,7 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
 
         {shortages.length > 0 && (
           <div className="mb-5">
-            <p className="text-xs font-bold text-[#DC2626] uppercase tracking-wider mb-2">Ingrediente agotado</p>
+            <p className="text-xs font-bold text-[color:var(--w-danger-text)] uppercase tracking-wider mb-2">Ingrediente agotado</p>
             <div className="flex flex-wrap gap-2">
               {shortages.map(s => s.sustituto_nombre ? (
                 <button key={s.ingrediente_id} onClick={() => setSel(p => ({ ...p, swaps: toggleIn(p.swaps, s.ingrediente_id) }))}
@@ -330,8 +330,8 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
                 </button>
               ) : (
                 <span key={s.ingrediente_id}
-                  className="text-xs font-bold px-3 py-2 rounded-xl"
-                  style={{ background: 'rgba(220,38,38,0.12)', color: '#DC2626' }}>
+                  className="text-xs font-bold px-3 py-2 rounded-[var(--w-r-md)]"
+                  style={{ background: 'var(--w-danger-bg)', color: 'var(--w-danger-text)' }}>
                   Se acabó {s.ingrediente_nombre} (sin cambio configurado)
                 </span>
               ))}
@@ -340,26 +340,26 @@ export const DishOptionsModal = memo(({ dish, menu, shortages, initial, confirmL
         )}
 
         <div className="mb-5">
-          <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Comentario</p>
+          <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">Comentario</p>
           <textarea value={comment} onChange={e => setSel(s => ({ ...s, comment: e.target.value }))}
             placeholder="Ej: sin azúcar, poco hielo..." rows={2} maxLength={200}
-            className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none resize-none placeholder-[#9CA3AF]"
-            style={S.neoIn} />
+            className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm text-[color:var(--w-text)] outline-none resize-none placeholder-[var(--w-text-3)]"
+            style={FX.field} />
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-2xl px-2 py-1.5 bg-[#CDD0DC]" style={S.neoIn}>
+          <div className="flex items-center gap-2 rounded-[var(--w-r-lg)] px-2 py-1.5 bg-[var(--w-surface-sunken)]" style={FX.field}>
             <button onClick={() => (perUnit ? removeUnit() : setEditQty(q => Math.max(1, q - 1)))} aria-label="Menos"
-              className="w-9 h-9 rounded-xl font-bold text-lg text-[#2D3561] bg-[#D8DAE4]" style={S.neoOutSm}>−</button>
-            <span className="min-w-[1.75rem] text-center font-bold text-[#2D3561]">{qty}</span>
+              className="w-9 h-9 rounded-[var(--w-r-md)] font-bold text-lg text-[color:var(--w-text)] bg-[var(--w-surface)]" style={FX.soft}>−</button>
+            <span className="min-w-[1.75rem] text-center font-bold text-[color:var(--w-text)]">{qty}</span>
             <button onClick={() => (perUnit ? addUnit() : setEditQty(q => Math.min(50, q + 1)))} aria-label="Más"
-              className="w-9 h-9 rounded-xl font-bold text-lg text-white bg-[#FF5722]" style={S.coral}>+</button>
+              className="w-9 h-9 rounded-[var(--w-r-md)] font-bold text-lg text-[color:var(--w-on-accent)] bg-[var(--w-accent)]" style={FX.cta}>+</button>
           </div>
           <button
             onClick={confirm}
             disabled={!optionsValid}
-            className="flex-1 py-4 rounded-2xl font-bold text-white bg-[#FF5722]"
-            style={{ ...S.coral, opacity: optionsValid ? 1 : 0.5 }}
+            className="flex-1 py-4 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]"
+            style={{ ...FX.cta, opacity: optionsValid ? 1 : 0.5 }}
           >
             {optionsValid
               ? `${confirmLabel ?? 'Agregar al pedido'} · $${Math.round(totalPrice).toLocaleString('es-CO')}`
@@ -631,10 +631,12 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   // ─── RENDER ───────────────────────────────────────────────
   return (
     <div className="space-y-4">
+      {/* Encabezado de módulo */}
+      <ModuleHeader icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 13h6M9 17h4"/></svg>} title="Nueva orden" subtitle="Elige la mesa, los platos y confirma" />
 
       {/* Indicador offline */}
       {!isOnline && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-xs font-medium text-amber-700 flex items-center gap-2">
+        <div className="bg-[var(--w-warning-bg)] border border-[var(--w-warning)] rounded-[var(--w-r-lg)] px-4 py-3 text-xs font-medium text-[color:var(--w-warning-text)] flex items-center gap-2">
           Modo offline — Las órdenes se sincronizarán al recuperar conexión
         </div>
       )}
@@ -645,18 +647,18 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           <div key={s} className="flex items-center gap-2">
             <div
               className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                step === s ? 'bg-[#FF5722] text-white' :
-                (['mesa','menu','confirm'].indexOf(step) > i) ? 'bg-emerald-500 text-white' :
-                'bg-[#CDD0DC] text-[#9CA3AF]'
+                step === s ? 'bg-[var(--w-accent)] text-[color:var(--w-on-accent)]' :
+                (['mesa','menu','confirm'].indexOf(step) > i) ? 'bg-[var(--w-success-bg)] border border-[var(--w-success)] text-[color:var(--w-success-text)]' :
+                'bg-[var(--w-surface-sunken)] text-[color:var(--w-text-3)]'
               }`}
-              style={step === s ? S.coral : S.neoOutSm}
+              style={step === s ? FX.cta : FX.soft}
             >
               {(['mesa','menu','confirm'].indexOf(step) > i) ? '✓' : i + 1}
             </div>
-            <span className={`text-xs font-bold ${step === s ? 'text-[#2D3561]' : 'text-[#9CA3AF]'}`}>
+            <span className={`text-xs font-bold ${step === s ? 'text-[color:var(--w-text)]' : 'text-[color:var(--w-text-3)]'}`}>
               {s === 'mesa' ? 'Mesa' : s === 'menu' ? 'Platos' : 'Confirmar'}
             </span>
-            {i < 2 && <div className="w-6 h-px bg-[#D1D5E0]" />}
+            {i < 2 && <div className="h-px w-3 bg-[var(--w-border)] sm:w-6" />}
           </div>
         ))}
       </div>
@@ -669,8 +671,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.3, ease: EASE }}
             className="space-y-4"
           >
-            <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
-              <h3 className="font-bold text-[#2D3561] mb-4" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-6" style={FX.card}>
+              <h3 className="font-bold text-[color:var(--w-text)] mb-4" style={{ fontFamily: 'var(--w-font)' }}>
                 Tipo de pedido
               </h3>
 
@@ -684,10 +686,10 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 ].filter(o => o.show).map(opt => (
                   <button key={opt.val}
                     onClick={() => { setTipo(opt.val as TipoPedido); if (opt.val !== 'LOCAL') setMesa(null) }}
-                    className="py-3 rounded-2xl text-sm font-bold transition-all"
+                    className="py-3 rounded-[var(--w-r-lg)] text-sm font-bold transition-all"
                     style={tipoPedido === opt.val
-                      ? { background: 'var(--accent)', color: 'white', ...S.coral }
-                      : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
+                      ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta }
+                      : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.soft }}
                   >
                     {opt.label}
                   </button>
@@ -697,32 +699,32 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               {/* Mapa de mesas */}
               {tipoPedido === 'LOCAL' && (
                 <div>
-                  <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+                  <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-3">
                     Selecciona una mesa o Barra
                   </p>
                   {loadingMesas ? (
-                    <div className="text-center py-4 text-[#9CA3AF] text-sm">Cargando mesas...</div>
+                    <div className="text-center py-4 text-[color:var(--w-text-3)] text-sm">Cargando mesas...</div>
                   ) : (
                     <div className="grid grid-cols-4 gap-2">
                       <button onClick={() => { setMesa(null); setBarra(true) }}
-                        className="col-span-4 p-3 rounded-2xl text-center font-bold transition-all"
+                        className="col-span-4 p-3 rounded-[var(--w-r-lg)] text-center font-bold transition-all"
                         style={barra && !selectedMesa
-                          ? { background: 'var(--accent)', color: 'white', ...S.coral }
-                          : { background: 'var(--bg)', color: 'var(--text-primary)', ...S.neoOutSm }}>
+                          ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta }
+                          : { background: 'var(--w-surface)', color: 'var(--w-text)', ...FX.soft }}>
                         Barra / sin mesa
                       </button>
                       {mesas.map(mesa => (
                         <button key={mesa.id}
                           onClick={() => { setMesa(mesa); setBarra(false) }}
-                          className="p-3 rounded-2xl text-center transition-all"
+                          className="p-3 rounded-[var(--w-r-lg)] text-center transition-all"
                           style={selectedMesa?.id === mesa.id
-                            ? { background: 'var(--accent)', color: 'white', ...S.coral }
+                            ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta }
                             : mesa.estado === 'libre'
-                              ? { background: 'var(--bg)', color: 'var(--text-primary)', ...S.neoOutSm }
-                              : { background: '#FEE2E2', color: '#DC2626', ...S.neoOutSm }}
+                              ? { background: 'var(--w-surface)', color: 'var(--w-text)', ...FX.soft }
+                              : { background: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', ...FX.soft }}
                         >
                           <div className="text-lg font-bold">{mesa.numero}</div>
-                          <div className="text-[0.625rem] font-medium">
+                          <div className="text-[length:var(--w-fs-caption)] font-medium">
                             {mesa.estado === 'libre' ? `${mesa.capacidad}` :
                              mesa.estado === 'ocupada' ? 'Ocupada · +pedido' : ''}
                           </div>
@@ -731,7 +733,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                     </div>
                   )}
                   {selectedMesa && (
-                    <div className="mt-3 text-xs text-emerald-600 font-bold">
+                    <div className="mt-3 text-xs text-[color:var(--w-success-text)] font-bold">
                       Mesa {selectedMesa.numero} · {selectedMesa.zona} · {selectedMesa.capacidad} personas
                     </div>
                   )}
@@ -740,7 +742,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
 
               {/* Nombre del comensal: además de la mesa, para identificar el pedido */}
               <div className="mt-5">
-                <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+                <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-3">
                   Nombre del comensal (obligatorio)
                 </p>
                 <input
@@ -748,8 +750,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   onChange={e => setCustomerName(e.target.value)}
                   placeholder="Ej: María"
                   maxLength={120}
-                  className="w-full bg-[#CDD0DC] rounded-xl px-4 py-3 text-sm text-[#2D3561] outline-none placeholder-[#9CA3AF]"
-                  style={S.neoIn}
+                  className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-4 py-3 text-sm text-[color:var(--w-text)] outline-none placeholder-[var(--w-text-3)]"
+                  style={FX.field}
                 />
               </div>
             </div>
@@ -767,8 +769,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 }
                 setStep('menu')
               }}
-              className="w-full py-4 rounded-2xl font-bold text-white bg-[#FF5722]"
-              style={S.coral}
+              className="w-full py-4 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)]"
+              style={FX.cta}
             >
               Continuar → Elegir platos
             </motion.button>
@@ -783,33 +785,33 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             className="space-y-4"
           >
             {/* Buscador */}
-            <div className="bg-[#D8DAE4] rounded-2xl px-4 py-3 flex items-center gap-3" style={S.neoIn}>
-              <span className="text-[#9CA3AF]"></span>
+            <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] px-4 py-3 flex items-center gap-3" style={FX.field}>
+              <span className="text-[color:var(--w-text-3)]"></span>
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Buscar plato..."
-                className="flex-1 bg-transparent text-sm text-[#2D3561] outline-none placeholder-[#9CA3AF]"
+                className="flex-1 bg-transparent text-sm text-[color:var(--w-text)] outline-none placeholder-[var(--w-text-3)]"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="text-[#9CA3AF] text-xs">✕</button>
+                <button onClick={() => setSearch('')} className="min-h-[44px] text-[color:var(--w-text-3)] text-xs">✕</button>
               )}
             </div>
 
             {/* Categorías */}
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="flex flex-nowrap gap-2 pb-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
               <button
                 onClick={() => setCategory('all')}
-                className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
-                style={activeCategory === 'all' ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
+                className="shrink-0 whitespace-nowrap min-h-[40px] px-4 rounded-[var(--w-r-pill)] text-xs font-bold"
+                style={activeCategory === 'all' ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta } : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.soft }}
               >
                 Todo
               </button>
               {categories.map(cat => (
                 <button key={cat}
                   onClick={() => setCategory(cat)}
-                  className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
-                  style={activeCategory === cat ? { background: 'var(--accent)', color: 'white', ...S.coral } : { background: 'var(--bg)', color: 'var(--text-secondary)', ...S.neoOutSm }}
+                  className="shrink-0 whitespace-nowrap min-h-[40px] px-4 rounded-[var(--w-r-pill)] text-xs font-bold"
+                  style={activeCategory === cat ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta } : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.soft }}
                 >
                   {catLabel(cat)}
                 </button>
@@ -818,33 +820,33 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
 
             {/* Grid de platos */}
             {loadingDishes ? (
-              <div className="text-center py-8 text-[#9CA3AF]">Cargando menú...</div>
+              <div className="text-center py-8 text-[color:var(--w-text-3)]">Cargando menú...</div>
             ) : filteredDishes.length === 0 ? (
-              <div className="bg-[#D8DAE4] rounded-3xl p-8 text-center" style={S.neoIn}>
+              <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-8 text-center" style={FX.field}>
                 <p className="text-2xl mb-2"></p>
-                <p className="text-sm font-bold text-[#2D3561]">Sin platos encontrados</p>
+                <p className="text-sm font-bold text-[color:var(--w-text)]">Sin platos encontrados</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {filteredDishes.map(dish => {
                   const qty = getQty(dish.id)
                   return (
-                    <div key={dish.id} className="bg-[#D8DAE4] rounded-2xl p-3 flex flex-col gap-2" style={S.neoOut}>
+                    <div key={dish.id} className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-3 flex flex-col gap-2" style={FX.card}>
                       {/* Ícono/imagen */}
-                      <div className="w-full h-20 rounded-xl flex items-center justify-center text-3xl text-[#9CA3AF]" style={S.neoIn}>
+                      <div className="w-full h-20 rounded-[var(--w-r-md)] flex items-center justify-center text-3xl text-[color:var(--w-text-3)]" style={FX.field}>
                         {dish.image_url
-                          ? <img src={dish.image_url} alt={dish.name} className="w-full h-full object-cover rounded-xl" loading="lazy" />
+                          ? <img src={dish.image_url} alt={dish.name} className="w-full h-full object-cover rounded-[var(--w-r-md)]" loading="lazy" />
                           : catIcon(dish.category)
                         }
                       </div>
-                      <p className="text-xs font-bold text-[#2D3561] leading-tight line-clamp-2">{dish.name}</p>
-                      <p className="text-sm font-bold text-[#FF5722]">
+                      <p className="text-xs font-bold text-[color:var(--w-text)] leading-tight line-clamp-2">{dish.name}</p>
+                      <p className="text-sm font-bold text-[color:var(--w-accent-text)]">
                         {dish.has_sizes && dish.sizes?.length
                           ? `desde $${Math.round(Math.min(...dish.sizes.map(s => s.precio))).toLocaleString('es-CO')}`
                           : `$${Math.round(dish.price).toLocaleString('es-CO')}`}
                       </p>
                       {needsCustomization(dish, shortageProductIds.has(dish.id)) && (
-                        <p className="text-[0.625rem] font-bold -mt-1" style={{ color: shortageProductIds.has(dish.id) ? '#DC2626' : '#FF5722' }}>
+                        <p className="text-[length:var(--w-fs-caption)] font-bold -mt-1" style={{ color: shortageProductIds.has(dish.id) ? 'var(--w-danger)' : 'var(--w-accent)' }}>
                           {dish.has_sizes ? 'Elige tamaño al agregar'
                             : shortageProductIds.has(dish.id) ? '⚠️ Ingrediente agotado — revisar al agregar'
                             : 'Elige opciones al agregar'}
@@ -856,16 +858,16 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                         <button
                           onClick={() => removeFromCart(dish.id)}
                           disabled={qty === 0}
-                          className={`w-8 h-8 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${qty === 0 ? 'opacity-30' : ''}`}
-                          style={S.neoOutSm}
+                          className={`w-8 h-8 rounded-[var(--w-r-md)] font-bold text-sm flex items-center justify-center transition-all ${qty === 0 ? 'opacity-30' : ''}`}
+                          style={FX.soft}
                         >
                           −
                         </button>
-                        <span className="text-sm font-bold text-[#2D3561] min-w-[20px] text-center">{qty}</span>
+                        <span className="text-sm font-bold text-[color:var(--w-text)] min-w-[20px] text-center">{qty}</span>
                         <button
                           onClick={() => handleAddClick(dish)}
-                          className="w-8 h-8 rounded-xl font-bold text-sm text-white bg-[#FF5722] flex items-center justify-center"
-                          style={S.coral}
+                          className="w-8 h-8 rounded-[var(--w-r-md)] font-bold text-sm text-[color:var(--w-on-accent)] bg-[var(--w-accent)] flex items-center justify-center"
+                          style={FX.cta}
                         >
                           +
                         </button>
@@ -886,8 +888,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 >
                   <button
                     onClick={() => setStep('confirm')}
-                    className="w-full py-4 rounded-2xl font-bold text-white bg-[#FF5722] flex items-center justify-between px-6"
-                    style={S.coral}
+                    className="w-full py-4 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)] flex items-center justify-between px-6"
+                    style={FX.cta}
                   >
                     <span>Ver pedido ({cartCount})</span>
                     <span>${Math.round(cartTotal).toLocaleString('es-CO')}</span>
@@ -896,7 +898,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               )}
             </AnimatePresence>
 
-            <button onClick={() => setStep('mesa')} className="w-full py-3 rounded-2xl text-sm font-bold text-[#6B7280]" style={S.neoOut}>
+            <button onClick={() => setStep('mesa')} className="min-h-[44px] w-full py-3 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-text-2)]" style={FX.card}>
               ← Volver
             </button>
 
@@ -923,9 +925,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3, ease: EASE }}
             className="space-y-4"
           >
-            <div className="bg-[#D8DAE4] rounded-3xl p-6" style={S.neoOut}>
-              <h3 className="font-bold text-[#2D3561] mb-1">Resumen del pedido</h3>
-              <p className="text-xs text-[#9CA3AF] mb-4">
+            <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] p-6" style={FX.card}>
+              <h3 className="font-bold text-[color:var(--w-text)] mb-1">Resumen del pedido</h3>
+              <p className="text-xs text-[color:var(--w-text-3)] mb-4">
                 {tipoPedido === 'LOCAL' && selectedMesa ? `Mesa ${selectedMesa.numero}` : tipoPedido === 'LOCAL' && barra ? BARRA_NOTE : tipoPedido}
                 {customerName.trim() && ` · ${customerName.trim()}`}
               </p>
@@ -935,18 +937,18 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 <div className="flex flex-wrap items-center gap-2 mb-4">
                   {personas === 0 ? (
                     <button type="button" onClick={() => cambiarPersonas(2)}
-                      className="min-h-[44px] px-4 rounded-2xl text-sm font-bold text-[#2D3561]" style={S.neoOutSm}>
+                      className="min-h-[44px] px-4 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-text)]" style={FX.soft}>
                       Cuenta por persona
                     </button>
                   ) : (
                     <>
-                      <label className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider" htmlFor="personas-mesa">Personas en la mesa</label>
+                      <label className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider" htmlFor="personas-mesa">Personas en la mesa</label>
                       <select id="personas-mesa" value={personas} onChange={e => cambiarPersonas(Number(e.target.value))}
-                        className="min-h-[44px] rounded-xl px-3 text-sm font-bold text-[#2D3561] bg-[#CDD0DC] outline-none" style={S.neoIn}>
+                        className="min-h-[44px] rounded-[var(--w-r-md)] px-3 text-sm font-bold text-[color:var(--w-text)] bg-[var(--w-surface-sunken)] outline-none" style={FX.field}>
                         {Array.from({ length: 11 }, (_, k) => k + 2).map(n => <option key={n} value={n}>{n}</option>)}
                       </select>
                       <button type="button" onClick={() => cambiarPersonas(0)}
-                        className="min-h-[44px] px-3 text-xs font-bold text-[#6B7280]">Quitar</button>
+                        className="min-h-[44px] px-3 text-xs font-bold text-[color:var(--w-text-2)]">Quitar</button>
                     </>
                   )}
                 </div>
@@ -958,21 +960,21 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   <div key={item.uid} className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="min-w-[1.5rem] text-lg font-bold leading-none text-[#FF5722]">
+                        <span className="min-w-[1.5rem] text-lg font-bold leading-none text-[color:var(--w-accent-text)]">
                           {item.quantity}
                         </span>
-                        <span className="text-sm font-medium text-[#2D3561]">{item.dish.name}</span>
+                        <span className="text-sm font-medium text-[color:var(--w-text)]">{item.dish.name}</span>
                       </div>
-                      <span className="text-sm font-bold text-[#2D3561]">
+                      <span className="text-sm font-bold text-[color:var(--w-text)]">
                         ${Math.round(item.unitPrice * item.quantity).toLocaleString('es-CO')}
                       </span>
                     </div>
                     {item.optsText && (
-                      <p className="text-xs font-bold text-[#FF5722]">{item.optsText}</p>
+                      <p className="text-xs font-bold text-[color:var(--w-accent-text)]">{item.optsText}</p>
                     )}
                     {personas > 0 && (
                       <select aria-label={`Para quién es ${item.dish.name}`} value={item.comensal ?? ''} onChange={e => updateComensal(item.uid, e.target.value)}
-                        className="w-full min-h-[44px] rounded-xl px-3 text-sm font-bold text-[#2D3561] bg-[#CDD0DC] outline-none" style={S.neoIn}>
+                        className="w-full min-h-[44px] rounded-[var(--w-r-md)] px-3 text-sm font-bold text-[color:var(--w-text)] bg-[var(--w-surface-sunken)] outline-none" style={FX.field}>
                         <option value="">Para: sin asignar</option>
                         {Array.from({ length: personas }, (_, k) => `Persona ${k + 1}`).map(p => <option key={p} value={p}>Para: {p}</option>)}
                       </select>
@@ -983,8 +985,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                       onChange={e => updateNotes(item.uid, e.target.value)}
                       placeholder="Nota (ej: sin cebolla)..."
                       maxLength={100}
-                      className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-xs text-[#2D3561] outline-none placeholder-[#9CA3AF]"
-                      style={S.neoIn}
+                      className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-xs text-[color:var(--w-text)] outline-none placeholder-[var(--w-text-3)]"
+                      style={FX.field}
                     />
                   </div>
                 ))}
@@ -992,7 +994,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
 
               {/* Nota general */}
               <div className="mb-4">
-                <label className="block text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider mb-2">
                   Nota general (opcional)
                 </label>
                 <textarea
@@ -1001,15 +1003,15 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   placeholder="Ej: alérgico al maní, celebración de cumpleaños..."
                   maxLength={500}
                   rows={2}
-                  className="w-full bg-[#CDD0DC] rounded-xl px-3 py-2 text-sm text-[#2D3561] outline-none resize-none placeholder-[#9CA3AF]"
-                  style={S.neoIn}
+                  className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-3 py-2 text-sm text-[color:var(--w-text)] outline-none resize-none placeholder-[var(--w-text-3)]"
+                  style={FX.field}
                 />
               </div>
 
               {/* Total */}
-              <div className="flex items-center justify-between pt-4 border-t border-[#D1D5E0]">
-                <span className="font-bold text-[#2D3561]">Total</span>
-                <span className="text-2xl font-bold text-[#FF5722]">${Math.round(cartTotal).toLocaleString('es-CO')}</span>
+              <div className="flex items-center justify-between pt-4 border-t border-[var(--w-border)]">
+                <span className="font-bold text-[color:var(--w-text)]">Total</span>
+                <span className="text-2xl font-bold text-[color:var(--w-accent-text)]">${Math.round(cartTotal).toLocaleString('es-CO')}</span>
               </div>
             </div>
 
@@ -1017,8 +1019,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               whileTap={{ scale: 0.97 }}
               onClick={handleSubmit}
               disabled={submitting}
-              className={`w-full py-4 rounded-2xl font-bold text-white bg-[#FF5722] ${submitting ? 'opacity-70' : ''}`}
-              style={S.coral}
+              className={`w-full py-4 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)] ${submitting ? 'opacity-70' : ''}`}
+              style={FX.cta}
             >
               {submitting
                 ? <span className="flex items-center justify-center gap-2">
@@ -1032,7 +1034,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               }
             </motion.button>
 
-            <button onClick={() => setStep('menu')} className="w-full py-3 rounded-2xl text-sm font-bold text-[#6B7280]" style={S.neoOut}>
+            <button onClick={() => setStep('menu')} className="min-h-[44px] w-full py-3 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-text-2)]" style={FX.card}>
               ← Editar platos
             </button>
           </motion.div>

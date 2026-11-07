@@ -12,17 +12,18 @@ import { inventoryService } from '../../services/inventoryService'
 import message from 'antd/es/message'
 import { VoiceButton } from '../VoiceButton'
 import { limpiarTranscripcion } from '../../services/voiceText'
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
+import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
+import { Card } from '../ui/Card'
+import { Input, Select } from '../ui/Field'
+import { Modal } from '../ui/Modal'
+import { StatePanel } from '../ui/StatePanel'
 import type { Ingrediente } from '../../types/inventory'
 
 const UNIDADES = ['kg', 'litro', 'pieza', 'gramo', 'ml', 'paquete'] as const
 
 const fmtCOP = (n: number) => '$' + Math.round(n || 0).toLocaleString('es-CO')
-
-const inputBase: React.CSSProperties = {
-  background: 'var(--bg-surface)', border: '1px solid var(--divider)', borderRadius: '0.625rem',
-  padding: '0.55rem 0.7rem', color: 'var(--text-primary)', fontFamily: 'var(--w-sans, inherit)',
-  fontSize: '0.875rem', outline: 'none', width: '100%', boxSizing: 'border-box',
-}
 
 type Nuevo = ReturnType<typeof emptyNuevo>
 interface VoiceIngredientes {
@@ -146,14 +147,12 @@ export function IngredientesManager() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div>
-          <h2 style={{ fontFamily: 'DM Sans,sans-serif', fontWeight: 700, fontSize: '1.5rem', color: 'var(--text-primary)', margin: 0 }}>Ingredientes</h2>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-            Agrega materias primas y registra compras (sube el stock y actualiza el precio)
-          </p>
-        </div>
-        <VoiceButton<VoiceIngredientes> kind="ingredient" label="Dictar ingredientes" onResult={r => {
+      <ModuleHeader
+        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>}
+        title="Ingredientes"
+        subtitle="Agrega materias primas y registra compras (sube el stock y actualiza el precio)"
+        actions={<>
+          <VoiceButton<VoiceIngredientes> kind="ingredient" label="Dictar ingredientes" onResult={r => {
           const list: Nuevo[] = (r.ingredientes ?? []).map(i => ({
             nombre: i.nombre ?? '', unidad_medida: UNIDADES.includes(i.unidad_medida) ? i.unidad_medida : 'kg',
             costo_unitario: String(i.costo_unitario ?? ''), stock_minimo: String(i.stock_minimo ?? ''), stock_actual: String(i.stock_actual ?? ''),
@@ -161,170 +160,125 @@ export function IngredientesManager() {
           if (list.length === 0) { message.warning('No entendí ningún ingrediente'); return }
           setNuevo(list[0]); setPendientes(list.slice(1)); setShowNuevo(true)
         }} />
-        <button onClick={() => { setShowNuevo(v => !v); setPendientes([]) }}
-          style={{ padding: '0.625rem 1.125rem', borderRadius: '0.75rem', border: 'none', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', background: showNuevo ? 'var(--accent)' : 'var(--bg-surface)', color: showNuevo ? '#fff' : 'var(--text-primary)', boxShadow: 'var(--shadow-out-sm)' }}>
-          + Nuevo ingrediente
-        </button>
+          <Button variant={showNuevo ? 'secondary' : 'primary'} onClick={() => { setShowNuevo(v => !v); setPendientes([]) }}>
+            {showNuevo ? 'Cerrar' : '+ Nuevo ingrediente'}
+          </Button>
+        </>}
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1">
+        <StatCard label="Ingredientes" value={ingredientes.length} tone="accent" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>} />
+        <StatCard label="Con stock bajo" value={ingredientes.filter(i => Number(i.stock_actual) <= Number(i.stock_minimo)).length} tone="danger" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg>} />
+        <StatCard label="Valor en stock" value={fmtCOP(ingredientes.reduce((n, i) => n + Number(i.stock_actual) * Number(i.costo_unitario), 0))} tone="success" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>} />
       </div>
 
       {showNuevo && (
-        <div style={{ background: 'var(--bg)', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end', boxShadow: 'var(--shadow-out)' }}>
-          <div style={{ flex: '1 1 160px' }}>
-            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Nombre</label>
-            <div style={{ display: 'flex', gap: '0.375rem' }}>
-              <input value={nuevo.nombre} onChange={e => setNuevo(n => ({ ...n, nombre: e.target.value }))} style={inputBase} placeholder="Ej: Queso mozzarella" />
-              <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setNuevo(n => ({ ...n, nombre: limpiarTranscripcion(r.transcript) }))} />
+        <Card className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 lg:grid-cols-6 lg:items-end">
+          <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-2">
+            <div className="min-w-0 flex-1">
+              <Input label="Nombre" value={nuevo.nombre} onChange={e => setNuevo(n => ({ ...n, nombre: e.target.value }))} placeholder="Ej: Queso mozzarella" />
             </div>
+            <VoiceButton<{ transcript: string }> kind="transcribe" onResult={r => setNuevo(n => ({ ...n, nombre: limpiarTranscripcion(r.transcript) }))} />
           </div>
-          <div style={{ width: 110 }}>
-            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Unidad</label>
-            <select value={nuevo.unidad_medida} onChange={e => setNuevo(n => ({ ...n, unidad_medida: e.target.value as typeof UNIDADES[number] }))} style={inputBase}>
-              {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-          </div>
-          <div style={{ width: 130 }}>
-            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Costo unitario</label>
-            <input type="number" min={0} value={nuevo.costo_unitario} onChange={e => setNuevo(n => ({ ...n, costo_unitario: e.target.value }))} style={inputBase} placeholder="0" />
-          </div>
-          <div style={{ width: 120 }}>
-            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Stock inicial</label>
-            <input type="number" min={0} value={nuevo.stock_actual} onChange={e => setNuevo(n => ({ ...n, stock_actual: e.target.value }))} style={inputBase} placeholder="0" />
-          </div>
-          <div style={{ width: 120 }}>
-            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Stock mínimo</label>
-            <input type="number" min={0} value={nuevo.stock_minimo} onChange={e => setNuevo(n => ({ ...n, stock_minimo: e.target.value }))} style={inputBase} placeholder="0" />
-          </div>
-          <button onClick={() => crearMutation.mutate()} disabled={!nuevo.nombre.trim() || crearMutation.isPending}
-            style={{ padding: '0.625rem 1.25rem', borderRadius: '0.75rem', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', opacity: !nuevo.nombre.trim() || crearMutation.isPending ? 0.6 : 1, boxShadow: 'var(--shadow-coral)' }}>
+          <Select label="Unidad" value={nuevo.unidad_medida} onChange={e => setNuevo(n => ({ ...n, unidad_medida: e.target.value as typeof UNIDADES[number] }))}>
+            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+          </Select>
+          <Input label="Costo unitario" type="number" min={0} value={nuevo.costo_unitario} onChange={e => setNuevo(n => ({ ...n, costo_unitario: e.target.value }))} placeholder="0" />
+          <Input label="Stock inicial" type="number" min={0} value={nuevo.stock_actual} onChange={e => setNuevo(n => ({ ...n, stock_actual: e.target.value }))} placeholder="0" />
+          <Input label="Stock mínimo" type="number" min={0} value={nuevo.stock_minimo} onChange={e => setNuevo(n => ({ ...n, stock_minimo: e.target.value }))} placeholder="0" />
+          <Button className="sm:col-span-2 lg:col-span-6 lg:justify-self-end" onClick={() => crearMutation.mutate()} disabled={!nuevo.nombre.trim()} loading={crearMutation.isPending}>
             {crearMutation.isPending ? 'Creando…' : 'Crear'}
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
 
-      <div style={{ borderRadius: '1.25rem', overflow: 'hidden', boxShadow: 'var(--shadow-out)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--bg-surface)' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-              <th style={{ padding: '0.75rem 1rem' }}>Ingrediente</th>
-              <th style={{ padding: '0.75rem 1rem' }}>Stock</th>
-              <th style={{ padding: '0.75rem 1rem' }}>Mínimo</th>
-              <th style={{ padding: '0.75rem 1rem' }}>Costo unitario</th>
-              <th style={{ padding: '0.75rem 1rem' }}>Si se agota, cambiar por</th>
-              <th style={{ padding: '0.75rem 1rem' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {ingredientesQuery.isLoading && (
-              <tr><td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando…</td></tr>
-            )}
-            {!ingredientesQuery.isLoading && ingredientes.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>Sin ingredientes todavía</td></tr>
-            )}
-            {ingredientes.map(ing => (
-              <tr key={ing.id} style={{ borderTop: '1px solid var(--divider)' }}>
-                <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{ing.nombre}</td>
-                <td style={{ padding: '0.75rem 1rem', color: Number(ing.stock_actual) <= Number(ing.stock_minimo) ? '#DC2626' : 'var(--text-primary)', fontWeight: 700 }}>
-                  {Number(ing.stock_actual).toFixed(2)} {ing.unidad_medida}
-                </td>
-                <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>{Number(ing.stock_minimo).toFixed(2)}</td>
-                <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)' }}>{fmtCOP(Number(ing.costo_unitario))}</td>
-                <td style={{ padding: '0.75rem 1rem' }}>
-                  <select
-                    value={ing.sustituto_id ?? ''}
-                    onChange={e => sustitutoMutation.mutate({ id: ing.id, sustituto_id: e.target.value || null })}
-                    title="Si este ingrediente se agota, ofrecerlo como cambio al vender el plato (igual que un adicional)"
-                    style={{ ...inputBase, minWidth: 140, fontSize: '0.8125rem' }}
-                  >
-                    <option value="">— Sin cambio —</option>
-                    {ingredientes.filter(o => o.id !== ing.id).map(o => (
-                      <option key={o.id} value={o.id}>{o.nombre}</option>
-                    ))}
-                  </select>
-                </td>
-                <td style={{ padding: '0.75rem 1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button onClick={() => openCompra(ing)}
-                    style={{ padding: '0.4rem 0.75rem', borderRadius: '0.5rem', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', marginRight: '0.5rem' }}>
-                    Registrar compra
-                  </button>
-                  <button onClick={() => openEdit(ing)}
-                    style={{ padding: '0.4rem 0.75rem', borderRadius: '0.5rem', border: 'none', background: 'var(--bg)', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', marginRight: '0.5rem', boxShadow: 'var(--shadow-out-sm)' }}>
-                    Editar
-                  </button>
-                  <button onClick={() => { if (window.confirm(`¿Eliminar ${ing.nombre}?`)) eliminarMutation.mutate(ing.id) }}
-                    style={{ padding: '0.4rem 0.6rem', borderRadius: '0.5rem', border: 'none', background: 'rgba(239,68,68,0.12)', color: '#DC2626', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {ingredientesQuery.isLoading && <StatePanel kind="loading" />}
+      {!ingredientesQuery.isLoading && ingredientes.length === 0 && (
+        <StatePanel kind="empty" title="Sin ingredientes todavía" text="Agrega el primero con “Nuevo ingrediente”." />
+      )}
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {ingredientes.map(ing => {
+          const bajo = Number(ing.stock_actual) <= Number(ing.stock_minimo)
+          return (
+            <Card key={ing.id} className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-bold text-[color:var(--w-text)] text-[length:var(--w-fs-body-lg)]">{ing.nombre}</p>
+                  <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">
+                    Mínimo {Number(ing.stock_minimo).toFixed(2)} · Costo {fmtCOP(Number(ing.costo_unitario))}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-[color:var(--w-text)] text-[length:var(--w-fs-title)]">{Number(ing.stock_actual).toFixed(2)} {ing.unidad_medida}</span>
+                  <Badge tone={bajo ? 'danger' : 'success'}>{bajo ? 'Stock bajo' : 'Stock OK'}</Badge>
+                </div>
+              </div>
+              <label className="flex flex-col gap-1.5 text-[length:var(--w-fs-label)] font-semibold text-[color:var(--w-text)]">
+                Si se agota, cambiar por
+                <select
+                  value={ing.sustituto_id ?? ''}
+                  onChange={e => sustitutoMutation.mutate({ id: ing.id, sustituto_id: e.target.value || null })}
+                  title="Si este ingrediente se agota, ofrecerlo como cambio al vender el plato (igual que un adicional)"
+                  className="min-h-[44px] w-full rounded-[var(--w-r-md)] border border-[var(--w-border-strong)] bg-[var(--w-surface)] px-3 font-normal text-[color:var(--w-text)] text-[length:var(--w-fs-body)] sm:max-w-xs"
+                >
+                  <option value="">— Sin cambio —</option>
+                  {ingredientes.filter(o => o.id !== ing.id).map(o => (
+                    <option key={o.id} value={o.id}>{o.nombre}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" className="min-h-[44px]" onClick={() => openCompra(ing)}>Registrar compra</Button>
+                <Button size="sm" className="min-h-[44px]" variant="secondary" onClick={() => openEdit(ing)}>Editar</Button>
+                <Button size="sm" className="min-h-[44px]" variant="danger" onClick={() => { if (window.confirm(`¿Eliminar ${ing.nombre}?`)) eliminarMutation.mutate(ing.id) }}>Eliminar</Button>
+              </div>
+            </Card>
+          )
+        })}
       </div>
 
-      {editFor && (
-        <div onClick={() => setEditFor(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--bg)', borderRadius: '1.25rem', padding: '1.5rem', width: '100%', maxWidth: 360, boxShadow: 'var(--shadow-out)' }}>
-            <h3 style={{ margin: '0 0 0.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Editar ingrediente</h3>
-            <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{editFor.nombre} · unidad: {editFor.unidad_medida}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Stock actual ({editFor.unidad_medida})</label>
-                <input type="number" min={0} autoFocus value={editStock} onChange={e => setEditStock(e.target.value)} style={inputBase} placeholder="0" />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Stock mínimo ({editFor.unidad_medida})</label>
-                <input type="number" min={0} value={editMinimo} onChange={e => setEditMinimo(e.target.value)} style={inputBase} placeholder="0" />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Costo unitario</label>
-                <input type="number" min={0} value={editCosto} onChange={e => setEditCosto(e.target.value)} style={inputBase} placeholder="0" />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem' }}>
-              <button onClick={() => setEditFor(null)} style={{ flex: 1, padding: '0.7rem', borderRadius: '0.75rem', border: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={() => editMutation.mutate()} disabled={!editValido || editMutation.isPending}
-                style={{ flex: 1, padding: '0.7rem', borderRadius: '0.75rem', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: !editValido || editMutation.isPending ? 0.6 : 1 }}>
-                {editMutation.isPending ? 'Guardando…' : 'Guardar'}
-              </button>
-            </div>
+      <Modal
+        open={!!editFor}
+        onClose={() => setEditFor(null)}
+        title="Editar ingrediente"
+        footer={<>
+          <Button variant="secondary" onClick={() => setEditFor(null)}>Cancelar</Button>
+          <Button onClick={() => editMutation.mutate()} disabled={!editValido} loading={editMutation.isPending}>{editMutation.isPending ? 'Guardando…' : 'Guardar'}</Button>
+        </>}
+      >
+        {editFor && (
+          <div className="flex flex-col gap-3">
+            <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">{editFor.nombre} · unidad: {editFor.unidad_medida}</p>
+            <Input label={`Stock actual (${editFor.unidad_medida})`} type="number" min={0} autoFocus value={editStock} onChange={e => setEditStock(e.target.value)} placeholder="0" />
+            <Input label={`Stock mínimo (${editFor.unidad_medida})`} type="number" min={0} value={editMinimo} onChange={e => setEditMinimo(e.target.value)} placeholder="0" />
+            <Input label="Costo unitario" type="number" min={0} value={editCosto} onChange={e => setEditCosto(e.target.value)} placeholder="0" />
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
-      {compraFor && (
-        <div onClick={() => setCompraFor(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--bg)', borderRadius: '1.25rem', padding: '1.5rem', width: '100%', maxWidth: 360, boxShadow: 'var(--shadow-out)' }}>
-            <h3 style={{ margin: '0 0 0.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Registrar compra</h3>
-            <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{compraFor.nombre} · stock actual: {Number(compraFor.stock_actual).toFixed(2)} {compraFor.unidad_medida}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Cantidad comprada ({compraFor.unidad_medida})</label>
-                <input type="number" min={0} autoFocus value={compraCantidad} onChange={e => setCompraCantidad(e.target.value)} style={inputBase} placeholder="0" />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>Precio unitario pagado</label>
-                <input type="number" min={0} value={compraPrecio} onChange={e => setCompraPrecio(e.target.value)} style={inputBase} placeholder="0" />
-              </div>
-              {compraValida && (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0 }}>
-                  Total de esta compra: <b style={{ color: 'var(--text-primary)' }}>{fmtCOP(parseFloat(compraCantidad) * parseFloat(compraPrecio))}</b>
-                </p>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem' }}>
-              <button onClick={() => setCompraFor(null)} style={{ flex: 1, padding: '0.7rem', borderRadius: '0.75rem', border: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={() => compraMutation.mutate()} disabled={!compraValida || compraMutation.isPending}
-                style={{ flex: 1, padding: '0.7rem', borderRadius: '0.75rem', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: !compraValida || compraMutation.isPending ? 0.6 : 1 }}>
-                {compraMutation.isPending ? 'Guardando…' : 'Registrar'}
-              </button>
-            </div>
+      <Modal
+        open={!!compraFor}
+        onClose={() => setCompraFor(null)}
+        title="Registrar compra"
+        footer={<>
+          <Button variant="secondary" onClick={() => setCompraFor(null)}>Cancelar</Button>
+          <Button onClick={() => compraMutation.mutate()} disabled={!compraValida} loading={compraMutation.isPending}>{compraMutation.isPending ? 'Guardando…' : 'Registrar'}</Button>
+        </>}
+      >
+        {compraFor && (
+          <div className="flex flex-col gap-3">
+            <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">{compraFor.nombre} · stock actual: {Number(compraFor.stock_actual).toFixed(2)} {compraFor.unidad_medida}</p>
+            <Input label={`Cantidad comprada (${compraFor.unidad_medida})`} type="number" min={0} autoFocus value={compraCantidad} onChange={e => setCompraCantidad(e.target.value)} placeholder="0" />
+            <Input label="Precio unitario pagado" type="number" min={0} value={compraPrecio} onChange={e => setCompraPrecio(e.target.value)} placeholder="0" />
+            {compraValida && (
+              <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">
+                Total de esta compra: <b className="text-[color:var(--w-text)]">{fmtCOP(parseFloat(compraCantidad) * parseFloat(compraPrecio))}</b>
+              </p>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   )
 }

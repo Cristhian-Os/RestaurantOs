@@ -47,38 +47,38 @@ export function MfaGate({ children }: { children: ReactNode }) {
 
   if (fase === 'listo') return <>{children}</>
 
-  const caja: CSSProperties = { maxWidth: 420, margin: '2rem auto', padding: '1.5rem', borderRadius: '1.25rem', background: 'var(--w-surface)', border: '1px solid var(--w-line)', fontFamily: 'var(--w-sans)', color: 'var(--w-ink)' }
-  const campo: CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontSize: '1.25rem', letterSpacing: '0.4em', textAlign: 'center' }
+  const caja: CSSProperties = { maxWidth: 420, margin: '2rem auto', padding: '1.5rem', borderRadius: 'var(--w-r-lg)', background: 'var(--w-surface)', border: '1px solid var(--w-border)', fontFamily: 'var(--w-font)', color: 'var(--w-text)' }
+  const campo: CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '0.75rem 1rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontSize: '1.25rem', letterSpacing: '0.4em', textAlign: 'center' }
 
   return (
     <div style={caja}>
       <h3 style={{ margin: '0 0 0.5rem', fontWeight: 700 }}>Verificación en dos pasos</h3>
-      {fase === 'cargando' && !error && <p style={{ margin: 0, color: 'var(--w-ink-mut)' }}>Comprobando…</p>}
+      {fase === 'cargando' && !error && <p style={{ margin: 0, color: 'var(--w-text-3)' }}>Comprobando…</p>}
       {fase === 'inscribir' && (
         <>
-          <p style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--w-text-3)' }}>
             Este panel maneja los datos de todos los restaurantes. Escanea este código con una app de códigos
             (Google Authenticator, Authy o similar) y escribe el número que te muestra.
           </p>
           <img src={qr} alt="Código QR para la app de verificación" style={{ width: 180, height: 180, display: 'block', margin: '0.5rem auto', background: '#fff', padding: 8, borderRadius: 8 }} />
-          <p style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', wordBreak: 'break-all', textAlign: 'center' }}>
+          <p style={{ fontSize: '0.75rem', color: 'var(--w-text-3)', wordBreak: 'break-all', textAlign: 'center' }}>
             ¿No puedes escanear? Escribe esta clave en la app: <b>{secreto}</b>
           </p>
         </>
       )}
-      {fase === 'codigo' && <p style={{ fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Escribe el código de 6 dígitos de tu app de verificación.</p>}
+      {fase === 'codigo' && <p style={{ fontSize: '0.875rem', color: 'var(--w-text-3)' }}>Escribe el código de 6 dígitos de tu app de verificación.</p>}
       {(fase === 'inscribir' || fase === 'codigo') && (
         <>
           <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={codigo} placeholder="000000" aria-label="Código de 6 dígitos"
             onChange={e => setCodigo(e.target.value.replace(/\D/g, ''))}
             onKeyDown={e => { if (e.key === 'Enter') void verificar() }} style={campo} />
           <button type="button" onClick={() => void verificar()} disabled={enviando || codigo.length !== 6}
-            style={{ width: '100%', marginTop: '0.75rem', padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontWeight: 700, background: 'var(--w-terra, #d97757)', color: '#fff', opacity: enviando || codigo.length !== 6 ? 0.6 : 1 }}>
+            style={{ width: '100%', marginTop: '0.75rem', padding: '0.75rem', borderRadius: '1rem', border: 'none', cursor: 'pointer', fontWeight: 700, background: 'var(--w-accent)', color: 'var(--w-on-accent)', opacity: enviando || codigo.length !== 6 ? 0.6 : 1 }}>
             {enviando ? 'Verificando…' : 'Verificar'}
           </button>
         </>
       )}
-      {error && <p style={{ color: '#d33', fontSize: '0.8125rem', margin: '0.75rem 0 0' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--w-danger-text)', fontSize: '0.8125rem', margin: '0.75rem 0 0' }}>{error}</p>}
       {error && fase === 'cargando' && (
         <button type="button" onClick={() => void revisar()} style={{ marginTop: '0.5rem', cursor: 'pointer' }}>Reintentar</button>
       )}

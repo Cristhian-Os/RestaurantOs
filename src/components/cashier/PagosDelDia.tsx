@@ -22,10 +22,10 @@ interface PagoDia {
   orders: { order_number_today: number | null; table_num: number | null; tipo_pedido: string; customer_name: string | null; status: string } | null
 }
 
-const S = {
-  out:   { boxShadow: 'var(--shadow-out)' },
-  outSm: { boxShadow: 'var(--shadow-out-sm)' },
-  inset: { boxShadow: 'var(--shadow-in)' },
+const FX = {
+  card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
+  soft:  { boxShadow: 'var(--w-shadow-sm)' },
+  field: { border: '1px solid var(--w-border)' },
 } as const
 
 const LABEL: Record<Metodo, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta' }
@@ -99,14 +99,14 @@ export function PagosDelDia({ esAdmin, onClose, onChanged }: Props) {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-[#2D3561]/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 bg-[var(--w-overlay)] z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={onClose}>
       <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
         onClick={e => e.stopPropagation()}
-        className="bg-[#D8DAE4] rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-lg max-h-[92vh] overflow-y-auto" style={S.out}
+        className="bg-[var(--w-surface-raised)] rounded-t-[var(--w-r-xl)] sm:rounded-[var(--w-r-xl)] p-5 w-full max-w-lg max-h-[92dvh] overflow-y-auto" style={FX.card}
         role="dialog" aria-label="Pagos de hoy">
-        <h3 className="font-bold text-[#2D3561] text-xl">Pagos de hoy</h3>
-        <p className="text-xs text-[#9CA3AF] mb-3">
+        <h3 className="font-bold text-[color:var(--w-text)] text-xl">Pagos de hoy</h3>
+        <p className="text-xs text-[color:var(--w-text-3)] mb-3">
           Efectivo {fmt(porMetodo('efectivo'))} · Transferencias {fmt(porMetodo('transferencia'))}
           {porMetodo('tarjeta') > 0 ? ` · Tarjeta ${fmt(porMetodo('tarjeta'))}` : ''}
         </p>
@@ -114,66 +114,66 @@ export function PagosDelDia({ esAdmin, onClose, onChanged }: Props) {
         <div className="grid grid-cols-2 gap-2 mb-3">
           {[[false, 'Todos'], [true, `Transferencias${pendientesVerificar ? ` (${pendientesVerificar} por verificar)` : ''}`]].map(([v, label]) => (
             <button key={String(label)} onClick={() => setSoloTransf(v as boolean)}
-              className={cn('min-h-[44px] rounded-xl text-xs font-bold px-1', soloTransf === v ? 'text-white' : 'text-[#6B7280]')}
-              style={soloTransf === v ? { background: 'var(--accent)' } : { background: 'var(--bg)', ...S.outSm }}>
+              className={cn('min-h-[44px] rounded-[var(--w-r-md)] text-xs font-bold px-1', soloTransf === v ? 'text-[color:var(--w-on-accent)]' : 'text-[color:var(--w-text-2)]')}
+              style={soloTransf === v ? { background: 'var(--w-accent)' } : { background: 'var(--w-surface)', ...FX.soft }}>
               {label as string}
             </button>
           ))}
         </div>
 
-        {cargando ? <p className="text-center text-sm text-[#9CA3AF] py-6">Cargando…</p>
-          : lista.length === 0 ? <p className="text-center text-sm text-[#9CA3AF] py-6">Sin pagos hoy</p>
+        {cargando ? <p className="text-center text-sm text-[color:var(--w-text-3)] py-6">Cargando…</p>
+          : lista.length === 0 ? <p className="text-center text-sm text-[color:var(--w-text-3)] py-6">Sin pagos hoy</p>
           : (
           <div className="flex flex-col gap-2">
             {lista.map(p => (
-              <div key={p.id} className={cn('rounded-2xl p-3 bg-[#E3E5EE]', p.anulado_at && 'opacity-60')} style={S.outSm}>
+              <div key={p.id} className={cn('rounded-[var(--w-r-lg)] p-3 bg-[var(--w-border)]', p.anulado_at && 'opacity-60')} style={FX.soft}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-[#2D3561] truncate">{destino(p.orders)}</p>
-                    <p className="text-xs text-[#6B7280]">
+                    <p className="text-sm font-bold text-[color:var(--w-text)] truncate">{destino(p.orders)}</p>
+                    <p className="text-xs text-[color:var(--w-text-2)]">
                       {new Date(p.paid_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
                       {p.comensal ? ` · ${p.comensal}` : ''}{p.referencia ? ` · ref ${p.referencia}` : ''}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className={cn('text-base font-bold text-[#2D3561]', p.anulado_at && 'line-through')}>{fmt(p.monto)}</p>
-                    {p.propina > 0 && <p className="text-[0.6875rem] text-purple-600">+{fmt(p.propina)} propina</p>}
+                    <p className={cn('text-base font-bold text-[color:var(--w-text)]', p.anulado_at && 'line-through')}>{fmt(p.monto)}</p>
+                    {p.propina > 0 && <p className="text-[length:var(--w-fs-caption)] text-[color:var(--w-info-text)]">+{fmt(p.propina)} propina</p>}
                   </div>
                 </div>
 
                 {p.anulado_at ? (
-                  <p className="text-xs font-semibold text-red-600 mt-1">Anulado: {p.anulado_motivo}</p>
+                  <p className="text-xs font-semibold text-[color:var(--w-danger-text)] mt-1">Anulado: {p.anulado_motivo}</p>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <select aria-label="Método del pago" value={p.payment_method} disabled={ocupado === p.id}
                       onChange={e => corregir(p, e.target.value as Metodo)}
-                      className="min-h-[44px] rounded-xl px-2 text-sm font-bold text-[#2D3561] bg-[#CDD0DC] outline-none" style={S.inset}>
+                      className="min-h-[44px] rounded-[var(--w-r-md)] px-2 text-sm font-bold text-[color:var(--w-text)] bg-[var(--w-surface-sunken)] outline-none" style={FX.field}>
                       {(Object.keys(LABEL) as Metodo[]).map(m => <option key={m} value={m}>{LABEL[m]}</option>)}
                     </select>
                     {p.payment_method === 'transferencia' && (
                       <button onClick={() => verificar(p)} disabled={ocupado === p.id}
-                        className={cn('min-h-[44px] px-3 rounded-xl text-xs font-bold', p.transferencia_verificada ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-[#2D3561]')}
-                        style={p.transferencia_verificada ? undefined : S.outSm}>
+                        className={cn('min-h-[44px] px-3 rounded-[var(--w-r-md)] text-xs font-bold', p.transferencia_verificada ? 'text-[color:var(--w-success-text)] bg-[var(--w-success-bg)] border border-[var(--w-success)]' : 'text-[color:var(--w-text)]')}
+                        style={p.transferencia_verificada ? undefined : FX.soft}>
                         {p.transferencia_verificada ? '✓ Verificada' : 'Marcar verificada'}
                       </button>
                     )}
                     {esAdmin && (
                       <button onClick={() => anular(p)} disabled={ocupado === p.id}
-                        className="min-h-[44px] px-3 rounded-xl text-xs font-bold text-red-600" style={S.outSm}>
+                        className="min-h-[44px] px-3 rounded-[var(--w-r-md)] text-xs font-bold text-[color:var(--w-danger-text)]" style={FX.soft}>
                         Anular
                       </button>
                     )}
                   </div>
                 )}
                 {p.metodo_original && !p.anulado_at && (
-                  <p className="text-[0.6875rem] text-amber-700 mt-1">Corregido (era {LABEL[p.metodo_original as Metodo] ?? p.metodo_original}): {p.corregido_motivo}</p>
+                  <p className="text-[length:var(--w-fs-caption)] text-[color:var(--w-warning-text)] mt-1">Corregido (era {LABEL[p.metodo_original as Metodo] ?? p.metodo_original}): {p.corregido_motivo}</p>
                 )}
               </div>
             ))}
           </div>
         )}
 
-        <button onClick={onClose} className="w-full min-h-[48px] rounded-2xl font-bold text-[#2D3561] mt-4" style={S.out}>Cerrar</button>
+        <button onClick={onClose} className="w-full min-h-[48px] rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-text)] mt-4" style={FX.card}>Cerrar</button>
       </motion.div>
     </motion.div>
   )

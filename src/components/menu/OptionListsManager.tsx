@@ -7,23 +7,26 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import type { OptionItem, OptionList } from '../../types'
+import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
+
+const LISTA_ICON = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
 
 interface IngredienteRow { id: string; nombre: string; unidad_medida: string }
 interface ListRow extends OptionList { id: string }
 interface DishUse { name: string; options: unknown }
 
 const card: React.CSSProperties = {
-  background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem',
+  background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: '1.25rem',
   padding: '1.125rem', boxShadow: 'var(--w-shadow-sm)',
 }
 const input: React.CSSProperties = {
-  boxSizing: 'border-box', padding: '0.5rem 0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)',
-  background: 'var(--w-bg)', color: 'var(--w-ink)', fontSize: '0.875rem', outline: 'none', fontFamily: 'var(--w-sans)',
+  boxSizing: 'border-box', padding: '0.5rem 0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-border)',
+  background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontSize: '0.875rem', outline: 'none', fontFamily: 'var(--w-font)',
 }
 const btn = (primary = false): React.CSSProperties => ({
-  padding: '0.5rem 0.875rem', borderRadius: '0.75rem', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 600, fontSize: '0.8125rem',
-  border: primary ? '1px solid transparent' : '1px solid var(--w-line)',
-  background: primary ? 'var(--w-terra)' : 'var(--w-bg)', color: primary ? '#fff' : 'var(--w-ink-soft)',
+  padding: '0.5rem 0.875rem', borderRadius: '0.75rem', cursor: 'pointer', fontFamily: 'var(--w-font)', fontWeight: 600, fontSize: '0.8125rem',
+  border: primary ? '1px solid transparent' : '1px solid var(--w-border)',
+  background: primary ? 'var(--w-accent)' : 'var(--w-surface-sunken)', color: primary ? 'var(--w-on-accent)' : 'var(--w-text-2)',
 })
 
 const slug = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 50) || 'lista'
@@ -79,21 +82,21 @@ function ListEditor({ list, ingredientes, usadaEn, onSaved, onDeleted }: {
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
         <input value={nombre} onChange={e => setNombre(e.target.value)} maxLength={80} aria-label="Nombre de la lista"
           style={{ ...input, flex: '1 1 14rem', fontWeight: 700, fontSize: '1.0625rem' }} />
-        <button onClick={guardar} disabled={!dirty || busy} style={{ ...btn(true), opacity: !dirty || busy ? 0.5 : 1 }}>Guardar cambios</button>
+        <button onClick={guardar} disabled={!dirty || busy} style={{ ...btn(true), opacity: !dirty || busy ? 0.5 : 1 }}>Guardar cambios ✓</button>
         <button onClick={borrar} disabled={busy} style={btn()}>Borrar lista</button>
       </div>
-      <p style={{ margin: '0 0 0.875rem', fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>
+      <p style={{ margin: '0 0 0.875rem', fontSize: '0.75rem', color: 'var(--w-text-3)' }}>
         {usadaEn.length > 0 ? `La usan ${usadaEn.length} plato${usadaEn.length === 1 ? '' : 's'}: ${usadaEn.slice(0, 4).join(', ')}${usadaEn.length > 4 ? '…' : ''}` : 'Ningún plato la usa todavía.'}
-        {dirty && <strong style={{ color: 'var(--w-terra)' }}> · Cambios sin guardar</strong>}
+        {dirty && <strong style={{ color: 'var(--w-accent-text)' }}> · Cambios sin guardar</strong>}
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {items.map((it, i) => {
           const ing = ingredientes.find(g => g.id === it.ingrediente_id)
           return (
-            <div key={i} style={{ display: 'flex', gap: '0.375rem', alignItems: 'center', flexWrap: 'wrap', padding: '0.5rem', borderRadius: '0.875rem', border: '1px solid var(--w-line)', opacity: it.activo === false ? 0.6 : 1 }}>
+            <div key={i} style={{ display: 'flex', gap: '0.375rem', alignItems: 'center', flexWrap: 'wrap', padding: '0.5rem', borderRadius: '0.875rem', border: '1px solid var(--w-border)', opacity: it.activo === false ? 0.6 : 1 }}>
               <input value={it.label} onChange={e => setItem(i, { label: e.target.value })} aria-label="Nombre del ítem" maxLength={60} style={{ ...input, flex: '1 1 9rem' }} />
-              <label style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <label style={{ fontSize: '0.75rem', color: 'var(--w-text-3)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 +$
                 <input type="number" min={0} step={100} value={it.precio_extra ?? 0} aria-label="Precio extra"
                   onChange={e => setItem(i, { precio_extra: Math.max(0, Number(e.target.value) || 0) })} style={{ ...input, width: '5.5rem' }} />
@@ -105,7 +108,7 @@ function ListEditor({ list, ingredientes, usadaEn, onSaved, onDeleted }: {
                 {ingredientes.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
               </select>
               {it.ingrediente_id && (
-                <label style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <label style={{ fontSize: '0.75rem', color: 'var(--w-text-3)', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <input type="number" min={0} step="any" value={it.cantidad_consumo ?? 1} aria-label="Cantidad que consume"
                     onChange={e => setItem(i, { cantidad_consumo: Math.max(0, Number(e.target.value) || 0) })} style={{ ...input, width: '4.5rem' }} />
                   {ing?.unidad_medida ?? ''}
@@ -120,7 +123,7 @@ function ListEditor({ list, ingredientes, usadaEn, onSaved, onDeleted }: {
             </div>
           )
         })}
-        {items.length === 0 && <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>La lista está vacía. Agrega el primer ítem.</p>}
+        {items.length === 0 && <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-text-3)' }}>La lista está vacía. Agrega el primer ítem.</p>}
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
@@ -175,22 +178,26 @@ export function OptionListsManager() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-sans)' }}>
-      <div>
-        <h2 className="ed-display" style={{ fontWeight: 600, fontSize: '1.875rem', margin: 0 }}>Listas y opciones</h2>
-        <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>
-          Arma una lista una sola vez (sabores, leches, salsas, adiciones…) y úsala en todos los platos que quieras. Si cambias un ítem aquí, cambia en todos.
-        </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--w-font)' }}>
+      <ModuleHeader
+        icon={LISTA_ICON}
+        title="Listas y opciones"
+        subtitle="Arma una lista una sola vez (sabores, leches, salsas, adiciones…) y úsala en todos los platos que quieras. Si cambias un ítem aquí, cambia en todos."
+      />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <StatCard label="Listas" value={lists.length} tone="accent" icon={LISTA_ICON} />
+        <StatCard label="Ítems en total" value={lists.reduce((n, l) => n + l.items.length, 0)} tone="info" icon={LISTA_ICON} />
       </div>
 
       <section style={{ ...card, display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <input value={nombreNueva} onChange={e => setNombreNueva(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') crear() }}
           placeholder="Nueva lista (ej. Leches, Salsas, Toppings)" maxLength={80} style={{ ...input, flex: '1 1 14rem' }} />
-        <button onClick={crear} style={btn(true)}>Crear lista</button>
+        <button onClick={crear} style={btn(true)}>+ Crear lista</button>
       </section>
 
-      {loading ? <p style={{ color: 'var(--w-ink-mut)' }}>Cargando…</p> : lists.length === 0 ? (
-        <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-ink-mut)' }}>Todavía no hay listas. Crea la primera arriba.</p>
+      {loading ? <p style={{ color: 'var(--w-text-3)' }}>Cargando…</p> : lists.length === 0 ? (
+        <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--w-text-3)' }}>Todavía no hay listas. Crea la primera arriba.</p>
       ) : lists.map(l => (
         <ListEditor key={`${l.id}:${l.items.length}:${l.nombre}`} list={l} ingredientes={ings} usadaEn={usos[l.key] ?? []} onSaved={cargar} onDeleted={cargar} />
       ))}

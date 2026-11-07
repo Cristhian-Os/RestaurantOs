@@ -8,10 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import QRCode from 'qrcode'
 
 const S = {
-  out:   { boxShadow: 'var(--shadow-out)' },
-  outSm: { boxShadow: 'var(--shadow-out-sm)' },
-  in:    { boxShadow: 'var(--shadow-in)' },
-  coral: { boxShadow: 'var(--shadow-coral)' },
+  out:   { boxShadow: 'var(--w-shadow-md)' },
+  outSm: { boxShadow: 'var(--w-shadow-sm)' },
+  in:    { boxShadow: 'inset 0 0 0 1px var(--w-border)' },
+  coral: { boxShadow: 'var(--w-shadow-terra)' },
 } as const
 
 // Icono descarga
@@ -21,20 +21,6 @@ const DownloadIcon = () => (
     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
     <polyline points="7 10 12 15 17 10"/>
     <line x1="12" y1="15" x2="12" y2="3"/>
-  </svg>
-)
-
-// Icono QR
-const QRIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
-    style={{ width: 18, height: 18 }}>
-    <rect x="3" y="3" width="5" height="5" rx="0.5"/>
-    <rect x="16" y="3" width="5" height="5" rx="0.5"/>
-    <rect x="3" y="16" width="5" height="5" rx="0.5"/>
-    <rect x="4" y="4" width="3" height="3" fill="currentColor" stroke="none"/>
-    <rect x="17" y="4" width="3" height="3" fill="currentColor" stroke="none"/>
-    <rect x="4" y="17" width="3" height="3" fill="currentColor" stroke="none"/>
-    <path d="M16 16h2v2h-2zM18 18h2v2h-2zM16 20h2v2h-2zM20 16h2v2h-2z"/>
   </svg>
 )
 
@@ -136,10 +122,10 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
           title="Instalar app"
           style={{
             padding: '0.625rem',
-            backgroundColor: 'var(--bg)',
-            borderRadius: '0.75rem',
+            backgroundColor: 'var(--w-surface)',
+            borderRadius: 'var(--w-r-md)',
             border: 'none',
-            color: 'var(--text-secondary)',
+            color: 'var(--w-text-2)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -167,126 +153,59 @@ export function InstallPWA({ compact = false }: InstallPWAProps) {
     )
   }
 
-  // ── Bloque completo (para Settings o pantalla de bienvenida) ─
+  // ── Fila discreta (inicio / ajustes): instalar o ver instrucciones en el modal ─
   return (
     <>
       <div style={{
-        backgroundColor: 'var(--bg)',
-        borderRadius: '1.5rem',
-        padding: '1.5rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem',
-        maxWidth: '100%',
-        boxSizing: 'border-box',
-        ...S.out,
+        backgroundColor: 'var(--w-surface)',
+        border: '1px solid var(--w-border)',
+        borderRadius: 'var(--w-r-lg)',
+        padding: '0.75rem 1rem',
+        display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+        maxWidth: '100%', boxSizing: 'border-box',
+        boxShadow: 'var(--w-shadow-sm)',
       }}>
-        {/* Título */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{
-            width: 44, height: 44,
-            borderRadius: '0.75rem',
-            backgroundColor: 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', flexShrink: 0,
-            ...S.coral,
-          }}>
-            <DownloadIcon />
-          </div>
-          <div>
-            <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem', margin: 0 }}>
-              Instalar RestaurantOS
-            </p>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
-              Acceso rápido desde cualquier dispositivo
-            </p>
-          </div>
-        </div>
-
-        {/* Descripción */}
         <div style={{
-          backgroundColor: 'var(--bg-surface)',
-          borderRadius: '1rem',
-          padding: '1rem',
-          display: 'flex', flexDirection: 'column', gap: '0.5rem',
-          ...S.in,
+          width: 40, height: 40, borderRadius: 'var(--w-r-md)',
+          backgroundColor: 'var(--w-accent-soft)', color: 'var(--w-accent-text)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
-          {['Carga instantánea sin abrir el browser',
-            'Funciona offline en horas pico',
-            'Notificaciones de nuevas órdenes',
-            'Ícono en pantalla de inicio del dispositivo',
-          ].map((item, i) => (
-            <p key={i} style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', margin: 0 }}>
-              {item}
-            </p>
-          ))}
+          <DownloadIcon />
         </div>
-
-        {/* Botones */}
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {deferredPrompt && (
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={handleInstallClick}
-              disabled={installing}
-              style={{
-                flex: '1 1 12rem',
-                minWidth: 0,
-                padding: '0.75rem',
-                backgroundColor: 'var(--accent)',
-                borderRadius: '1rem',
-                border: 'none',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: '0.5rem',
-                fontFamily: 'inherit',
-                opacity: installing ? 0.7 : 1,
-                ...S.coral,
-              }}
-            >
-              {installing
-                ? <>
-                    <svg style={{ animation: 'spin 0.8s linear infinite', width: 16, height: 16 }}
-                      viewBox="0 0 24 24" fill="none">
-                      <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10"
-                        stroke="currentColor" strokeWidth="4"/>
-                      <path style={{ opacity: 0.75 }} fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
-                    Instalando...
-                  </>
-                : installed
-                  ? '¡Instalada!'
-                  : <><DownloadIcon /> Instalar en este dispositivo</>
-              }
-            </motion.button>
-          )}
+        <div style={{ flex: '1 1 11rem', minWidth: 0 }}>
+          <p style={{ fontWeight: 700, color: 'var(--w-text)', fontSize: 'var(--w-fs-body)', margin: 0 }}>
+            Instalar RestaurantOS
+          </p>
+          <p style={{ fontSize: 'var(--w-fs-caption)', color: 'var(--w-text-3)', margin: 0 }}>
+            Acceso rápido desde tu dispositivo
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleInstallClick}
+            disabled={installing}
+            style={{
+              minHeight: 44, padding: '0 1.1rem',
+              backgroundColor: 'var(--w-accent)', color: 'var(--w-on-accent)',
+              borderRadius: 'var(--w-r-md)', border: 'none',
+              fontWeight: 700, fontSize: 'var(--w-fs-body)', fontFamily: 'inherit',
+              cursor: installing ? 'wait' : 'pointer', opacity: installing ? 0.7 : 1,
+            }}
+          >
+            {installing ? 'Instalando...' : installed ? '¡Instalada!' : 'Instalar'}
+          </motion.button>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => setShowModal(true)}
             style={{
-              flex: deferredPrompt ? '1 1 auto' : '1 1 12rem',
-              minWidth: 0,
-              padding: '0.75rem 1rem',
-              backgroundColor: 'var(--bg)',
-              borderRadius: '1rem',
-              border: 'none',
-              color: 'var(--text-secondary)',
-              fontWeight: 700,
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: '0.5rem',
-              fontFamily: 'inherit',
-              whiteSpace: 'nowrap',
-              ...S.outSm,
+              minHeight: 44, padding: '0 1rem',
+              backgroundColor: 'transparent', color: 'var(--w-text-2)',
+              borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)',
+              fontWeight: 600, fontSize: 'var(--w-fs-body)', fontFamily: 'inherit', cursor: 'pointer',
             }}
           >
-            <QRIcon />
-            {deferredPrompt ? 'QR para móvil' : 'Ver instrucciones y QR'}
+            Ver instrucciones
           </motion.button>
         </div>
       </div>
@@ -336,7 +255,7 @@ function InstallModal({
           onClick={onClose}
           style={{
             position: 'fixed', inset: 0, zIndex: 100,
-            backgroundColor: 'rgba(45,53,97,0.5)',
+            backgroundColor: 'var(--w-overlay)',
             backdropFilter: 'blur(6px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: '1.5rem',
@@ -350,29 +269,29 @@ function InstallModal({
             onClick={e => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: '400px',
-              backgroundColor: 'var(--bg)',
+              backgroundColor: 'var(--w-surface)',
               borderRadius: '1.5rem',
               padding: '1.75rem',
-              fontFamily: '"Nunito", sans-serif',
-              boxShadow: 'var(--shadow-out-lg)',
+              fontFamily: 'var(--w-font)',
+              boxShadow: 'var(--w-shadow-lg)',
             }}
           >
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
               <div>
-                <h2 style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1.25rem', margin: 0, fontFamily: '"DM Sans", sans-serif' }}>
+                <h2 style={{ fontWeight: 700, color: 'var(--w-text)', fontSize: '1.25rem', margin: 0, fontFamily: 'var(--w-font)' }}>
                   Instalar RestaurantOS
                 </h2>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--w-text-3)', margin: '0.25rem 0 0' }}>
                   Disponible como app nativa
                 </p>
               </div>
               <button onClick={onClose} style={{
                 width: 32, height: 32, borderRadius: '0.5rem',
-                border: 'none', backgroundColor: 'var(--bg)',
-                color: 'var(--text-muted)', cursor: 'pointer',
+                border: 'none', backgroundColor: 'var(--w-surface)',
+                color: 'var(--w-text-3)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: 'var(--shadow-out-sm)',
+                boxShadow: 'var(--w-shadow-sm)',
               }}>
                 <CloseIcon />
               </button>
@@ -382,9 +301,9 @@ function InstallModal({
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr',
               gap: '0.5rem', marginBottom: '1.25rem',
-              backgroundColor: 'var(--bg-surface)',
+              backgroundColor: 'var(--w-surface-sunken)',
               borderRadius: '0.875rem', padding: '0.25rem',
-              boxShadow: 'var(--shadow-in)',
+              boxShadow: 'inset 0 0 0 1px var(--w-border)',
             }}>
               {(['desktop', 'qr'] as const).map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
@@ -397,9 +316,9 @@ function InstallModal({
                   fontFamily: 'inherit',
                   transition: 'all 0.2s ease',
                   ...(tab === t
-                    ? { backgroundColor: 'var(--accent)', color: '#fff',
-                        boxShadow: 'var(--shadow-coral)' }
-                    : { backgroundColor: 'transparent', color: 'var(--text-muted)' }
+                    ? { backgroundColor: 'var(--w-accent)', color: 'var(--w-on-accent)',
+                        boxShadow: 'var(--w-shadow-terra)' }
+                    : { backgroundColor: 'transparent', color: 'var(--w-text-3)' }
                   ),
                 }}>
                   {t === 'desktop' ? 'Escritorio' : 'Móvil / QR'}
@@ -417,10 +336,10 @@ function InstallModal({
                 >
                   {/* Instrucciones Chrome/Edge */}
                   <div style={{
-                    backgroundColor: 'var(--bg-surface)', borderRadius: '1rem', padding: '1rem',
-                    boxShadow: 'var(--shadow-in)',
+                    backgroundColor: 'var(--w-surface-sunken)', borderRadius: '1rem', padding: '1rem',
+                    boxShadow: 'inset 0 0 0 1px var(--w-border)',
                   }}>
-                    <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+                    <p style={{ fontWeight: 700, color: 'var(--w-text)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
                       Chrome / Edge (recomendado)
                     </p>
                     {['Haz clic en el botón ⊕ en la barra de direcciones',
@@ -430,12 +349,12 @@ function InstallModal({
                       <div key={i} style={{ display: 'flex', gap: '0.625rem', marginBottom: '0.5rem', alignItems: 'flex-start' }}>
                         <span style={{
                           width: 20, height: 20, borderRadius: '50%',
-                          backgroundColor: 'var(--accent)', color: '#fff',
+                          backgroundColor: 'var(--w-accent)', color: 'var(--w-on-accent)',
                           fontSize: '0.6875rem', fontWeight: 700,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           flexShrink: 0, marginTop: 1,
                         }}>{i + 1}</span>
-                        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: 0 }}>{step}</p>
+                        <p style={{ fontSize: '0.8125rem', color: 'var(--w-text-2)', margin: 0 }}>{step}</p>
                       </div>
                     ))}
                   </div>
@@ -448,14 +367,14 @@ function InstallModal({
                       disabled={installing}
                       style={{
                         width: '100%', padding: '0.875rem',
-                        backgroundColor: 'var(--accent)',
+                        backgroundColor: 'var(--w-accent)',
                         borderRadius: '1rem', border: 'none',
-                        color: '#fff', fontWeight: 700, fontSize: '0.9375rem',
+                        color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '0.9375rem',
                         cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         gap: '0.5rem', fontFamily: 'inherit',
                         opacity: installing ? 0.7 : 1,
-                        boxShadow: 'var(--shadow-coral)',
+                        boxShadow: 'var(--w-shadow-terra)',
                       }}
                     >
                       {installing ? (
@@ -475,10 +394,10 @@ function InstallModal({
                     </motion.button>
                   ) : (
                     <div style={{
-                      backgroundColor: '#FEF3C7', borderRadius: '1rem', padding: '0.875rem',
-                      border: '1px solid #FDE68A',
+                      backgroundColor: 'var(--w-warning-bg)', borderRadius: '1rem', padding: '0.875rem',
+                      border: '1px solid var(--w-warning)',
                     }}>
-                      <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>
+                      <p style={{ fontSize: '0.8125rem', color: 'var(--w-warning-text)', margin: 0 }}>
                         La instalación directa no está disponible en este browser. Usa las instrucciones de arriba o el QR para móvil.
                       </p>
                     </div>
@@ -495,36 +414,36 @@ function InstallModal({
                 >
                   {/* QR Code */}
                   <div style={{
-                    backgroundColor: 'var(--bg-surface)', borderRadius: '1.25rem',
+                    backgroundColor: 'var(--w-surface-sunken)', borderRadius: 'var(--w-r-lg)',
                     padding: '1.25rem', display: 'inline-flex',
-                    boxShadow: 'var(--shadow-in)',
+                    boxShadow: 'inset 0 0 0 1px var(--w-border)',
                   }}>
                     {qrDataUrl
                       ? <img src={qrDataUrl} alt="QR RestaurantOS"
                           style={{ width: 180, height: 180, display: 'block', imageRendering: 'pixelated' }} />
                       : <div style={{
-                          width: 180, height: 180, borderRadius: '0.75rem',
-                          backgroundColor: 'var(--bg)', display: 'flex',
+                          width: 180, height: 180, borderRadius: 'var(--w-r-md)',
+                          backgroundColor: 'var(--w-surface)', display: 'flex',
                           alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.75rem', color: 'var(--text-muted)',
+                          fontSize: '0.75rem', color: 'var(--w-text-3)',
                         }}>
                           Generando QR...
                         </div>
                     }
                   </div>
 
-                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--w-text-2)', textAlign: 'center', margin: 0 }}>
                     Escanea con la cámara de tu móvil o tablet para abrir la app
                   </p>
 
                   {/* URL copiable */}
                   <div style={{
-                    width: '100%', backgroundColor: 'var(--bg-surface)', borderRadius: '0.875rem',
+                    width: '100%', backgroundColor: 'var(--w-surface-sunken)', borderRadius: '0.875rem',
                     padding: '0.75rem 1rem', display: 'flex', alignItems: 'center',
                     justifyContent: 'space-between', gap: '0.5rem',
-                    boxShadow: 'var(--shadow-in-sm)',
+                    boxShadow: 'inset 0 0 0 1px var(--w-border)',
                   }}>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600,
+                    <p style={{ fontSize: '0.75rem', color: 'var(--w-text)', fontWeight: 600,
                       margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {appUrl}
                     </p>
@@ -532,10 +451,10 @@ function InstallModal({
                       onClick={() => { navigator.clipboard.writeText(appUrl) }}
                       style={{
                         padding: '0.375rem 0.75rem', borderRadius: '0.5rem',
-                        backgroundColor: 'var(--bg)', border: 'none',
-                        fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)',
+                        backgroundColor: 'var(--w-surface)', border: 'none',
+                        fontSize: '0.75rem', fontWeight: 700, color: 'var(--w-accent)',
                         cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit',
-                        boxShadow: 'var(--shadow-out-sm)',
+                        boxShadow: 'var(--w-shadow-sm)',
                       }}
                     >
                       Copiar
@@ -544,17 +463,17 @@ function InstallModal({
 
                   {/* Instrucciones iOS */}
                   <div style={{
-                    width: '100%', backgroundColor: 'var(--bg-surface)', borderRadius: '1rem', padding: '0.875rem',
-                    boxShadow: 'var(--shadow-in)',
+                    width: '100%', backgroundColor: 'var(--w-surface-sunken)', borderRadius: '1rem', padding: '0.875rem',
+                    boxShadow: 'inset 0 0 0 1px var(--w-border)',
                   }}>
-                    <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>
+                    <p style={{ fontWeight: 700, color: 'var(--w-text)', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>
                       iPhone / iPad (Safari)
                     </p>
                     {['Abre la URL en Safari',
                       'Toca el ícono de compartir',
                       'Selecciona "Agregar a pantalla de inicio"',
                     ].map((s, i) => (
-                      <p key={i} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>
+                      <p key={i} style={{ fontSize: '0.75rem', color: 'var(--w-text-2)', margin: '0.25rem 0' }}>
                         {i + 1}. {s}
                       </p>
                     ))}

@@ -14,10 +14,10 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 const baseNombre = (archivo: string) => archivo.replace(/\.[^.]+$/, '')
 const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 
-const btn: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'var(--w-sans)', fontWeight: 700, fontSize: '0.9375rem', borderRadius: '0.75rem', padding: '0.7rem 1.1rem', minHeight: '2.75rem' }
-const primary: React.CSSProperties = { ...btn, background: 'var(--w-terra)', color: '#fff' }
-const ghost: React.CSSProperties = { ...btn, background: 'var(--w-bg)', color: 'var(--w-ink)', border: '1px solid var(--w-line)' }
-const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-line)', borderRadius: '1.25rem', padding: '0.875rem' }
+const btn: React.CSSProperties = { border: 'none', cursor: 'pointer', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '0.9375rem', borderRadius: 'var(--w-r-md)', padding: '0.7rem 1.1rem', minHeight: '2.75rem' }
+const primary: React.CSSProperties = { ...btn, background: 'var(--w-accent)', color: 'var(--w-on-accent)' }
+const ghost: React.CSSProperties = { ...btn, background: 'var(--w-bg)', color: 'var(--w-text)', border: '1px solid var(--w-border)' }
+const card: React.CSSProperties = { background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-lg)', padding: '0.875rem' }
 
 export function MenuFotos({ rid, onListo }: { rid: string; onListo: () => void }) {
   const [platos, setPlatos] = useState<Plato[] | null>(null)
@@ -98,7 +98,7 @@ export function MenuFotos({ rid, onListo }: { rid: string; onListo: () => void }
       <div style={{ ...card, display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: 1, minWidth: '12rem' }}>
           <strong>{conFoto} de {platos.length} con foto · {conDesc} con descripción</strong>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>
             Sube varias fotos juntas: se asignan solas si el archivo se llama como el plato (por ejemplo, “brownie.jpg”).
           </p>
         </div>
@@ -110,13 +110,13 @@ export function MenuFotos({ rid, onListo }: { rid: string; onListo: () => void }
       </div>
 
       {sinUnir.length > 0 && (
-        <div style={{ ...card, borderColor: 'var(--w-wine)' }}>
+        <div style={{ ...card, borderColor: 'var(--w-danger-text)' }}>
           <p style={{ margin: '0 0 0.5rem', fontWeight: 700 }}>Estas fotos no coincidieron con ningún plato. Elige a cuál va cada una:</p>
           {sinUnir.map(f => (
             <div key={f.name + f.size} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.375rem' }}>
               <span style={{ fontSize: '0.875rem', flex: 1, minWidth: '8rem', wordBreak: 'break-all' }}>{f.name}</span>
               <select defaultValue="" aria-label={`Plato para ${f.name}`} onChange={e => e.target.value && void asignarManual(f, e.target.value)}
-                style={{ padding: '0.6rem', minHeight: '2.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)' }}>
+                style={{ padding: '0.6rem', minHeight: '2.75rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)' }}>
                 <option value="">Elegir plato…</option>
                 {platos.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -129,23 +129,23 @@ export function MenuFotos({ rid, onListo }: { rid: string; onListo: () => void }
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(15rem, 1fr))', gap: '0.75rem' }}>
         {platos.map(p => (
           <div key={p.id} style={{ ...card, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <div style={{ aspectRatio: '4 / 3', borderRadius: '0.75rem', overflow: 'hidden', background: 'var(--w-bg)', border: '1px dashed var(--w-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--w-ink-mut)', fontSize: '0.875rem' }}>
+            <div style={{ aspectRatio: '4 / 3', borderRadius: 'var(--w-r-md)', overflow: 'hidden', background: 'var(--w-bg)', border: '1px dashed var(--w-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--w-text-3)', fontSize: '0.875rem' }}>
               {p.image_url ? <img src={p.image_url} alt={p.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 'Sin foto todavía'}
             </div>
             <div>
               <strong>{p.name}</strong>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--w-ink-mut)' }}>{p.category ?? 'Sin categoría'} · {cop(p.price)}</div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--w-text-3)' }}>{p.category ?? 'Sin categoría'} · {cop(p.price)}</div>
             </div>
             <textarea defaultValue={p.description ?? ''} rows={2} maxLength={500} placeholder="Descripción corta (opcional)" aria-label={`Descripción de ${p.name}`}
               onBlur={e => void guardarDescripcion(p, e.target.value)}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '0.6rem 0.75rem', borderRadius: '0.75rem', border: '1px solid var(--w-line)', background: 'var(--w-bg)', color: 'var(--w-ink)', fontFamily: 'var(--w-sans)', fontSize: '0.9375rem', resize: 'vertical' }} />
+              style={{ width: '100%', boxSizing: 'border-box', padding: '0.6rem 0.75rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)', fontFamily: 'var(--w-font)', fontSize: '0.9375rem', resize: 'vertical' }} />
             <label style={{ ...ghost, textAlign: 'center', opacity: subiendo.has(p.id) ? 0.6 : 1 }}>
               {subiendo.has(p.id) ? 'Subiendo…' : p.image_url ? '📷 Cambiar foto' : '📷 Agregar foto'}
               <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} disabled={subiendo.has(p.id)}
                 onChange={e => { const f = e.target.files?.[0]; if (f) void subirFoto(p, f); e.target.value = '' }} />
             </label>
             {(!p.image_url || !p.description?.trim()) && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--w-ink-mut)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--w-text-3)' }}>
                 💡 {[!p.image_url && 'una foto', !p.description?.trim() && 'una descripción'].filter(Boolean).join(' y ')} ayuda{!p.image_url && !p.description?.trim() ? 'n' : ''} a vender más. Puedes hacerlo después.
               </span>
             )}

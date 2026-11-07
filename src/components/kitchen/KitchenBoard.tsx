@@ -59,9 +59,16 @@ function textOn(hex: string): string {
   return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#0F1024' : '#FFFFFF'
 }
 
+// Color por tipo de pedido (solo cocina): se ve de lejos qué va a mesa, para llevar, domicilio o Rappi.
+const TIPO_COLOR: Record<string, string> = { LOCAL: '#3B82F6', LLEVAR: '#22C55E', DOMICILIO: '#A855F7', RAPPI: '#EC4899' }
+
+// Quita las etiquetas que sobran en la comanda ("Tamaño:", "Elige el sabor del helado:", "Toppings:"): cocina solo lee lo elegido.
+const ETIQUETA = /^\s*(?:tama[ñn]o|toppings?|extras?|elige[^:]*|sabor(?:es)?(?: de helado)?)\s*:\s*/i
+const limpiarNotas = (s: string) => s.split(' · ').map(p => p.replace(ETIQUETA, '').trim()).filter(Boolean).join(' · ')
+
 // Características del producto: item.notes ya trae el resumen; si no, tamaño + toppings.
 function itemDetail(item: OrderItem): string {
-  if (item.notes) return String(item.notes)
+  if (item.notes) return limpiarNotas(String(item.notes))
   const parts: string[] = []
   if (item.size) parts.push(item.size)
   if (item.toppings?.length) parts.push('+ ' + item.toppings.join(', + '))
@@ -79,72 +86,88 @@ const levelOf = (secs: number, ready: boolean): Level =>
 
 // ─── Estilos (paleta propia, fondos opacos: la TV refleja) ─────
 const CSS = `
-.kb{--bg:#F4EEE4;--surface:#FBF6EE;--card:#FDFAF4;--card-line:#E3D9C8;--inset:#EFE6D6;--ink:#2B2018;--ink-soft:#5C5147;--ink-note:#3A2F25;
-  --pend:#C2570C;--cook:#A21CAF;--ready:#047857;--warn:#B45309;--late:#E11D48;--late-bg:#BE123C;--paid-bg:#FDBA74;--paid-fg:#431407;
-  --alert-bg:#FEF3C7;--alert-fg:#78350F;--on-accent:#FFFFFF;
-  background:var(--bg);color:var(--ink);font-family:var(--w-sans,system-ui),system-ui,sans-serif;font-size:14px;
+.kb{--bg:var(--w-bg);--surface:var(--w-surface);--card:var(--w-surface-raised);--card-line:var(--w-border-strong);--inset:var(--w-surface-sunken);--ink:var(--w-text);--ink-soft:var(--w-text-2);--ink-note:var(--w-text);
+  --pend:var(--w-accent-text);--cook:var(--w-info-text);--ready:var(--w-success-text);--warn:var(--w-warning-text);--late:var(--w-danger);--late-bg:var(--w-danger-bg);--late-fg:var(--w-danger-text);--paid-bg:var(--w-success-bg);--paid-fg:var(--w-success-text);
+  --alert-bg:var(--w-warning-bg);--alert-fg:var(--w-warning-text);--on-accent:var(--w-on-accent);
+  background:var(--bg);color:var(--ink);font-family:var(--w-font);font-size:14px;
   display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box}
-[data-theme="dark"] .kb{--bg:#000000;--surface:#0C0C0E;--card:#17171B;--card-line:#2B2B31;--inset:#050506;--ink:#F5F5F7;--ink-soft:#A0A0AA;--ink-note:#D6D6DC;
-  --pend:#FB923C;--cook:#E879F9;--ready:#34D399;--warn:#FBBF24;--late:#F43F5E;--late-bg:#BE123C;--paid-bg:#FB923C;--paid-fg:#1A1100;
-  --alert-bg:rgba(251,191,36,.15);--alert-fg:#FDE68A;--on-accent:#0F1024}
+[data-theme="dark"] .kb{--on-accent:var(--w-bg)}
 .kb *{box-sizing:border-box}
 .kb.kb-tv{height:100vh;max-height:100vh;overflow:hidden;font-size:max(.8333vw,13px)}
 .kb-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5em;min-height:4em;padding:.5em 2em;flex-shrink:0}
-.kb-head h1{font-size:2.25em;font-weight:800;margin:0}
+.kb-head h1{font-size:2.25em;font-weight:800;margin:0;line-height:1.1}
+.kb-hl{display:flex;align-items:center;gap:.6em;min-width:0}
+.kb-logo{flex-shrink:0;width:2.6em;height:2.6em;border-radius:.8em;background:var(--w-accent-soft);color:var(--w-accent-text);display:flex;align-items:center;justify-content:center}
+.kb-logo svg{width:1.5em;height:1.5em}
+.kb-hsub{margin:.1em 0 0;font-size:.875rem;font-weight:500;color:var(--ink-soft)}
+.kb-pill{display:inline-flex;align-items:center;font-size:.6em;font-weight:700;padding:.3em .9em;border-radius:999px;background:var(--surface);border:.08em solid var(--card-line);color:var(--ink);box-shadow:var(--w-shadow-sm)}
 .kb-head-r{display:flex;align-items:center;flex-wrap:wrap;gap:1.25em;font-size:1.75em;font-weight:700}
-.kb-live{display:flex;align-items:center;color:var(--ready)}
+.kb-live{background:var(--w-success-bg);border-color:var(--ready);color:var(--ready)}
 .kb-dot{width:.55em;height:.55em;border-radius:50%;background:var(--ready);margin-right:.4em;display:inline-block}
-.kb-flash{background:var(--cook);color:#12001A;font-weight:800;border-radius:999px;padding:.05em .7em}
-.kb-btn{font:inherit;font-size:.65em;font-weight:700;color:var(--ink-soft);background:var(--surface);border:.15em solid var(--card-line);border-radius:999px;padding:.25em .9em;cursor:pointer}
+.kb-flash{background:var(--cook);color:var(--on-accent);font-weight:800;border-radius:999px;padding:.05em .7em}
+.kb-btn{font:inherit;font-size:.6em;font-weight:700;color:var(--ink);background:var(--surface);border:.08em solid var(--w-border-strong);border-radius:var(--w-r-md);padding:.3em 1.1em;min-height:44px;cursor:pointer;box-shadow:var(--w-shadow-sm)}
 .kb-grid{display:flex;flex:1;min-height:0;padding:.25em 1.5em .875em;gap:1.25em}
-.kb-col{min-width:0;min-height:0;padding:.875em;border-radius:1.75em;border:.19em solid;background:var(--surface);display:flex;flex-direction:column;overflow:hidden}
-.kb-col[data-col=pending]{flex:38 1 0;border-color:var(--pend)}
-.kb-col[data-col=cooking]{flex:38 1 0;border-color:var(--cook)}
-.kb-col[data-col=ready]{flex:24 1 0;border-color:var(--ready)}
-.kb-col-h{display:flex;align-items:center;justify-content:space-between;height:3em;margin-bottom:.75em;flex-shrink:0;white-space:nowrap}
+.kb-col{min-width:0;min-height:0;padding:0;border-radius:1.25em;border:.08em solid var(--card-line);background:var(--surface);box-shadow:var(--w-shadow-sm);display:flex;flex-direction:column;overflow:hidden}
+.kb-col[data-col=pending] .kb-col-h{background:var(--w-text-3)}
+.kb-col[data-col=pending]{flex:38 1 0}
+.kb-col[data-col=cooking] .kb-col-h{background:var(--w-accent)}
+.kb-col[data-col=cooking]{flex:38 1 0}
+.kb-col[data-col=ready] .kb-col-h{background:var(--w-info)}
+.kb-col[data-col=ready]{flex:24 1 0}
+.kb-col-h{display:flex;align-items:center;justify-content:space-between;min-height:3.25em;padding:.4em .9em;margin-bottom:.625em;flex-shrink:0;white-space:nowrap;color:var(--on-accent)}
 .kb-col-t{display:flex;align-items:baseline;min-width:0}
-.kb-col-l{font-size:2.125em;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
-.kb-col[data-col=pending] .kb-col-l{color:var(--pend)}
-.kb-col[data-col=cooking] .kb-col-l{color:var(--cook)}
-.kb-col[data-col=ready] .kb-col-l{color:var(--ready)}
-.kb-col-hint{font-size:1.1875em;font-weight:600;color:var(--ink-soft);margin-left:.75em}
+.kb-col-l{font-size:1.875em;font-weight:800;letter-spacing:.01em;color:var(--on-accent)}
+.kb-col-hint{font-size:1.1875em;font-weight:600;color:var(--on-accent);opacity:.9;margin-left:.75em}
 .kb-col-r{display:flex;align-items:center}
 .kb-more{font-size:1.5em;font-weight:800;margin-right:.4em}
-.kb-badge{width:2em;height:2em;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:800;color:var(--on-accent)}
-.kb-col[data-col=pending] .kb-badge{background:var(--pend)}
-.kb-col[data-col=cooking] .kb-badge{background:var(--cook)}
-.kb-col[data-col=ready] .kb-badge{background:var(--ready)}
-.kb-cards{flex:1;min-height:0;position:relative;overflow:hidden;display:flex;flex-wrap:wrap;align-content:flex-start}
+.kb-badge{width:2em;height:2em;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:800;background:var(--on-accent)}
+.kb-col[data-col=pending] .kb-badge{color:var(--w-text-3)}
+.kb-col[data-col=cooking] .kb-badge{color:var(--w-accent)}
+.kb-col[data-col=ready] .kb-badge{color:var(--w-info)}
+.kb-col-h{--on-accent:#FFFFFF}
+.kb-col-h .kb-badge{background:#FFFFFF}
+.kb-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1em;padding:0 1.5em .75em;flex-shrink:0}
+.kb-tv-off .kb-kpis{padding:0 0 .75em}
+.kb-kpi{display:flex;align-items:center;gap:.9em;padding:.8em 1em;border-radius:1.1em;border:.08em solid var(--card-line);background:var(--surface);box-shadow:var(--w-shadow-sm)}
+.kb-kpi-i{width:2.6em;height:2.6em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff}
+.kb-kpi-i svg{width:1.4em;height:1.4em}
+.kb-kpi-l{font-size:1.05em;font-weight:600;color:var(--ink-soft);line-height:1.1}
+.kb-kpi-n{font-size:2em;font-weight:800;line-height:1.05;color:var(--ink)}
+.kb-cards{flex:1;min-height:0;position:relative;overflow:hidden;display:flex;flex-wrap:wrap;align-content:flex-start;padding:0 .75em .5em}
 .kb-tv-off .kb-cards{overflow:visible}
 /* Dentro de la app (con barra lateral) no hay caja de fondo: se funde con el fondo de la app. */
 .kb.kb-tv-off{background:transparent;min-height:0;padding:0}
 .kb-tv-off .kb-head{padding:.25em 0 .75em;min-height:0}
-.kb-tv-off .kb-head h1{font-size:1.875em;font-family:var(--w-display,inherit)}
+.kb-tv-off .kb-head h1{font-size:1.875em;font-family:var(--w-font)}
 .kb-tv-off .kb-head-r{font-size:1.1em}
 .kb-tv-off .kb-grid{padding:0}
 .kb-tv-off .kb-none{background:transparent;border:0}
 .kb-tv-off .kb-tot{margin-top:1em;border:.12em solid var(--card-line);border-radius:1.25em}
 .kb-empty{width:100%;text-align:center;padding:2em 0;font-size:1.875em;font-weight:500;color:var(--ink-soft)}
-.kb-card{width:calc(50% - .3125em);margin-bottom:.625em;padding:.625em;border-radius:1em;border:.19em solid var(--card-line);background:var(--card);text-align:left;font:inherit;color:inherit;display:block;outline:none}
+.kb-tv-off .kb-card{width:100%}
+.kb-card{box-shadow:var(--w-shadow-sm);width:calc(50% - .3125em);margin-bottom:.625em;padding:.625em;border-radius:1em;border:.19em solid var(--card-line);background:var(--card);text-align:left;font:inherit;color:inherit;display:block;outline:none}
 .kb-card:nth-child(odd){margin-right:.625em}
 .kb-card.clickable{cursor:pointer}
 .kb-card.clickable:hover{filter:brightness(1.2)}
 .kb-card.clickable:active{transform:scale(.97)}
-.kb-card.clickable:focus-visible{border-color:#fff}
+.kb-card.clickable:focus-visible{border-color:var(--w-focus);box-shadow:0 0 0 .12em var(--w-focus)}
+.kb-clock{display:block;font-size:1.25em;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--w-text-2)}
 .kb-card.late{border-color:var(--late)}
+.kb-card[data-tipo]{border-left:.5em solid var(--tipo)}
+.kb-card[data-tipo] .kb-sub{color:var(--tipo);background:color-mix(in srgb,var(--tipo) 18%,transparent);padding:.1em .6em;border-radius:999px}
 .kb-col[data-col=ready] .kb-card{width:100%;margin-right:0;padding:.5em .625em}
 .kb-col[data-col=ready] .kb-card:nth-child(odd){margin-right:0}
 .kb-r1{display:flex;align-items:center;justify-content:space-between}
-.kb-title{flex:1;min-width:0;font-size:1.75em;font-weight:800;line-height:1.1;overflow-wrap:anywhere;padding-right:.3em}
+.kb-title{flex:1;min-width:0;font-size:1.75em;font-weight:800;line-height:1.1;overflow-wrap:break-word;hyphens:auto;padding-right:.3em}
 .kb-timer{flex-shrink:0;font-size:2.125em;font-weight:800;line-height:1;padding:.1em .25em;border-radius:.3em;font-variant-numeric:tabular-nums}
 .kb-timer.ok{color:var(--pend)}.kb-timer.warn{color:var(--warn)}.kb-timer.ready{color:var(--ready)}
-.kb-timer.late{color:#fff;background:var(--late-bg)}
+.kb-timer.late{color:var(--late-fg);background:var(--late-bg);border:.06em solid var(--late)}
 .kb-r2{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:.3em}
 .kb-sub{white-space:nowrap;font-size:1.125em;font-weight:800;letter-spacing:.03em;color:var(--pend);text-transform:uppercase}
 .kb-tag{display:inline-block;font-size:.875em;font-weight:800;letter-spacing:.04em;padding:.06em .65em;border-radius:999px;white-space:nowrap}
 .kb-tag.paid{background:var(--paid-bg);color:var(--paid-fg)}
 .kb-tag.unpaid{background:var(--inset);color:var(--warn);border:.06em solid var(--warn)}
-.kb-cancel{margin-left:.5em;font:inherit;font-size:.875em;font-weight:800;letter-spacing:.04em;color:#fff;background:var(--late-bg);border:0;border-radius:999px;padding:.06em .65em;cursor:pointer}
+.kb-cancel{margin-left:.5em;font:inherit;font-size:.875em;font-weight:800;letter-spacing:.04em;color:var(--late-fg);background:var(--late-bg);border:.06em solid var(--late);border-radius:999px;padding:.06em .65em;cursor:pointer}
 .kb-cancel:disabled{opacity:.6;cursor:not-allowed}
 .kb-alert{margin-top:.3em;font-size:1.25em;font-weight:700;line-height:1.2;color:var(--alert-fg);background:var(--alert-bg);border-radius:.5em;padding:.2em .5em;overflow-wrap:anywhere}
 .kb-items{margin-top:.3em;padding:.3em .5em;border-radius:.625em;background:var(--inset)}
@@ -153,7 +176,7 @@ const CSS = `
 .kb-item-m{display:flex;align-items:center}
 .kb-qty{width:1.875em;height:1.875em;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.25em;font-weight:800;margin-right:.5em}
 .kb-iname{flex:1;min-width:0;font-size:1.625em;font-weight:700;line-height:1.15;overflow-wrap:anywhere}
-.kb-ix{margin-left:.5em;font:inherit;font-size:1em;line-height:1;color:#fff;background:var(--late-bg);border:0;border-radius:.4em;padding:.25em .5em;cursor:pointer}
+.kb-ix{margin-left:.5em;font:inherit;font-size:1em;line-height:1;color:var(--late-fg);background:var(--late-bg);border:.06em solid var(--late);border-radius:.4em;padding:.25em .5em;cursor:pointer}
 .kb-ix:disabled{opacity:.6}
 .kb-inote{margin-left:2.5em;font-size:1.25em;font-weight:500;line-height:1.2;color:var(--ink-note);overflow-wrap:anywhere}
 .kb-chips{margin-top:.25em;display:flex;flex-wrap:wrap}
@@ -193,16 +216,21 @@ const CSS = `
 .kb-none small{font-size:1.5em;color:var(--ink-soft);margin-top:.5em}
 @media (max-width:${TV_MIN_WIDTH - 1}px){
   .kb.kb-tv{height:auto;max-height:none;min-height:100vh;overflow:visible;font-size:15px}
+  .kb-kpis{padding:0 .75em .5em;gap:.5em}
+  .kb-kpi{flex-direction:column;text-align:center;gap:.3em;padding:.6em .4em}
+  .kb-kpi-l{font-size:.8em}
   .kb-grid{flex-direction:column;overflow:visible;padding:.5em .75em 1em;gap:.75em}
   .kb-head{padding:.5em .75em}
   .kb-head h1{font-size:1.5em}.kb-head-r{font-size:1em;gap:.75em}
   .kb-btn{font-size:.9em;min-height:44px;padding:.25em 1em}
-  .kb-col,.kb-col[data-col]{flex:none;padding:0;border-width:2px;border-radius:18px}
+  .kb-col,.kb-col[data-col]{flex:none;padding:0;border-radius:16px}
   .kb-col-h{height:auto;min-height:64px;margin:0;padding:12px 16px;cursor:pointer}
+  .kb-col.open .kb-col-h{margin-bottom:12px}
+  .kb-hsub{font-size:.8125rem}
   .kb-col-l{font-size:1.5em}
   .kb-col-hint,.kb-more{display:none}
   .kb-badge{font-size:1.4em}
-  .kb-col-r:after{content:"\\25BE";font-size:1.6em;margin-left:.5em;color:var(--ink-soft)}
+  .kb-col-r:after{content:"\\25BE";font-size:1.6em;margin-left:.5em;color:inherit}
   .kb-col.open .kb-col-r:after{content:"\\25B4"}
   .kb-cards{display:none;overflow:visible;padding:0 12px 12px}
   .kb-col.open .kb-cards{display:block}
@@ -226,6 +254,17 @@ function useNowSecs(): number {
 }
 
 const fmt = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
+
+// Reloj de pared para que cocina sepa la hora (hora de Colombia, se actualiza cada segundo).
+function KitchenClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const hora = now.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Bogota' }).replace(/\s/g, ' ')
+  return <time className="kb-clock" dateTime={now.toISOString()} aria-label={`Hora actual ${hora}`}>{hora}</time>
+}
 
 // ─── Tarjeta de orden ─────────────────────────────────────────
 interface CardProps {
@@ -287,6 +326,8 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
       aria-label={next ? `${title}: ${order.status === 'pending' ? 'iniciar preparación' : 'marcar listo'}` : undefined}
       onClick={click}
       onKeyDown={e => { if (next && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); click() } }}
+      data-tipo={TIPO_COLOR[order.tipo_pedido] ? order.tipo_pedido : undefined}
+      style={TIPO_COLOR[order.tipo_pedido] ? ({ '--tipo': TIPO_COLOR[order.tipo_pedido] } as React.CSSProperties) : undefined}
       className={cn('kb-card', next && 'clickable', level === 'late' && 'late')}>
       <div className="kb-r1">
         <div className="kb-title">{title}</div>
@@ -609,7 +650,7 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '5rem 0', minHeight: tv ? '100vh' : undefined }}>
-      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '4px solid var(--w-terra)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '4px solid var(--w-accent)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
     </div>
   )
 
@@ -619,14 +660,28 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
     <div className={cn('kb', tv ? 'kb-tv' : 'kb-tv-off')}>
       <style>{CSS}</style>
       <div className="kb-head">
-        <h1>Cocina</h1>
+        <div className="kb-hl">
+          <span className="kb-logo" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 14a4 4 0 1 1 1.5-7.7A4 4 0 0 1 16 6a4 4 0 0 1 1 7.9V19H7z"/><path d="M7 16h10"/></svg>
+          </span>
+          <div>
+            <h1>Cocina</h1>
+            <KitchenClock />
+          </div>
+        </div>
         <div className="kb-head-r">
-          <span>{orders.length} órdenes activas</span>
-          <span className="kb-live"><span className="kb-dot" />tiempo real</span>
+          <span className="kb-pill">{orders.length} órdenes activas</span>
+          <span className="kb-pill kb-live"><span className="kb-dot" />En vivo</span>
           <button type="button" className="kb-btn" onClick={fetchOrders}>Actualizar</button>
           {onMenu && <button type="button" className="kb-btn" onClick={onMenu}>Menú</button>}
           {onLogout && <button type="button" className="kb-btn" onClick={onLogout}>Salir</button>}
         </div>
+      </div>
+
+      <div className="kb-kpis">
+        <div className="kb-kpi"><span className="kb-kpi-i" style={{ background: 'var(--w-accent)' }} aria-hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 0-3 2-3 5s1 4 3 4v9"/></svg></span><div><div className="kb-kpi-l">En cocina</div><div className="kb-kpi-n">{cooking.length}</div></div></div>
+        <div className="kb-kpi"><span className="kb-kpi-i" style={{ background: 'var(--w-info)' }} aria-hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5 9-10"/></svg></span><div><div className="kb-kpi-l">Listos para servir</div><div className="kb-kpi-n">{ready.length}</div></div></div>
+        <div className="kb-kpi"><span className="kb-kpi-i" style={{ background: 'var(--w-text-3)' }} aria-hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><div className="kb-kpi-l">En espera</div><div className="kb-kpi-n">{pending.length}</div></div></div>
       </div>
 
       {orders.length === 0 ? (
@@ -636,7 +691,7 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
         </div>
       ) : (
         <div className="kb-grid">
-          <Column colKey="pending" label="Pendientes" hint="clic: iniciar"     orders={pending} {...colProps} />
+          <Column colKey="pending" label="En espera" hint="clic: iniciar"     orders={pending} {...colProps} />
           <Column colKey="cooking" label="En cocina"  hint="clic: marcar listo" orders={cooking} {...colProps} />
           <Column colKey="ready"   label="Listas"                               orders={ready}   {...colProps} />
         </div>

@@ -129,9 +129,9 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
         onClick={() => { setOpen(o => !o); setGlobo(false) }}
         whileTap={{ scale: 0.92 }}
         style={{
-          position: 'fixed', bottom: 20, right: 20, zIndex: 90,
+          position: 'fixed', bottom: 'calc(96px + env(safe-area-inset-bottom))', right: 20, zIndex: 90,
           width: 58, height: 58, borderRadius: '50%', border: 'none', cursor: 'pointer',
-          background: 'var(--w-terra)', color: '#fff', boxShadow: 'var(--w-shadow-md, 0 8px 24px rgba(0,0,0,0.2))',
+          background: 'var(--w-accent)', color: 'var(--w-on-accent)', boxShadow: 'var(--w-shadow-md)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
         aria-label={opinion ? 'Opinión y sugerencias' : 'Soporte'}>
@@ -141,12 +141,12 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
       </motion.button>
 
       {landing && globo && !open && (
-        <div role="status" style={{ position: 'fixed', bottom: 90, right: 20, zIndex: 90, maxWidth: 'min(260px, calc(100vw - 40px))', display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
-          padding: '0.7rem 0.9rem', borderRadius: '1rem', background: 'var(--w-surface)', border: '1px solid var(--w-line)', boxShadow: '0 8px 24px rgba(0,0,0,0.16)', fontFamily: 'var(--w-sans)' }}>
-          <button onClick={() => { setOpen(true); setGlobo(false) }} style={{ border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: 'var(--w-ink)', fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: 1.4 }}>
+        <div role="status" style={{ position: 'fixed', bottom: 'calc(168px + env(safe-area-inset-bottom))', right: 20, zIndex: 90, maxWidth: 'min(260px, calc(100vw - 40px))', display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
+          padding: '0.7rem 0.9rem', borderRadius: '1rem', background: 'var(--w-surface)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-lg)', fontFamily: 'var(--w-font)' }}>
+          <button onClick={() => { setOpen(true); setGlobo(false) }} style={{ border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: 'var(--w-text)', fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: 1.4 }}>
             <b>Resti:</b> ¿Qué tipo de restaurante tienes?
           </button>
-          <button onClick={() => setGlobo(false)} aria-label="Cerrar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--w-ink-mut)', fontSize: '1rem', lineHeight: 1, padding: 0 }}>✕</button>
+          <button onClick={() => setGlobo(false)} aria-label="Cerrar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--w-text-3)', fontSize: '1rem', lineHeight: 1, padding: 0 }}>✕</button>
         </div>
       )}
 
@@ -158,16 +158,16 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: 'fixed', bottom: 90, right: 20, zIndex: 90,
+              position: 'fixed', bottom: 'calc(168px + env(safe-area-inset-bottom))', right: 20, zIndex: 90,
               width: 'min(380px, calc(100vw - 32px))', height: 'min(560px, calc(100vh - 130px))',
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
               borderRadius: '1.25rem', background: 'var(--w-surface)',
-              border: '1px solid var(--w-line)', boxShadow: '0 16px 48px rgba(0,0,0,0.22)',
-              fontFamily: 'var(--w-sans)',
+              border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-lg)',
+              fontFamily: 'var(--w-font)',
             }}>
 
             {/* Header */}
-            <div style={{ padding: '1rem 1.25rem', background: 'var(--w-terra)', color: '#fff' }}>
+            <div style={{ padding: '1rem 1.25rem', background: 'var(--w-accent)', color: 'var(--w-on-accent)' }}>
               <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{opinion ? 'Opinión y sugerencias' : 'Soporte RestaurantOS'}</p>
               <p style={{ margin: 0, fontSize: '0.75rem', opacity: 0.85 }}>Resti · asistente con IA</p>
             </div>
@@ -179,9 +179,9 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
                   alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
                   maxWidth: '85%', padding: '0.6rem 0.85rem', borderRadius: '1rem',
                   fontSize: '0.875rem', lineHeight: 1.5, whiteSpace: 'pre-wrap',
-                  background: m.role === 'user' ? 'var(--w-terra)' : 'var(--w-surface)',
-                  color: m.role === 'user' ? '#fff' : 'var(--w-ink)',
-                  border: m.role === 'user' ? 'none' : '1px solid var(--w-line)',
+                  background: m.role === 'user' ? 'var(--w-accent)' : 'var(--w-surface)',
+                  color: m.role === 'user' ? 'var(--w-on-accent)' : 'var(--w-text)',
+                  border: m.role === 'user' ? 'none' : '1px solid var(--w-border)',
                 }}>
                   {m.role === 'assistant' ? clean(m.text) : m.text}
                 </div>
@@ -190,7 +190,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   {ATAJOS.map(a => (
                     <button key={a.id} onClick={() => void enviar(a.semilla)} disabled={loading}
-                      style={{ alignSelf: 'flex-start', padding: '0.5rem 0.85rem', minHeight: '2.5rem', borderRadius: '999px', border: '1px solid var(--w-terra)', background: 'var(--w-surface)', color: 'var(--w-terra)', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ alignSelf: 'flex-start', padding: '0.5rem 0.85rem', minHeight: '2.5rem', borderRadius: '999px', border: '1px solid var(--w-accent)', background: 'var(--w-surface)', color: 'var(--w-accent)', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit' }}>
                       {a.texto}
                     </button>
                   ))}
@@ -200,14 +200,14 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                   {RAPIDAS.map(t => (
                     <button key={t} onClick={() => void enviar(t === 'Otro' ? 'Tengo otro tipo de restaurante' : `Tengo una ${t.toLowerCase()}`)} disabled={loading}
-                      style={{ padding: '0.5rem 0.85rem', minHeight: '2.5rem', borderRadius: '999px', border: '1px solid var(--w-terra)', background: 'var(--w-surface)', color: 'var(--w-terra)', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '0.5rem 0.85rem', minHeight: '2.5rem', borderRadius: '999px', border: '1px solid var(--w-accent)', background: 'var(--w-surface)', color: 'var(--w-accent)', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: 'inherit' }}>
                       {t}
                     </button>
                   ))}
                 </div>
               )}
               {loading && (
-                <div style={{ alignSelf: 'flex-start', padding: '0.6rem 0.85rem', color: 'var(--w-ink-mut)', fontSize: '0.85rem' }}>
+                <div style={{ alignSelf: 'flex-start', padding: '0.6rem 0.85rem', color: 'var(--w-text-3)', fontSize: '0.85rem' }}>
                   Escribiendo…
                 </div>
               )}
@@ -217,25 +217,25 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
             {landing && WHATSAPP_VENTAS && (guardado || msgs.filter(m => m.role === 'user').length >= 3) && (
               <a href={`https://wa.me/${WHATSAPP_VENTAS.replace(/\D/g, '')}?text=${encodeURIComponent('Hola, hablé con Resti en la página de RestaurantOS y quiero más información.\n' + msgs.filter(m => m.role === 'user').slice(-4).map(m => '• ' + m.text.slice(0, 120)).join('\n'))}`}
                 target="_blank" rel="noreferrer"
-                style={{ display: 'block', textAlign: 'center', padding: '0.6rem', background: '#1D7A46', color: '#fff', fontWeight: 700, fontSize: '0.875rem', textDecoration: 'none' }}>
+                style={{ display: 'block', textAlign: 'center', padding: '0.6rem', background: 'var(--w-success)', color: 'var(--w-on-accent)', fontWeight: 700, fontSize: '0.875rem', textDecoration: 'none' }}>
                 Seguir por WhatsApp con el equipo
               </a>
             )}
 
             {/* Avisos */}
-            {aviso && <div style={{ padding: '0.5rem 0.9rem', fontSize: '0.78rem', background: 'rgba(176,52,29,0.10)', color: '#B0341D' }}>{aviso}</div>}
-            {opinion && <div style={{ padding: '0.35rem 0.9rem', fontSize: '0.7rem', color: 'var(--w-ink-mut)', background: 'var(--w-surface)' }}>Lo que escribas se guarda para mejorar RestaurantOS. No escribas contraseñas ni datos de tarjetas.</div>}
+            {aviso && <div style={{ padding: '0.5rem 0.9rem', fontSize: '0.78rem', background: 'var(--w-danger-bg)', color: 'var(--w-danger-text)' }}>{aviso}</div>}
+            {opinion && <div style={{ padding: '0.35rem 0.9rem', fontSize: '0.7rem', color: 'var(--w-text-3)', background: 'var(--w-surface)' }}>Lo que escribas se guarda para mejorar RestaurantOS. No escribas contraseñas ni datos de tarjetas.</div>}
 
             {/* Input */}
-            <div style={{ padding: '0.75rem', borderTop: '1px solid var(--w-line)', display: 'flex', gap: '0.5rem', background: 'var(--w-surface)' }}>
+            <div style={{ padding: '0.75rem', borderTop: '1px solid var(--w-border)', display: 'flex', gap: '0.5rem', background: 'var(--w-surface)' }}>
               <input
                 value={input}
                 onChange={e => { setInput(e.target.value); if (opinion) guardarBorrador(e.target.value) }}
                 onKeyDown={e => { if (e.key === 'Enter') void enviar(input) }}
                 placeholder={opinion ? 'Cuéntame tu idea o el problema…' : 'Escribe tu pregunta…'}
-                style={{ flex: 1, border: '1px solid var(--w-line)', borderRadius: '0.75rem', padding: '0.6rem 0.85rem', fontSize: '0.875rem', outline: 'none', fontFamily: 'var(--w-sans)', background: 'var(--w-bg)', color: 'var(--w-ink)' }} />
+                style={{ flex: 1, border: '1px solid var(--w-border)', borderRadius: '0.75rem', padding: '0.6rem 0.85rem', fontSize: '0.875rem', outline: 'none', fontFamily: 'var(--w-font)', background: 'var(--w-bg)', color: 'var(--w-text)' }} />
               <button onClick={() => void enviar(input)} disabled={loading || !input.trim()}
-                style={{ border: 'none', borderRadius: '0.75rem', padding: '0 0.9rem', background: 'var(--w-terra)', color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading || !input.trim() ? 0.6 : 1, fontWeight: 700 }}>
+                style={{ border: 'none', borderRadius: '0.75rem', padding: '0 0.9rem', background: 'var(--w-accent)', color: 'var(--w-on-accent)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading || !input.trim() ? 0.6 : 1, fontWeight: 700 }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 18, height: 18 }}><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
             </div>
