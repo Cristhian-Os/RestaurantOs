@@ -136,7 +136,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: var(--text-primary);
-    overflow-x: hidden;
+    /* clip, no hidden: hidden convierte el body en caja de scroll y rompe todo position: sticky */
+    overflow-x: clip;
     transition: background-color 0.35s ease, color 0.35s ease;
   }
   #root {

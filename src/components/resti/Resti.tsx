@@ -44,9 +44,10 @@ const estado3D = (e: Estado, saludando: boolean): RestiEstado3D => {
 }
 
 const esperar = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
-const sinMovimiento = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+import { ANCHO_PILDORA } from '../../hooks/useNavFlotante'
+const sinMovimiento =() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
-const movil = () => window.innerWidth < 768
+const movil = () => window.innerWidth < ANCHO_PILDORA
 /** Distancia del borde de abajo: en el celular hay una barra de pestañas fija (Nueva orden, Mesas…) que Resti no debe tapar. */
 const abajo = () => (movil() ? 76 : 16)
 const ALTO_TARJETA = 200   // lo que sube Resti cuando la tarjeta del cambio propuesto ocupa el lugar de la barra

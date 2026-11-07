@@ -923,7 +923,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {/* Layout */}
       <div style={{display:'flex',alignItems:'flex-start'}}>
-        <main style={{flex:1,padding:'1.25rem 1.25rem 7rem',overflowX:'hidden',minWidth:0}}>
+        <main style={{flex:1,padding:'1.25rem 1.25rem 7rem',overflowX:'clip',minWidth:0}}>
           {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
           {wizardPending && !wizardOpen && (
             <button onClick={() => setWizardOpen(true)} style={{
@@ -955,8 +955,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       {restiOn && profile!.role === 'admin'
         // Resti no aparece en caja, cocina, mesero (nueva orden), pagos ni en el panel de plataforma.
         ? (['cashier', 'kitchen', 'orders', 'billing', 'platform'].includes(activeNav) ? null : <Resti userId={profile!.id} role="admin" onApplied={() => { void queryClient.invalidateQueries(); setRefreshKey(k => k + 1) }} onOpenVoiceCommands={t => { setVoiceCmdTexto(t); setVoiceCmdOpen(true) }} onGoHome={() => setActiveNav('dashboard')} />)
-        : <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />}
-      {(profile?.role === 'admin' || profile?.role === 'cashier') && !(restiOn && profile.role === 'admin') && (
+        : (activeNav === 'orders' ? null /* en Nueva orden el lugar es del carrito */ : <SupportChat modo={['admin', 'cashier', 'waiter', 'kitchen'].includes(profile!.role) ? 'opinion' : 'soporte'} pantalla={activeNav} />)}
+      {(profile?.role === 'admin' || profile?.role === 'cashier') && !(restiOn && profile.role === 'admin') && activeNav !== 'orders' && (
         <VoiceCommandFab onClick={() => { setVoiceCmdTexto(undefined); setVoiceCmdOpen(true) }} />
       )}
       {voiceCmdOpen && (profile?.role === 'admin' || profile?.role === 'cashier') && (

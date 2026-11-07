@@ -110,12 +110,12 @@ export function ResumenIA() {
             <>
               <p className="text-base text-[color:var(--w-text)]" style={{ margin: '0 0 1rem' }}>{r.resumen}</p>
               <h3 className="font-bold text-[color:var(--w-text)]" style={{ margin: '0 0 0.5rem' }}>Qué pasó</h3>
-              <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
                 {r.hallazgos.map((h, i) => (
-                  <div key={i} style={{ background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-md)', padding: '0.75rem 1rem' }}>
+                  <div key={i} style={{ overflowWrap: 'anywhere', background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border)', borderRadius: 'var(--w-r-md)', padding: '0.75rem 1rem' }}>
                     <p className="text-sm text-[color:var(--w-text)]" style={{ margin: 0 }}>{h.texto}</p>
                     <p className="text-xs text-[color:var(--w-text-2)]" style={{ margin: '0.25rem 0 0.5rem' }}><strong>{h.cifra}</strong> · dato: {h.fuente}</p>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                       <Button size="sm" className="min-h-[44px]" variant={votos[i] === true ? 'primary' : 'secondary'} aria-pressed={votos[i] === true} onClick={() => votar(i, true)}>👍 Me sirvió</Button>
                       <Button size="sm" className="min-h-[44px]" variant={votos[i] === false ? 'danger' : 'secondary'} aria-pressed={votos[i] === false} onClick={() => votar(i, false)}>👎 No me sirvió</Button>
                     </div>

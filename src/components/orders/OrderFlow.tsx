@@ -12,6 +12,7 @@
 import { ModuleHeader } from '../tasks/ModuleHeader'
 import { BARRA_NOTE } from '../../lib/destino'
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { offlineService } from '../../services/offlineService'
@@ -655,7 +656,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             >
               {(['mesa','menu','confirm'].indexOf(step) > i) ? '✓' : i + 1}
             </div>
-            <span className={`text-xs font-bold ${step === s ? 'text-[color:var(--w-text)]' : 'text-[color:var(--w-text-3)]'}`}>
+            <span className={`text-xs font-bold ${step === s ? 'text-[color:var(--w-text)]' : 'hidden text-[color:var(--w-text-3)] min-[480px]:inline'}`}>
               {s === 'mesa' ? 'Mesa' : s === 'menu' ? 'Platos' : 'Confirmar'}
             </span>
             {i < 2 && <div className="h-px w-3 bg-[var(--w-border)] sm:w-6" />}
@@ -878,25 +879,22 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               </div>
             )}
 
-            {/* Barra flotante del carrito */}
-            <AnimatePresence>
-              {cartCount > 0 && (
-                <motion.div
-                  initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: 80, opacity: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  className="sticky bottom-4 z-10"
-                >
-                  <button
-                    onClick={() => setStep('confirm')}
-                    className="w-full py-4 rounded-[var(--w-r-lg)] font-bold text-[color:var(--w-on-accent)] bg-[var(--w-accent)] flex items-center justify-between px-6"
-                    style={FX.cta}
-                  >
-                    <span>Ver pedido ({cartCount})</span>
-                    <span>${Math.round(cartTotal).toLocaleString('es-CO')}</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Carrito flotante: siempre a la vista; abre el resumen para editar notas/adicionales y confirmar.
+                Va en un portal porque el paso se anima con transform y un fixed dentro se movería con él. */}
+            {cartCount > 0 && createPortal(
+              <motion.button
+                type="button" whileTap={{ scale: 0.92 }}
+                initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                onClick={() => setStep('confirm')}
+                aria-label={`Ver pedido, ${cartCount} ${cartCount === 1 ? 'producto' : 'productos'}, $${Math.round(cartTotal).toLocaleString('es-CO')}`}
+                className="fixed right-4 z-[90] flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[var(--w-accent)] text-[color:var(--w-on-accent)] bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-5"
+                style={FX.cta}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-[26px] w-[26px]"><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 3h3l2.4 12.2a1.6 1.6 0 001.6 1.3h8.6a1.6 1.6 0 001.6-1.2L21 8H6" /></svg>
+                <span className="absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-[var(--w-text)] px-1 text-[11px] font-bold text-[color:var(--w-bg)]">{cartCount}</span>
+              </motion.button>,
+              document.body,
+            )}
 
             <button onClick={() => setStep('mesa')} className="min-h-[44px] w-full py-3 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-text-2)]" style={FX.card}>
               ← Volver
@@ -1015,6 +1013,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
               </div>
             </div>
 
+            {/* Fijo sobre la píldora: se confirma sin bajar hasta el final */}
+            <div className="sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-10 min-[900px]:bottom-4">
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={handleSubmit}
@@ -1033,6 +1033,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 : `Confirmar orden · $${Math.round(cartTotal).toLocaleString('es-CO')}`
               }
             </motion.button>
+            </div>
 
             <button onClick={() => setStep('menu')} className="min-h-[44px] w-full py-3 rounded-[var(--w-r-lg)] text-sm font-bold text-[color:var(--w-text-2)]" style={FX.card}>
               ← Editar platos

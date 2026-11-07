@@ -50,7 +50,8 @@ const hayDictado = () => typeof window !== 'undefined' && !!((window as any).Spe
 
 const leerBorrador = (): string => { try { return localStorage.getItem(BORRADOR) ?? '' } catch { return '' } }
 const guardarBorrador = (t: string) => { try { if (t) localStorage.setItem(BORRADOR, t); else localStorage.removeItem(BORRADOR) } catch { /* sin almacenamiento: no se conserva el borrador */ } }
-const dispositivo = () => `${/Mobi|Android/i.test(navigator.userAgent) ? 'móvil' : 'computador'} ${window.innerWidth}px`
+import { useNavFlotante } from '../hooks/useNavFlotante'
+const dispositivo =() => `${/Mobi|Android/i.test(navigator.userAgent) ? 'móvil' : 'computador'} ${window.innerWidth}px`
 
 export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'soporte' | 'opinion' | 'landing'; pantalla?: string }) {
   const opinion = modo === 'opinion'
@@ -162,7 +163,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
   }, [opinion, enviar])
 
   // En el celular hay una barra de navegación flotante abajo: los botones van por encima de ella
-  const movil = window.innerWidth < 768
+  const movil = useNavFlotante()
 
   return (
     <>

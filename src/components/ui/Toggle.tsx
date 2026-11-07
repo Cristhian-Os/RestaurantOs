@@ -25,7 +25,7 @@ export function Toggle({ checked, onChange, label, disabled }: Props) {
         checked ? 'bg-[var(--w-accent)]' : 'bg-[var(--w-border-strong)]',
       )}>
         <span className={cn(
-          'absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-[var(--w-shadow-sm)] transition-transform duration-[var(--w-dur)]',
+          'absolute left-0 top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-[var(--w-shadow-sm)] transition-transform duration-[var(--w-dur)]',
           checked ? 'translate-x-[23px]' : 'translate-x-[3px]',
         )} />
       </span>
