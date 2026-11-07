@@ -13,8 +13,8 @@ export const VoiceCommandFab = forwardRef<HTMLButtonElement, Props>(({ className
   <motion.button
     ref={ref} type="button" whileTap={{ scale: 0.92 }}
     title="Comando de voz" aria-label="Comando de voz"
-    // 20px del borde + 58px del botón del chat + 12px de separación
-    style={{ position: 'fixed', bottom: 'calc(96px + env(safe-area-inset-bottom))', right: 90, zIndex: 90 }}
+    // A la izquierda del botón del chat (16px del borde + 58px del botón + 12px de separación), a su misma altura
+    style={{ position: 'fixed', bottom: window.innerWidth < 768 ? 'calc(92px + env(safe-area-inset-bottom))' : 20, right: 86, zIndex: 90 }}
     className={cn(
       'flex h-[58px] w-[58px] cursor-pointer items-center justify-center rounded-full border border-[var(--w-border)]',
       'bg-[var(--w-surface)] text-[var(--w-accent)] shadow-lg',

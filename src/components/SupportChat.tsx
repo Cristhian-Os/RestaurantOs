@@ -161,6 +161,9 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
     return () => window.removeEventListener(EVENTO_ABRIR_OPINION, alAbrir)
   }, [opinion, enviar])
 
+  // En el celular hay una barra de navegación flotante abajo: los botones van por encima de ella
+  const movil = window.innerWidth < 768
+
   return (
     <>
       {/* Botón flotante */}
@@ -168,7 +171,7 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
         onClick={() => { setOpen(o => !o); setGlobo(false) }}
         whileTap={{ scale: 0.92 }}
         style={{
-          position: 'fixed', bottom: 20, right: 20, zIndex: 90,
+          position: 'fixed', bottom: movil ? 'calc(92px + env(safe-area-inset-bottom))' : 20, right: 16, zIndex: 90,
           ...(landing && !open
             ? { padding: 0, background: 'transparent', boxShadow: 'none', width: 64, height: 'auto', borderRadius: 0, border: 'none', cursor: 'pointer', filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.25))' }
             : { width: 58, height: 58, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'var(--w-terra)', color: '#fff', boxShadow: 'var(--w-shadow-md, 0 8px 24px rgba(0,0,0,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center' }),
@@ -199,8 +202,8 @@ export default function SupportChat({ modo = 'soporte', pantalla }: { modo?: 'so
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: 'fixed', bottom: 90, right: 20, zIndex: 90,
-              width: 'min(380px, calc(100vw - 32px))', height: 'min(560px, calc(100vh - 130px))',
+              position: 'fixed', bottom: movil ? 'calc(162px + env(safe-area-inset-bottom))' : 90, right: 16, zIndex: 90,
+              width: 'min(380px, calc(100vw - 32px))', height: movil ? 'min(560px, calc(100dvh - 240px))' : 'min(560px, calc(100vh - 130px))',
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
               borderRadius: '1.25rem', background: 'var(--w-surface)',
               border: '1px solid var(--w-line)', boxShadow: '0 16px 48px rgba(0,0,0,0.22)',
