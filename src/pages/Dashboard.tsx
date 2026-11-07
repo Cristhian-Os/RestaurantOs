@@ -40,6 +40,7 @@ import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 import SedeSelector from '../components/SedeSelector'
 import Resti from '../components/resti/Resti'
 import { MobileNav } from '../components/shell/FloatingNav'
+import { aplicarDegradados, degradadosDe } from '../lib/degradados'
 import { ConfigHub } from '../components/settings/ConfigHub'
 import { TopBar } from '../components/shell/TopBar'
 import VentasView from '../components/ventas/VentasView'
@@ -650,6 +651,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       setRestiOn((data?.modules_enabled as { resti_agent?: unknown } | null)?.resti_agent === true)
     })
   }, [profile?.role])
+  // Degradados: la app es plana salvo en los restaurantes que lo encienden en Marca (modules_enabled.degradados).
+  useEffect(() => {
+    if (!profile) return
+    supabase.from('restaurant_config').select('modules_enabled').maybeSingle().then(({ data }) => aplicarDegradados(degradadosDe(data?.modules_enabled)))
+    return () => { aplicarDegradados(false) }
+  }, [profile?.id])
   // Pasos del asistente ya hechos (para el aviso "X de 8 pasos"); se vuelve a leer cada vez que se cierra el asistente.
   const [wizardHechos, setWizardHechos] = useState(0)
   useEffect(() => {

@@ -406,7 +406,7 @@ const LP_CSS = `
 .lp-toggle{min-width:var(--w-tap);min-height:var(--w-tap);border-radius:var(--w-r-pill);background:transparent;border:none;cursor:pointer;color:var(--w-text);font-size:1.1rem}
 .lp-badge{display:inline-flex;align-items:center;gap:0.5rem;padding:0.4rem 0.9rem;border-radius:var(--w-r-pill);font-size:var(--w-fs-label);font-weight:600;color:var(--w-accent-text);background:var(--w-accent-soft);border:1px solid color-mix(in srgb,var(--w-accent) 40%,transparent)}
 .lp-hero{position:relative;padding:3rem 1.25rem;display:grid;grid-template-columns:1fr;gap:2rem;max-width:1200px;margin-inline:auto;align-items:center}
-.lp-bg{position:absolute;inset:0 0 auto 0;height:900px;z-index:0;pointer-events:none;background:radial-gradient(60% 50% at 85% 20%,rgba(255,90,0,.28),transparent 70%),radial-gradient(45% 40% at 5% 95%,rgba(255,90,0,.20),transparent 70%),radial-gradient(40% 35% at 50% 0%,rgba(255,150,60,.10),transparent 70%)}
+.lp-bg{position:absolute;inset:0 0 auto 0;height:900px;z-index:0;pointer-events:none;background:none}
 .lp-hero,.lp-tabs,.lp-sec{position:relative;z-index:1}
 .lp-top{position:sticky;z-index:50}
 .lp-h1{font-size:clamp(2.4rem,7vw,4.5rem);font-weight:800;line-height:1.02;letter-spacing:-0.035em;margin:1.25rem 0 1rem}

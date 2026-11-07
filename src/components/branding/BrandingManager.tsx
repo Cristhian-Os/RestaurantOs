@@ -3,6 +3,7 @@
  * El admin edita nombre, eslogan, colores y logo. Se aplica al instante.
  */
 import { useState, useEffect, useCallback } from 'react'
+import { aplicarDegradados, degradadosDe } from '../../lib/degradados'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
 import { ModuleHeader } from '../tasks/ModuleHeader'
@@ -101,6 +102,18 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
   const [saving,  setSaving]  = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadingPortada, setUploadingPortada] = useState(false)
+  const [degradados, setDegradados] = useState(false)
+
+  // Interruptor de degradados: se guarda al instante en modules_enabled (sin tocar las demás claves) y se aplica en vivo.
+  const cambiarDegradados = useCallback(async (v: boolean) => {
+    if (!rid) return
+    const { data: cur } = await supabase.from('restaurant_config').select('modules_enabled').eq('restaurant_id', rid).maybeSingle()
+    const mods = { ...((cur?.modules_enabled as Record<string, unknown> | null) ?? {}), degradados: v }
+    const { error } = await supabase.from('restaurant_config').update({ modules_enabled: mods }).eq('restaurant_id', rid)
+    if (error) { message.error('No se pudo cambiar los degradados'); return }
+    setDegradados(v); aplicarDegradados(v)
+    message.success(v ? 'Degradados activados' : 'Degradados desactivados')
+  }, [rid])
 
   useEffect(() => {
     (async () => {
@@ -109,6 +122,8 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
       const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).single()
       const restaurantId = prof?.restaurant_id ?? null
       setRid(restaurantId)
+      const { data: mods } = await supabase.from('restaurant_config').select('modules_enabled').maybeSingle()
+      setDegradados(degradadosDe(mods?.modules_enabled))
       const { data } = await supabase.from('restaurant_config')
         .select('display_name, slogan, color_primario, color_acento, logo_url, promo_texto, promo_activo, whatsapp_numero, direccion, instagram_url, facebook_url, propina_sugerida_pct, portada_url, horario_activo, horario_apertura, horario_cierre, cerrado_manual, cerrado_mensaje')
         .maybeSingle()
@@ -333,6 +348,11 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
           <input value={cfg.cerrado_mensaje ?? ''} onChange={e => setCfg(c => ({ ...c, cerrado_mensaje: e.target.value }))}
             style={inputBox} placeholder="Ej: Cerrado hoy por mantenimiento, volvemos mañana" maxLength={140} />
           <p style={nota}>Úsalo para bloquear pedidos al instante (emergencia, día libre, etc), sin importar el horario.</p>
+        </Seccion>
+
+        <Seccion icono={ico(<><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 010 18z" /></>)} titulo="Degradados">
+          <Interruptor titulo="Degradados" activo={degradados} onChange={cambiarDegradados} etiqueta={degradados ? 'Activos' : 'Apagados'} />
+          <p style={nota}>Con esto apagado la app se ve plana, sin degradados de color. Actívalo solo si a este restaurante le gustan. Se aplica al instante, sin pulsar Guardar.</p>
         </Seccion>
 
         <Seccion icono={ico(<path d="M12 2l3 7 7 .6-5.3 4.7 1.6 7.2L12 17.8 5.7 21.5l1.6-7.2L2 9.6 9 9z" />)} titulo="Propina sugerida (%)">

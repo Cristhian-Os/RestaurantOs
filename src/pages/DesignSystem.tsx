@@ -95,7 +95,7 @@ export default function DesignSystem() {
           <p className="font-bold text-[length:var(--w-fs-kpi)] leading-tight">$ 245.800</p>
           <Badge tone="success">+12 % vs ayer</Badge>
         </Card>
-        <div className="rounded-[var(--w-r-lg)] p-6" style={{ background: 'linear-gradient(135deg, var(--w-surface-sunken), var(--w-accent-soft))' }}>
+        <div className="rounded-[var(--w-r-lg)] p-6" style={{ background: 'var(--w-accent-soft)' }}>
           <GlassPanel className="flex items-center justify-around">
             {['Inicio', 'Analytics', 'Pedidos', 'Inventario', 'Más'].map((n, i) => (
               <span key={n} className={`rounded-[var(--w-r-pill)] px-3 py-2 text-[length:var(--w-fs-caption)] font-semibold ${i === 0 ? 'bg-[var(--w-accent-soft)] text-[color:var(--w-accent-text)]' : 'text-[color:var(--w-text-2)]'}`}>{n}</span>

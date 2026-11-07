@@ -890,3 +890,33 @@
 }
 .pm-top-desktop { display: none; }
 @media (min-width: 1024px) { .pm-top-desktop { display: block; } }
+
+/* ══════════════════════════════════════════════════════════
+   SIN DEGRADADOS por defecto. Solo los restaurantes que lo encienden en Marca
+   (<html data-degradados>, ver lib/degradados.ts) conservan los degradados de arriba.
+   ══════════════════════════════════════════════════════════ */
+html:not([data-degradados]) .glass-card::before,
+html:not([data-degradados]) .glass-card-sm::before,
+html:not([data-degradados]) .ros-ambient::before { background: none; }
+html:not([data-degradados]) .lg::before { background: none; border: 1px solid oklch(1 0 0 / 0.18); -webkit-mask: none; mask: none; }
+html:not([data-degradados])[data-theme="dark"] .lg::before,
+html:not([data-degradados]) .lg::after,
+html:not([data-degradados])[data-theme="dark"] .lg::after { background: none; }
+html:not([data-degradados]) .liquid-glass { background: var(--w-glass-bg-soft); }
+html:not([data-degradados])[data-theme="dark"] .liquid-glass { background: var(--w-glass-bg-soft); }
+html:not([data-degradados]) .liquid-glass.liquid-glass-dense { background: var(--w-surface); }
+html:not([data-degradados])[data-theme="dark"] .liquid-glass.liquid-glass-dense { background: rgb(28, 28, 30); }
+html:not([data-degradados]) .lg-accent,
+html:not([data-degradados]) .btn-gradient { background: var(--w-terra); }
+html:not([data-degradados]) .card-gradient,
+html:not([data-degradados]) .dish-grid-gradient,
+html:not([data-degradados])[data-theme="dark"] .card-gradient,
+html:not([data-degradados])[data-theme="dark"] .dish-grid-gradient { background: var(--w-surface); }
+html:not([data-degradados]) .header-gradient,
+html:not([data-degradados])[data-theme="dark"] .header-gradient { background: var(--w-bg); }
+html:not([data-degradados]) .category-btn-gradient { background: currentColor; }
+html:not([data-degradados]) .landing-hero-bg { -webkit-mask-image: none; mask-image: none; }
+/* Carga (skeleton): sin barrido de color, solo late */
+@keyframes skeletonLate { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+html:not([data-degradados]) .skeleton,
+html:not([data-degradados])[data-theme="dark"] .skeleton { background: var(--bg-raised); animation: skeletonLate 1.4s ease-in-out infinite; }

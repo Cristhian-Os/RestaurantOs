@@ -6,6 +6,7 @@
  * Nada corre en reposo: sin intervalos, sin listeners de scroll y sin micrófono mientras está guardado o con la conversación apagada.
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { hayDegradados } from '../../lib/degradados'
 import { supabase } from '../../services/supabaseClient'
 import { useRestiConversacion } from '../../hooks/useRestiConversacion'
 import { RestiSprite, RestiHat } from './RestiSprite'
@@ -378,7 +379,7 @@ export default function Resti({ onOpenVoiceCommands, onGoHome, userId, role, onA
   const bajoGorro = movil() ? 84 : 20   // el gorro vive aquí (en el celular, por encima de la barra de pestañas)
   const luzEl = luz && !reducido && (
     <div aria-hidden className="resti-anim" style={{ position: 'fixed', right: 45 - 110, bottom: bajoGorro + 29 - 110, width: 220, height: 220, zIndex: 93, pointerEvents: 'none', borderRadius: '50%',
-      background: 'radial-gradient(circle, rgba(255,226,160,.95) 0%, rgba(255,170,70,.6) 32%, rgba(242,106,27,0) 70%)', animation: 'resti-luz 900ms ease-out both' }} />
+      background: hayDegradados() ? 'radial-gradient(circle, rgba(255,226,160,.95) 0%, rgba(255,170,70,.6) 32%, rgba(242,106,27,0) 70%)' : 'rgba(255,200,110,.55)', animation: 'resti-luz 900ms ease-out both' }} />
   )
   if (estado === 'HAT') {
     return (

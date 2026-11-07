@@ -4,6 +4,7 @@
  * `onNavigate` recibe la clave de vista del Dashboard (setup, branding, impresion, billing, shifts).
  */
 import type { ReactNode } from 'react'
+import { hayDegradados } from '../../lib/degradados'
 import { ModuleHeader } from '../tasks/ModuleHeader'
 
 const svg = (children: ReactNode) => (
@@ -31,7 +32,7 @@ export function ConfigHub({ onNavigate, visibles }: { onNavigate: (vista: string
 
       <div
         className="mb-5 flex items-center gap-4 rounded-[var(--w-r-lg)] border border-[var(--w-border)] p-5"
-        style={{ background: 'radial-gradient(120% 220% at 100% 100%, var(--w-accent-soft) 0%, transparent 60%), var(--w-surface)', boxShadow: 'var(--w-shadow-md)' }}
+        style={{ background: hayDegradados() ? 'radial-gradient(120% 220% at 100% 100%, var(--w-accent-soft) 0%, transparent 60%), var(--w-surface)' : 'var(--w-surface)', boxShadow: 'var(--w-shadow-md)' }}
       >
         <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center text-[color:var(--w-accent)] [&>svg]:h-10 [&>svg]:w-10"><GearIcon /></span>
         <div className="min-w-0">

@@ -9,13 +9,11 @@ import type { ReactNode } from 'react'
 
 const CSS = `
 .au{min-height:100dvh;display:grid;grid-template-columns:1fr;font-family:var(--w-font);color:#F5F5F2;
-  background:radial-gradient(60% 50% at 18% 110%,rgba(255,90,0,.30),transparent 70%),
-  radial-gradient(45% 40% at 85% 0%,rgba(255,90,0,.14),transparent 70%),
-  linear-gradient(160deg,#1a1512 0%,#0d0c0b 55%,#090908 100%);position:relative;overflow:hidden}
+  background:#0d0c0b;position:relative;overflow:hidden}
 .au-left{display:none}
 .au-right{display:flex;align-items:center;justify-content:center;padding:1.5rem 1rem;min-width:0}
 .au-card{width:100%;max-width:460px;box-sizing:border-box;padding:clamp(1.25rem,5vw,2rem);border-radius:28px;
-  background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.03));
+  background:rgba(255,255,255,.06);
   border:1px solid rgba(255,255,255,.12);box-shadow:0 0 0 1px rgba(255,90,0,.25),0 0 48px rgba(255,90,0,.14),0 24px 60px rgba(0,0,0,.55);
   -webkit-backdrop-filter:blur(24px) saturate(140%);backdrop-filter:blur(24px) saturate(140%);text-align:center}
 .au-logo{width:84px;height:84px;object-fit:contain;display:block;margin:0 auto .75rem;background:#fff;border-radius:20px;padding:6px;box-sizing:border-box}
@@ -31,7 +29,7 @@ const CSS = `
 .au-eye{background:none;border:none;color:#BDBDB7;cursor:pointer;display:flex;padding:8px;margin:-8px;min-width:44px;min-height:44px;align-items:center;justify-content:center}
 .au-btn{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;min-height:54px;border:none;border-radius:999px;cursor:pointer;
   font:inherit;font-size:1rem;font-weight:700;color:#fff;text-decoration:none;box-sizing:border-box;
-  background:linear-gradient(180deg,#FF6A1A,var(--w-accent));box-shadow:0 6px 22px rgba(255,90,0,.40)}
+  background:var(--w-accent);box-shadow:0 6px 22px rgba(255,90,0,.40)}
 .au-btn:hover{background:var(--w-accent-hover)}
 .au-btn:disabled{opacity:.7;cursor:wait}
 .au-link{background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:.875rem;font-weight:600;color:#FF8A47;min-height:44px;display:inline-flex;align-items:center;text-decoration:none}
@@ -54,7 +52,7 @@ const CSS = `
   .au-lema span{display:block;color:#FF7426}
   .au-feats{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;max-width:640px;margin:0 auto;width:100%}
   .au-feat{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:1rem .5rem;border-radius:18px;text-align:center;
-    background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
     font-size:.9rem;line-height:1.25;font-weight:500}
   .au-feat svg{width:30px;height:30px;color:var(--w-accent)}
   .au-garant{display:flex;flex-wrap:wrap;justify-content:center;gap:.75rem 1.5rem;font-size:.8125rem;color:#E0E0DB}

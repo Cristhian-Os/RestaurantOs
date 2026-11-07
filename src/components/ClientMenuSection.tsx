@@ -3,6 +3,7 @@
  * Menú digital real con datos de la BD + carrito + self-ordering + custom dishes
  */
 import { useState, useCallback, useMemo, memo, useEffect } from 'react'
+import { hayDegradados } from '../lib/degradados'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase }        from '../services/supabaseClient'
 import { DishCard }        from './DishCard'
@@ -297,7 +298,7 @@ export const ClientMenuSection = memo(() => {
                 className="shrink-0 px-4 py-2 rounded-[var(--w-r-md)] text-xs font-bold transition-all duration-200"
                 style={activeCategory === cat
                   ? {
-                      background: `linear-gradient(135deg, ${catColor} 0%, ${catColor}dd 100%)`,
+                      background: hayDegradados() ? `linear-gradient(135deg, ${catColor} 0%, ${catColor}dd 100%)` : catColor,
                       color: 'var(--w-on-accent)',
                       boxShadow: `0 2px 8px ${catColor}40`
                     }

@@ -6,6 +6,7 @@
  * Toda la lógica (datos, carrito, scrollspy, tracking, envío) intacta.
  */
 import { BARRA_NOTE } from '../lib/destino'
+import { aplicarDegradados, degradadosDe, hayDegradados } from '../lib/degradados'
 import {
   useState, useEffect, useMemo, useCallback, useRef, memo,
 } from 'react'
@@ -176,7 +177,7 @@ const DishImage = memo(({ dish, height }: { dish: Dish; height: number }) => {
   return (
     <div style={{
       width: '100%', height, borderRadius: 'var(--w-r-md)', overflow: 'hidden', position: 'relative',
-      background: `linear-gradient(150deg, color-mix(in oklch, ${tint} 22%, var(--w-surface)) 0%, var(--w-surface) 75%)`,
+      background: hayDegradados() ? `linear-gradient(150deg, color-mix(in oklch, ${tint} 22%, var(--w-surface)) 0%, var(--w-surface) 75%)` : `color-mix(in oklch, ${tint} 12%, var(--w-surface))`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       <span style={{ color: 'var(--w-text-3)', opacity: 0.7, display: 'flex' }}>
@@ -1226,6 +1227,7 @@ export default function PublicMenu() {
       // Marca del restaurante: aplicar su color como acento del menú
       if (cr.data?.color_primario) applyBranding(cr.data.color_primario as string)
       // Categorías (nombre y orden), sabores y lo que caja marcó como agotado
+      aplicarDegradados(degradadosDe(cr.data?.modules_enabled))
       const baseCfg = parseMenuConfig(cr.data?.modules_enabled)
       setMenuCfg(baseCfg)
       // Listas de opciones del restaurante (solo si usa las opciones universales)
@@ -1504,7 +1506,7 @@ export default function PublicMenu() {
       {/* ── Banner de promoción (solo si el restaurante la tiene activa) ── */}
       {promo && !isClosedNow && (
         <div className="menu-wrap" style={{ padding: '0 1rem', margin: '0 auto 1rem' }}>
-          <div style={{ borderRadius: '1.5rem', padding: '1.5rem', background: 'linear-gradient(120deg, color-mix(in oklch, var(--w-accent) 35%, var(--w-surface)) 0%, var(--w-surface) 85%)', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' }}>
+          <div style={{ borderRadius: '1.5rem', padding: '1.5rem', background: hayDegradados() ? 'linear-gradient(120deg, color-mix(in oklch, var(--w-accent) 35%, var(--w-surface)) 0%, var(--w-surface) 85%)' : 'color-mix(in oklch, var(--w-accent) 14%, var(--w-surface))', border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' }}>
             <span style={{ display: 'inline-block', padding: '0.3rem 0.75rem', borderRadius: 9999, background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.75rem' }}>Promoción Especial</span>
             <p style={{ fontFamily: 'var(--w-font)', fontWeight: 800, lineHeight: 1.15, color: 'var(--w-text)', fontSize: 'clamp(1.375rem, 5vw, 2rem)', margin: '0 0 1rem', maxWidth: '28ch' }}>{promo}</p>
             <button onClick={() => document.getElementById('pm-menu')?.scrollIntoView({ behavior: 'smooth' })}
@@ -1773,7 +1775,7 @@ export default function PublicMenu() {
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             whileTap={{ scale: 0.99 }}
             onClick={() => setShowCustom(true)}
-            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: '1.75rem', border: '1px solid var(--w-border)', borderRadius: '1.25rem', padding: '1.125rem 1.25rem', background: 'linear-gradient(135deg, color-mix(in oklch, var(--w-accent) 16%, var(--w-surface)) 0%, var(--w-surface) 70%)', boxShadow: 'var(--w-shadow-sm)', display: 'flex', alignItems: 'center', gap: '1rem', fontFamily: 'var(--w-font)' }}>
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: '1.75rem', border: '1px solid var(--w-border)', borderRadius: '1.25rem', padding: '1.125rem 1.25rem', background: hayDegradados() ? 'linear-gradient(135deg, color-mix(in oklch, var(--w-accent) 16%, var(--w-surface)) 0%, var(--w-surface) 70%)' : 'color-mix(in oklch, var(--w-accent) 8%, var(--w-surface))', boxShadow: 'var(--w-shadow-sm)', display: 'flex', alignItems: 'center', gap: '1rem', fontFamily: 'var(--w-font)' }}>
             <div style={{ flex: 1 }}>
               <p style={{ fontFamily: 'var(--w-font)', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em', fontSize: '1.1875rem', margin: 0, color: 'var(--w-text)' }}>Arma tu propio plato</p>
               <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.1875rem 0 0', color: 'var(--w-text-3)' }}>Elige los ingredientes y crea algo único.</p>
