@@ -62,7 +62,8 @@ const kicker: CSSProperties = {
 
 // Entra a la cuenta demo (datos de ejemplo, aislada por restaurante)
 const enterDemo = async () => {
-  await supabase.auth.signInWithPassword({ email: 'demo@demo.com', password: 'demo1234' })
+  const { error } = await supabase.auth.signInWithPassword({ email: 'demo@demo.com', password: 'CuentaDemo_1' })
+  if (error) window.alert('No pudimos abrir la demo en este momento. Intenta de nuevo en unos minutos o pídela por WhatsApp.')
   // onAuthStateChange en App detecta la sesión y renderiza el Dashboard
 }
 
