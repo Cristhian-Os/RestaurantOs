@@ -621,6 +621,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [profile,    setProfile]    = useState<Profile | null>(null)
   const [activeNav,  setActiveNav]  = useState<NavView>('dashboard')
   const [loading,    setLoading]    = useState(true)
+  // 'red' = falló la conexión (no se toca la sesión); 'sin-sesion' = Supabase confirmó que ya no hay sesión
+  const [fallo,      setFallo]      = useState<'red' | 'sin-sesion' | null>(null)
+  const [intento,    setIntento]    = useState(0)
   // Cocina: pantalla completa para TV (sin barra lateral ni botones); "Menú" vuelve a mostrarlos.
   const [kitchenMenu, setKitchenMenu] = useState(false)
   useEffect(() => { if (activeNav === 'kitchen') setKitchenMenu(false) }, [activeNav])
@@ -751,13 +754,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     const load = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { if (active) setLoading(false); return }
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (!user) {
+          // Un fallo de red/servidor NO es "sin sesión": cerrar sesión aquí borraba el login por una caída de señal.
+          if (active) setFallo(authError?.name === 'AuthRetryableFetchError' ? 'red' : 'sin-sesion')
+          return
+        }
 
         let { data: prof, error } = await supabase
           .from('profiles').select('*').eq('id', user.id).single()
 
-        if (error?.code === 'PGRST116' || (!prof && error)) {
+        if (error && error.code !== 'PGRST116') { if (active) setFallo('red'); return }
+        if (error?.code === 'PGRST116') {
           const { data: np } = await supabase.from('profiles').insert({
             id: user.id, email: user.email ?? '',
             full_name: user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Usuario',
@@ -780,9 +788,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         if (active) setLoading(false)
       }
     }
+    setFallo(null); setLoading(true)
     load()
     return () => { active = false }
-  }, [])
+  }, [intento])
 
   // Redirigir si no-admin aterriza en 'dashboard'
   useEffect(() => {
@@ -798,10 +807,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   // signOut en useEffect — NUNCA durante el render
   useEffect(() => {
-    if (!loading && !profile) {
+    if (!loading && !profile && fallo === 'sin-sesion') {
       supabase.auth.signOut().then(() => onLogout())
     }
-  }, [loading, profile, onLogout])
+  }, [loading, profile, fallo, onLogout])
 
   const renderContent = () => {
     if (!profile) return null
@@ -849,8 +858,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   )
 
   if (!loading && !profile) return (
-    <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <p style={{color:'var(--w-terra)',fontWeight:700,fontFamily:'var(--w-sans)'}}>Reiniciando sesión...</p>
+    <div style={{minHeight:'100vh',background:'var(--w-bg)',display:'flex',flexDirection:'column',gap:'1rem',alignItems:'center',justifyContent:'center'}}>
+      {fallo === 'red' ? (
+        <>
+          <p style={{color:'var(--w-terra)',fontWeight:700,fontFamily:'var(--w-sans)',margin:0,textAlign:'center',padding:'0 1rem'}}>Sin conexión. Tu sesión sigue guardada.</p>
+          <button onClick={() => setIntento(n => n + 1)} style={{padding:'0.75rem 1.5rem',background:'var(--w-terra)',color:'#fff',fontWeight:700,border:'none',borderRadius:'1rem',cursor:'pointer'}}>Reintentar</button>
+        </>
+      ) : (
+        <p style={{color:'var(--w-terra)',fontWeight:700,fontFamily:'var(--w-sans)',margin:0}}>Reiniciando sesión...</p>
+      )}
     </div>
   )
 
