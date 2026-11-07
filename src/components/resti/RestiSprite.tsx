@@ -57,8 +57,9 @@ export function RestiSprite({ estado, pose = 'wave', direccion = 1, desplazando 
 
 /** Solo el gorro: así vive Resti cuando está guardado (el botón). */
 const HAT = '/assets/resti/resti-hat.webp'
-export function RestiHat({ size = 58 }: { size?: number }) {
+export function RestiHat({ size = 56 }: { size?: number }) {
   const [roto, setRoto] = useState(false)
   if (roto) return null
-  return <img src={HAT} alt="" aria-hidden="true" width={size * 0.8} draggable={false} onError={() => setRoto(true)} style={{ display: 'block', height: 'auto' }} />
+  // La imagen trae fondo propio (no es transparente): llena el círculo del botón, como una foto de perfil, en vez de verse como un cuadro suelto.
+  return <img src={HAT} alt="" aria-hidden="true" width={size} height={size} draggable={false} onError={() => setRoto(true)} style={{ display: 'block', width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />
 }
