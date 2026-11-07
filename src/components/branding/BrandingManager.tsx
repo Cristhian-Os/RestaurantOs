@@ -3,7 +3,8 @@
  * El admin edita nombre, eslogan, colores y logo. Se aplica al instante.
  */
 import { useState, useEffect, useCallback } from 'react'
-import { aplicarDegradados, degradadosDe } from '../../lib/degradados'
+import { aplicarColores, aplicarDegradados, coloresDe, degradadosDe, type ParColores } from '../../lib/degradados'
+import { SelectorColor } from './SelectorColor'
 import { supabase } from '../../services/supabaseClient'
 import message from 'antd/es/message'
 import { ModuleHeader } from '../tasks/ModuleHeader'
@@ -105,15 +106,31 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
   const [degradados, setDegradados] = useState(false)
 
   // Interruptor de degradados: se guarda al instante en modules_enabled (sin tocar las demás claves) y se aplica en vivo.
-  const cambiarDegradados = useCallback(async (v: boolean) => {
-    if (!rid) return
+  const [par, setPar] = useState<ParColores | null>(null)   // null = el naranja de la marca
+  const [cual, setCual] = useState<0 | 1>(0)                  // qué color del degradado se está eligiendo
+  const base: ParColores = par ?? ['#FF5A00', '#FF8C3C']
+  const conColor = (hex: string): ParColores => cual === 0 ? [hex, base[1]] : [base[0], hex]
+
+  const guardarMods = useCallback(async (patch: Record<string, unknown>): Promise<boolean> => {
+    if (!rid) return false
     const { data: cur } = await supabase.from('restaurant_config').select('modules_enabled').eq('restaurant_id', rid).maybeSingle()
-    const mods = { ...((cur?.modules_enabled as Record<string, unknown> | null) ?? {}), degradados: v }
+    const mods = { ...((cur?.modules_enabled as Record<string, unknown> | null) ?? {}), ...patch }
     const { error } = await supabase.from('restaurant_config').update({ modules_enabled: mods }).eq('restaurant_id', rid)
-    if (error) { message.error('No se pudo cambiar los degradados'); return }
-    setDegradados(v); aplicarDegradados(v)
-    message.success(v ? 'Degradados activados' : 'Degradados desactivados')
+    if (error) { message.error('No se pudo guardar'); return false }
+    return true
   }, [rid])
+
+  const cambiarDegradados = useCallback(async (v: boolean) => {
+    if (!(await guardarMods({ degradados: v }))) return
+    setDegradados(v); aplicarDegradados(v, par)
+    message.success(v ? 'Degradados activados' : 'Degradados desactivados')
+  }, [guardarMods, par])
+
+  const guardarPar = useCallback(async (p: ParColores | null) => {
+    if (!(await guardarMods({ degradados_colores: p }))) return
+    setPar(p); aplicarColores(p)
+    message.success(p ? 'Colores guardados' : 'Volvió al naranja')
+  }, [guardarMods])
 
   useEffect(() => {
     (async () => {
@@ -124,6 +141,7 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
       setRid(restaurantId)
       const { data: mods } = await supabase.from('restaurant_config').select('modules_enabled').maybeSingle()
       setDegradados(degradadosDe(mods?.modules_enabled))
+      setPar(coloresDe(mods?.modules_enabled))
       const { data } = await supabase.from('restaurant_config')
         .select('display_name, slogan, color_primario, color_acento, logo_url, promo_texto, promo_activo, whatsapp_numero, direccion, instagram_url, facebook_url, propina_sugerida_pct, portada_url, horario_activo, horario_apertura, horario_cierre, cerrado_manual, cerrado_mensaje')
         .maybeSingle()
@@ -353,6 +371,32 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
         <Seccion icono={ico(<><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 010 18z" /></>)} titulo="Degradados">
           <Interruptor titulo="Degradados" activo={degradados} onChange={cambiarDegradados} etiqueta={degradados ? 'Activos' : 'Apagados'} />
           <p style={nota}>Con esto apagado la app se ve plana, sin degradados de color. Actívalo solo si a este restaurante le gustan. Se aplica al instante, sin pulsar Guardar.</p>
+          {degradados && (
+            <div style={{ marginTop: 14 }}>
+              <p style={{ ...label, marginBottom: 8 }}>Un degradado mezcla dos colores. Toca uno y elige su tono</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {([0, 1] as const).map(i => (
+                  <button key={i} type="button" onClick={() => setCual(i)} aria-pressed={cual === i}
+                    style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 12, cursor: 'pointer',
+                      background: 'var(--w-surface)', color: 'var(--w-text)', fontFamily: 'var(--w-font)', fontSize: 'var(--w-fs-label)', fontWeight: 600,
+                      border: cual === i ? '2px solid var(--w-accent)' : '1px solid var(--w-border)' }}>
+                    <span aria-hidden style={{ width: 24, height: 24, borderRadius: '50%', background: base[i], border: '1px solid var(--w-border)' }} />
+                    Color {i + 1}
+                  </button>
+                ))}
+              </div>
+              <SelectorColor key={cual} valor={base[cual]}
+                onCambio={hex => { const p = conColor(hex); setPar(p); aplicarColores(p) }}
+                onSoltar={hex => void guardarPar(conColor(hex))} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                <span aria-hidden style={{ width: 96, height: 32, borderRadius: 10, border: '1px solid var(--w-border)',
+                  background: `linear-gradient(135deg, ${base[0]}, ${base[1]})` }} />
+                <b style={{ fontSize: 'var(--w-fs-label)' }}>{par ? `${par[0]} → ${par[1]}` : 'Naranja de la marca'}</b>
+                {par && <Button size="sm" variant="secondary" onClick={() => void guardarPar(null)}>Volver al naranja</Button>}
+              </div>
+              <p style={nota}>Se guarda al soltar el dedo. Puedes poner dos colores muy distintos, por ejemplo naranja y rosado.</p>
+            </div>
+          )}
         </Seccion>
 
         <Seccion icono={ico(<path d="M12 2l3 7 7 .6-5.3 4.7 1.6 7.2L12 17.8 5.7 21.5l1.6-7.2L2 9.6 9 9z" />)} titulo="Propina sugerida (%)">

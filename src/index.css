@@ -531,7 +531,7 @@
 
 /* Botón liquid glass con acento terracota */
 .lg-accent {
-  background: linear-gradient(135deg, var(--w-terra) 0%, var(--w-terra-dk) 100%);
+  background: linear-gradient(135deg, var(--w-deg-1) 0%, var(--w-deg-2) 100%);
   color: oklch(0.985 0.01 80);
   border: 1px solid oklch(1 0 0 / 0.20);
   box-shadow: var(--w-shadow-terra), inset 0 1px 1px oklch(1 0 0 / 0.30);
@@ -615,7 +615,7 @@
   box-shadow: var(--w-shadow-md), inset 0 1px 1px oklch(1 0 0 / 0.08), inset 0 -1px 1px oklch(0 0 0 / 0.20);
 }
 [data-theme="dark"] .lg::before {
-  background: linear-gradient(135deg, oklch(1 0 0 / 0.18) 0%, oklch(1 0 0 / 0.04) 30%, transparent 55%, oklch(0.64 0.125 148 / 0.12) 100%);
+  background: linear-gradient(135deg, oklch(1 0 0 / 0.18) 0%, oklch(1 0 0 / 0.04) 30%, transparent 55%, color-mix(in srgb, var(--w-deg-2) 14%, transparent) 100%);
 }
 [data-theme="dark"] .lg::after {
   background: radial-gradient(120% 80% at 18% 0%, oklch(1 0 0 / 0.07) 0%, transparent 50%);
@@ -813,7 +813,7 @@
 
 /* Gradiente sutil en botones principales */
 .btn-gradient {
-  background: linear-gradient(135deg, var(--w-terra) 0%, var(--w-terra-dk) 100%);
+  background: linear-gradient(135deg, var(--w-deg-1) 0%, var(--w-deg-2) 100%);
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .btn-gradient:hover {
@@ -826,7 +826,7 @@
 
 /* Gradiente en tarjetas/secciones */
 .card-gradient {
-  background: linear-gradient(135deg, var(--w-surface) 0%, var(--w-surface) 50%, rgba(255, 107, 74, 0.04) 100%);
+  background: linear-gradient(135deg, var(--w-surface) 0%, var(--w-surface) 50%, color-mix(in srgb, var(--w-deg-1) 6%, transparent) 100%);
 }
 
 /* Gradiente en encabezados */
@@ -846,12 +846,12 @@
 
 /* Gradiente en grid de platos */
 .dish-grid-gradient {
-  background: linear-gradient(180deg, var(--w-surface) 0%, rgba(255, 107, 74, 0.03) 100%);
+  background: linear-gradient(180deg, var(--w-surface) 0%, color-mix(in srgb, var(--w-deg-1) 5%, transparent) 100%);
 }
 
 /* Tema oscuro: ajustar gradientes */
 [data-theme="dark"] .card-gradient {
-  background: linear-gradient(135deg, var(--w-surface) 0%, var(--w-surface) 50%, rgba(255, 129, 102, 0.06) 100%);
+  background: linear-gradient(135deg, var(--w-surface) 0%, var(--w-surface) 50%, color-mix(in srgb, var(--w-deg-1) 8%, transparent) 100%);
 }
 
 [data-theme="dark"] .header-gradient {
@@ -859,7 +859,7 @@
 }
 
 [data-theme="dark"] .dish-grid-gradient {
-  background: linear-gradient(180deg, var(--w-surface) 0%, rgba(255, 129, 102, 0.04) 100%);
+  background: linear-gradient(180deg, var(--w-surface) 0%, color-mix(in srgb, var(--w-deg-1) 6%, transparent) 100%);
 }
 
 /* ── Menú público: carcasa (barra lateral + contenido + panel "Tu pedido") ── */

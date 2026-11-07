@@ -189,6 +189,8 @@
     0 2px 6px rgba(16,16,16,0.08);
 }
 :root { --w-glass-bg-soft: rgba(255,255,255,0.28); }
+/* Colores de los degradados (los cambia cada restaurante en Marca; ver lib/degradados.ts) */
+:root { --w-deg-1: var(--w-accent); --w-deg-2: var(--w-accent-hover); }
 :root[data-theme="dark"] { --w-glass-bg-soft: rgba(40,40,44,0.34); }
 :root[data-theme="dark"] .liquid-glass {
   background:
@@ -205,9 +207,9 @@
 .ros-ambient::before {
   content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(520px 360px at 12% 18%, rgba(255,90,0,0.16), transparent 70%),
-    radial-gradient(560px 420px at 92% 78%, rgba(255,140,60,0.14), transparent 70%),
-    radial-gradient(420px 320px at 60% 110%, rgba(255,90,0,0.12), transparent 70%);
+    radial-gradient(520px 360px at 12% 18%, color-mix(in srgb, var(--w-deg-1) 16%, transparent), transparent 70%),
+    radial-gradient(560px 420px at 92% 78%, color-mix(in srgb, var(--w-deg-2) 14%, transparent), transparent 70%),
+    radial-gradient(420px 320px at 60% 110%, color-mix(in srgb, var(--w-deg-1) 12%, transparent), transparent 70%);
 }
 /* z-index auto (no 1): con 1 el contenido forma una capa propia y los modales quedan DEBAJO de la píldora (z 40). */
 .ros-ambient > * { position: relative; }
