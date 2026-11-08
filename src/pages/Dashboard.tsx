@@ -20,12 +20,15 @@ import { OrderFlow }         from '../components/orders/OrderFlow'
 import { TableMap }          from '../components/tables/TableMap'
 import { KitchenBoard }      from '../components/kitchen/KitchenBoard'
 import { CashierPanel }      from '../components/cashier/CashierPanel'
+import { DomiciliosPanel }   from '../components/cashier/DomiciliosPanel'
+import { ConversacionesPanel } from '../components/cashier/ConversacionesPanel'
 import { TeamManager }       from '../components/team/TeamManager'
 import { MyShifts }          from '../components/team/MyShifts'
 import { MenuManager }       from '../components/menu/MenuManager'
 import { ClientMenuSection } from '../components/ClientMenuSection'
 import { AdminTasksView }    from '../components/tasks/AdminTasksView'
 import { EmployeeTasksView } from '../components/tasks/EmployeeTasksView'
+import { FidelizacionView }  from '../components/fidelizacion/FidelizacionView'
 import { ShoppingList }      from '../components/inventory/ShoppingList'
 import { IngredientesManager } from '../components/inventory/IngredientesManager'
 import { RecipeBuilder }     from '../components/recipes/RecipeBuilder'
@@ -42,6 +45,11 @@ import Resti from '../components/resti/Resti'
 import { MobileNav } from '../components/shell/FloatingNav'
 import { aplicarDegradados, coloresDe, degradadosDe } from '../lib/degradados'
 import { ConfigHub } from '../components/settings/ConfigHub'
+import { WhatsAppConfig } from '../components/settings/WhatsAppConfig'
+import { PedidosMesaPanel } from '../components/waiter/PedidosMesaPanel'
+import { CampanasPanel } from '../components/fidelizacion/CampanasPanel'
+import { ArmPanel } from '../components/fidelizacion/ArmPanel'
+import { FidelidadConfig } from '../components/fidelizacion/FidelidadConfig'
 import { TopBar } from '../components/shell/TopBar'
 import VentasView from '../components/ventas/VentasView'
 import { Tabs as UiTabs } from '../components/ui/Tabs'
@@ -69,7 +77,7 @@ import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'config' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'fidelizacion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'whatsapp' | 'domicilios' | 'conversaciones' | 'pedidos_mesa' | 'campanas' | 'arm' | 'fidelidad_config' | 'config' | 'platform'
 
 export interface Profile {
   id:          string
@@ -119,6 +127,7 @@ const Icons = {
   Receipt:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2zM9 7h6M9 11h6"/></svg>,
   Truck:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M1 4h14v12H1zM15 9h4l3 3v4h-7"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg>,
   Printer:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>,
+  Heart:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>,
   Opinion:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:20,height:20 }}><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 0113 3h.5a8.5 8.5 0 018 8z"/></svg>,
 }
 
@@ -132,6 +141,9 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'tables',    icon:<Icons.Tables />,    label:'Mesas'      },
     { view:'kitchen',   icon:<Icons.Kitchen />,   label:'Cocina'     },
     { view:'cashier',   icon:<Icons.Cashier />,   label:'Caja'       },
+    { view:'domicilios', icon:<Icons.Truck />,    label:'Domicilios' },
+    { view:'conversaciones', icon:<Icons.Opinion />, label:'Conversaciones' },
+    { view:'pedidos_mesa', icon:<Icons.Tables />,  label:'Pedidos de mesa' },
     { view:'tasks',     icon:<Icons.Tasks />,     label:'Tareas'     },
     { view:'inventory', icon:<Icons.Inventory />, label:'Inventario' },
     { view:'analytics', icon:<Icons.Analytics />, label:'Analytics'  },
@@ -142,14 +154,19 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'menu_listas', icon:<Icons.Menu />,     label:'Listas y opciones'},
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'   },
+    { view:'fidelizacion', icon:<Icons.Heart />,   label:'Fidelización' },
+    { view:'campanas',     icon:<Icons.Heart />,   label:'Campañas'   },
+    { view:'arm',          icon:<Icons.Analytics />, label:'Asistente de clientes' },
     { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'    },
     { view:'config',       icon:<Icons.Toggles />, label:'Configuración' },
   ],
   waiter:  [
     { view:'orders', icon:<Icons.Orders />, label:'Pedidos' },
     { view:'tables', icon:<Icons.Tables />, label:'Mesas'   },
+    { view:'pedidos_mesa', icon:<Icons.Tables />, label:'Pedidos de mesa' },
     { view:'tasks',  icon:<Icons.Tasks />,  label:'Tareas'  },
     { view:'shifts', icon:<Icons.Team />,   label:'Turnos' },
+    { view:'fidelizacion', icon:<Icons.Heart />, label:'Fidelización' },
     { view:'opinion', icon:<Icons.Opinion />, label:'Opinión' },
   ],
   kitchen: [
@@ -159,12 +176,17 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
   ],
   cashier: [
     { view:'cashier',      icon:<Icons.Cashier />, label:'Caja'         },
+    { view:'domicilios',   icon:<Icons.Truck />,   label:'Domicilios'   },
+    { view:'conversaciones', icon:<Icons.Opinion />, label:'Conversaciones' },
+    { view:'pedidos_mesa', icon:<Icons.Tables />,  label:'Pedidos de mesa' },
     { view:'orders',       icon:<Icons.Orders />,  label:'Pedidos'      },
     { view:'tasks',        icon:<Icons.Tasks />,   label:'Tareas'       },
     { view:'shifts',       icon:<Icons.Team />,    label:'Turnos'   },
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú' },
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'  },
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'     },
+    { view:'fidelizacion', icon:<Icons.Heart />,   label:'Fidelización' },
+    { view:'campanas',     icon:<Icons.Heart />,   label:'Campañas'     },
     { view:'opinion',      icon:<Icons.Opinion />, label:'Opinión'      },
   ],
   client:  [{ view:'menu', icon:<Icons.Menu />, label:'Menú' }],
@@ -784,6 +806,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         }
       } catch (e) {
         console.error('Dashboard load:', e)
+        if (active) setFallo('red')
       } finally {
         if (active) setLoading(false)
       }
@@ -822,6 +845,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'tables':    return <TableMap profile={profile} onNavigate={setActiveNav} />
       case 'kitchen':   return <KitchenBoard />
       case 'cashier':   return <CashierPanel profile={profile} />
+      case 'domicilios': return profile.role === 'admin' || profile.role === 'cashier' ? <DomiciliosPanel /> : null
+      case 'conversaciones': return profile.role === 'admin' || profile.role === 'cashier' ? <ConversacionesPanel /> : null
+      case 'pedidos_mesa': return profile.role === 'admin' || profile.role === 'cashier' || profile.role === 'waiter' ? <PedidosMesaPanel /> : null
+      case 'campanas': return profile.role === 'admin' || profile.role === 'cashier' ? <CampanasPanel rol={profile.role} /> : null
+      case 'arm': return profile.role === 'admin' ? <ArmPanel /> : null
+      case 'fidelidad_config': return profile.role === 'admin' ? <FidelidadConfig /> : null
       case 'tasks':     return profile.role === 'admin'
         ? <AdminTasksView profile={profile} />
         : <EmployeeTasksView profile={profile} />
@@ -835,10 +864,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'menu_listas':  return <OptionListsSection />
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
       case 'facturas':     return profile.role === 'admin' || profile.role === 'cashier' ? <Facturas profile={profile} /> : null
+      case 'fidelizacion': return profile.role === 'admin' || profile.role === 'cashier' || profile.role === 'waiter' ? <FidelizacionView rol={profile.role} /> : null
       case 'opinion':   return ['admin', 'cashier', 'waiter', 'kitchen'].includes(profile.role) ? <OpinionSection /> : null
       case 'impresion': return profile.role === 'admin' ? <ImpresionConfig /> : null
       case 'setup':     return profile.role === 'admin' ? <ConfiguracionGuiada onAbrir={() => setWizardOpen(true)} /> : null
-      case 'config':    return profile.role === 'admin' ? <ConfigHub onNavigate={v => setActiveNav(v as NavView)} visibles={['branding', 'impresion', 'setup', 'billing']} /> : null
+      case 'config':    return profile.role === 'admin' ? <ConfigHub onNavigate={v => setActiveNav(v as NavView)} visibles={['branding', 'impresion', 'whatsapp', 'fidelidad_config', 'setup', 'billing']} /> : null
+      case 'whatsapp':  return profile.role === 'admin' ? <WhatsAppConfig /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
       case 'platform':  return profile.role === 'super_admin' ? <MfaGate><PlatformPanel /></MfaGate> : null
@@ -871,7 +902,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   )
 
   const navItems = NAV_BY_ROLE[profile!.role] ?? NAV_BY_ROLE.client
-  const navActive: NavView = profile!.role === 'admin' && ['impresion', 'setup', 'branding', 'billing'].includes(activeNav) ? 'config' : activeNav
+  const navActive: NavView = profile!.role === 'admin' && ['impresion', 'setup', 'branding', 'billing', 'whatsapp', 'fidelidad_config'].includes(activeNav) ? 'config' : activeNav
   const hasSounds =['admin', 'cashier', 'kitchen', 'waiter'].includes(profile!.role)
 
   const chromeBtn: React.CSSProperties = {

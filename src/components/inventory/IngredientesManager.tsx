@@ -45,6 +45,7 @@ export function IngredientesManager() {
   const [editStock, setEditStock] = useState('')
   const [editMinimo, setEditMinimo] = useState('')
   const [editCosto, setEditCosto] = useState('')
+  const [busqueda, setBusqueda] = useState('')
 
   const ingredientesQuery = useQuery({
     queryKey: ['ingredientes'],
@@ -144,6 +145,11 @@ export function IngredientesManager() {
   }
 
   const ingredientes = ingredientesQuery.data ?? []
+  // Búsqueda sin tildes ni mayúsculas: "limon" encuentra "Limón".
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const visibles = busqueda.trim()
+    ? ingredientes.filter(i => norm(i.nombre).includes(norm(busqueda.trim())))
+    : ingredientes
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -197,8 +203,21 @@ export function IngredientesManager() {
         <StatePanel kind="empty" title="Sin ingredientes todavía" text="Agrega el primero con “Nuevo ingrediente”." />
       )}
 
+      {ingredientes.length > 0 && (
+        <Input
+          type="search"
+          label="Buscar"
+          placeholder="Buscar ingrediente…"
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+        />
+      )}
+      {busqueda.trim() && visibles.length === 0 && (
+        <StatePanel kind="empty" title="Sin resultados" text={`Ningún ingrediente coincide con “${busqueda.trim()}”.`} />
+      )}
+
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {ingredientes.map(ing => {
+        {visibles.map(ing => {
           const bajo = Number(ing.stock_actual) <= Number(ing.stock_minimo)
           return (
             <Card key={ing.id} className="flex flex-col gap-3">

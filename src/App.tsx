@@ -14,9 +14,11 @@ import type { Session } from '@supabase/supabase-js'
 // debería descargar ese código.
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const DesignSystem = lazy(() => import('./pages/DesignSystem'))
+const TarjetaPublica = lazy(() => import('./pages/TarjetaPublica'))
 
 const PATH = typeof window !== 'undefined' ? window.location.pathname : '/'
 const IS_PUBLIC_MENU = PATH.startsWith('/menu')
+const IS_TARJETA     = PATH.startsWith('/tarjeta/')
 const IS_REGISTER    = PATH.startsWith('/registro')
 const IS_LOGIN       = PATH.startsWith('/login')
 const IS_LEGAL       = PATH.startsWith('/terminos') || PATH.startsWith('/privacidad')
@@ -61,7 +63,7 @@ export default function App() {
   const [ready,   setReady]   = useState(false)
 
   useEffect(() => {
-    if (IS_PUBLIC_MENU) {
+    if (IS_PUBLIC_MENU || IS_TARJETA) {
       setReady(true)
       return
     }
@@ -102,6 +104,7 @@ export default function App() {
   // Muestra del Design System: solo en desarrollo; en producción esta rama se elimina al compilar
   if (import.meta.env.DEV && PATH.startsWith('/design-system')) return <ThemeProvider><Suspense fallback={<SplashScreen />}><DesignSystem /></Suspense></ThemeProvider>
   if (IS_PUBLIC_MENU) return <ThemeProvider><PublicMenu /></ThemeProvider>
+  if (IS_TARJETA)     return <ThemeProvider><Suspense fallback={<SplashScreen />}><TarjetaPublica /></Suspense></ThemeProvider>
   if (IS_LEGAL)       return <ThemeProvider><Legal /></ThemeProvider>
   if (!ready)         return <SplashScreen />
   // Enlace de recuperación de contraseña: siempre pedir la nueva contraseña primero,

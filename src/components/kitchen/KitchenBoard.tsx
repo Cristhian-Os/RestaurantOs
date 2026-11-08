@@ -577,6 +577,7 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
       .from('orders')
       .select('*')
       .in('status', ['pending','cooking','ready'])
+      .eq('en_espera_pago', false)   // domicilio por transferencia: no pasa a cocina hasta que Caja confirme el pago
       .order('created_at', { ascending: true })
     if (!error) {
       const parsed = (data || []).map(parseOrder)

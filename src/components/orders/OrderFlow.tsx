@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { offlineService } from '../../services/offlineService'
+import { domiciliosService, type MetodoPago } from '../../services/domiciliosService'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import { inventoryService } from '../../services/inventoryService'
 import message from 'antd/es/message'
@@ -383,6 +384,11 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [barra, setBarra]             = useState(false) // pedido en el local sin mesa
   const [tipoPedido, setTipo]       = useState<TipoPedido>('LOCAL')
   const [customerName, setCustomerName] = useState('')
+  // Datos del domicilio (solo cuando el tipo es DOMICILIO)
+  const [domDireccion, setDomDireccion] = useState('')
+  const [domTelefono, setDomTelefono]   = useState('')
+  const [domTarifa, setDomTarifa]       = useState('')
+  const [domMetodo, setDomMetodo]       = useState<MetodoPago>('transferencia')
   // Menú
   const [dishes, setDishes]         = useState<Dish[]>([])
   const [cart, setCart]             = useState<CartItem[]>([])
@@ -548,6 +554,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     if (cart.length === 0) { message.warning('Agrega al menos un plato'); return }
     if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) { message.warning('Selecciona una mesa o Barra'); return }
     if (!customerName.trim()) { message.warning('Escribe el nombre del comensal'); return }
+    if (tipoPedido === 'DOMICILIO' && domDireccion.trim().length < 5) { message.warning('Escribe la dirección del domicilio'); return }
 
     setSubmitting(true)
     try {
@@ -575,6 +582,16 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           p_customer_name:  customerName.trim() || null,
         })
         if (error) throw error
+        if (tipoPedido === 'DOMICILIO') {
+          try {
+            await domiciliosService.crear({
+              orderId: data.order_id, direccion: domDireccion.trim(), costoEnvio: Math.max(0, Number(domTarifa) || 0),
+              nombre: customerName.trim(), telefono: domTelefono.replace(/\D/g, '') || undefined, metodo: domMetodo,
+            })
+          } catch (e) {
+            message.error(`El pedido se creó pero falló el domicilio: ${e instanceof Error ? e.message : 'error'}`)
+          }
+        }
         // Número secuencial del día (lo asigna un trigger en la base); si aún no existe, sin número.
         const { data: num } = await supabase.from('orders').select('order_number_today').eq('id', data.order_id).maybeSingle()
         const ref = num?.order_number_today ? `#${num.order_number_today}` : ''
@@ -622,12 +639,13 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       setMesa(null); setBarra(false)
       setOrderNotes('')
       setCustomerName('')
+      setDomDireccion(''); setDomTelefono(''); setDomTarifa(''); setDomMetodo('transferencia')
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al enviar orden'}`)
     } finally {
       setSubmitting(false)
     }
-  }, [cart, tipoPedido, selectedMesa, barra, isOnline, cartTotal, orderNotes, customerName, onOrderCreated, profile.id])
+  }, [cart, tipoPedido, selectedMesa, barra, isOnline, cartTotal, orderNotes, customerName, domDireccion, domTelefono, domTarifa, domMetodo, onOrderCreated, profile.id])
 
   // ─── RENDER ───────────────────────────────────────────────
   return (
@@ -755,6 +773,30 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                   style={FX.field}
                 />
               </div>
+
+              {tipoPedido === 'DOMICILIO' && (
+                <div className="mt-5 flex flex-col gap-3">
+                  <p className="text-xs font-bold text-[color:var(--w-text-3)] uppercase tracking-wider">Datos del domicilio</p>
+                  <input value={domDireccion} onChange={e => setDomDireccion(e.target.value)} placeholder="Dirección (obligatoria)" maxLength={300}
+                    className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-4 py-3 text-sm text-[color:var(--w-text)] outline-none placeholder-[var(--w-text-3)]" style={FX.field} />
+                  <input value={domTelefono} onChange={e => setDomTelefono(e.target.value.replace(/\D/g, ''))} placeholder="Celular con indicativo, ej. 573001112233" inputMode="numeric" maxLength={15}
+                    className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-4 py-3 text-sm text-[color:var(--w-text)] outline-none placeholder-[var(--w-text-3)]" style={FX.field} />
+                  <input value={domTarifa} onChange={e => setDomTarifa(e.target.value.replace(/\D/g, ''))} placeholder="Valor del domicilio (COP)" inputMode="numeric" maxLength={7}
+                    className="w-full bg-[var(--w-surface-sunken)] rounded-[var(--w-r-md)] px-4 py-3 text-sm text-[color:var(--w-text)] outline-none placeholder-[var(--w-text-3)]" style={FX.field} />
+                  <div className="grid grid-cols-2 gap-2">
+                    {([['transferencia', 'Transferencia'], ['contra_entrega', 'Contra entrega']] as const).map(([val, label]) => (
+                      <button key={val} type="button" onClick={() => setDomMetodo(val)}
+                        className="py-3 rounded-[var(--w-r-lg)] text-sm font-bold transition-all"
+                        style={domMetodo === val
+                          ? { background: 'var(--w-accent)', color: 'var(--w-on-accent)', ...FX.cta }
+                          : { background: 'var(--w-surface)', color: 'var(--w-text-2)', ...FX.soft }}>{label}</button>
+                    ))}
+                  </div>
+                  <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">
+                    {domMetodo === 'transferencia' ? 'No pasa a cocina hasta que Caja confirme el comprobante.' : 'Pasa a cocina de una vez; el repartidor paga al recibirlo.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             <motion.button
@@ -766,6 +808,10 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 }
                 if (!customerName.trim()) {
                   message.warning('Escribe el nombre del comensal')
+                  return
+                }
+                if (tipoPedido === 'DOMICILIO' && domDireccion.trim().length < 5) {
+                  message.warning('Escribe la dirección del domicilio')
                   return
                 }
                 setStep('menu')

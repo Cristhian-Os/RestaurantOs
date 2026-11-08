@@ -24,6 +24,7 @@ import { OptionGroupsV2 } from '../components/orders/OptionGroupsV2'
 import { applyBranding } from '../components/branding/BrandingManager'
 import { CategoryIcon } from '../components/CategoryIcon'
 import CartaAsistente, { MascotaMenu } from '../components/menu/CartaAsistente'
+import { useMesaQr, MesaQrBanner, MesaQrSheet } from '../components/menu/MesaQr'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
   all:       'Todo',
@@ -1081,6 +1082,8 @@ export default function PublicMenu() {
   const [cart,          setCart]          = useState<CartItem[]>([])
   const [mesa,          setMesa]          = useState('')
   const [barra,         setBarra]         = useState(false) // llegó por el QR de barra
+  const [mesaDeQr,      setMesaDeQr]      = useState(false) // la mesa vino del QR (?mesa=N): pedido con aprobación del mesero
+  const [qrAbierto,     setQrAbierto]     = useState(false)
   const [clientName,    setClientName]    = useState('')
   const [showCart,      setShowCart]      = useState(false)
   const [sent,          setSent]          = useState(false)
@@ -1138,9 +1141,12 @@ export default function PublicMenu() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const m = params.get('mesa')
-    if (m) setMesa(m)
+    if (m) { setMesa(m); setMesaDeQr(true) }
     if (params.get('origen') === 'barra') setBarra(true)
   }, [])
+
+  const qr = useMesaQr(restaurantId, mesa, mesaDeQr)
+  useEffect(() => { if (qr.cambio > 0) setQrAbierto(true) }, [qr.cambio])
 
   // ── nombre recordado (para no repetirlo al pedir / opinar) ──────
   useEffect(() => {
@@ -1351,6 +1357,17 @@ export default function PublicMenu() {
           ? { kind: 'custom', quantity: i.qty, line_notes, ingredients: i.customIngredients }
           : { kind: 'dish', dish_id: i.dish.id, quantity: i.qty, size: i.size || null, toppings: i.toppings, sel: i.sel ?? null, line_notes }
       })
+      if (qr.activo) {
+        // Mesa con QR: el pedido espera al mesero (no entra a cocina hasta que lo acepte)
+        const r = await qr.enviar(items, clientName)
+        if (r.ok === false) {
+          if (r.error === 'mensaje') throw new Error(r.mensaje)
+          setShowCart(false); setQrAbierto(true)   // pide el código de la mesa
+          return
+        }
+        setCart([]); setShowCart(false); setQrAbierto(true)
+        return
+      }
       const tableNum = mesa.trim() ? parseInt(mesa) : null
       const noteParts = [
         clientName.trim() ? `Cliente: ${clientName.trim()}` : null,
@@ -1393,7 +1410,7 @@ export default function PublicMenu() {
       )
       console.error('Error al enviar pedido:', e)
     } finally { setSending(false) }
-  }, [cart, mesa, barra, clientName, canConfirm, restaurantId])
+  }, [cart, mesa, barra, clientName, canConfirm, restaurantId, qr])
 
   // ── scrollspy ──────────────────────────────────────────────────
   useEffect(() => {
@@ -1502,6 +1519,8 @@ export default function PublicMenu() {
         </div>
         <CartaAsistente slug={null} restaurantId={restaurantId} mesa={mesa} />
       </header>
+
+      <MesaQrBanner qr={qr} onAbrir={() => setQrAbierto(true)} />
 
       {/* ── Banner de promoción (solo si el restaurante la tiene activa) ── */}
       {promo && !isClosedNow && (
@@ -2067,7 +2086,7 @@ export default function PublicMenu() {
               <button className="w-press bg-[var(--w-accent)] text-[color:var(--w-on-accent)] rounded-[var(--w-r-md)] shadow-[var(--w-shadow-terra)] hover:bg-[var(--w-accent-hover)]"
                 onClick={() => { setSendError(null); sendOrder() }} disabled={sending || !canConfirm}
                 style={{ width: '100%', padding: '1.05rem', border: 'none', fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--w-font)', cursor: !canConfirm ? 'not-allowed' : 'pointer', opacity: !canConfirm ? 0.5 : 1 }}>
-                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : !canConfirm ? 'Ingresa nombre o mesa' : 'Finalizar pedido →'}
+                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : !canConfirm ? 'Ingresa nombre o mesa' : qr.activo ? 'Enviar al mesero →' : 'Finalizar pedido →'}
               </button>
               <button onClick={() => setShowCart(false)}
                 style={{ width: '100%', marginTop: '0.625rem', padding: '0.95rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border)', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontWeight: 600, fontSize: '0.9375rem', fontFamily: 'var(--w-font)', cursor: 'pointer' }}>
@@ -2077,6 +2096,8 @@ export default function PublicMenu() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <MesaQrSheet qr={qr} abierto={qrAbierto} onCerrar={() => setQrAbierto(false)} />
 
       <style>{`::-webkit-scrollbar { display: none; }`}</style>
     </div>

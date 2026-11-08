@@ -15,6 +15,7 @@ import { OpcionesRestaurantes } from './OpcionesRestaurantes'
 import { PlatformOpiniones } from './PlatformOpiniones'
 import { PlatformIA } from './PlatformIA'
 import { PlatformLeads } from './PlatformLeads'
+import { WhatsAppLlaves } from './WhatsAppLlaves'
 import { Tabs } from '../ui/Tabs'
 import { EncabezadoModulo } from './platformUi'
 
@@ -30,6 +31,7 @@ const TABS = [
   { id: 'ia', label: 'Uso de IA' },
   { id: 'plantillas', label: 'Plantillas' },
   { id: 'opciones', label: 'Opciones por restaurante' },
+  { id: 'whatsapp', label: 'WhatsApp (llaves de Meta)' },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -55,6 +57,7 @@ export function PlatformPanel() {
       {tab === 'ia' && <PlatformIA />}
       {tab === 'plantillas' && <PlantillasManager />}
       {tab === 'opciones' && <OpcionesRestaurantes />}
+      {tab === 'whatsapp' && <WhatsAppLlaves />}
     </div>
   )
 }
