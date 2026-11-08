@@ -19,7 +19,7 @@ interface Seccion { vista: string; titulo: string; detalle: string; icono: React
 const SECCIONES: Seccion[] = [
   { vista: 'branding', titulo: 'Marca', detalle: 'Logo, colores, portada, contacto y horario', icono: svg(<><circle cx="13.5" cy="6.5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="17.5" cy="14" r="2.5" /><path d="M12 22a10 10 0 110-20" /></>) },
   { vista: 'impresion', titulo: 'Dispositivos e impresión', detalle: 'Configura impresoras y destinos', icono: svg(<><path d="M6 9V3h12v6" /><rect x="3" y="9" width="18" height="9" rx="2" /><path d="M7 14h10v7H7z" /></>) },
-  { vista: 'whatsapp', titulo: 'WhatsApp y domicilios', detalle: 'Tu número y los repartidores', icono: svg(<path d="M21 12a8 8 0 01-11.6 7.1L3 21l1.9-6.2A8 8 0 1121 12z" />) },
+  { vista: 'whatsapp', titulo: 'WhatsApp y domicilios', detalle: 'Personalidad del bot, tu número y repartidores', icono: svg(<path d="M21 12a8 8 0 01-11.6 7.1L3 21l1.9-6.2A8 8 0 1121 12z" />) },
   { vista: 'fidelidad_config', titulo: 'Programa de fidelidad', detalle: 'Puntos, niveles, premios y corte mensual', icono: svg(<path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z" />) },
   { vista: 'shifts', titulo: 'Turnos y jornadas', detalle: 'Turnos de trabajo de tu equipo', icono: svg(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 11h18" /></>) },
   { vista: 'setup', titulo: 'Configuración guiada', detalle: 'Repasa paso a paso lo que falta', icono: svg(<><path d="M5 12l5 5L20 7" /></>) },

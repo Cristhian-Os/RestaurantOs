@@ -46,7 +46,7 @@ export function CerebroBot({ cfg }: { cfg: WaConfig | null }) {
       }
       return whatsappConfigService.guardarCerebro(cfg, c)
     },
-    onSuccess: () => { message.success('Cerebro del bot guardado'); qc.invalidateQueries({ queryKey: ['wa_config'] }) },
+    onSuccess: () => { message.success('Personalidad del bot guardada'); qc.invalidateQueries({ queryKey: ['wa_config'] }) },
     onError: e => message.error(errMsg(e)),
   })
 
@@ -56,7 +56,7 @@ export function CerebroBot({ cfg }: { cfg: WaConfig | null }) {
     <>
       <Card className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <p className="font-bold">Cerebro del bot</p>
+          <p className="font-bold">Personalidad del bot</p>
           <p className={AYUDA}>Aquí le cuentas al bot cómo es tu restaurante para que atienda a tus clientes por WhatsApp como lo harías tú.</p>
         </div>
 

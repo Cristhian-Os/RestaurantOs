@@ -46,7 +46,7 @@ export function WhatsAppConfig() {
 
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4" style={{ fontFamily: 'var(--w-font)' }}>
-      <ModuleHeader icon={<ChatIcon />} title="WhatsApp y domicilios" subtitle="El número de tu restaurante y los repartidores a los que se les avisa" />
+      <ModuleHeader icon={<ChatIcon />} title="WhatsApp y domicilios" subtitle="Personalidad del bot, número de tu restaurante y repartidores" />
 
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
