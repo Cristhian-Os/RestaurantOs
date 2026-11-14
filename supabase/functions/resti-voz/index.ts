@@ -73,6 +73,18 @@ async function vozEnFlujo(modelos: string[], clave: string, cuerpo: unknown, msT
   return null
 }
 
+/** Secretos de la plataforma (clave y modelos de voz): casi nunca cambian, así que se guardan 60 s en la instancia y se evita una consulta por cada frase. */
+let secretos: { t: number; v: Record<string, string> } | null = null
+async function leerSecretos(admin: { from: (t: string) => any }): Promise<Record<string, string>> {
+  if (secretos && Date.now() - secretos.t < 60_000) return secretos.v
+  const { data: filas } = await admin.from('platform_secrets').select('key, value').in('key', ['gemini_api_key', 'voz_modelo_stt', 'voz_modelo_tts', 'voz_nombre'])
+  const v: Record<string, string> = Object.fromEntries((filas ?? []).map((f: { key: string; value: string }) => [f.key, f.value]))
+  if (v.gemini_api_key) secretos = { t: Date.now(), v }
+  return v
+}
+/** Vocabulario del restaurante (platos, sabores, ingredientes): 5 min en la instancia, para no leer 3 tablas en cada frase. */
+const cacheVocab = new Map<string, { t: number; v: string }>()
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } })
@@ -82,23 +94,21 @@ Deno.serve(async (req: Request) => {
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     // Usuario y rol salen de la sesión (nunca del cuerpo): solo el administrador activo de un restaurante.
+    // Antes eran 5 consultas una tras otra antes de hablar; ahora la sesión y los secretos van a la vez, y luego el perfil y los topes a la vez.
     const auth = req.headers.get('Authorization') ?? ''
-    const { data: { user } } = await admin.auth.getUser(auth.replace('Bearer ', ''))
+    const [{ data: { user } }, s] = await Promise.all([admin.auth.getUser(auth.replace('Bearer ', '')), leerSecretos(admin)])
     if (!user) return json({ error: 'sin_sesion' }, 401)
-    const { data: prof } = await admin.from('profiles').select('role, active, restaurant_id').eq('id', user.id).maybeSingle()
+    const esEstado = peticion.accion === 'estado'
+    const [{ data: prof }, ...topes] = await Promise.all([
+      admin.from('profiles').select('role, active, restaurant_id').eq('id', user.id).maybeSingle(),
+      // Topes por usuario (costo): ráfaga y día, aparte de los del cerebro.
+      ...(esEstado ? [] : [[`rv:${user.id}`, 80, 600], [`rvd:${user.id}`, 600, 86400]].map(([key, max, secs]) => admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs }))),
+    ])
     if (!prof || prof.active === false || prof.role !== 'admin') return json({ error: 'sin_permiso' }, 403)
-
-    const { data: filas } = await admin.from('platform_secrets').select('key, value').in('key', ['gemini_api_key', 'voz_modelo_stt', 'voz_modelo_tts', 'voz_nombre'])
-    const s: Record<string, string> = Object.fromEntries((filas ?? []).map((f: { key: string; value: string }) => [f.key, f.value]))
     const clave = s.gemini_api_key
     if (!clave) return json({ error: 'sin_proveedor', stt: false, tts: false }, 503)
-    if (peticion.accion === 'estado') return json({ stt: true, tts: true })
-
-    // Topes por usuario (costo): ráfaga y día, aparte de los del cerebro.
-    for (const [key, max, secs] of [[`rv:${user.id}`, 80, 600], [`rvd:${user.id}`, 600, 86400]] as const) {
-      const { data: ok } = await admin.rpc('check_rate_limit', { p_key: key, p_max: max, p_window_seconds: secs })
-      if (ok === false) return json({ error: 'limite' }, 429)
-    }
+    if (esEstado) return json({ stt: true, tts: true })
+    if (topes.some(({ data: ok }) => ok === false)) return json({ error: 'limite' }, 429)
 
     if (peticion.accion === 'hablar_stream') {
       const flujo = await vozEnFlujo(listaModelos(s.voz_modelo_tts, MODELOS_TTS_POR_DEFECTO), clave, pedidoHablar(peticion.texto, s.voz_nombre || VOZ_POR_DEFECTO), 25_000)
@@ -108,7 +118,9 @@ Deno.serve(async (req: Request) => {
     if (peticion.accion === 'transcribir') {
       // Vocabulario del restaurante (platos, sabores, ingredientes): el oído acierta mucho más con las palabras que de verdad se usan.
       let vocab = ''
-      if (prof.restaurant_id) {
+      const enVocab = prof.restaurant_id ? cacheVocab.get(prof.restaurant_id) : undefined
+      if (enVocab && Date.now() - enVocab.t < 300_000) vocab = enVocab.v
+      else if (prof.restaurant_id) {
         try {
           const [{ data: platos }, { data: cfg }, { data: ings }] = await Promise.all([
             admin.from('dishes').select('name').eq('restaurant_id', prof.restaurant_id).limit(120),
@@ -118,6 +130,7 @@ Deno.serve(async (req: Request) => {
           const m = (cfg?.modules_enabled ?? {}) as Record<string, unknown>
           const lista = (v: unknown) => Array.isArray(v) ? v : []
           vocab = vocabulario([...(platos ?? []).map((x: { name: string }) => x.name), ...lista(m.helado_flavors), ...lista(m.jugo_flavors), ...lista(m.toppings), ...(ings ?? []).map((x: { nombre: string }) => x.nombre)])
+          cacheVocab.set(prof.restaurant_id, { t: Date.now(), v: vocab })
         } catch { /* sin vocabulario: se transcribe igual */ }
       }
       const r = await conRespaldo(listaModelos(s.voz_modelo_stt, MODELOS_STT_POR_DEFECTO), clave, pedidoTranscribir(peticion.audio, vocab), 10_000)
