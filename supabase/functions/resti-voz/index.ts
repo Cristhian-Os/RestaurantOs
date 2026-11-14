@@ -88,6 +88,9 @@ const cacheVocab = new Map<string, { t: number; v: string }>()
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } })
+  const t0 = Date.now()
+  /** Tiempos por etapa (solo la acción y milisegundos: nunca audio, texto ni nombres). */
+  const medir = (accion: string, previoMs: number, proveedorMs: number) => console.info('tiempos', JSON.stringify({ fn: 'resti-voz', accion, previo_ms: previoMs, proveedor_ms: proveedorMs, total_ms: Date.now() - t0 }))
   try {
     const peticion = validarPeticion(await req.json().catch(() => null))
     if (!peticion) return json({ error: 'peticion_invalida' }, 400)
@@ -109,9 +112,12 @@ Deno.serve(async (req: Request) => {
     if (!clave) return json({ error: 'sin_proveedor', stt: false, tts: false }, 503)
     if (esEstado) return json({ stt: true, tts: true })
     if (topes.some(({ data: ok }) => ok === false)) return json({ error: 'limite' }, 429)
+    const previoMs = Date.now() - t0
 
     if (peticion.accion === 'hablar_stream') {
+      const tp = Date.now()
       const flujo = await vozEnFlujo(listaModelos(s.voz_modelo_tts, MODELOS_TTS_POR_DEFECTO), clave, pedidoHablar(peticion.texto, s.voz_nombre || VOZ_POR_DEFECTO), 25_000)
+      medir('hablar_stream', previoMs, Date.now() - tp)   // proveedor_ms = hasta el primer audio
       return flujo ?? json({ error: 'proveedor' }, 502)
     }
 
@@ -133,7 +139,9 @@ Deno.serve(async (req: Request) => {
           cacheVocab.set(prof.restaurant_id, { t: Date.now(), v: vocab })
         } catch { /* sin vocabulario: se transcribe igual */ }
       }
+      const tp = Date.now()
       const r = await conRespaldo(listaModelos(s.voz_modelo_stt, MODELOS_STT_POR_DEFECTO), clave, pedidoTranscribir(peticion.audio, vocab), 10_000)
+      medir('transcribir', previoMs, Date.now() - tp)
       if (!r.ok) { console.error('stt', r.status); return json({ error: 'proveedor' }, 502) }
       return json({ texto: leerTranscripcion(r.data) })
     }
