@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { crearConversacion, type EstadoConv } from '../lib/resti/voz/conversacion'
 import { iniciarCapturaVad, iniciarCapturaNavegador } from '../lib/resti/voz/captura'
 import { crearReproductor, hablarConNavegador, callarNavegador } from '../lib/resti/voz/reproductor'
+import { supabase } from '../services/supabaseClient'
 import { vozDelServidorDisponible, transcribirAudio, abrirVozEnFlujo } from '../lib/resti/voz/servicio'
 
 export type ModoVoz = 'servidor' | 'navegador'
@@ -72,6 +73,8 @@ export function useRestiConversacion(opts: { responder: (texto: string) => Promi
     if (c.estado() !== 'apagado') { if (usuarioHablandoRef.current) { c.terminarFrase(); return } c.detener(); return }
     setError(null)
     reproductor.current!.preparar()
+    // Calienta el cerebro mientras se activa el micrófono: la primera pregunta ya no paga el arranque en frío de la función (texto vacío: responde al instante sin gastar IA).
+    void supabase.functions.invoke('resti-brain', { body: { text: '' } }).catch(() => {})
     if (modoRef.current === null) { const ok = await vozDelServidorDisponible(); modoRef.current = ok ? 'servidor' : 'navegador'; setModo(modoRef.current) }
     await c.iniciar()
   }, [asegurar])
