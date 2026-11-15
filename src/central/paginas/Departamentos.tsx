@@ -50,7 +50,7 @@ function Detalle({ id }: { id: string }) {
         <p className="m-0 text-[color:var(--w-text-2)]">{d.descripcion}</p>
         {d.estado === 'en_construccion' && <Badge tone="warning">En construcción: todavía no tiene jefe ni agentes</Badge>}
       </Card>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="flex flex-col gap-3">
           <TituloBloque>Agentes</TituloBloque>
           {agentes.length === 0 ? <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">Este espacio no tiene agentes asignados.</p> : (

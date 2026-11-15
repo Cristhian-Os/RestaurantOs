@@ -73,7 +73,7 @@ export function Inicio() {
         <Kpi etiqueta="Esperan tu decisión" valor={pendientes.length} detalle={pendientes.length ? 'Aprobaciones pendientes' : 'Nada pendiente'} icono="escudo" color={pendientes.length ? 'var(--w-warning)' : undefined} />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="flex flex-col gap-3">
           <TituloBloque>Aprobaciones pendientes</TituloBloque>
           {pendientes.length === 0 ? (
@@ -139,10 +139,10 @@ export function Inicio() {
           ) : (
             <ul className="m-0 flex list-none flex-col gap-1 p-0">
               {datos.restaurantes.slice(0, 6).map(r => (
-                <li key={r.id} className="flex min-h-[44px] items-center gap-3">
-                  <span className="min-w-0 flex-1 truncate text-[color:var(--w-text)]">{r.nombre}</span>
-                  <span className="text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{r.pedidos_hoy} pedidos hoy</span>
+                <li key={r.id} className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-1">
+                  <span className="min-w-0 truncate text-[color:var(--w-text)]">{r.nombre}</span>
                   <Badge tone={r.activo ? 'success' : 'neutral'}>{r.activo ? 'Activo' : 'Inactivo'}</Badge>
+                  <span className="col-span-2 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{r.pedidos_hoy} pedidos hoy</span>
                 </li>
               ))}
             </ul>

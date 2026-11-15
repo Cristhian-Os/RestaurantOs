@@ -76,6 +76,62 @@ function CampoLlave({ nombre, etiqueta, guardada, origen, oculta = true, alCambi
   )
 }
 
+/** Limpia lo que suele pegarse de más (comillas, "Bearer ", espacios, saltos de línea). */
+function limpiarLlave(t: string): string {
+  return t.replace(/^\s*(bearer\s+)?/i, '').replace(/\s+/g, '').replace(/^["'`]+|["'`]+$/g, '')
+}
+
+type Deteccion = { nombre: NombreLlave; etiqueta: string; proveedor?: string } | { nada: string } | null
+
+/** Reconoce de quién es una llave por su forma. */
+function detectar(v: string): Deteccion {
+  if (!v) return null
+  if (/^sk-ant-/i.test(v)) return { nombre: 'CENTRAL_CLAVE_CLAUDE', etiqueta: 'Claude (Anthropic)', proveedor: 'claude' }
+  if (/^nvapi-/i.test(v)) return { nombre: 'CENTRAL_CLAVE_NVIDIA', etiqueta: 'NVIDIA', proveedor: 'nvidia' }
+  if (/^sk-(proj|svcacct|admin)-/i.test(v)) return { nada: 'Esta parece una llave de OpenAI (ChatGPT). Central todavía no la usa.' }
+  if (/^sk-[A-Za-z0-9]{20,}$/.test(v)) return { nombre: 'CENTRAL_CLAVE_DEEPSEEK', etiqueta: 'DeepSeek', proveedor: 'deepseek' }
+  if (/^AIza/.test(v)) return { nada: 'Esta es una llave de Gemini (Google). Central todavía no usa Gemini; por ahora sirve Claude, NVIDIA o DeepSeek.' }
+  if (/^\d{6,12}:[A-Za-z0-9_-]{30,}$/.test(v)) return { nombre: 'CENTRAL_TELEGRAM_TOKEN', etiqueta: 'Token del bot de Telegram' }
+  if (/^-?\d{5,15}$/.test(v)) return { nombre: 'CENTRAL_TELEGRAM_CHAT_ID', etiqueta: 'Tu chat_id de Telegram' }
+  return { nada: 'No reconozco de qué proveedor es. Revisa que la copiaste completa.' }
+}
+
+/** Una sola barra: pegas la llave de cualquier proveedor, se reconoce sola y se guarda en el lugar correcto. */
+function BarraLlave({ alCambiar }: { alCambiar: () => void }) {
+  const { ocupado, error, ejecutar } = useAccion()
+  const [crudo, setCrudo] = useState('')
+  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null)
+  const valor = limpiarLlave(crudo)
+  const det = detectar(valor)
+  const reconocida = det && 'nombre' in det ? det : null
+  return (
+    <div className="flex flex-col gap-2 rounded-[var(--w-r-md)] border border-[var(--w-border)] p-3">
+      <span className="font-semibold text-[color:var(--w-text)]">Pega aquí tu llave (API key)</span>
+      <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Sirve la de Claude, NVIDIA o DeepSeek, y el token o el chat_id de Telegram. Se reconoce sola y no se vuelve a mostrar.</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[200px] flex-1">
+          <Input label="Llave" type="password" autoComplete="off" spellCheck={false} value={crudo} onChange={e => { setCrudo(e.target.value); setAviso(null) }} placeholder="Pega aquí" />
+        </div>
+        <Button size="sm" disabled={!reconocida} loading={ocupado} onClick={() => reconocida && void ejecutar(async () => {
+          const e = await guardarLlave(reconocida.nombre, valor)
+          if (e) return e
+          setCrudo(''); alCambiar()
+          if (reconocida.proveedor) {
+            const r = await probarProveedor(reconocida.proveedor)
+            setAviso({ ok: r.ok, texto: r.ok ? `${reconocida.etiqueta}: guardada y funciona.` : `${reconocida.etiqueta}: se guardó, pero el proveedor la rechazó (${r.texto}). Revisa que sea la llave correcta.` })
+          } else setAviso({ ok: true, texto: `${reconocida.etiqueta}: guardado.` })
+          return null
+        })}>Guardar</Button>
+      </div>
+      {det && (reconocida
+        ? <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-success)]">Reconocida: {reconocida.etiqueta}</p>
+        : <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-danger)]">{(det as { nada: string }).nada}</p>)}
+      {aviso && <p role="status" className={`m-0 text-[length:var(--w-fs-caption)] ${aviso.ok ? 'text-[color:var(--w-success)]' : 'text-[color:var(--w-danger)]'}`}>{aviso.texto}</p>}
+      <ErrorAccion texto={error} />
+    </div>
+  )
+}
+
 /** Panel de IA: interruptor general, tope de gasto, modelo por defecto y las llaves (se pegan aquí y solo las ve el servidor). */
 function PanelIA() {
   const { datos } = useCentral()
@@ -115,6 +171,7 @@ function PanelIA() {
       <Opcion clave="ia_modelo_defecto" titulo="Modelo principal" ayuda="Claude es el principal. NVIDIA da acceso a DeepSeek y otros; DeepSeek directo es la alternativa." opciones={[['claude', 'Claude (Anthropic)'], ['nvidia', 'NVIDIA (DeepSeek y otros)'], ['deepseek', 'DeepSeek directo']]} />
       <ErrorAccion texto={error} />
       {fallo && <AvisoHonesto>{fallo}</AvisoHonesto>}
+      <BarraLlave alCambiar={recargarEstado} />
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {(est?.proveedores ?? []).map(p => (
           <li key={p.id} className="flex flex-col gap-2 border-b border-[var(--w-border)] pb-3 last:border-0">
@@ -123,7 +180,8 @@ function PanelIA() {
               <Badge tone={p.llave ? 'success' : 'neutral'}>{p.llave ? 'Llave guardada' : 'Falta la llave'}</Badge>
               <BotonProbar texto="Probar" probar={() => probarProveedor(p.id)} />
             </div>
-            {NOMBRE_LLAVE[p.id] && <CampoLlave nombre={NOMBRE_LLAVE[p.id]} etiqueta="Llave de API" guardada={p.llave} origen={p.origen} alCambiar={recargarEstado} />}
+            {p.origen === 'servidor' && <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Esta llave está guardada en el servidor (Supabase) y tiene prioridad.</p>}
+            {p.origen === 'panel' && NOMBRE_LLAVE[p.id] && <div><Button size="sm" variant="ghost" onClick={() => void quitarLlave(NOMBRE_LLAVE[p.id]).then(recargarEstado)}>Quitar llave</Button></div>}
           </li>
         ))}
         {est && (
@@ -133,8 +191,7 @@ function PanelIA() {
               <Badge tone={est.telegram.token && est.telegram.chat ? 'success' : 'neutral'}>{est.telegram.token && est.telegram.chat ? 'Configurado' : 'Falta configurar'}</Badge>
               <BotonProbar texto="Enviar prueba" probar={probarTelegram} />
             </div>
-            <CampoLlave nombre="CENTRAL_TELEGRAM_TOKEN" etiqueta="Token del bot (BotFather)" guardada={est.telegram.token} origen={est.telegram.origenToken} alCambiar={recargarEstado} />
-            <CampoLlave nombre="CENTRAL_TELEGRAM_CHAT_ID" etiqueta="Tu chat_id (número)" guardada={est.telegram.chat} origen={est.telegram.origenChat} oculta={false} alCambiar={recargarEstado} />
+            <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Pega el token del bot y tu chat_id en la barra de arriba (token: {est.telegram.token ? 'listo' : 'falta'} · chat_id: {est.telegram.chat ? 'listo' : 'falta'}).</p>
           </li>
         )}
       </ul>
