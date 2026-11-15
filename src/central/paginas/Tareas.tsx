@@ -44,7 +44,7 @@ function NuevaTarea({ abierto, onCerrar }: { abierto: boolean; onCerrar: () => v
       <div className="flex flex-col gap-3">
         <Input label="Título" value={f.titulo} onChange={e => set('titulo', e.target.value)} required maxLength={160} />
         <Textarea label="Descripción" value={f.descripcion} onChange={e => set('descripcion', e.target.value)} rows={3} maxLength={4000} />
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Prioridad" value={f.prioridad} onChange={e => set('prioridad', e.target.value as Prioridad)}>{(Object.keys(ETIQUETA_PRIORIDAD) as Prioridad[]).map(p => <option key={p} value={p}>{ETIQUETA_PRIORIDAD[p]}</option>)}</Select>
           <Select label="Nivel de autorización" value={f.nivel} onChange={e => { set('nivel', e.target.value as Nivel); set('agente', '') }} hint={NIVELES_INFO[f.nivel].resumen}>{(['N0', 'N1', 'N2', 'N3'] as Nivel[]).map(n => <option key={n} value={n}>{NIVELES_INFO[n].titulo}</option>)}</Select>
           <Select label="Responsable" value={f.agente} onChange={e => set('agente', e.target.value)} hint={f.nivel === 'N3' ? 'Las tareas N3 solo las hace una persona.' : 'Solo aparecen los agentes cuyo nivel alcanza.'}>
@@ -81,7 +81,7 @@ function DetalleTarea({ t, onCerrar }: { t: Tarea | null; onCerrar: () => void }
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2"><Badge tone={TONO_ESTADO[t.estado]}>{ETIQUETA_ESTADO_TAREA[t.estado]}</Badge><Badge tone={tonoPrioridad(t.prioridad)}>{ETIQUETA_PRIORIDAD[t.prioridad]}</Badge><Badge tone="info">{NIVELES_INFO[t.nivel_requerido].titulo}</Badge></div>
         {t.descripcion && <p className="m-0 whitespace-pre-wrap text-[color:var(--w-text-2)]">{t.descripcion}</p>}
-        <dl className="m-0 grid gap-2 text-[length:var(--w-fs-label)] sm:grid-cols-2">
+        <dl className="m-0 grid grid-cols-1 gap-2 text-[length:var(--w-fs-label)] sm:grid-cols-2">
           <div><dt className="text-[color:var(--w-text-3)]">Responsable</dt><dd className="m-0 text-[color:var(--w-text)]">{agente(t.responsable_agente_id)?.nombre ?? 'Cristhian'}</dd></div>
           <div><dt className="text-[color:var(--w-text-3)]">Área</dt><dd className="m-0 text-[color:var(--w-text)]">{depto(t.departamento_id)?.nombre ?? 'Sin área'}</dd></div>
           <div><dt className="text-[color:var(--w-text-3)]">Creada</dt><dd className="m-0 text-[color:var(--w-text)]">{fechaHora(t.created_at)}</dd></div>
@@ -181,7 +181,7 @@ function Proyectos() {
     <>
       <div><Button onClick={() => setAbierto(true)}>Nuevo proyecto</Button></div>
       {datos.proyectos.length === 0 ? <StatePanel kind="empty" title="Todavía no hay proyectos" text="Un proyecto agrupa tareas con un objetivo común." /> : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {datos.proyectos.map(p => {
             const ts = datos.tareas.filter(t => t.proyecto_id === p.id); const hechas = ts.filter(t => t.estado === 'completada').length
             return (

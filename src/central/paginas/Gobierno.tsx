@@ -205,7 +205,7 @@ export function Integraciones() {
     <Pagina titulo="Integraciones" subtitulo="Modelos de IA, avisos y redes sociales, todo apagado hasta que tú lo conectes">
       <AvisoHonesto>Nada se conecta solo. Pega aquí tus llaves: el servidor las guarda y no se vuelven a mostrar ni las ven los agentes (para cambiar una, pega otra). En redes sociales los agentes solo preparan borradores: publicar siempre lo decide una persona.</AvisoHonesto>
       <PanelIA />
-      {datos.integraciones.length === 0 ? <StatePanel kind="empty" title="Sin integraciones registradas" /> : <div className="grid gap-4 md:grid-cols-2">{datos.integraciones.map(i => <TarjetaIntegracion key={i.id} i={i} />)}</div>}
+      {datos.integraciones.length === 0 ? <StatePanel kind="empty" title="Sin integraciones registradas" /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{datos.integraciones.map(i => <TarjetaIntegracion key={i.id} i={i} />)}</div>}
     </Pagina>
   )
 }

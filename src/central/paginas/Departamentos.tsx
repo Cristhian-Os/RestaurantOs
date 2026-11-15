@@ -100,7 +100,7 @@ export function Departamentos() {
       {[2, 3, 4].map(anillo => (
         <div key={anillo} className="flex flex-col gap-3">
           <TituloBloque>{ETIQUETA_ANILLO[anillo]}</TituloBloque>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {datos.departamentos.filter(d => d.anillo === anillo).map(d => <TarjetaDepto key={d.id} d={d} />)}
           </div>
         </div>

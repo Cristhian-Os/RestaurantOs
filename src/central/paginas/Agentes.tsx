@@ -124,7 +124,7 @@ function Permisos({ a }: { a: Agente }) {
         </tbody>
       </table></div>
       <AvisoHonesto>Un agente nunca se aprueba a sí mismo ni sube sus propios permisos: este cambio solo lo haces tú, y queda en la auditoría.</AvisoHonesto>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Select label="Nivel máximo" value={nivel} onChange={e => setNivel(e.target.value as NivelAgente)} hint="N3 es solo humano: no existe para agentes.">
           {(['N0', 'N1', 'N2'] as NivelAgente[]).map(n => <option key={n} value={n}>{NIVELES_INFO[n].titulo}</option>)}
         </Select>
@@ -175,7 +175,7 @@ function Ficha({ id }: { id: string }) {
       <Tabs label="Secciones del agente" value={pestana} onChange={setPestana} items={[{ key: 'resumen', label: 'Resumen' }, { key: 'conversacion', label: 'Conversación' }, { key: 'tareas', label: `Tareas (${tareas.length})` }, { key: 'historial', label: 'Historial' }, { key: 'permisos', label: 'Permisos' }]} />
       <Card className="flex flex-col gap-4">
         {pestana === 'resumen' && (
-          <dl className="m-0 grid gap-3 sm:grid-cols-2">
+          <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[['Reporta a', jefe?.nombre ?? 'Cristhian (directo)'], ['Ciclo de vida', ETIQUETA_CICLO[a.ciclo]], ['Presupuesto mensual', a.presupuesto_mensual ? `$ ${a.presupuesto_mensual}` : 'Sin presupuesto asignado'], ['Modelos', a.modelos.length ? a.modelos.join(', ') : 'Ninguno conectado'], ['Herramientas', a.herramientas.length ? a.herramientas.join(', ') : 'Ninguna'], ['Objetivos', a.objetivos.length ? a.objetivos.join(' · ') : 'Todavía sin objetivos definidos']].map(([k, v]) => (
               <div key={k}><dt className="text-[length:var(--w-fs-caption)] font-semibold text-[color:var(--w-text-3)]">{k}</dt><dd className="m-0 text-[color:var(--w-text)]">{v}</dd></div>
             ))}
@@ -217,7 +217,7 @@ export function Agentes() {
       <AvisoHonesto>Todos los agentes están <b>diseñados, en N0 y sin conexión</b>. Ninguno actúa ni responde con inteligencia artificial hasta que tú configures y autorices un proveedor.</AvisoHonesto>
       <div className="max-w-xs"><Select label="Filtrar por departamento" value={area} onChange={e => setArea(e.target.value)}><option value="">Todos</option>{datos.departamentos.filter(d => datos.agentes.some(a => a.departamento_id === d.id)).map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}</Select></div>
       {lista.length === 0 ? <StatePanel kind="empty" title="Sin agentes en este filtro" /> : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{lista.map(a => <TarjetaAgente key={a.id} a={a} />)}</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{lista.map(a => <TarjetaAgente key={a.id} a={a} />)}</div>
       )}
       <NuevoAgente abierto={nuevo} onCerrar={() => setNuevo(false)} />
     </Pagina>

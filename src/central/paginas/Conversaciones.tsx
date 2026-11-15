@@ -29,7 +29,7 @@ export function Conversaciones() {
     <Pagina titulo="Conversaciones" subtitulo="Canales institucionales y chats directos con los agentes">
       <AvisoHonesto>Tus mensajes se guardan a tu nombre. Los agentes aún no están conectados a un modelo de IA: en un chat directo responden en <b>simulación local</b>; en los canales todavía no participan.</AvisoHonesto>
       {lista.length === 0 ? <StatePanel kind="empty" title="Sin conversaciones" /> : (
-        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <nav aria-label="Conversaciones" className="flex max-h-[60vh] flex-row gap-2 overflow-x-auto lg:max-h-none lg:flex-col lg:overflow-visible">
             {lista.map(c => (
               <Enlace key={c.id} a="conversaciones" id={c.id} className={cn('flex min-h-[48px] shrink-0 items-center gap-2 rounded-[var(--w-r-md)] border px-3 font-semibold lg:shrink',
