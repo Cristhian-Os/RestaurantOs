@@ -1,23 +1,24 @@
 // central-agente: da voz real a un agente de RestaurantOS Central. Solo el dueño con su código de 2 pasos puede llamarla.
-// Acciones:  responder (por defecto) · estado (qué llaves hay guardadas, sin mostrarlas) · probar (una llamada mínima para validar una llave).
-// Seguridad: las llaves viven SOLO como secretos del servidor (CENTRAL_CLAVE_*); nada de esto llega al navegador ni a los agentes.
+// Acciones:  responder (por defecto) · estado (qué llaves hay guardadas, sin mostrarlas) · probar (una llamada mínima para validar una llave)
+//            · guardar_llave / quitar_llave (las llaves que pegas en el panel de Integraciones).
+// Seguridad: las llaves viven SOLO en el servidor (secretos de Supabase o la tabla platform_secrets, sin acceso desde la app); nunca llegan al navegador ni a los agentes.
 // Apagado general, límite de gasto mensual y presupuesto por agente se revisan ANTES de cada llamada. El agente solo conversa: no ejecuta nada.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { callModel, type Fetch, type RespuestaModelo } from '../_shared/modelo.ts'
 import { cors, exigirDueno } from '../_shared/central_acceso.ts'
+import { SECRETOS, cargarLlaves, filaDe, validarSecreto } from '../_shared/central_llaves.ts'
 import { llamarAnthropic } from './anthropic.ts'
 import {
   MAX_TOKENS_RESPUESTA, PROVEEDORES, armarTurnos, costoEstimado, decidirLimite, elegirProveedor, modeloDe, primerDiaDelMes, proveedorPorId, sistemaAgente, textoBloqueo, type Proveedor,
 } from './logica.ts'
 
 const fetchReal: Fetch = (url, init) => fetch(url, init)
-const clave = (p: Proveedor) => Deno.env.get(p.secreto) ?? ''
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function llamar(p: Proveedor, modelo: string, sistema: string, turnos: { rol: 'user' | 'assistant'; texto: string }[], maxTokens: number, timeoutMs: number): Promise<RespuestaModelo> {
-  if (p.tipo === 'anthropic') return llamarAnthropic({ modelo, clave: clave(p) }, { sistema, turnos, maxTokens, timeoutMs }, fetchReal)
+async function llamar(p: Proveedor, llave: string, modelo: string, sistema: string, turnos: { rol: 'user' | 'assistant'; texto: string }[], maxTokens: number, timeoutMs: number): Promise<RespuestaModelo> {
+  if (p.tipo === 'anthropic') return llamarAnthropic({ modelo, clave: llave }, { sistema, turnos, maxTokens, timeoutMs }, fetchReal)
   const ultimo = turnos[turnos.length - 1]
-  return callModel({ proveedor: 'compatible', modelo, clave: clave(p), urlBase: p.urlBase }, { sistema, usuario: ultimo.texto, mensajes: turnos.slice(0, -1), json: false, maxTokens, timeoutMs }, fetchReal)
+  return callModel({ proveedor: 'compatible', modelo, clave: llave, urlBase: p.urlBase }, { sistema, usuario: ultimo.texto, mensajes: turnos.slice(0, -1), json: false, maxTokens, timeoutMs }, fetchReal)
 }
 
 Deno.serve(async (req: Request) => {
@@ -30,6 +31,23 @@ Deno.serve(async (req: Request) => {
     const acceso = await exigirDueno(req, admin as never)
     if (!acceso.ok) return no(acceso.codigo, acceso.status)
 
+    // ── guardar / quitar una llave desde el panel (el valor nunca se devuelve ni se registra) ──
+    if (body?.accion === 'guardar_llave' || body?.accion === 'quitar_llave') {
+      const nombre = typeof body.nombre === 'string' ? body.nombre : ''
+      const guardar = body.accion === 'guardar_llave'
+      const motivo = guardar ? validarSecreto(nombre, body.valor) : (SECRETOS as readonly string[]).includes(nombre) ? null : 'Ese dato no existe.'
+      if (motivo) return out({ ok: false, error: 'peticion', mensaje: motivo }, 400)
+      const { error } = guardar
+        ? await admin.from('platform_secrets').upsert({ key: filaDe(nombre), value: String(body.valor).trim(), updated_at: new Date().toISOString() }, { onConflict: 'key' })
+        : await admin.from('platform_secrets').delete().eq('key', filaDe(nombre))
+      if (error) return out({ ok: false, error: 'interno', mensaje: 'No se pudo guardar. Inténtalo de nuevo.' }, 500)
+      await admin.from('central_auditoria').insert({ actor_tipo: 'humano', actor_id: acceso.userId, accion: guardar ? 'guardar_llave' : 'quitar_llave', recurso: nombre, nivel: 'N3', resultado: 'ok', detalle: { origen: 'panel' } })
+      return out({ ok: true })
+    }
+
+    const llaves = await cargarLlaves(admin)
+    const clave = (p: Proveedor) => llaves.leer(p.secreto)
+
     const { data: filas } = await admin.from('central_config').select('clave, valor')
       .in('clave', ['ia_encendida', 'ia_tope_mensual_usd', 'ia_modelo_defecto', 'ia_modelos', 'ia_precios'])
     const cfg: Record<string, unknown> = Object.fromEntries((filas ?? []).map((f: { clave: string; valor: unknown }) => [f.clave, f.valor]))
@@ -37,8 +55,8 @@ Deno.serve(async (req: Request) => {
     if (body?.accion === 'estado') {
       return out({
         ok: true, encendida: cfg.ia_encendida === true, topeMensualUsd: Number(cfg.ia_tope_mensual_usd) || 0,
-        proveedores: PROVEEDORES.map(p => ({ id: p.id, nombre: p.nombre, llave: clave(p) !== '', modelo: modeloDe(p, cfg.ia_modelos) })),
-        telegram: { token: !!Deno.env.get('CENTRAL_TELEGRAM_TOKEN'), chat: !!Deno.env.get('CENTRAL_TELEGRAM_CHAT_ID') },
+        proveedores: PROVEEDORES.map(p => ({ id: p.id, nombre: p.nombre, llave: clave(p) !== '', origen: llaves.origen(p.secreto), modelo: modeloDe(p, cfg.ia_modelos) })),
+        telegram: { token: llaves.leer('CENTRAL_TELEGRAM_TOKEN') !== '', chat: llaves.leer('CENTRAL_TELEGRAM_CHAT_ID') !== '', origenToken: llaves.origen('CENTRAL_TELEGRAM_TOKEN'), origenChat: llaves.origen('CENTRAL_TELEGRAM_CHAT_ID') },
       })
     }
 
@@ -48,7 +66,7 @@ Deno.serve(async (req: Request) => {
       if (!clave(p)) return no('sin_proveedor')
       const modelo = modeloDe(p, cfg.ia_modelos)
       try {
-        const r = await llamar(p, modelo, 'Responde solo con la palabra OK.', [{ rol: 'user', texto: 'Hola' }], 16, 15_000)
+        const r = await llamar(p, clave(p), modelo, 'Responde solo con la palabra OK.', [{ rol: 'user', texto: 'Hola' }], 16, 15_000)
         return out({ ok: true, proveedor: p.id, modelo, respuesta: r.texto.slice(0, 40) })
       } catch (e) {
         return no('proveedor_falla', 502, e instanceof Error ? e.message.slice(0, 120) : undefined)   // p. ej. "El proveedor respondió 401" = llave incorrecta
@@ -91,7 +109,7 @@ Deno.serve(async (req: Request) => {
 
     let r: RespuestaModelo
     try {
-      r = await llamar(proveedor, modelo, sistemaAgente({ nombre: agente.nombre, rol: agente.rol, especialidad: agente.especialidad, objetivos: agente.objetivos, nivel: agente.nivel }, area?.nombre ?? 'Central'),
+      r = await llamar(proveedor, clave(proveedor), modelo, sistemaAgente({ nombre: agente.nombre, rol: agente.rol, especialidad: agente.especialidad, objetivos: agente.objetivos, nivel: agente.nivel }, area?.nombre ?? 'Central'),
         turnos, MAX_TOKENS_RESPUESTA, 25_000)
     } catch (e) {
       return no('proveedor_falla', 502, e instanceof Error ? e.message.slice(0, 120) : undefined)

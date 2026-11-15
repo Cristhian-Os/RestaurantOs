@@ -3,6 +3,7 @@
 // El token del bot y tu chat_id viven SOLO como secretos del servidor (CENTRAL_TELEGRAM_TOKEN, CENTRAL_TELEGRAM_CHAT_ID).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { cors, exigirDueno } from '../_shared/central_acceso.ts'
+import { cargarLlaves } from '../_shared/central_llaves.ts'
 import { textoBloqueo } from '../central-agente/logica.ts'
 
 Deno.serve(async (req: Request) => {
@@ -14,8 +15,9 @@ Deno.serve(async (req: Request) => {
     const acceso = await exigirDueno(req, admin as never)
     if (!acceso.ok) return out({ ok: false, error: acceso.codigo, mensaje: textoBloqueo(acceso.codigo) }, acceso.status)
 
-    const token = Deno.env.get('CENTRAL_TELEGRAM_TOKEN'), chat = Deno.env.get('CENTRAL_TELEGRAM_CHAT_ID')
-    if (!token || !chat) return out({ ok: false, error: 'sin_configurar', mensaje: 'Faltan el token del bot o tu chat_id en los secretos del servidor.' }, 503)
+    const llaves = await cargarLlaves(admin)
+    const token = llaves.leer('CENTRAL_TELEGRAM_TOKEN'), chat = llaves.leer('CENTRAL_TELEGRAM_CHAT_ID')
+    if (!token || !chat) return out({ ok: false, error: 'sin_configurar', mensaje: 'Faltan el token del bot o tu chat_id. Pégalos en Integraciones.' }, 503)
 
     const texto = body?.accion === 'avisar' && typeof body.texto === 'string'
       ? body.texto.replace(/\s+/g, ' ').trim().slice(0, 500)

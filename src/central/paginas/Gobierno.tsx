@@ -1,7 +1,8 @@
 /**
  * Gobierno.tsx — integraciones, presupuestos y configuración de Central.
  * Honestidad ante todo: una integración no se marca "activa" desde la pantalla (la base lo impide sin adaptador real y
- * autorización registrada) y no hay campos para claves ni credenciales: esas nunca pasan por aquí ni las ven los agentes.
+ * autorización registrada). Las llaves de IA y de Telegram se PEGAN aquí (campo oculto): viajan una sola vez al servidor, que las
+ * guarda y nunca las devuelve; la pantalla solo muestra "Llave guardada". Los agentes jamás las ven.
  */
 import { useEffect, useState } from 'react'
 import { Badge, type Tone } from '../../components/ui/Badge'
@@ -10,7 +11,7 @@ import { Card } from '../../components/ui/Card'
 import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { Toggle } from '../../components/ui/Toggle'
-import { actualizarAgente, actualizarIntegracion, estadoConexiones, guardarConfig, probarProveedor, probarTelegram, type EstadoConexiones } from '../acciones.ts'
+import { actualizarAgente, actualizarIntegracion, estadoConexiones, guardarConfig, guardarLlave, probarProveedor, probarTelegram, quitarLlave, type EstadoConexiones, type NombreLlave } from '../acciones.ts'
 import { usd, type Integracion } from '../catalogo.ts'
 import { useCentral, useIndices } from '../datos.tsx'
 import { AgenteAvatar, AvisoHonesto, ErrorAccion, Kpi, Pagina, TituloBloque, useAccion } from '../ui.tsx'
@@ -51,7 +52,31 @@ function BotonProbar({ texto, probar }: { texto: string; probar: () => Promise<{
   )
 }
 
-/** Panel de IA: interruptor general, tope de gasto, modelo por defecto y estado de cada llave (las llaves viven SOLO en el servidor). */
+const NOMBRE_LLAVE: Record<string, NombreLlave> = { claude: 'CENTRAL_CLAVE_CLAUDE', nvidia: 'CENTRAL_CLAVE_NVIDIA', deepseek: 'CENTRAL_CLAVE_DEEPSEEK' }
+
+/** Campo para pegar una llave: se envía una vez al servidor y se borra de la pantalla; nunca se vuelve a mostrar. */
+function CampoLlave({ nombre, etiqueta, guardada, origen, oculta = true, alCambiar }: {
+  nombre: NombreLlave; etiqueta: string; guardada: boolean; origen: 'servidor' | 'panel' | null; oculta?: boolean; alCambiar: () => void
+}) {
+  const { ocupado, error, ejecutar } = useAccion()
+  const [valor, setValor] = useState('')
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[200px] flex-1">
+          <Input label={etiqueta} type={oculta ? 'password' : 'text'} autoComplete="off" spellCheck={false} value={valor} onChange={e => setValor(e.target.value)}
+            placeholder={guardada ? '•••••• guardada: pega otra para cambiarla' : 'Pega aquí'} />
+        </div>
+        <Button size="sm" variant="secondary" disabled={!valor.trim()} loading={ocupado} onClick={() => void ejecutar(async () => { const e = await guardarLlave(nombre, valor); if (!e) { setValor(''); alCambiar() } return e })}>Guardar</Button>
+        {origen === 'panel' && <Button size="sm" variant="ghost" loading={ocupado} onClick={() => void ejecutar(async () => { const e = await quitarLlave(nombre); if (!e) alCambiar(); return e })}>Quitar</Button>}
+      </div>
+      {origen === 'servidor' && <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Esta ya está guardada en el servidor (Supabase). Si pegas otra aquí, se usa la del servidor.</p>}
+      <ErrorAccion texto={error} />
+    </div>
+  )
+}
+
+/** Panel de IA: interruptor general, tope de gasto, modelo por defecto y las llaves (se pegan aquí y solo las ve el servidor). */
 function PanelIA() {
   const { datos } = useCentral()
   const { ocupado, error, ejecutar } = useAccion()
@@ -63,11 +88,13 @@ function PanelIA() {
   const topeNum = Number(topeTxt)
   const topeValido = topeTxt.trim() !== '' && Number.isFinite(topeNum) && topeNum >= 0
   const modelo = typeof datos.config.ia_modelo_defecto === 'string' ? (datos.config.ia_modelo_defecto as string) : 'claude'
+  const [version, setVersion] = useState(0)
+  const recargarEstado = () => setVersion(v => v + 1)
   useEffect(() => {
     let vivo = true
-    void estadoConexiones().then(r => { if (!vivo) return; if (r.ok === true) setEst(r.datos); else setFallo(r.mensaje) })
+    void estadoConexiones().then(r => { if (!vivo) return; if (r.ok === true) { setEst(r.datos); setFallo(null) } else setFallo(r.mensaje) })
     return () => { vivo = false }
-  }, [])
+  }, [version])
   const llaveDe = (id: string) => est?.proveedores.find(p => p.id === id)?.llave === true
   const puedeEncender = tope > 0 && llaveDe(modelo)
   return (
@@ -90,17 +117,24 @@ function PanelIA() {
       {fallo && <AvisoHonesto>{fallo}</AvisoHonesto>}
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {(est?.proveedores ?? []).map(p => (
-          <li key={p.id} className="flex flex-wrap items-start gap-3 border-b border-[var(--w-border)] pb-3 last:border-0">
-            <span className="min-w-[160px] flex-1"><span className="block font-semibold text-[color:var(--w-text)]">{p.nombre}</span><span className="block text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Modelo: {p.modelo}</span></span>
-            <Badge tone={p.llave ? 'success' : 'neutral'}>{p.llave ? 'Llave guardada' : 'Falta la llave'}</Badge>
-            <BotonProbar texto="Probar" probar={() => probarProveedor(p.id)} />
+          <li key={p.id} className="flex flex-col gap-2 border-b border-[var(--w-border)] pb-3 last:border-0">
+            <div className="flex flex-wrap items-start gap-3">
+              <span className="min-w-[160px] flex-1"><span className="block font-semibold text-[color:var(--w-text)]">{p.nombre}</span><span className="block text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Modelo: {p.modelo}</span></span>
+              <Badge tone={p.llave ? 'success' : 'neutral'}>{p.llave ? 'Llave guardada' : 'Falta la llave'}</Badge>
+              <BotonProbar texto="Probar" probar={() => probarProveedor(p.id)} />
+            </div>
+            {NOMBRE_LLAVE[p.id] && <CampoLlave nombre={NOMBRE_LLAVE[p.id]} etiqueta="Llave de API" guardada={p.llave} origen={p.origen} alCambiar={recargarEstado} />}
           </li>
         ))}
         {est && (
-          <li className="flex flex-wrap items-start gap-3">
-            <span className="min-w-[160px] flex-1"><span className="block font-semibold text-[color:var(--w-text)]">Telegram (avisos)</span><span className="block text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Solo envía avisos a tu chat</span></span>
-            <Badge tone={est.telegram.token && est.telegram.chat ? 'success' : 'neutral'}>{est.telegram.token && est.telegram.chat ? 'Configurado' : 'Falta configurar'}</Badge>
-            <BotonProbar texto="Enviar prueba" probar={probarTelegram} />
+          <li className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-start gap-3">
+              <span className="min-w-[160px] flex-1"><span className="block font-semibold text-[color:var(--w-text)]">Telegram (avisos)</span><span className="block text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Solo envía avisos a tu chat</span></span>
+              <Badge tone={est.telegram.token && est.telegram.chat ? 'success' : 'neutral'}>{est.telegram.token && est.telegram.chat ? 'Configurado' : 'Falta configurar'}</Badge>
+              <BotonProbar texto="Enviar prueba" probar={probarTelegram} />
+            </div>
+            <CampoLlave nombre="CENTRAL_TELEGRAM_TOKEN" etiqueta="Token del bot (BotFather)" guardada={est.telegram.token} origen={est.telegram.origenToken} alCambiar={recargarEstado} />
+            <CampoLlave nombre="CENTRAL_TELEGRAM_CHAT_ID" etiqueta="Tu chat_id (número)" guardada={est.telegram.chat} origen={est.telegram.origenChat} oculta={false} alCambiar={recargarEstado} />
           </li>
         )}
       </ul>
@@ -112,7 +146,7 @@ export function Integraciones() {
   const { datos } = useCentral()
   return (
     <Pagina titulo="Integraciones" subtitulo="Modelos de IA, avisos y redes sociales, todo apagado hasta que tú lo conectes">
-      <AvisoHonesto>Nada se conecta solo. Las llaves se guardan únicamente como secretos del servidor (Supabase), nunca en esta pantalla ni donde las vean los agentes. En redes sociales los agentes solo preparan borradores: publicar siempre lo decide una persona.</AvisoHonesto>
+      <AvisoHonesto>Nada se conecta solo. Pega aquí tus llaves: el servidor las guarda y no se vuelven a mostrar ni las ven los agentes (para cambiar una, pega otra). En redes sociales los agentes solo preparan borradores: publicar siempre lo decide una persona.</AvisoHonesto>
       <PanelIA />
       {datos.integraciones.length === 0 ? <StatePanel kind="empty" title="Sin integraciones registradas" /> : <div className="grid gap-4 md:grid-cols-2">{datos.integraciones.map(i => <TarjetaIntegracion key={i.id} i={i} />)}</div>}
     </Pagina>

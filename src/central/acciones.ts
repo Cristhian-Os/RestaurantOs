@@ -107,8 +107,18 @@ async function invocar<T>(funcion: string, cuerpo: Record<string, unknown>): Pro
 
 export interface EstadoConexiones {
   ok: boolean; encendida: boolean; topeMensualUsd: number
-  proveedores: { id: string; nombre: string; llave: boolean; modelo: string }[]
-  telegram: { token: boolean; chat: boolean }
+  proveedores: { id: string; nombre: string; llave: boolean; origen: 'servidor' | 'panel' | null; modelo: string }[]
+  telegram: { token: boolean; chat: boolean; origenToken: 'servidor' | 'panel' | null; origenChat: 'servidor' | 'panel' | null }
+}
+export type NombreLlave = 'CENTRAL_CLAVE_CLAUDE' | 'CENTRAL_CLAVE_NVIDIA' | 'CENTRAL_CLAVE_DEEPSEEK' | 'CENTRAL_TELEGRAM_TOKEN' | 'CENTRAL_TELEGRAM_CHAT_ID'
+/** Guarda una llave que pegaste en el panel. Viaja una sola vez al servidor, que la guarda y no la devuelve nunca. `null` = salió bien. */
+export async function guardarLlave(nombre: NombreLlave, valor: string): Promise<string | null> {
+  const r = await invocar<unknown>('central-agente', { accion: 'guardar_llave', nombre, valor })
+  return r.ok === true ? null : r.mensaje
+}
+export async function quitarLlave(nombre: NombreLlave): Promise<string | null> {
+  const r = await invocar<unknown>('central-agente', { accion: 'quitar_llave', nombre })
+  return r.ok === true ? null : r.mensaje
 }
 export const estadoConexiones = () => invocar<EstadoConexiones>('central-agente', { accion: 'estado' })
 export async function probarProveedor(proveedor: string): Promise<{ ok: boolean; texto: string }> {
