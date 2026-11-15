@@ -110,7 +110,7 @@ export interface EstadoConexiones {
   proveedores: { id: string; nombre: string; llave: boolean; origen: 'servidor' | 'panel' | null; modelo: string }[]
   telegram: { token: boolean; chat: boolean; origenToken: 'servidor' | 'panel' | null; origenChat: 'servidor' | 'panel' | null }
 }
-export type NombreLlave = 'CENTRAL_CLAVE_CLAUDE' | 'CENTRAL_CLAVE_NVIDIA' | 'CENTRAL_CLAVE_DEEPSEEK' | 'CENTRAL_TELEGRAM_TOKEN' | 'CENTRAL_TELEGRAM_CHAT_ID'
+export type NombreLlave = 'CENTRAL_CLAVE_CLAUDE' | 'CENTRAL_CLAVE_NVIDIA' | 'CENTRAL_CLAVE_DEEPSEEK' | 'CENTRAL_CLAVE_OPENROUTER' | 'CENTRAL_CLAVE_OPENAI' | 'CENTRAL_CLAVE_GEMINI' | 'CENTRAL_CLAVE_GROQ' | 'CENTRAL_TELEGRAM_TOKEN' | 'CENTRAL_TELEGRAM_CHAT_ID'
 /** Guarda una llave que pegaste en el panel. Viaja una sola vez al servidor, que la guarda y no la devuelve nunca. `null` = salió bien. */
 export async function guardarLlave(nombre: NombreLlave, valor: string): Promise<string | null> {
   const r = await invocar<unknown>('central-agente', { accion: 'guardar_llave', nombre, valor })

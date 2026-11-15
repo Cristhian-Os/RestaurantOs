@@ -52,7 +52,7 @@ function BotonProbar({ texto, probar }: { texto: string; probar: () => Promise<{
   )
 }
 
-const NOMBRE_LLAVE: Record<string, NombreLlave> = { claude: 'CENTRAL_CLAVE_CLAUDE', nvidia: 'CENTRAL_CLAVE_NVIDIA', deepseek: 'CENTRAL_CLAVE_DEEPSEEK' }
+const NOMBRE_LLAVE: Record<string, NombreLlave> = { claude: 'CENTRAL_CLAVE_CLAUDE', nvidia: 'CENTRAL_CLAVE_NVIDIA', deepseek: 'CENTRAL_CLAVE_DEEPSEEK', openrouter: 'CENTRAL_CLAVE_OPENROUTER', openai: 'CENTRAL_CLAVE_OPENAI', gemini: 'CENTRAL_CLAVE_GEMINI', groq: 'CENTRAL_CLAVE_GROQ' }
 
 /** Campo para pegar una llave: se envía una vez al servidor y se borra de la pantalla; nunca se vuelve a mostrar. */
 function CampoLlave({ nombre, etiqueta, guardada, origen, oculta = true, alCambiar }: {
@@ -81,6 +81,8 @@ function limpiarLlave(t: string): string {
   return t.replace(/^\s*(bearer\s+)?/i, '').replace(/\s+/g, '').replace(/^["'`]+|["'`]+$/g, '')
 }
 
+const ELEGIBLES: [string, string][] = [['claude', 'Claude (Anthropic)'], ['openrouter', 'OpenRouter'], ['openai', 'OpenAI (ChatGPT)'], ['gemini', 'Gemini (Google)'], ['groq', 'Groq'], ['nvidia', 'NVIDIA'], ['deepseek', 'DeepSeek']]
+
 type Deteccion = { nombre: NombreLlave; etiqueta: string; proveedor?: string } | { nada: string } | null
 
 /** Reconoce de quién es una llave por su forma. */
@@ -88,9 +90,11 @@ function detectar(v: string): Deteccion {
   if (!v) return null
   if (/^sk-ant-/i.test(v)) return { nombre: 'CENTRAL_CLAVE_CLAUDE', etiqueta: 'Claude (Anthropic)', proveedor: 'claude' }
   if (/^nvapi-/i.test(v)) return { nombre: 'CENTRAL_CLAVE_NVIDIA', etiqueta: 'NVIDIA', proveedor: 'nvidia' }
-  if (/^sk-(proj|svcacct|admin)-/i.test(v)) return { nada: 'Esta parece una llave de OpenAI (ChatGPT). Central todavía no la usa.' }
-  if (/^sk-[A-Za-z0-9]{20,}$/.test(v)) return { nombre: 'CENTRAL_CLAVE_DEEPSEEK', etiqueta: 'DeepSeek', proveedor: 'deepseek' }
-  if (/^AIza/.test(v)) return { nada: 'Esta es una llave de Gemini (Google). Central todavía no usa Gemini; por ahora sirve Claude, NVIDIA o DeepSeek.' }
+  if (/^sk-or-/i.test(v)) return { nombre: 'CENTRAL_CLAVE_OPENROUTER', etiqueta: 'OpenRouter', proveedor: 'openrouter' }
+  if (/^gsk_/.test(v)) return { nombre: 'CENTRAL_CLAVE_GROQ', etiqueta: 'Groq', proveedor: 'groq' }
+  if (/^AIza/.test(v)) return { nombre: 'CENTRAL_CLAVE_GEMINI', etiqueta: 'Gemini (Google)', proveedor: 'gemini' }
+  if (/^sk-[a-f0-9]{32}$/.test(v)) return { nombre: 'CENTRAL_CLAVE_DEEPSEEK', etiqueta: 'DeepSeek', proveedor: 'deepseek' }
+  if (/^sk-[A-Za-z0-9_-]{20,}$/.test(v)) return { nombre: 'CENTRAL_CLAVE_OPENAI', etiqueta: 'OpenAI (ChatGPT)', proveedor: 'openai' }
   if (/^\d{6,12}:[A-Za-z0-9_-]{30,}$/.test(v)) return { nombre: 'CENTRAL_TELEGRAM_TOKEN', etiqueta: 'Token del bot de Telegram' }
   if (/^-?\d{5,15}$/.test(v)) return { nombre: 'CENTRAL_TELEGRAM_CHAT_ID', etiqueta: 'Tu chat_id de Telegram' }
   return { nada: 'No reconozco de qué proveedor es. Revisa que la copiaste completa.' }
@@ -102,12 +106,14 @@ function BarraLlave({ alCambiar }: { alCambiar: () => void }) {
   const [crudo, setCrudo] = useState('')
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null)
   const valor = limpiarLlave(crudo)
+  const [elegido, setElegido] = useState('')
   const det = detectar(valor)
-  const reconocida = det && 'nombre' in det ? det : null
+  const manual = det && 'nada' in det && valor.length >= 20 && elegido ? { nombre: NOMBRE_LLAVE[elegido], etiqueta: ELEGIBLES.find(([id]) => id === elegido)?.[1] ?? elegido, proveedor: elegido } : null
+  const reconocida = det && 'nombre' in det ? det : manual
   return (
     <div className="flex flex-col gap-2 rounded-[var(--w-r-md)] border border-[var(--w-border)] p-3">
       <span className="font-semibold text-[color:var(--w-text)]">Pega aquí tu llave (API key)</span>
-      <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Sirve la de Claude, NVIDIA o DeepSeek, y el token o el chat_id de Telegram. Se reconoce sola y no se vuelve a mostrar.</p>
+      <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Sirve la de Claude, OpenRouter, OpenAI, Gemini, Groq, NVIDIA o DeepSeek, y el token o el chat_id de Telegram. Se reconoce sola y no se vuelve a mostrar.</p>
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-[200px] flex-1">
           <Input label="Llave" type="password" autoComplete="off" spellCheck={false} value={crudo} onChange={e => { setCrudo(e.target.value); setAviso(null) }} placeholder="Pega aquí" />
@@ -123,8 +129,14 @@ function BarraLlave({ alCambiar }: { alCambiar: () => void }) {
           return null
         })}>Guardar</Button>
       </div>
+      {det && 'nada' in det && valor.length >= 20 && (
+        <Select label="No la reconocí sola. ¿De qué proveedor es?" value={elegido} onChange={e => setElegido(e.target.value)}>
+          <option value="">Elige el proveedor…</option>
+          {ELEGIBLES.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+        </Select>
+      )}
       {det && (reconocida
-        ? <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-success)]">Reconocida: {reconocida.etiqueta}</p>
+        ? <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-success)]">{manual ? 'Se guardará como' : 'Reconocida'}: {reconocida.etiqueta}</p>
         : <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-danger)]">{(det as { nada: string }).nada}</p>)}
       {aviso && <p role="status" className={`m-0 text-[length:var(--w-fs-caption)] ${aviso.ok ? 'text-[color:var(--w-success)]' : 'text-[color:var(--w-danger)]'}`}>{aviso.texto}</p>}
       <ErrorAccion texto={error} />
@@ -168,7 +180,7 @@ function PanelIA() {
         <div className="w-44"><Input label="Tope mensual (USD)" inputMode="decimal" value={topeTxt} onChange={e => setTopeTxt(e.target.value)} error={topeValido ? undefined : 'Número mayor o igual a 0'} hint="0 = no se gasta nada" /></div>
         <Button size="sm" variant="secondary" disabled={!topeValido || topeNum === tope} loading={ocupado} onClick={() => void ejecutar(() => guardarConfig('ia_tope_mensual_usd', topeNum))}>Guardar tope</Button>
       </div>
-      <Opcion clave="ia_modelo_defecto" titulo="Modelo principal" ayuda="Claude es el principal. NVIDIA da acceso a DeepSeek y otros; DeepSeek directo es la alternativa." opciones={[['claude', 'Claude (Anthropic)'], ['nvidia', 'NVIDIA (DeepSeek y otros)'], ['deepseek', 'DeepSeek directo']]} />
+      <Opcion clave="ia_modelo_defecto" titulo="Modelo principal" ayuda="Claude es el principal. NVIDIA da acceso a DeepSeek y otros; DeepSeek directo es la alternativa." opciones={[['claude', 'Claude (Anthropic)'], ['nvidia', 'NVIDIA (DeepSeek y otros)'], ['deepseek', 'DeepSeek directo'], ['openrouter', 'OpenRouter'], ['openai', 'OpenAI (ChatGPT)'], ['gemini', 'Gemini (Google)'], ['groq', 'Groq']]} />
       <ErrorAccion texto={error} />
       {fallo && <AvisoHonesto>{fallo}</AvisoHonesto>}
       <BarraLlave alCambiar={recargarEstado} />

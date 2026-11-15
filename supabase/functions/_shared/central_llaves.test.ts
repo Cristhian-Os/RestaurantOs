@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { SECRETOS, filaDe, validarSecreto } from './central_llaves.ts'
 
 assert.equal(filaDe('CENTRAL_CLAVE_CLAUDE'), 'central_clave_claude')
-assert.equal(SECRETOS.length, 5)
+assert.equal(SECRETOS.length, 9)
+assert.equal(validarSecreto("CENTRAL_CLAVE_OPENROUTER", "sk-or-v1-abcdefghijklmnop1234"), null)
 assert.equal(validarSecreto('CENTRAL_CLAVE_CLAUDE', 'sk-ant-abcdefghijklmnop'), null)
 assert.equal(validarSecreto('CENTRAL_TELEGRAM_TOKEN', '123456789:AAH-abc_DEF123'), null)
 assert.equal(validarSecreto('CENTRAL_TELEGRAM_CHAT_ID', '-1001234567890'), null)

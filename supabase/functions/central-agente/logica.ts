@@ -10,6 +10,10 @@ export const PROVEEDORES: Proveedor[] = [
   { id: 'claude', nombre: 'Claude (Anthropic)', tipo: 'anthropic', secreto: 'CENTRAL_CLAVE_CLAUDE', modeloDefecto: 'claude-sonnet-5-5' },
   { id: 'nvidia', nombre: 'NVIDIA (DeepSeek y otros)', tipo: 'compatible', secreto: 'CENTRAL_CLAVE_NVIDIA', urlBase: 'https://integrate.api.nvidia.com/v1', modeloDefecto: 'deepseek-ai/deepseek-v3.1' },
   { id: 'deepseek', nombre: 'DeepSeek', tipo: 'compatible', secreto: 'CENTRAL_CLAVE_DEEPSEEK', urlBase: 'https://api.deepseek.com', modeloDefecto: 'deepseek-chat' },
+  { id: 'openrouter', nombre: 'OpenRouter (muchos modelos)', tipo: 'compatible', secreto: 'CENTRAL_CLAVE_OPENROUTER', urlBase: 'https://openrouter.ai/api/v1', modeloDefecto: 'anthropic/claude-sonnet-4.5' },
+  { id: 'openai', nombre: 'OpenAI (ChatGPT)', tipo: 'compatible', secreto: 'CENTRAL_CLAVE_OPENAI', urlBase: 'https://api.openai.com/v1', modeloDefecto: 'gpt-4o-mini' },
+  { id: 'gemini', nombre: 'Gemini (Google)', tipo: 'compatible', secreto: 'CENTRAL_CLAVE_GEMINI', urlBase: 'https://generativelanguage.googleapis.com/v1beta/openai', modeloDefecto: 'gemini-2.5-flash' },
+  { id: 'groq', nombre: 'Groq', tipo: 'compatible', secreto: 'CENTRAL_CLAVE_GROQ', urlBase: 'https://api.groq.com/openai/v1', modeloDefecto: 'llama-3.3-70b-versatile' },
 ]
 
 export const MAX_TOKENS_RESPUESTA = 700
