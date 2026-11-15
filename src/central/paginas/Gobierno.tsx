@@ -11,7 +11,7 @@ import { Card } from '../../components/ui/Card'
 import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { Toggle } from '../../components/ui/Toggle'
-import { actualizarAgente, actualizarIntegracion, estadoConexiones, guardarConfig, guardarLlave, probarProveedor, probarTelegram, quitarLlave, type EstadoConexiones, type NombreLlave } from '../acciones.ts'
+import { actualizarAgente, conectarTodosLosAgentes,actualizarIntegracion, estadoConexiones, guardarConfig, guardarLlave, probarProveedor, probarTelegram, quitarLlave, type EstadoConexiones, type NombreLlave } from '../acciones.ts'
 import { usd, type Integracion } from '../catalogo.ts'
 import { useCentral, useIndices } from '../datos.tsx'
 import { AgenteAvatar, AvisoHonesto, ErrorAccion, Kpi, Pagina, TituloBloque, useAccion } from '../ui.tsx'
@@ -181,6 +181,12 @@ function PanelIA() {
         <Button size="sm" variant="secondary" disabled={!topeValido || topeNum === tope} loading={ocupado} onClick={() => void ejecutar(() => guardarConfig('ia_tope_mensual_usd', topeNum))}>Guardar tope</Button>
       </div>
       <Opcion clave="ia_modelo_defecto" titulo="Modelo principal" ayuda="Claude es el principal. NVIDIA da acceso a DeepSeek y otros; DeepSeek directo es la alternativa." opciones={[['claude', 'Claude (Anthropic)'], ['nvidia', 'NVIDIA (DeepSeek y otros)'], ['deepseek', 'DeepSeek directo'], ['openrouter', 'OpenRouter'], ['openai', 'OpenAI (ChatGPT)'], ['gemini', 'Gemini (Google)'], ['groq', 'Groq']]} />
+      <div className="flex flex-col items-start gap-1 rounded-[var(--w-r-md)] border border-[var(--w-border)] p-3">
+        <span className="font-semibold text-[color:var(--w-text)]">Poner a trabajar a los agentes</span>
+        <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Conecta a todos los agentes a la IA que tengas disponible (la del “Modelo principal”, o cualquier otra con llave guardada). Siguen solo conversando y proponiendo, y el tope de gasto de arriba manda sobre todos. Cada agente queda con un presupuesto igual al tope.</p>
+        <Button size="sm" disabled={!encendida || !(tope > 0) || !est || !est.proveedores.some(p => p.llave)} loading={ocupado} onClick={() => void ejecutar(() => conectarTodosLosAgentes(tope))}>Conectar a todos los agentes</Button>
+        {(!encendida || !(tope > 0)) && <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-warning)]">Primero enciende la IA y fija un tope mayor a 0.</p>}
+      </div>
       <ErrorAccion texto={error} />
       {fallo && <AvisoHonesto>{fallo}</AvisoHonesto>}
       <BarraLlave alCambiar={recargarEstado} />

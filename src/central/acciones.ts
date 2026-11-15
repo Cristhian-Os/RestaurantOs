@@ -172,6 +172,12 @@ export async function actualizarAgente(id: string, cambios: Partial<{ nivel: Niv
   return resultado(error)
 }
 
+/** Pone a todos los agentes (no retirados) a conversar con la IA conectada. El presupuesto de cada uno es el tope mensual general, que sigue mandando sobre todos juntos. */
+export async function conectarTodosLosAgentes(presupuesto: number): Promise<string | null> {
+  const { error } = await supabase.from('central_agentes').update({ proveedor_estado: 'activo', presupuesto_mensual: presupuesto }).neq('ciclo', 'retirado')
+  return resultado(error)
+}
+
 export async function actualizarIntegracion(id: string, cambios: { estado?: 'no_conectada' | 'pendiente_autorizacion'; notas?: string }): Promise<string | null> {
   const { error } = await supabase.from('central_integraciones').update(cambios).eq('id', id)
   return resultado(error)
