@@ -39,7 +39,8 @@ export function PlatformPanel() {
   const [tab, setTab] = useState<TabId>('inicio')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <EncabezadoModulo icono="★" titulo="Plataforma" subtitulo="Restaurantes, vendedores, dinero y uso de IA" />
+      <EncabezadoModulo icono="★" titulo="Plataforma" subtitulo="Restaurantes, vendedores, dinero y uso de IA"
+        acciones={<a href="/central" className="inline-flex min-h-[44px] items-center font-semibold text-[color:var(--w-accent-text)] underline">Abrir Central</a>} />
       {/* Las 11 pestañas se desplazan dentro de su propia franja: la página nunca se desborda */}
       <div style={{ overflowX: 'auto', margin: '0 -1rem', padding: '0 1rem', scrollbarWidth: 'none' }}>
         <div style={{ width: 'max-content' }}>
