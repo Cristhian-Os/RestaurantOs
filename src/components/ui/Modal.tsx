@@ -1,6 +1,9 @@
-import { useEffect, useId, useRef } from 'react'
+import { createContext, useContext, useEffect, useId, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+
+/** Central lo activa: sus diálogos se montan fuera de su contenedor (portal), así que piden el tema oscuro de vidrio (central.css). */
+export const ModalOscuro = createContext(false)
 
 interface Props {
   open: boolean
@@ -15,6 +18,7 @@ interface Props {
  * En pantallas angostas se muestra como hoja inferior (sheet), en escritorio centrado.
  */
 export function Modal({ open, onClose, title, children, footer }: Props) {
+  const oscuro = useContext(ModalOscuro)
   const titleId = useId()
   const box = useRef<HTMLDivElement>(null)
 
@@ -38,7 +42,8 @@ export function Modal({ open, onClose, title, children, footer }: Props) {
   if (!open) return null
   return createPortal(
     <div
-      className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-6"
+      {...(oscuro ? { 'data-theme': 'dark' } : {})}
+      className={oscuro ? 'central-tokens fixed inset-0 flex items-end justify-center sm:items-center sm:p-6' : 'fixed inset-0 flex items-end justify-center sm:items-center sm:p-6'}
       style={{ background: 'var(--w-overlay)', zIndex: 'var(--w-z-modal)' as unknown as number }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >

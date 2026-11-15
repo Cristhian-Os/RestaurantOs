@@ -15,8 +15,11 @@ import type { Session } from '@supabase/supabase-js'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const DesignSystem = lazy(() => import('./pages/DesignSystem'))
 const TarjetaPublica = lazy(() => import('./pages/TarjetaPublica'))
+// RestaurantOS Central (solo super admin): paquete aparte, nadie más lo descarga. La puerta de acceso vive en src/central.
+const Central = lazy(() => import('./central/Central'))
 
 const PATH = typeof window !== 'undefined' ? window.location.pathname : '/'
+const IS_CENTRAL     = PATH === '/central' || PATH.startsWith('/central/')
 const IS_PUBLIC_MENU = PATH.startsWith('/menu')
 const IS_TARJETA     = PATH.startsWith('/tarjeta/')
 const IS_REGISTER    = PATH.startsWith('/registro')
@@ -110,11 +113,14 @@ export default function App() {
   // Enlace de recuperación de contraseña: siempre pedir la nueva contraseña primero,
   // incluso si Supabase ya dejó una sesión de recuperación activa (no saltar al panel).
   if (IS_RESET_PASSWORD) return <ThemeProvider><ResetPassword /></ThemeProvider>
+  // /central con sesión → Central (él mismo comprueba rol, código de 2 pasos y servidor antes de mostrar algo)
+  if (session && IS_CENTRAL) return <ThemeProvider><Suspense fallback={<SplashScreen />}><Central /></Suspense></ThemeProvider>
   // Con sesión activa → siempre el panel (aunque la URL sea /, /login o /registro)
   if (session)        return <ThemeProvider><Suspense fallback={<SplashScreen />}><Dashboard onLogout={handleLogout} /></Suspense></ThemeProvider>
   // Sin sesión: rutas públicas de marketing / auth
   if (IS_REGISTER)    return <ThemeProvider><Signup /></ThemeProvider>
   // En la PWA instalada, la raíz va directo a login (sin landing de marketing)
-  if (IS_LOGIN || IS_STANDALONE) return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
+  // /central sin sesión → iniciar sesión (nunca la landing ni contenido de Central)
+  if (IS_LOGIN || IS_STANDALONE || IS_CENTRAL) return <Login onLogin={() => { /* onAuthStateChange maneja el login */ }} />
   return <ThemeProvider><Landing /></ThemeProvider>
 }
