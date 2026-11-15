@@ -142,3 +142,6 @@
 @media (prefers-reduced-transparency: reduce) {
   .central [class~="bg-[var(--w-surface)]"], .c-vidrio, .c-barra { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: rgba(18, 24, 40, 0.94); }
 }
+
+/* Píldora inferior: más opaca para que no se transparente el contenido de atrás */
+.central .c-pildora { background: rgba(18, 24, 40, 0.97); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }

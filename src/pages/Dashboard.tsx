@@ -77,7 +77,7 @@ import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'fidelizacion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'whatsapp' | 'domicilios' | 'conversaciones' | 'pedidos_mesa' | 'campanas' | 'arm' | 'fidelidad_config' | 'config' | 'platform'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'fidelizacion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'whatsapp' | 'domicilios' | 'conversaciones' | 'pedidos_mesa' | 'campanas' | 'arm' | 'fidelidad_config' | 'config' | 'platform' | 'central'
 
 export interface Profile {
   id:          string
@@ -134,6 +134,7 @@ const Icons = {
 const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: string }[]> = {
   super_admin: [
     { view:'platform', icon:<Icons.Platform />, label:'Restaurantes' },
+    { view:'central',  icon:<Icons.Team />,     label:'Central'      },
   ],
   admin: [
     { view:'dashboard', icon:<Icons.Dashboard />, label:'Inicio'     },
@@ -903,6 +904,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   const navItems = NAV_BY_ROLE[profile!.role] ?? NAV_BY_ROLE.client
   const navActive: NavView = profile!.role === 'admin' && ['impresion', 'setup', 'branding', 'billing', 'whatsapp', 'fidelidad_config'].includes(activeNav) ? 'config' : activeNav
+  // "Central" es otra pantalla (otra dirección), no una sección de este panel.
+  const seleccionarNav = (v: NavView) => { if (v === 'central') window.location.assign('/central'); else setActiveNav(v) }
   const hasSounds =['admin', 'cashier', 'kitchen', 'waiter'].includes(profile!.role)
 
   const chromeBtn: React.CSSProperties = {
@@ -955,7 +958,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       {/* Header */}
       <div style={{display:'flex',alignItems:'flex-start'}}>
       <div style={{flex:1,minWidth:0}}>
-      <TopBar<NavView> phone={isPhone} items={navItems} onSelect={setActiveNav}
+      <TopBar<NavView> phone={isPhone} items={navItems} onSelect={seleccionarNav}
         onMenu={() => setMoreOpen(true)}>
         {profile!.role === 'admin' && <SedeSelector style={{ ...chromeBtn, width: 'auto', padding: '0 0.5rem', maxWidth: 140 }} />}
         {!isPhone && <InstallPWA compact />}
@@ -998,7 +1001,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       <MobileNav<NavView>
         items={navItems}
         active={navActive}
-        onSelect={setActiveNav}
+        onSelect={seleccionarNav}
         open={moreOpen}
         setOpen={setMoreOpen}
         footer={<button type="button" onClick={onLogout} style={{ minHeight: 48, borderRadius: 'var(--w-r-lg)', border: '1px solid var(--w-border)', background: 'transparent', color: 'var(--w-text)', fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer' }}>Cerrar sesión</button>}

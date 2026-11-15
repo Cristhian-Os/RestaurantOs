@@ -1,5 +1,5 @@
 /**
- * Shell.tsx — la cáscara de Central: barra lateral (escritorio) o barra inferior + "Más" (celular), campana de avisos,
+ * Shell.tsx — la cáscara de Central: píldora de navegación inferior + "Más" (celular y escritorio), campana de avisos,
  * botón flotante de Resti y la pantalla activa. Solo se monta con el acceso ya verificado (CentralGate).
  * Si el servidor aún no tiene instalado el núcleo de Central, lo dice claro y no muestra nada inventado.
  */
@@ -15,7 +15,7 @@ import { hace } from './catalogo.ts'
 import { useCentral } from './datos.tsx'
 import { Enlace, useRuta } from './navegacion.tsx'
 import { SECCIONES, parseRuta, type Seccion } from './rutas.ts'
-import { Icono, useEscritorio } from './ui.tsx'
+import { Icono } from './ui.tsx'
 import { Inicio } from './paginas/Inicio'
 import { Departamentos } from './paginas/Departamentos'
 import { Agentes } from './paginas/Agentes'
@@ -31,7 +31,6 @@ import { RestiPanel } from './paginas/RestiPanel'
 const Oficina = lazy(() => import('./paginas/Oficina').then(m => ({ default: m.Oficina })))
 const Mundo = lazy(() => import('./paginas/Mundo').then(m => ({ default: m.Mundo })))
 
-const GRUPOS = ['Oficina', 'Trabajo', 'Conocimiento', 'Gobierno'] as const
 const PANTALLA_COMPLETA = new Set<Seccion>(['oficina', 'mundo'])
 
 function Pantalla({ seccion }: { seccion: Seccion }) {
@@ -54,20 +53,14 @@ function Pantalla({ seccion }: { seccion: Seccion }) {
 }
 
 const itemNav = (activo: boolean) => cn(
-  'c-nav relative flex min-h-[44px] items-center gap-3 rounded-[var(--w-r-md)] px-3 font-semibold transition-colors duration-[var(--w-dur)]',
-  'text-[length:var(--w-fs-body)]',
+  'c-nav relative flex min-h-[52px] min-w-0 items-center gap-2 rounded-[var(--w-r-md)] px-2.5 font-semibold transition-colors duration-[var(--w-dur)]',
+  'text-[length:var(--w-fs-label)] leading-tight [overflow-wrap:anywhere]',
   activo ? 'bg-[var(--w-accent-soft)] text-[color:var(--w-accent-text)]' : 'text-[color:var(--w-text-2)] hover:bg-[var(--w-surface-sunken)]',
 )
-
-function Cuenta({ n }: { n: number }) {
-  if (!n) return null
-  return <span className="ml-auto inline-flex min-w-[22px] justify-center rounded-full bg-[var(--w-accent)] px-1.5 text-[length:var(--w-fs-caption)] font-bold text-[color:var(--w-on-accent)]" aria-label={`${n} pendientes`}>{n}</span>
-}
 
 export function Shell() {
   const { ruta, ir } = useRuta()
   const { estado, datos, recargar } = useCentral()
-  const escritorio = useEscritorio()
   const [mas, setMas] = useState(false)
   const [campana, setCampana] = useState(false)
   const [resti, setResti] = useState(false)
@@ -99,10 +92,10 @@ export function Shell() {
 
   const barraSuperior = (
     <div className="c-barra flex min-h-[56px] items-center gap-3 px-4">
-      {!escritorio && <img src="/brand/logo-oficial.png" alt="" className="h-9 w-9 rounded-[var(--w-r-md)] object-cover" />}
+      <img src="/brand/logo-oficial.png" alt="" className="h-9 w-9 rounded-[var(--w-r-md)] object-cover" />
       <div className="min-w-0 flex-1">
-        <p className="m-0 truncate font-bold text-[color:var(--w-text)]" style={{ fontSize: 'var(--w-fs-body-lg)' }}>{escritorio ? (actual?.etiqueta ?? 'Central') : 'RestaurantOS Central'}</p>
-        {!escritorio && <p className="m-0 truncate text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{actual?.etiqueta}</p>}
+        <p className="m-0 truncate font-bold text-[color:var(--w-text)]" style={{ fontSize: 'var(--w-fs-body-lg)' }}>RestaurantOS Central</p>
+        <p className="m-0 truncate text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{actual?.etiqueta}</p>
       </div>
       <span className="hidden items-center gap-1.5 rounded-[var(--w-r-pill)] bg-[var(--w-success-bg)] px-3 py-1.5 text-[length:var(--w-fs-caption)] font-semibold text-[color:var(--w-success-text)] sm:inline-flex">
         <Icono nombre="candado" size={14} />Acceso verificado · 2 pasos
@@ -115,60 +108,32 @@ export function Shell() {
   )
 
   return (
-    <div className={cn('min-h-screen', escritorio && 'grid grid-cols-[248px_minmax(0,1fr)]')}>
-      {escritorio && (
-        <aside className="sticky top-0 flex h-screen flex-col gap-4 overflow-y-auto border-r border-[var(--w-border)] bg-[var(--w-surface)] p-4" aria-label="Menú de Central">
-          <div className="flex items-center gap-3 px-1">
-            <img src="/brand/logo-oficial.png" alt="" className="h-10 w-10 rounded-[var(--w-r-md)] object-cover shadow-[0_0_18px_rgba(255,90,0,0.45)]" />
-            <div className="min-w-0">
-              <p className="m-0 font-bold leading-tight text-[color:var(--w-text)]">RestaurantOS</p>
-              <p className="m-0 text-[length:var(--w-fs-caption)] font-semibold text-[color:var(--w-accent-text)]">Central</p>
-            </div>
-          </div>
-          <nav className="flex flex-col gap-4">
-            {GRUPOS.map(g => (
-              <div key={g} className="flex flex-col gap-1">
-                <p className="m-0 px-3 text-[length:var(--w-fs-caption)] font-bold uppercase tracking-wide text-[color:var(--w-text-3)]">{g}</p>
-                {SECCIONES.filter(s => s.grupo === g).map(s => (
-                  <Enlace key={s.id} a={s.id} className={itemNav(ruta.seccion === s.id)} aria-current={ruta.seccion === s.id ? 'page' : undefined}>
-                    <Icono nombre={s.icono} size={20} />{s.etiqueta}<Cuenta n={cuenta(s.id)} />
-                  </Enlace>
-                ))}
-              </div>
-            ))}
-          </nav>
-          <a href="/" className="mt-auto inline-flex min-h-[44px] items-center gap-2 px-3 font-semibold text-[color:var(--w-text-3)] underline">
-            <Icono nombre="atras" size={18} />Volver a Plataforma
-          </a>
-        </aside>
-      )}
-
+    <div className="min-h-screen">
       <div className="flex min-w-0 flex-col">
         <div className="sticky top-0 z-10">{barraSuperior}</div>
-        <main className={cn(completa ? 'p-0' : 'mx-auto w-full max-w-6xl p-4 lg:p-6', !escritorio && 'pb-28')}>{contenido}</main>
+        <main className={cn(completa ? 'p-0' : 'mx-auto w-full max-w-6xl p-4 lg:p-6', 'pb-40')}>{contenido}</main>
       </div>
 
-      {!escritorio && (
-        <nav className="fixed inset-x-3 bottom-3 z-20" aria-label="Menú de Central">
-          <GlassPanel className="flex items-stretch justify-between gap-1 !p-1.5">
-            {SECCIONES.filter(s => s.principal).map(s => (
-              <Enlace key={s.id} a={s.id} aria-current={ruta.seccion === s.id ? 'page' : undefined}
-                className={cn('c-nav relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[var(--w-r-lg)] text-[11px] font-semibold',
-                  ruta.seccion === s.id ? 'bg-[var(--w-accent)] text-[color:var(--w-on-accent)]' : 'text-[color:var(--w-text-2)]')}>
-                <Icono nombre={s.icono} size={22} />{s.etiqueta}
-                {cuenta(s.id) > 0 && <span className="absolute right-3 top-1 rounded-full bg-[var(--w-danger)] px-1 text-[10px] font-bold text-white">{cuenta(s.id)}</span>}
-              </Enlace>
-            ))}
-            <button type="button" onClick={() => setMas(true)} className="flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[var(--w-r-lg)] text-[11px] font-semibold text-[color:var(--w-text-2)]">
-              <Icono nombre="mas" size={22} />Más
-            </button>
-          </GlassPanel>
-        </nav>
-      )}
+      {/* Píldora de navegación inferior: la misma en celular y en escritorio (centrada y angosta en pantallas grandes) */}
+      <nav className="fixed inset-x-3 bottom-3 z-20 mx-auto max-w-[560px]" aria-label="Menú de Central">
+        <GlassPanel className="c-pildora flex items-stretch justify-between gap-1 !p-1.5">
+          {SECCIONES.filter(s => s.principal).map(s => (
+            <Enlace key={s.id} a={s.id} aria-current={ruta.seccion === s.id ? 'page' : undefined}
+              className={cn('c-nav relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[var(--w-r-lg)] text-[11px] font-semibold',
+                ruta.seccion === s.id ? 'bg-[var(--w-accent)] text-[color:var(--w-on-accent)]' : 'text-[color:var(--w-text-2)]')}>
+              <Icono nombre={s.icono} size={22} />{s.etiqueta}
+              {cuenta(s.id) > 0 && <span className="absolute right-3 top-1 rounded-full bg-[var(--w-danger)] px-1 text-[10px] font-bold text-white">{cuenta(s.id)}</span>}
+            </Enlace>
+          ))}
+          <button type="button" onClick={() => setMas(true)} className="flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[var(--w-r-lg)] text-[11px] font-semibold text-[color:var(--w-text-2)]">
+            <Icono nombre="mas" size={22} />Más
+          </button>
+        </GlassPanel>
+      </nav>
 
       {/* Resti: asistente personal, siempre a mano */}
       <button type="button" onClick={() => setResti(true)} aria-label="Hablar con Resti"
-        className={cn('fixed right-4 z-20 flex h-[60px] w-[60px] items-center justify-center overflow-hidden rounded-full border border-[var(--w-glass-border)] shadow-[var(--w-shadow-lg)]', escritorio ? 'bottom-5' : 'bottom-[92px]')}
+        className="fixed bottom-[96px] right-3 z-20 flex h-[60px] w-[60px] items-center justify-center overflow-hidden rounded-full border border-[var(--w-glass-border)] shadow-[var(--w-shadow-lg)]"
         style={{ background: 'var(--w-glass-bg)', backdropFilter: 'blur(var(--w-glass-blur))' }}>
         <RestiSprite estado="saludo" width={52} />
       </button>

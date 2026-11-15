@@ -59,7 +59,7 @@ function EditorDocumento({ doc, abierto, onCerrar }: { doc: Documento | null; ab
       footer={<Button disabled={f.titulo.trim().length < 2} loading={ocupado} onClick={async () => { if (await ejecutar(() => guardarDocumento(doc?.id ?? null, { titulo: f.titulo, tipo: f.tipo, contenido: f.contenido, departamento_id: f.depto || null, confiabilidad: f.conf, procedencia: f.proc }))) onCerrar() }}>Guardar</Button>}>
       <div className="flex flex-col gap-3">
         <Input label="Título" value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} required maxLength={160} />
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Tipo" value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}>{TIPOS_DOC.map(t => <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>)}</Select>
           <Select label="Departamento" value={f.depto} onChange={e => setF({ ...f, depto: e.target.value })}><option value="">General</option>{datos.departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}</Select>
           <Select label="Confiabilidad" value={f.conf} onChange={e => setF({ ...f, conf: e.target.value })}><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></Select>
@@ -83,7 +83,7 @@ export function Biblioteca() {
     <Pagina titulo="Biblioteca" subtitulo="Políticas, procedimientos, informes y actas de Central" acciones={<Button onClick={() => abrir(null)}>Nuevo documento</Button>}>
       <div className="max-w-md"><Input label="Buscar" value={q} onChange={e => setQ(e.target.value)} placeholder="Título o contenido…" /></div>
       {lista.length === 0 ? <StatePanel kind="empty" title={datos.documentos.length ? 'Nada coincide con tu búsqueda' : 'La biblioteca está vacía'} text={datos.documentos.length ? undefined : 'Guarda aquí lo que los agentes y tú necesiten recordar.'} /> : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {lista.map(d => (
             <button key={d.id} type="button" onClick={() => abrir(d)} className="flex min-h-[44px] flex-col gap-2 rounded-[var(--w-r-lg)] border border-[var(--w-border)] bg-[var(--w-surface)] p-4 text-left hover:border-[var(--w-border-strong)]">
               <span className="font-bold text-[color:var(--w-text)]">{d.titulo}</span>
@@ -108,7 +108,7 @@ function EditorMemoria({ m, capaInicial, abierto, onCerrar }: { m: MemoriaT | nu
       footer={<Button disabled={f.titulo.trim().length < 2} loading={ocupado} onClick={async () => { if (await ejecutar(() => guardarMemoria(m?.id ?? null, { capa: f.capa, titulo: f.titulo, contenido: f.contenido, departamento_id: f.depto || null, restaurante_id: f.rest || null, confiabilidad: f.conf, procedencia: f.proc }))) onCerrar() }}>Guardar</Button>}>
       <div className="flex flex-col gap-3">
         <Input label="Título" value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} required maxLength={160} />
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Capa" value={f.capa} onChange={e => setF({ ...f, capa: e.target.value })}>{(Object.keys(CAPAS) as MemoriaT['capa'][]).map(c => <option key={c} value={c}>{CAPAS[c]}</option>)}</Select>
           <Select label="Confiabilidad" value={f.conf} onChange={e => setF({ ...f, conf: e.target.value })}><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></Select>
           <Select label="Departamento" value={f.depto} onChange={e => setF({ ...f, depto: e.target.value })}><option value="">General</option>{datos.departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}</Select>
@@ -134,7 +134,7 @@ export function Memoria() {
       <Tabs label="Capas de la memoria" value={capa} onChange={setCapa} items={(Object.keys(CAPAS) as MemoriaT['capa'][]).map(c => ({ key: c, label: `${CAPAS[c]} (${datos.memoria.filter(m => m.capa === c).length})` }))} />
       <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">{CAPA_AYUDA[capa]}</p>
       {lista.length === 0 ? <StatePanel kind="empty" title="Esta capa está vacía" /> : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {lista.map(m => {
             const r = datos.restaurantes.find(x => x.id === m.restaurante_id)
             return (
