@@ -129,6 +129,12 @@ export async function probarTelegram(): Promise<{ ok: boolean; texto: string }> 
   const r = await invocar<unknown>('central-telegram', { accion: 'probar' })
   return r.ok === true ? { ok: true, texto: 'Listo: revisa tu Telegram, debió llegar un mensaje.' } : { ok: false, texto: r.mensaje }
 }
+export interface ResultadoVigilancia { vigilados: { restaurantes: number; opiniones_nuevas: number }; hallazgos: number; tareas_creadas: number; ya_estaban: number; telegram: 'enviado' | 'sin_novedades' | 'sin_configurar' | 'falla' }
+/** Pide al vigía que revise la plataforma ahora (datos reales). Crea tareas propuestas y avisa por Telegram solo de lo nuevo. */
+export async function revisarPlataforma(): Promise<{ ok: true; datos: ResultadoVigilancia } | { ok: false; mensaje: string }> {
+  const r = await invocar<{ ok: boolean } & ResultadoVigilancia>('central-vigia', {})
+  return r.ok === true ? { ok: true, datos: r.datos } : { ok: false, mensaje: r.mensaje }
+}
 /** Pide la respuesta REAL del agente a la última pregunta de un chat directo. Devuelve `null` si salió bien o el texto del problema. */
 export async function pedirRespuestaIA(conversacionId: string): Promise<string | null> {
   const r = await invocar<unknown>('central-agente', { conversacion_id: conversacionId })

@@ -6,6 +6,7 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
+import { revisarPlataforma } from '../acciones.ts'
 import { ETIQUETA_PRIORIDAD, ESTADOS_VISUALES, estadoVisual, dinero, hace } from '../catalogo.ts'
 import { ABIERTA, useCentral, useIndices } from '../datos.tsx'
 import { Enlace, useRuta } from '../navegacion.tsx'
@@ -15,6 +16,31 @@ import type { DatosOficina } from '../3d/OficinaEscena.ts'
 
 // La portada usa la misma escena de la oficina, descargada aparte (no frena la carga de Inicio).
 const Oficina3D = lazy(() => import('../3d/Oficina3D'))
+
+function Vigilancia() {
+  const { recargar } = useCentral()
+  const [cargando, setCargando] = useState(false)
+  const [res, setRes] = useState<{ ok: boolean; texto: string } | null>(null)
+  const revisar = async () => {
+    setCargando(true); setRes(null)
+    const r = await revisarPlataforma()
+    if (r.ok === true) {
+      const d = r.datos
+      const tg = d.telegram === 'enviado' ? ' Te avisé por Telegram.' : d.telegram === 'sin_configurar' ? ' (Telegram sin configurar.)' : d.telegram === 'falla' ? ' (No pude avisar por Telegram.)' : ''
+      setRes({ ok: true, texto: d.tareas_creadas > 0 ? `Revisé ${d.vigilados.restaurantes} restaurantes y ${d.vigilados.opiniones_nuevas} opiniones nuevas: ${d.tareas_creadas} tarea(s) nueva(s) en Tareas.${tg}` : `Revisé ${d.vigilados.restaurantes} restaurantes y ${d.vigilados.opiniones_nuevas} opiniones nuevas: nada nuevo (${d.ya_estaban} pendiente(s) ya anotado(s)).` })
+      void recargar()
+    } else setRes({ ok: false, texto: r.mensaje })
+    setCargando(false)
+  }
+  return (
+    <Card className="flex flex-col items-start gap-2">
+      <TituloBloque>Vigilancia de la plataforma</TituloBloque>
+      <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">Revisa con datos reales: restaurantes nuevos, pruebas por terminar, cobros con problema, restaurantes sin pedidos y opiniones de usuarios sin atender. Crea tareas para el agente responsable (solo propuestas) y te avisa por Telegram de lo nuevo.</p>
+      <Button size="sm" loading={cargando} onClick={() => void revisar()}>Revisar ahora</Button>
+      {res && <p role="status" className={`m-0 text-[length:var(--w-fs-label)] ${res.ok ? 'text-[color:var(--w-success)]' : 'text-[color:var(--w-danger)]'}`}>{res.texto}</p>}
+    </Card>
+  )
+}
 
 export function Inicio() {
   const { datos, restaurantesDisponibles } = useCentral()
@@ -52,7 +78,7 @@ export function Inicio() {
         <div className="relative z-10 flex h-full min-h-[inherit] flex-col justify-end gap-3 p-5 sm:p-7 lg:max-w-[58%]">
           <span className="inline-flex w-fit items-center gap-1.5 rounded-[var(--w-r-pill)] border border-[var(--w-glass-border)] bg-[var(--w-glass-bg)] px-3 py-1 text-[length:var(--w-fs-caption)] font-semibold text-[color:var(--w-accent-text)]"><Icono nombre="candado" size={14} />Centro privado</span>
           <h1 id="central-titulo" className="m-0 font-bold leading-[1.05] text-[color:var(--w-text)]" style={{ fontSize: 'clamp(28px, 4.2vw, 44px)' }}>Bienvenido, Cristhian</h1>
-          <p className="m-0 text-[length:var(--w-fs-body)] text-[color:var(--w-text-2)]">La oficina de tus agentes, en un solo lugar. Todo es simulación local: nada se envía fuera de RestaurantOS.</p>
+          <p className="m-0 text-[length:var(--w-fs-body)] text-[color:var(--w-text-2)]">La oficina de tus agentes, en un solo lugar. Ellos vigilan la plataforma y proponen; nada sale hacia clientes sin tu aprobación.</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <Button onClick={() => ir('oficina')}>Entrar a la oficina</Button>
             <Button variant="secondary" onClick={() => ir('mundo')}>Ver el mundo</Button>
@@ -64,6 +90,8 @@ export function Inicio() {
           Los agentes todavía <b>no están conectados</b> a ningún modelo de IA. Lo que ves de ellos es el diseño de la oficina; si hablas con uno, responde en <b>simulación local</b>. Nada se ejecuta solo.
         </AvisoHonesto>
       )}
+
+      <Vigilancia />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Kpi etiqueta="Restaurantes activos" valor={restaurantesDisponibles ? activos.length : '—'} detalle={restaurantesDisponibles ? `de ${datos.restaurantes.length} registrados` : 'No se pudo leer'} icono="mundo" />
