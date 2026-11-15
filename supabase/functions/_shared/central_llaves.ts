@@ -3,7 +3,8 @@
 // El valor de una llave NUNCA se devuelve al navegador ni se escribe en ningún registro: solo se informa si existe y de dónde viene.
 
 export const SECRETOS = [
-  'CENTRAL_CLAVE_CLAUDE', 'CENTRAL_CLAVE_NVIDIA', 'CENTRAL_CLAVE_DEEPSEEK', 'CENTRAL_TELEGRAM_TOKEN', 'CENTRAL_TELEGRAM_CHAT_ID',
+  'CENTRAL_CLAVE_CLAUDE', 'CENTRAL_CLAVE_NVIDIA', 'CENTRAL_CLAVE_DEEPSEEK',
+  'CENTRAL_CLAVE_OPENROUTER', 'CENTRAL_CLAVE_OPENAI', 'CENTRAL_CLAVE_GEMINI', 'CENTRAL_CLAVE_GROQ', 'CENTRAL_TELEGRAM_TOKEN', 'CENTRAL_TELEGRAM_CHAT_ID',
 ] as const
 
 /** Nombre de la fila en platform_secrets: el del secreto en minúsculas. */
