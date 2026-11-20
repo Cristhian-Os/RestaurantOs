@@ -41,6 +41,7 @@ import BrandingManager, { applyBranding } from '../components/branding/BrandingM
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 import SedeSelector from '../components/SedeSelector'
+import MisSedes from '../components/sedes/MisSedes'
 import Resti from '../components/resti/Resti'
 import { MobileNav } from '../components/shell/FloatingNav'
 import { aplicarDegradados, coloresDe, degradadosDe } from '../lib/degradados'
@@ -78,7 +79,7 @@ import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'menu_horarios' | 'proveedores' | 'facturas' | 'opinion' | 'fidelizacion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'whatsapp' | 'domicilios' | 'conversaciones' | 'pedidos_mesa' | 'campanas' | 'arm' | 'fidelidad_config' | 'config' | 'platform' | 'central'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'menu_horarios' | 'proveedores' | 'facturas' | 'opinion' | 'fidelizacion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'whatsapp' | 'domicilios' | 'conversaciones' | 'pedidos_mesa' | 'campanas' | 'arm' | 'fidelidad_config' | 'config' | 'sedes' | 'platform' | 'central'
 
 export interface Profile {
   id:          string
@@ -657,6 +658,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [wizardPending, setWizardPending] = useState(false)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  // "Mis sedes": solo el dueño de una cuenta con 2 sedes o más (un admin de una sola sede ve solo la suya).
+  const [variasSedes, setVariasSedes] = useState(false)
+  const rolPerfil = profile?.role
+  useEffect(() => {
+    if (rolPerfil !== 'admin') { setVariasSedes(false); return }
+    let vivo = true
+    supabase.rpc('mis_sedes').then(({ data }) => { if (vivo) setVariasSedes(Array.isArray(data) && data.length >= 2) })
+    return () => { vivo = false }
+  }, [rolPerfil])
   const [isPhone, setIsPhone] = useState(() => window.innerWidth < 900)
   useEffect(() => {
     const on = () => setIsPhone(window.innerWidth < 900)
@@ -873,6 +883,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'impresion': return profile.role === 'admin' ? <ImpresionConfig /> : null
       case 'setup':     return profile.role === 'admin' ? <ConfiguracionGuiada onAbrir={() => setWizardOpen(true)} /> : null
       case 'config':    return profile.role === 'admin' ? <ConfigHub onNavigate={v => setActiveNav(v as NavView)} visibles={['branding', 'impresion', 'whatsapp', 'fidelidad_config', 'setup', 'billing']} /> : null
+      case 'sedes':     return profile.role === 'admin' && variasSedes ? <MisSedes /> : null
       case 'whatsapp':  return profile.role === 'admin' ? <WhatsAppConfig /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
@@ -905,7 +916,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     </div>
   )
 
-  const navItems = NAV_BY_ROLE[profile!.role] ?? NAV_BY_ROLE.client
+  const navBase = NAV_BY_ROLE[profile!.role] ?? NAV_BY_ROLE.client
+  // "Mis sedes" va justo antes de Configuración (en el panel Más, sin mover lo que ya está en la barra).
+  const navItems = profile!.role === 'admin' && variasSedes
+    ? navBase.flatMap(i => i.view === 'config' ? [{ view: 'sedes' as NavView, icon: <Icons.Platform />, label: 'Mis sedes' }, i] : [i])
+    : navBase
   const navActive: NavView = profile!.role === 'admin' && ['impresion', 'setup', 'branding', 'billing', 'whatsapp', 'fidelidad_config'].includes(activeNav) ? 'config' : activeNav
   // "Central" es otra pantalla (otra dirección), no una sección de este panel.
   const seleccionarNav = (v: NavView) => { if (v === 'central') window.location.assign('/central'); else setActiveNav(v) }

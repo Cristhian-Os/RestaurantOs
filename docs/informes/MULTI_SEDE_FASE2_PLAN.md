@@ -30,6 +30,10 @@ Estado 20-nov: **hecha y probada en el proyecto de prueba** (migración `2026112
 - Prueba que se revierte sola: copia correcta, otra cuenta no puede copiar, sede con carta no acepta copia.
 
 ### Fase B — Panel "Mis sedes"
+Estado 20-nov: **hecha y probada en el proyecto de prueba** (migración `20261120150000_resumen_sedes`, prueba `tests/resumen_sedes.sql`, pantalla `src/components/sedes/MisSedes.tsx`, entrada "Mis sedes" en el panel Más). Falta producción (fase D) y revisión visual en celular.
+- Los números coinciden con el corte mensual de cada sede (la prueba lo compara con `get_corte_mensual()`).
+- Solo el dueño de una cuenta con 2 sedes o más la ve; un administrador de una sola sede no.
+- Stock bajo cuenta `stock_actual <= stock_minimo` como el inventario: una sede recién copiada (stock 0) saldrá con todo en bajo hasta que registre su inventario.
 - Función del servidor `resumen_sedes()`: por sede y en total, ventas de hoy y del mes, pedidos en curso, ingredientes bajo el mínimo y último corte.
 - Las ventas usan las mismas reglas del corte de caja (Rappi fuera, propinas aparte, "hoy" con `hoy_local()`), para que los números coincidan con lo que ve cada sede.
 - Pantalla con selector "Todas / Sede 1 / Sede 2", celular primero, claro y oscuro, según la guía de diseño.
