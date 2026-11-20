@@ -22,6 +22,7 @@ import { DishGroupsEditor, validarGrupos } from './DishGroupsEditor'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { Toggle } from '../ui/Toggle'
+import { TarjetaMenuHorario } from './horarios/TarjetaMenuHorario'
 import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 
 const S = {
@@ -339,7 +340,7 @@ function ColorPortal({ anchorRef, onSelect, onClose }: ColorPortalProps) {
   )
 }
 
-export const MenuManager = memo(() => {
+export const MenuManager = memo(({ onAbrirMenusHorario }: { onAbrirMenusHorario?: () => void }) => {
   const menuCfg = useMenuConfig()
   const v2 = menuCfg.optionsV2   // opciones universales (interruptor por restaurante)
   const [dishes,      setDishes]      = useState<Dish[]>([])
@@ -806,6 +807,8 @@ export const MenuManager = memo(() => {
           <Button onClick={openCreate}>+ Nuevo plato</Button>
         </>}
       />
+
+      {onAbrirMenusHorario && <TarjetaMenuHorario onAbrir={onAbrirMenusHorario} />}
 
       {showVoiceMenu && (
         <VoiceMenuModal categories={categories} onSaved={fetchDishes} onClose={() => setShowVoiceMenu(false)} />
