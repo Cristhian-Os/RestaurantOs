@@ -44,6 +44,9 @@ export function IngredientesManager() {
   const [compraFor, setCompraFor] = useState<Ingrediente | null>(null)
   const [compraCantidad, setCompraCantidad] = useState('')
   const [compraPrecio, setCompraPrecio] = useState('')
+  // Calculadora de empaques: "3 cajas × 4 paquetes × 10 piezas" → cantidad y precio unitario se llenan solos.
+  const [empaqueOpen, setEmpaqueOpen] = useState(false)
+  const [empaque, setEmpaque] = useState({ n1: '', n2: '1', n3: '', total: '' })
   const [editFor, setEditFor] = useState<Ingrediente | null>(null)
   const [editStock, setEditStock] = useState('')
   const [editMinimo, setEditMinimo] = useState('')
@@ -141,7 +144,17 @@ export function IngredientesManager() {
     setEditCosto(String(ing.costo_unitario))
   }
 
+  const cambiarEmpaque = (campo: 'n1' | 'n2' | 'n3' | 'total', valor: string) => {
+    const e = { ...empaque, [campo]: valor }
+    setEmpaque(e)
+    const cant = (parseFloat(e.n1) || 0) * (parseFloat(e.n2) || 0) * (parseFloat(e.n3) || 0)
+    const total = parseFloat(e.total)
+    if (cant > 0) setCompraCantidad(String(Math.round(cant * 1e6) / 1e6))
+    if (cant > 0 && total >= 0) setCompraPrecio(String(Math.round((total / cant) * 100) / 100))
+  }
+
   const openCompra = (ing: Ingrediente) => {
+    setEmpaqueOpen(false); setEmpaque({ n1: '', n2: '1', n3: '', total: '' })
     setCompraFor(ing)
     setCompraCantidad('')
     setCompraPrecio(String(ing.costo_unitario))
@@ -293,6 +306,26 @@ export function IngredientesManager() {
         {compraFor && (
           <div className="flex flex-col gap-3">
             <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">{compraFor.nombre} · stock actual: {Number(compraFor.stock_actual).toFixed(2)} {compraFor.unidad_medida}</p>
+            <Button variant="secondary" className="self-start" onClick={() => setEmpaqueOpen(o => !o)}>
+              {empaqueOpen ? 'Ocultar calculadora de empaques' : '📦 Compré por cajas o paquetes'}
+            </Button>
+            {empaqueOpen && (
+              <div className="flex flex-col gap-2 rounded-[var(--w-r-md)] border border-dashed border-[color:var(--w-accent)] p-3">
+                <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">
+                  Ej. leche condensada: 1 caja · 6 tarros por caja · 5 {etiquetaUnidad(compraFor.unidad_medida)} cada tarro. Si no hay paquetes dentro, deja 1.
+                </p>
+                <Input label="Cuántas cajas o paquetes compré" type="number" min={0} value={empaque.n1} onChange={e => cambiarEmpaque('n1', e.target.value)} placeholder="1" />
+                <Input label="Cuántos paquetes o tarros trae cada uno" type="number" min={0} value={empaque.n2} onChange={e => cambiarEmpaque('n2', e.target.value)} placeholder="1" />
+                <Input label={`Cuánto trae cada paquete o tarro (${etiquetaUnidad(compraFor.unidad_medida)})`} type="number" min={0} value={empaque.n3} onChange={e => cambiarEmpaque('n3', e.target.value)} placeholder="0" />
+                <Input label="Total que pagué" type="number" min={0} value={empaque.total} onChange={e => cambiarEmpaque('total', e.target.value)} placeholder="0" />
+                {parseFloat(compraCantidad) > 0 && (
+                  <p className="text-[length:var(--w-fs-label)]">
+                    Entran <b>{compraCantidad} {etiquetaUnidad(compraFor.unidad_medida)}</b> al inventario
+                    {parseFloat(empaque.total) >= 0 && empaque.total !== '' && <> · {fmtCOP(parseFloat(compraPrecio) || 0)} por {etiquetaUnidad(compraFor.unidad_medida)}</>}
+                  </p>
+                )}
+              </div>
+            )}
             <Input label={`Cantidad comprada (${compraFor.unidad_medida})`} type="number" min={0} autoFocus value={compraCantidad} onChange={e => setCompraCantidad(e.target.value)} placeholder="0" />
             <Input label="Precio unitario pagado" type="number" min={0} value={compraPrecio} onChange={e => setCompraPrecio(e.target.value)} placeholder="0" />
             {compraValida && (
