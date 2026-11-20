@@ -4,6 +4,7 @@ import { formatCOP } from '../../config/billing'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
+import { Select } from '../ui/Field'
 import { StatePanel } from '../ui/StatePanel'
 import { AgregarSede } from './AgregarSede'
 import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
@@ -18,7 +19,7 @@ interface Cifras {
 }
 interface Corte { fecha: string; creado: string; total: number; neto: number | null; efectivo_esperado: number | null }
 interface Sede extends Cifras { id: string; nombre: string; activa: boolean; actual: boolean; ultimo_corte: Corte | null }
-interface Resumen { hoy: string; mes: string; sedes: Sede[]; total: Cifras }
+interface Resumen { hoy: string; mes: string; primer_mes: string; sedes: Sede[]; total: Cifras }
 
 type Periodo = 'hoy' | 'mes'
 const REFRESCO_MS = 60_000
@@ -32,6 +33,22 @@ const chip = (on: boolean) =>
 
 const fechaCorta = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+
+/** Meses de más nuevo a más viejo, desde el actual hasta el primero con ventas (sin límite hacia atrás). */
+function mesesDisponibles(primer: string, actual: string): string[] {
+  const out: string[] = []
+  let [y, m] = actual.split('-').map(Number)
+  const [py, pm] = primer.split('-').map(Number)
+  while (y > py || (y === py && m >= pm)) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`)
+    m -= 1
+    if (m === 0) { m = 12; y -= 1 }
+  }
+  return out
+}
+
+const nombreMes = (ym: string) =>
+  new Date(`${ym}-01T12:00:00`).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
 
 const hora = (d: Date) => d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })
 
@@ -48,15 +65,16 @@ export default function MisSedes() {
   const [sede, setSede] = useState<string>('todas')
   const [periodo, setPeriodo] = useState<Periodo>('hoy')
   const [entrando, setEntrando] = useState<string | null>(null)
+  const [mes, setMes] = useState<string | null>(null)   // null = el mes actual; 'AAAA-MM' = un mes pasado
 
   const cargar = useCallback(async () => {
-    const { data, error: e } = await supabase.rpc('resumen_sedes')
+    const { data, error: e } = await supabase.rpc('resumen_sedes', { p_mes: mes ? `${mes}-01` : null })
     if (e || !data) { setError(e?.message ?? 'No se pudo cargar el resumen'); setCargando(false); return }
     setDatos(data as Resumen)
     setError(null)
     setActualizado(new Date())
     setCargando(false)
-  }, [])
+  }, [mes])
 
   useEffect(() => {
     cargar()
@@ -101,12 +119,15 @@ export default function MisSedes() {
 
   const elegida = datos.sedes.find(s => s.id === sede)
   const c: Cifras = elegida ?? datos.total
-  const ventas = periodo === 'hoy' ? c.ventas_hoy : c.ventas_mes
-  const pedidos = periodo === 'hoy' ? c.pedidos_hoy : c.pedidos_mes
-  const gastos = periodo === 'hoy' ? c.gastos_hoy : c.gastos_mes
-  const neto = periodo === 'hoy' ? c.neto_hoy : c.neto_mes
-  const propinas = periodo === 'hoy' ? c.propinas_hoy : c.propinas_mes
-  const cuando = periodo === 'hoy' ? 'hoy' : 'este mes'
+  const mesActual = datos.hoy.slice(0, 7)
+  const verPasado = mes !== null && mes !== mesActual   // mirando un mes que ya terminó: no hay "hoy"
+  const meses = mesesDisponibles(datos.primer_mes, mesActual)
+  const ventas = periodo === 'hoy' && !verPasado ? c.ventas_hoy : c.ventas_mes
+  const pedidos = periodo === 'hoy' && !verPasado ? c.pedidos_hoy : c.pedidos_mes
+  const gastos = periodo === 'hoy' && !verPasado ? c.gastos_hoy : c.gastos_mes
+  const neto = periodo === 'hoy' && !verPasado ? c.neto_hoy : c.neto_mes
+  const propinas = periodo === 'hoy' && !verPasado ? c.propinas_hoy : c.propinas_mes
+  const cuando = verPasado ? `en ${nombreMes(mes!)}` : periodo === 'hoy' ? 'hoy' : 'este mes'
 
   return (
     <div className="space-y-5" style={{ fontFamily: 'var(--w-font)' }}>
@@ -122,9 +143,22 @@ export default function MisSedes() {
       </div>
 
       <div role="group" aria-label="Periodo" className="flex gap-2">
-        <button type="button" aria-pressed={periodo === 'hoy'} className={chip(periodo === 'hoy')} onClick={() => setPeriodo('hoy')}>Hoy</button>
-        <button type="button" aria-pressed={periodo === 'mes'} className={chip(periodo === 'mes')} onClick={() => setPeriodo('mes')}>Este mes</button>
+        {!verPasado && <button type="button" aria-pressed={periodo === 'hoy'} className={chip(periodo === 'hoy')} onClick={() => setPeriodo('hoy')}>Hoy</button>}
+        <button type="button" aria-pressed={verPasado || periodo === 'mes'} className={chip(verPasado || periodo === 'mes')} onClick={() => { setMes(null); setPeriodo('mes') }}>Este mes</button>
       </div>
+
+      {meses.length > 1 && (
+        <Select label="Ver otro mes" value={mes ?? ''} disabled={cargando}
+          onChange={e => { setCargando(true); setMes(e.target.value && e.target.value !== mesActual ? e.target.value : null); setPeriodo('mes') }}>
+          <option value="">Este mes</option>
+          {meses.filter(m => m !== mesActual).map(m => <option key={m} value={m}>{nombreMes(m)}</option>)}
+        </Select>
+      )}
+      {verPasado && (
+        <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">
+          Ventas, pedidos, gastos y propinas son de {nombreMes(mes!)}. Pedidos en curso, stock bajo y último corte son de ahora.
+        </p>
+      )}
 
       <section aria-label={`Resumen ${cuando}`} className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label={`Ventas ${cuando}`} value={formatCOP(ventas)} />
@@ -184,9 +218,9 @@ export default function MisSedes() {
               </div>
               <dl className="grid grid-cols-3 gap-2 text-center">
                 <div><dt className="text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Ventas {cuando}</dt>
-                  <dd className="font-bold text-[color:var(--w-text)]">{formatCOP(periodo === 'hoy' ? s.ventas_hoy : s.ventas_mes)}</dd></div>
+                  <dd className="font-bold text-[color:var(--w-text)]">{formatCOP(periodo === 'hoy' && !verPasado ? s.ventas_hoy : s.ventas_mes)}</dd></div>
                 <div><dt className="text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Pedidos</dt>
-                  <dd className="font-bold text-[color:var(--w-text)]">{periodo === 'hoy' ? s.pedidos_hoy : s.pedidos_mes}</dd></div>
+                  <dd className="font-bold text-[color:var(--w-text)]">{periodo === 'hoy' && !verPasado ? s.pedidos_hoy : s.pedidos_mes}</dd></div>
                 <div><dt className="text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">En curso</dt>
                   <dd className="font-bold text-[color:var(--w-text)]">{s.pedidos_en_curso}</dd></div>
               </dl>

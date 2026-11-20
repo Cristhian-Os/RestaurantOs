@@ -67,3 +67,5 @@ Estado 20-nov: **hecha y probada en el proyecto de prueba** (migración `2026112
 - Con "apruebo, aplica" de Cristhian: aplicadas en producción `copiar_carta_de_sede`, `resumen_sedes` y `trasladar_ingrediente` (tabla `traslados_ingredientes`). Solo agregan; no tocaron datos. Verificado: `anon` y PUBLIC no pueden ejecutarlas, RLS activo en el historial.
 - Premium habilitado (`planes.disponible = true`) con el precio y condiciones ya establecidos: 325.000 / sede extra 65.000. Reversa: `supabase/rollback/20261120170000_premium_disponible_down.sql` (deja `disponible = false`).
 - Pendiente: revisión visual en celular; prueba real de aislamiento con la 2.ª sede de Angela; cobro automático de sede extra por Wompi.
+
+- 2026-11-20: añadidos en producción (con "apruebo, aplica"): botón "Agregar sede" en Mis sedes y selector "Ver otro mes" (`resumen_sedes(p_mes date)`, sin límite hacia atrás; reversa `20261120180000_resumen_sedes_por_mes_down.sql`, prueba `tests/resumen_sedes_mes.sql`).
