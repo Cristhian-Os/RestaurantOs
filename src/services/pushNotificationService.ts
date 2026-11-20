@@ -168,8 +168,8 @@ export const pushNotificationService = {
       if (!rid) {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
-        const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).maybeSingle()
-        rid = prof?.restaurant_id ?? undefined
+        const { data: sede } = await supabase.rpc('current_restaurant_id')   // sede activa de este dispositivo
+        rid = typeof sede === 'string' ? sede : undefined
         if (!rid) return
       }
       const roles = Array.isArray(target) ? target : [target]

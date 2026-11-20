@@ -24,9 +24,8 @@ export function QRPrintManager() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user?.id ?? '').single()
-    const rid = prof?.restaurant_id
+    // La sede activa de ESTE dispositivo (no la guardada en el perfil).
+    const { data: rid } = await supabase.rpc('current_restaurant_id')
     if (!rid) { setLoading(false); return }
     const [{ data: rest }, { data: cfg }, { data: mesas }] = await Promise.all([
       supabase.rpc('restaurante_publico', { p_id: rid }).maybeSingle<{ slug: string; name: string }>(),

@@ -277,8 +277,7 @@ export function Facturas({ profile }: { profile: Profile }) {
   const [subir, setSubir] = useState(false)
 
   useEffect(() => {
-    supabase.from('profiles').select('restaurant_id').eq('id', profile.id).maybeSingle()
-      .then(({ data }) => setRid((data?.restaurant_id as string | null) ?? null))
+    supabase.rpc('current_restaurant_id').then(({ data }) => setRid(typeof data === 'string' ? data : null))
     supabase.from('proveedores').select('id, nombre').order('nombre').then(({ data }) => setProveedores((data ?? []) as Proveedor[]))
   }, [profile.id])
 

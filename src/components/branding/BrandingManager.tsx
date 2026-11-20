@@ -136,8 +136,8 @@ export default function BrandingManager({ onBorrador }: { onBorrador?: (b: Borra
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
-      const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).single()
-      const restaurantId = prof?.restaurant_id ?? null
+      const { data: rid } = await supabase.rpc('current_restaurant_id')   // sede activa de este dispositivo
+      const restaurantId = typeof rid === 'string' ? rid : null
       setRid(restaurantId)
       const { data: mods } = await supabase.from('restaurant_config').select('modules_enabled').maybeSingle()
       setDegradados(degradadosDe(mods?.modules_enabled))

@@ -67,8 +67,8 @@ export default function SubscriptionPanel() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
-      const { data: prof } = await supabase.from('profiles').select('restaurant_id').eq('id', user.id).single()
-      setRid(prof?.restaurant_id ?? null)
+      const { data: rid } = await supabase.rpc('current_restaurant_id')   // sede activa de este dispositivo
+      setRid(typeof rid === 'string' ? rid : null)
 
       const { data: s } = await supabase.from('subscriptions')
         .select('plan, ciclo, status, amount_in_cents, is_promo, trial_ends_at, current_period_end, grace_ends_at, wompi_payment_source_id')
