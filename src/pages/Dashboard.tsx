@@ -67,6 +67,7 @@ import { PlatformPanel } from '../components/platform/PlatformPanel'
 import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
 import { MenusHorarioManager } from '../components/menu/horarios/MenusHorarioManager'
+import { AvisoMenusHorario } from '../components/menu/horarios/AvisoMenusHorario'
 import { OptionListsSection } from '../components/menu/OptionListsSection'
 import { Proveedores }      from '../components/cashier/Proveedores'
 import { Facturas }         from '../components/cashier/Facturas'
@@ -985,6 +986,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       <div style={{display:'flex',alignItems:'flex-start'}}>
         <main style={{flex:1,padding:'1.25rem 1.25rem 7rem',overflowX:'clip',minWidth:0}}>
           {profile?.role === 'admin' && activeNav !== 'billing' && <SubscriptionBanner onNavigate={setActiveNav} />}
+          {profile?.role === 'admin' && activeNav !== 'menu_horarios' && <AvisoMenusHorario onAbrir={() => setActiveNav('menu_horarios')} />}
           {wizardPending && !wizardOpen && (
             <button onClick={() => setWizardOpen(true)} style={{
               width:'100%', marginBottom:'1rem', padding:'0.875rem 1rem', borderRadius:'1rem', cursor:'pointer', textAlign:'left',
