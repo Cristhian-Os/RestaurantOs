@@ -41,6 +41,7 @@ import BrandingManager, { applyBranding } from '../components/branding/BrandingM
 import SubscriptionPanel from '../components/billing/SubscriptionPanel'
 import SubscriptionBanner from '../components/billing/SubscriptionBanner'
 import SedeSelector from '../components/SedeSelector'
+import { restaurarSede } from '../lib/sedeDispositivo'
 import MisSedes from '../components/sedes/MisSedes'
 import Resti from '../components/resti/Resti'
 import { MobileNav } from '../components/shell/FloatingNav'
@@ -661,6 +662,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   // "Mis sedes": solo el dueño de una cuenta con 2 sedes o más (un admin de una sola sede ve solo la suya).
   // "Mis sedes" lo ve todo administrador: con una sola sede ahí agrega la segunda ("Agregar sede").
   // Quién es el dueño lo decide el servidor (crear_sede y resumen_sedes rechazan a quien no lo es).
+  // Cada aparato recuerda su última sede aunque se cierre sesión: al abrir, el dueño vuelve a la que dejó.
+  const rolSede = profile?.role
+  useEffect(() => {
+    if (rolSede !== 'admin') return
+    restaurarSede().then(cambio => { if (cambio) window.location.reload() })
+  }, [rolSede])
   const [isPhone, setIsPhone] = useState(() => window.innerWidth < 900)
   useEffect(() => {
     const on = () => setIsPhone(window.innerWidth < 900)

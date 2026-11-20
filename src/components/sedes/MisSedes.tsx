@@ -7,6 +7,7 @@ import { Badge } from '../ui/Badge'
 import { Select } from '../ui/Field'
 import { StatePanel } from '../ui/StatePanel'
 import { AgregarSede } from './AgregarSede'
+import { cambiarSede } from '../../lib/sedeDispositivo'
 import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 
 interface Cifras {
@@ -84,8 +85,8 @@ export default function MisSedes() {
 
   async function entrar(id: string) {
     setEntrando(id)
-    const { error: e } = await supabase.rpc('cambiar_sede', { p_restaurant_id: id })
-    if (e) { setError(e.message); setEntrando(null); return }
+    const e = await cambiarSede(id)   // cambia la sede de este aparato y la recuerda
+    if (e) { setError(e); setEntrando(null); return }
     window.location.reload()   // todo el panel se recarga con la sede nueva
   }
 

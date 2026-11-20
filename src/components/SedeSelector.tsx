@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabaseClient'
+import { cambiarSede } from '../lib/sedeDispositivo'
 
 interface Sede { id: string; nombre: string; actual: boolean }
 
@@ -14,7 +15,7 @@ export default function SedeSelector({ style }: { style?: React.CSSProperties })
   if (sedes.length < 2) return null
 
   async function cambiar(id: string) {
-    const { error } = await supabase.rpc('cambiar_sede', { p_restaurant_id: id })
+    const error = await cambiarSede(id)   // cambia la sede de este aparato y la recuerda
     if (!error) window.location.reload()   // todo el panel se recarga con la sede nueva
   }
 
