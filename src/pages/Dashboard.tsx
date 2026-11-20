@@ -659,14 +659,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [wizardOpen, setWizardOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   // "Mis sedes": solo el dueño de una cuenta con 2 sedes o más (un admin de una sola sede ve solo la suya).
-  const [variasSedes, setVariasSedes] = useState(false)
-  const rolPerfil = profile?.role
-  useEffect(() => {
-    if (rolPerfil !== 'admin') { setVariasSedes(false); return }
-    let vivo = true
-    supabase.rpc('mis_sedes').then(({ data }) => { if (vivo) setVariasSedes(Array.isArray(data) && data.length >= 2) })
-    return () => { vivo = false }
-  }, [rolPerfil])
+  // "Mis sedes" lo ve todo administrador: con una sola sede ahí agrega la segunda ("Agregar sede").
+  // Quién es el dueño lo decide el servidor (crear_sede y resumen_sedes rechazan a quien no lo es).
   const [isPhone, setIsPhone] = useState(() => window.innerWidth < 900)
   useEffect(() => {
     const on = () => setIsPhone(window.innerWidth < 900)
@@ -883,7 +877,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'impresion': return profile.role === 'admin' ? <ImpresionConfig /> : null
       case 'setup':     return profile.role === 'admin' ? <ConfiguracionGuiada onAbrir={() => setWizardOpen(true)} /> : null
       case 'config':    return profile.role === 'admin' ? <ConfigHub onNavigate={v => setActiveNav(v as NavView)} visibles={['branding', 'impresion', 'whatsapp', 'fidelidad_config', 'setup', 'billing']} /> : null
-      case 'sedes':     return profile.role === 'admin' && variasSedes ? <MisSedes /> : null
+      case 'sedes':     return profile.role === 'admin' ? <MisSedes /> : null
       case 'whatsapp':  return profile.role === 'admin' ? <WhatsAppConfig /> : null
       case 'branding':  return <BrandingManager />
       case 'billing':   return <SubscriptionPanel />
@@ -918,7 +912,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   const navBase = NAV_BY_ROLE[profile!.role] ?? NAV_BY_ROLE.client
   // "Mis sedes" va justo antes de Configuración (en el panel Más, sin mover lo que ya está en la barra).
-  const navItems = profile!.role === 'admin' && variasSedes
+  const navItems = profile!.role === 'admin'
     ? navBase.flatMap(i => i.view === 'config' ? [{ view: 'sedes' as NavView, icon: <Icons.Platform />, label: 'Mis sedes' }, i] : [i])
     : navBase
   const navActive: NavView = profile!.role === 'admin' && ['impresion', 'setup', 'branding', 'billing', 'whatsapp', 'fidelidad_config'].includes(activeNav) ? 'config' : activeNav

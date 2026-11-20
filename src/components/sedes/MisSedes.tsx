@@ -5,6 +5,7 @@ import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { StatePanel } from '../ui/StatePanel'
+import { AgregarSede } from './AgregarSede'
 import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 
 interface Cifras {
@@ -75,7 +76,10 @@ export default function MisSedes() {
       icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M5 21V8l7-4 7 4v13M9 21v-6h6v6"/></svg>}
       title="Mis sedes"
       subtitle="Ventas, pedidos e inventario de todas tus sedes."
-      actions={<Button variant="secondary" size="sm" onClick={() => { setCargando(true); cargar() }} loading={cargando && !!datos}>Actualizar</Button>}
+      actions={<>
+        <AgregarSede />
+        <Button variant="secondary" size="sm" onClick={() => { setCargando(true); cargar() }} loading={cargando && !!datos}>Actualizar</Button>
+      </>}
     />
   )
 
@@ -85,8 +89,9 @@ export default function MisSedes() {
     return (
       <div className="space-y-4">
         {encabezado}
-        <StatePanel kind={sinPermiso ? 'forbidden' : 'error'} text={sinPermiso ? 'Solo el dueño de la cuenta ve el resumen de sus sedes.' : undefined}
-          action={sinPermiso ? undefined : <Button variant="secondary" onClick={() => { setCargando(true); cargar() }}>Reintentar</Button>} />
+        {sinPermiso
+          ? <StatePanel kind="empty" title="Tienes una sola sede" text="Toca “Agregar sede” para crear otra. Cuando tengas dos o más, aquí verás todas juntas y cada una por separado." />
+          : <StatePanel kind="error" action={<Button variant="secondary" onClick={() => { setCargando(true); cargar() }}>Reintentar</Button>} />}
       </div>
     )
   }
