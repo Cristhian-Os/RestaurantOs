@@ -54,3 +54,10 @@ Estado 20-nov: **hecha y probada en el proyecto de prueba** (migración `2026112
 
 ## Pendientes descubiertos
 - Las fotos copiadas apuntan al mismo archivo. Si una sede borra la foto, la otra la pierde. Revisar en la fase A.
+
+
+## Estado fase C (traslados de ingredientes)
+- Hecha en el proyecto de PRUEBA: migración `20261120160000_traslados_ingredientes.sql` (tabla de historial + `trasladar_ingrediente`), reversa y prueba `supabase/tests/traslados_ingredientes.sql` (T1 a T9 pasan).
+- Pantalla: botón "Pasar a otra sede" en cada ingrediente y botón "Traslados" (historial) en Inventario → Ingredientes. Solo aparecen si la cuenta tiene otra sede.
+- Pendiente: producción (copia previa + "apruebo, aplica") y revisión visual en el celular.
+- Nota: al llegar a una sede, el costo del ingrediente existente no se promedia; solo se suma la cantidad.
