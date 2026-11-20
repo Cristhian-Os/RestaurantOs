@@ -66,6 +66,7 @@ import {
 import { PlatformPanel } from '../components/platform/PlatformPanel'
 import { MfaGate } from '../components/platform/MfaGate'
 import { MenuAvailability } from '../components/menu/MenuAvailability'
+import { MenusHorarioManager } from '../components/menu/horarios/MenusHorarioManager'
 import { OptionListsSection } from '../components/menu/OptionListsSection'
 import { Proveedores }      from '../components/cashier/Proveedores'
 import { Facturas }         from '../components/cashier/Facturas'
@@ -77,7 +78,7 @@ import { SetupWizard }      from '../components/onboarding/SetupWizard'
 import { OrderSoundAlerts, SoundTestButton, SoundUnlockBanner } from '../components/orders/OrderSoundAlerts'
 
 export type Role    = 'super_admin' | 'admin' | 'waiter' | 'kitchen' | 'cashier' | 'client'
-export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'proveedores' | 'facturas' | 'opinion' | 'fidelizacion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'whatsapp' | 'domicilios' | 'conversaciones' | 'pedidos_mesa' | 'campanas' | 'arm' | 'fidelidad_config' | 'config' | 'platform' | 'central'
+export type NavView = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'cashier' | 'tasks' | 'shifts' | 'inventory' | 'analytics' | 'ventas' | 'team' | 'menu' | 'menu_gestion' | 'menu_listas' | 'menu_horarios' | 'proveedores' | 'facturas' | 'opinion' | 'fidelizacion' | 'setup' | 'impresion' | 'branding' | 'billing' | 'whatsapp' | 'domicilios' | 'conversaciones' | 'pedidos_mesa' | 'campanas' | 'arm' | 'fidelidad_config' | 'config' | 'platform' | 'central'
 
 export interface Profile {
   id:          string
@@ -153,6 +154,7 @@ const NAV_BY_ROLE: Record<Role, { view: NavView; icon: React.ReactNode; label: s
     { view:'menu',      icon:<Icons.Menu />,      label:'Menú'       },
     { view:'menu_gestion', icon:<Icons.Toggles />, label:'Gestión menú'},
     { view:'menu_listas', icon:<Icons.Menu />,     label:'Listas y opciones'},
+    { view:'menu_horarios', icon:<Icons.Menu />,   label:'Menús por horario'},
     { view:'proveedores',  icon:<Icons.Truck />,   label:'Proveedores'},
     { view:'facturas',     icon:<Icons.Receipt />, label:'Facturas'   },
     { view:'fidelizacion', icon:<Icons.Heart />,   label:'Fidelización' },
@@ -863,6 +865,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'menu':      return profile.role === 'admin' ? <MenuManager /> : <ClientMenuSection />
       case 'menu_gestion': return <MenuAvailability />
       case 'menu_listas':  return <OptionListsSection />
+      case 'menu_horarios': return profile.role === 'admin' ? <MenusHorarioManager /> : <ClientMenuSection />
       case 'proveedores':  return <Proveedores canEdit={profile.role === 'admin'} />
       case 'facturas':     return profile.role === 'admin' || profile.role === 'cashier' ? <Facturas profile={profile} /> : null
       case 'fidelizacion': return profile.role === 'admin' || profile.role === 'cashier' || profile.role === 'waiter' ? <FidelizacionView rol={profile.role} /> : null

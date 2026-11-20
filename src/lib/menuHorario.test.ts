@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import {
   aplicarMenuHorario, msHastaCambio, formatoHora, rangoHoras, resumenDias, duracionLegible,
-  programacionSemanal, solapamientos, cuandoLegible, cambioLocal, type MenuHorarioEstado, type MenuHorarioFila, type FranjaFila, type PlatoBase,
+  programacionSemanal, solapamientos, cuandoLegible, cambioLocal, proximaFranja, type MenuHorarioEstado, type MenuHorarioFila, type FranjaFila, type PlatoBase,
 } from './menuHorario.ts'
 
 const platos: (PlatoBase & { name: string })[] = [
@@ -128,5 +128,23 @@ assert.equal(cambioLocal(eLoc), '2026-11-20T11:00')                       // 2 h
 assert.equal(cambioLocal({ ...eLoc, cambia_en: null }), null)
 assert.equal(cambioLocal({ ...eLoc, activo: false }), null)
 assert.equal(cambioLocal(null), null)
+
+// ─── Próxima franja de un menú ───
+// Jueves 19 nov 2026, 19:39 (hora local): Desayunos (todos los días 06:00) empieza mañana; Nocturno (vie y sáb 18:00) mañana
+assert.equal(proximaFranja('m0', franjas, '2026-11-19T19:39:57'), '2026-11-20T06:00')
+assert.equal(proximaFranja('m3', franjas, '2026-11-19T19:39:57'), '2026-11-20T18:00')
+// Viernes 08:00: el desayuno de hoy ya empezó (06:00) → mañana; el almuerzo (11:00) sí es hoy
+assert.equal(proximaFranja('m0', franjas, '2026-11-20T08:00:00'), '2026-11-21T06:00')
+assert.equal(proximaFranja('m1', franjas, '2026-11-20T08:00:00'), '2026-11-20T11:00')
+// Sábado 19:00: el nocturno de hoy ya empezó; el siguiente sábado/viernes → el viernes 27 a las 18:00
+assert.equal(proximaFranja('m3', franjas, '2026-11-21T19:00:00'), '2026-11-27T18:00')
+// Menú de temporada: empieza el 1 dic 2026 → la próxima franja es ese día (el 1 dic 2026 es martes) y no "hoy"
+assert.equal(proximaFranja('m2', franjas, '2026-11-20T08:00:00', { fecha_inicio: '2026-12-01' }), '2026-12-01T15:00')
+// Menú que ya terminó (fecha_fin pasada) → null
+assert.equal(proximaFranja('m2', franjas, '2026-11-20T08:00:00', { fecha_fin: '2026-11-19' }), null)
+// Termina mañana: hoy todavía hay franja
+assert.equal(proximaFranja('m2', franjas, '2026-11-20T08:00:00', { fecha_fin: '2026-11-20' }), '2026-11-20T15:00')
+// Menú sin franjas semanales (solo día especial) → null
+assert.equal(proximaFranja('mX', franjas, '2026-11-20T08:00:00'), null)
 
 console.log('menuHorario: todas las pruebas pasan')

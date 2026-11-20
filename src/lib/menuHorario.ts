@@ -202,6 +202,38 @@ export function solapamientos(menus: MenuHorarioFila[], franjas: FranjaFila[]): 
   return out
 }
 
+/**
+ * Próximo inicio de franja SEMANAL de un menú, en hora local ('YYYY-MM-DDTHH:MM'), contando desde `ahoraLocal`.
+ * Solo es una guía para la tarjeta del menú: no considera fechas de inicio/fin, días especiales ni controles manuales.
+ */
+export function proximaFranja(
+  menuId: string, franjas: FranjaFila[], ahoraLocal: string,
+  vigencia: { fecha_inicio?: string | null; fecha_fin?: string | null } = {},
+): string | null {
+  const [fecha, hora] = ahoraLocal.split('T')
+  const [y, m, d] = fecha.split('-').map(Number)
+  const ahoraMin = aMinutos(hora)
+  const { fecha_inicio, fecha_fin } = vigencia
+  // Con fechas de vigencia se busca más lejos (un menú de temporada puede empezar dentro de meses)
+  const tope = fecha_inicio || fecha_fin ? 400 : 7
+  for (let off = 0; off <= tope; off++) {
+    const dia = new Date(Date.UTC(y, m - 1, d + off))
+    const iso = dia.toISOString().slice(0, 10)
+    if (fecha_fin && iso > fecha_fin) return null
+    if (fecha_inicio && iso < fecha_inicio) continue
+    const dow = dia.getUTCDay()
+    let mejor: string | null = null
+    for (const f of franjas) {
+      if (f.menu_id !== menuId || f.dia_especial_id || !f.dias.includes(dow)) continue
+      if (off === 0 && aMinutos(f.hora_inicio) <= ahoraMin) continue
+      const cand = `${iso}T${hhmm(f.hora_inicio)}`
+      if (mejor === null || cand < mejor) mejor = cand
+    }
+    if (mejor) return mejor   // los días se recorren en orden: el primero con franja gana
+  }
+  return null
+}
+
 /** Hora local del restaurante en que cambia la franja ('YYYY-MM-DDTHH:MM'), a partir del estado del servidor. */
 export function cambioLocal(estado: MenuHorarioEstado | null | undefined): string | null {
   if (!estado?.activo || !estado.cambia_en || !estado.hora_local) return null
