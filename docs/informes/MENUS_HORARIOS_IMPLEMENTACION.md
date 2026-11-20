@@ -115,3 +115,18 @@ No lo hago sin tu orden y sin copia previa. Pasos propuestos:
 - Un plato editado en un pedido sin menú se reprecia con el precio **actual** del plato (comportamiento que ya existía).
 - Modo oscuro y pruebas en celulares reales de las pantallas nuevas.
 - Datos de ejemplo (menús, platos, pedidos de prueba) quedaron en `restaurantos-prueba`, sedes A y B.
+
+---
+
+## 10. Despliegue en producción (2026-11-20, con "apruebo, aplica")
+
+- **Copia previa:** `docs/informes/RESPALDO_FUNCIONES_PRODUCCION_2026-11-20_MENUS_HORARIO.sql` (8 funciones, definiciones exactas antes de tocar nada).
+- **Migraciones aplicadas en `RestaurantOs` (`ifypeslrcdebvdqglywt`), en orden:** `20261117120000` tablas · `130000` funciones · `131000` coherencia · `132000` precio de pedidos · `133000` paréntesis · `134000` carta de WhatsApp · `135000` cierre de funciones internas · `136000` zona horaria.
+- **Un intento falló** (en `132000` por un error de mi copia del ayudante). Supabase lo revirtió por completo: se verificó antes de reintentar que no quedó nada a medias.
+- **Verificación (solo lectura, se deshizo todo):** interruptor apagado en 0 restaurantes; zona Bogotá en todos; 202 platos sin tamaños y 37 precios por tamaño cobran exactamente lo mismo que antes; todos los parches presentes en las funciones de producción.
+- **Interruptor "Menús por horario": sigue APAGADO en todas las sedes.** Para encenderlo hace falta una orden aparte, después de probarlo en una sede de prueba.
+
+**Pendiente antes de dar por cerrado el despliegue:**
+1. Publicar el código de la app y la función `menu-asistente`. Eso requiere llevar la rama a `main` y desplegar; no lo hice sin confirmarlo contigo.
+2. Confirmar la copia diaria en Supabase (Database → Backups). No se puede verificar desde el código.
+3. Probar un pedido real en una sede de prueba antes de encender el interruptor en Cholaos Dany.
