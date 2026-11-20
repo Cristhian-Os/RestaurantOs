@@ -25,6 +25,8 @@ import { applyBranding } from '../components/branding/BrandingManager'
 import { CategoryIcon } from '../components/CategoryIcon'
 import CartaAsistente, { MascotaMenu } from '../components/menu/CartaAsistente'
 import { useMesaQr, MesaQrBanner, MesaQrSheet } from '../components/menu/MesaQr'
+import { useMenuHorario } from '../hooks/useMenuHorario'
+import { BannerMenuHorario } from '../components/menu/horarios/BannerMenuHorario'
 
 const CATEGORY_LABELS: Record<DishCategory | 'all', string> = {
   all:       'Todo',
@@ -1070,7 +1072,7 @@ DishCard.displayName = 'DishCard'
 
 // ── Main ──────────────────────────────────────────────────────────
 export default function PublicMenu() {
-  const [dishes,        setDishes]        = useState<Dish[]>([])
+  const [dishesBase,    setDishes]        = useState<Dish[]>([])   // todos los platos disponibles; `dishes` (abajo) es lo que rige ahora
   const [loading,       setLoading]       = useState(true)
   const [bizName,       setBizName]       = useState('RestaurantOS')
   const [promo,         setPromo]         = useState<string | null>(null)
@@ -1136,6 +1138,10 @@ export default function PublicMenu() {
   const scrollingTo = useRef(false)
 
   const [restaurantId, setRestaurantId] = useState<string | null>(null)
+
+  // Menús por horario: el servidor dice qué menú rige ahora (hora del restaurante). Sin la función activa, no cambia nada.
+  const horario = useMenuHorario(restaurantId, 'qr')
+  const dishes = useMemo(() => horario.aplicar(dishesBase), [horario.aplicar, dishesBase])
 
   // ── URL params ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1310,6 +1316,12 @@ export default function PublicMenu() {
     for (const cat of categories) map.set(cat, dishes.filter(d => d.category === cat))
     return map
   }, [dishes, categories])
+
+  // Productos del carrito que ya no están en el menú de ahora (la franja cambió mientras el cliente armaba su pedido)
+  const lineasFueraDeMenu = useMemo(() => {
+    if (!horario.estado?.activo) return []
+    return cart.filter(l => !l.customIngredients && !dishes.some(d => d.id === l.dish.id))
+  }, [cart, dishes, horario.estado])
 
   const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
   const cartCount = cart.reduce((s, i) => s + i.qty, 0)
@@ -1521,6 +1533,8 @@ export default function PublicMenu() {
       </header>
 
       <MesaQrBanner qr={qr} onAbrir={() => setQrAbierto(true)} />
+
+      <BannerMenuHorario estado={horario.estado} />
 
       {/* ── Banner de promoción (solo si el restaurante la tiene activa) ── */}
       {promo && !isClosedNow && (
@@ -2045,6 +2059,19 @@ export default function PublicMenu() {
                     style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box' }} />
                 </div>
               </div>
+
+              {lineasFueraDeMenu.length > 0 && (
+                <div role="alert" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '0.875rem', background: 'var(--w-danger-bg)', color: 'var(--w-danger-text)', fontSize: '0.8125rem', fontWeight: 600 }}>
+                  <p style={{ margin: '0 0 0.5rem' }}>
+                    El menú cambió. Ya no están en el menú de ahora: {[...new Set(lineasFueraDeMenu.map(l => l.dish.name))].join(', ')}.
+                  </p>
+                  <button type="button"
+                    onClick={() => { const fuera = new Set(lineasFueraDeMenu.map(l => l.uid)); setCart(prev => prev.filter(i => !fuera.has(i.uid))) }}
+                    style={{ minHeight: 40, padding: '0 1rem', borderRadius: 9999, border: '1px solid var(--w-danger)', background: 'transparent', color: 'inherit', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--w-font)' }}>
+                    Quitar del pedido
+                  </button>
+                </div>
+              )}
 
               {isClosedNow && (
                 <p style={{ fontSize: '0.8rem', color: 'var(--w-danger)', marginBottom: '1rem', textAlign: 'center', fontWeight: 700 }}>

@@ -25,6 +25,8 @@ import type { RecetaShortage } from '../../types/inventory'
 import type { Profile } from '../../pages/Dashboard'
 import { CategoryIcon } from '../CategoryIcon'
 import { useMenuConfig } from '../../hooks/useMenuConfig'
+import { useMenuHorario } from '../../hooks/useMenuHorario'
+import { BannerMenuHorario } from '../menu/horarios/BannerMenuHorario'
 import {
   type MenuConfig, defaultSel, describeSel, flavorsNeeded, hasOptions, lineNotes, orderCategories,
   groupUnits, selIsValid, selectedLabels, toggleIn, unitPriceFor, visibleOptions,
@@ -390,7 +392,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [domTarifa, setDomTarifa]       = useState('')
   const [domMetodo, setDomMetodo]       = useState<MetodoPago>('transferencia')
   // Menú
-  const [dishes, setDishes]         = useState<Dish[]>([])
+  const [dishesTodos, setDishes]    = useState<Dish[]>([])   // todos los platos disponibles; `dishes` (abajo) es lo que rige ahora
+  const [miRid, setMiRid]           = useState<string | null>(null)
   const [cart, setCart]             = useState<CartItem[]>([])
   const [personas, setPersonas]     = useState(0)   // 0 = pedido sin dividir por persona
   const [search, setSearch]         = useState('')
@@ -428,6 +431,11 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   }, [])
 
   useEffect(() => { fetchDishes() }, [fetchDishes])
+
+  // Menús por horario: solo se ven los platos del menú vigente y con su precio de menú. Con el interruptor apagado, todo igual que siempre.
+  useEffect(() => { supabase.rpc('current_restaurant_id').then(({ data }) => setMiRid(typeof data === 'string' ? data : null)) }, [])
+  const horario = useMenuHorario(miRid, 'personal')
+  const dishes = useMemo(() => horario.aplicar(dishesTodos), [horario.aplicar, dishesTodos])
 
   // Refrescar el menú en vivo si el admin edita platos/categorías en otra pestaña
   useEffect(() => {
@@ -831,6 +839,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
             exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3, ease: EASE }}
             className="space-y-4"
           >
+            {/* Menú por horario vigente (solo si el restaurante lo usa) */}
+            <BannerMenuHorario estado={horario.estado} variante="personal" />
+
             {/* Buscador */}
             <div className="bg-[var(--w-surface)] rounded-[var(--w-r-lg)] px-4 py-3 flex items-center gap-3" style={FX.field}>
               <span className="text-[color:var(--w-text-3)]"></span>

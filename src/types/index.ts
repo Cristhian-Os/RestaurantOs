@@ -108,6 +108,7 @@ export interface Dish {
   created_at?: string       // timestamp de creación
   updated_at?: string       // timestamp de actualización
   sort_order?: number       // orden de visualización
+  todo_el_dia?: boolean     // true = disponible siempre, sin importar el menú por horario vigente
   _customIngredients?: Record<string, number> // para platos custom: { ingrediente_id: cantidad }
 }
 
