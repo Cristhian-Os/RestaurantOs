@@ -12,7 +12,7 @@ import { matchName } from './voiceMatch.ts'
 import { canonUnit, convertQty } from './voiceUnits.ts'
 
 /** Unidad canónica de voiceUnits → valor que acepta `ingredientes.unidad_medida`. */
-const DB_UNIT: Record<string, string> = { g: 'gramo', kg: 'kg', ml: 'ml', l: 'litro', pieza: 'pieza', paquete: 'paquete' }
+const DB_UNIT: Record<string, string> = { g: 'gramo', kg: 'kg', libra: 'libra', ml: 'ml', l: 'litro', pieza: 'pieza', paquete: 'paquete' }
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 

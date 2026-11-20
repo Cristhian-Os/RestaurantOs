@@ -343,9 +343,9 @@ assert.match(one({ type: 'expense_add', concepto: 'Gas', monto: 5e12 }).problem!
 { // producto nuevo: la unidad es obligatoria y se manda en el valor que acepta la base
   const nuevo = (unidad?: string) => one({ type: 'purchase_add', concepto: 'Frutas Pérez', lineas: [{ nombre: 'Papaya', cantidad: 2, unidad, precio_unitario: 3000 }] })
   assert.match(nuevo().problem!, /"Papaya" es nuevo en tu inventario: di en qué unidad/)
-  assert.match(nuevo('libras').problem!, /es nuevo en tu inventario/)
+  assert.match(nuevo('arrobas').problem!, /es nuevo en tu inventario/)
   const unit = (u: string) => (nuevo(u).change as { items: { unidad: string; ingrediente_id: string | null }[] }).items[0]
-  assert.equal(unit('kilos').unidad, 'kg'); assert.equal(unit('gramos').unidad, 'gramo'); assert.equal(unit('litros').unidad, 'litro')
+  assert.equal(unit('kilos').unidad, 'kg'); assert.equal(unit('gramos').unidad, 'gramo'); assert.equal(unit('litros').unidad, 'litro'); assert.equal(unit('libras').unidad, 'libra')
   assert.equal(unit('mililitros').unidad, 'ml'); assert.equal(unit('unidades').unidad, 'pieza'); assert.equal(unit('paquetes').unidad, 'paquete')
   assert.equal(unit('kilos').ingrediente_id, null)
   assert.match(nuevo('kilos').detail, /Suma al inventario · Se crea en inventario: Papaya/)

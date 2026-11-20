@@ -16,9 +16,9 @@ interface Linea { ingId: string; cantidad: string; unidad: string }
 
 // Para convertir una cantidad escrita en la unidad de la receta a la unidad del ingrediente: FACTOR[unidadIngrediente][unidadReceta]
 const FACTOR: Record<string, Record<string, number>> = {
-  kg: { kg: 1, gramo: 0.001 }, gramo: { gramo: 1, kg: 1000 }, litro: { litro: 1, ml: 0.001 }, ml: { ml: 1, litro: 1000 }, pieza: { pieza: 1 }, paquete: { paquete: 1 },
+  kg: { kg: 1, gramo: 0.001, libra: 0.45359237 }, gramo: { gramo: 1, kg: 1000, libra: 453.59237 }, libra: { libra: 1, kg: 2.20462262, gramo: 1 / 453.59237 }, litro: { litro: 1, ml: 0.001 }, ml: { ml: 1, litro: 1000 }, pieza: { pieza: 1 }, paquete: { paquete: 1 },
 }
-const UNIDADES = ['kg', 'gramo', 'litro', 'ml', 'pieza', 'paquete']
+const UNIDADES = ['kg', 'gramo', 'libra', 'litro', 'ml', 'pieza', 'paquete']
 const num = (s: string) => Number(String(s).replace(/\s/g, '').replace(',', '.'))
 const cop = (n: number) => '$' + Math.round(n).toLocaleString('es-CO')
 // Todo lo que viene de un archivo es texto: nunca se interpreta como fórmula.

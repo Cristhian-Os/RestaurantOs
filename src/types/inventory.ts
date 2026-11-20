@@ -1,7 +1,7 @@
 export interface Ingrediente {
   id: string
   nombre: string
-  unidad_medida: 'kg' | 'litro' | 'pieza' | 'gramo' | 'ml' | 'paquete'
+  unidad_medida: 'kg' | 'litro' | 'pieza' | 'gramo' | 'libra' | 'ml' | 'paquete'
   stock_actual: number
   stock_minimo: number
   costo_unitario: number

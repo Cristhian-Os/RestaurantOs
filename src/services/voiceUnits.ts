@@ -15,6 +15,8 @@ const TABLE: Record<string, Canon> = {
   kg: { family: 'mass', factor: 1000, key: 'kg' }, kilo: { family: 'mass', factor: 1000, key: 'kg' },
   kilos: { family: 'mass', factor: 1000, key: 'kg' }, kilogramo: { family: 'mass', factor: 1000, key: 'kg' },
   kilogramos: { family: 'mass', factor: 1000, key: 'kg' },
+  libra: { family: 'mass', factor: 453.59237, key: 'libra' }, libras: { family: 'mass', factor: 453.59237, key: 'libra' },
+  lb: { family: 'mass', factor: 453.59237, key: 'libra' }, lbs: { family: 'mass', factor: 453.59237, key: 'libra' },
   ml: { family: 'volume', factor: 1, key: 'ml' }, mililitro: { family: 'volume', factor: 1, key: 'ml' },
   mililitros: { family: 'volume', factor: 1, key: 'ml' },
   l: { family: 'volume', factor: 1000, key: 'l' }, lt: { family: 'volume', factor: 1000, key: 'l' },
