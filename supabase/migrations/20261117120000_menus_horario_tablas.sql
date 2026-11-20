@@ -1,5 +1,5 @@
 -- Menús por franjas horarias — 1/3: tablas, columnas, RLS, auditoría.
--- ADITIVA: solo crea tablas y agrega columnas con valor por defecto. No toca filas existentes.
+-- ADITIVA: solo crea tablas y agrega columnas con valor por defecto (sin DROP). No toca filas existentes.
 -- Con restaurant_config.menus_horario_activo = false (por defecto) nada cambia para el restaurante.
 -- Reversa: supabase/rollback/20261117120000_menus_horario_down.sql
 
@@ -25,7 +25,6 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS restaurant_config_zona ON public.restaurant_config;
 CREATE TRIGGER restaurant_config_zona BEFORE INSERT OR UPDATE OF zona_horaria ON public.restaurant_config
   FOR EACH ROW EXECUTE FUNCTION public._restaurant_config_zona_trg();
 
@@ -140,13 +139,10 @@ BEGIN
   RETURN NEW;
 END $$;
 
-DROP TRIGGER IF EXISTS menu_horario_franjas_coh ON public.menu_horario_franjas;
 CREATE TRIGGER menu_horario_franjas_coh BEFORE INSERT OR UPDATE ON public.menu_horario_franjas
   FOR EACH ROW EXECUTE FUNCTION public._menu_horario_coherencia_trg();
-DROP TRIGGER IF EXISTS menu_horario_productos_coh ON public.menu_horario_productos;
 CREATE TRIGGER menu_horario_productos_coh BEFORE INSERT OR UPDATE ON public.menu_horario_productos
   FOR EACH ROW EXECUTE FUNCTION public._menu_horario_coherencia_trg();
-DROP TRIGGER IF EXISTS menu_horario_excepciones_coh ON public.menu_horario_excepciones;
 CREATE TRIGGER menu_horario_excepciones_coh BEFORE INSERT OR UPDATE ON public.menu_horario_excepciones
   FOR EACH ROW EXECUTE FUNCTION public._menu_horario_coherencia_trg();
 
@@ -185,19 +181,15 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['menus_horario','menu_horario_franjas','menu_horario_productos',
                            'menu_horario_excepciones','menu_horario_dias_especiales'] LOOP
-    EXECUTE format('DROP TRIGGER IF EXISTS %I ON public.%I', t || '_audit', t);
     EXECUTE format('CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public._menu_horario_auditar_trg()', t || '_audit', t);
   END LOOP;
 END $$;
-DROP TRIGGER IF EXISTS restaurant_config_menus_audit ON public.restaurant_config;
 CREATE TRIGGER restaurant_config_menus_audit AFTER UPDATE ON public.restaurant_config
   FOR EACH ROW EXECUTE FUNCTION public._menu_horario_auditar_trg();
-DROP TRIGGER IF EXISTS dishes_todo_el_dia_audit ON public.dishes;
 CREATE TRIGGER dishes_todo_el_dia_audit AFTER UPDATE OF todo_el_dia ON public.dishes
   FOR EACH ROW EXECUTE FUNCTION public._menu_horario_auditar_trg();
 
 -- updated_at
-DROP TRIGGER IF EXISTS menus_horario_updated ON public.menus_horario;
 CREATE TRIGGER menus_horario_updated BEFORE UPDATE ON public.menus_horario
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
@@ -209,11 +201,9 @@ BEGIN
                            'menu_horario_excepciones','menu_horario_dias_especiales'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('REVOKE ALL ON public.%I FROM anon', t);
-    EXECUTE format('DROP POLICY IF EXISTS "Admin gestiona" ON public.%I', t);
     EXECUTE format($p$CREATE POLICY "Admin gestiona" ON public.%I FOR ALL TO authenticated
       USING (((SELECT public.is_admin()) AND restaurant_id = (SELECT public.current_restaurant_id())) OR (SELECT public.is_super_admin()))
       WITH CHECK (((SELECT public.is_admin()) AND restaurant_id = (SELECT public.current_restaurant_id())) OR (SELECT public.is_super_admin()))$p$, t);
-    EXECUTE format('DROP POLICY IF EXISTS "Personal lee" ON public.%I', t);
     EXECUTE format($p$CREATE POLICY "Personal lee" ON public.%I FOR SELECT TO authenticated
       USING (restaurant_id = (SELECT public.current_restaurant_id()))$p$, t);
   END LOOP;
@@ -222,7 +212,6 @@ END $$;
 ALTER TABLE public.menu_horario_auditoria ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.menu_horario_auditoria FROM anon, authenticated;
 GRANT SELECT ON public.menu_horario_auditoria TO authenticated;
-DROP POLICY IF EXISTS "Admin lee auditoria" ON public.menu_horario_auditoria;
 CREATE POLICY "Admin lee auditoria" ON public.menu_horario_auditoria FOR SELECT TO authenticated
   USING (((SELECT public.is_admin()) AND restaurant_id = (SELECT public.current_restaurant_id())) OR (SELECT public.is_super_admin()));
 
