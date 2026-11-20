@@ -248,3 +248,52 @@ export async function agregarNoContactar(canal: 'correo' | 'whatsapp' | 'telefon
   const { error } = await supabase.rpc('growth_suprimir', { p_canal: canal, p_valor: limpio(valor), p_motivo: motivo, p_fuente: 'Agregado a mano en Central' })
   return resultado(error)
 }
+
+// ── Prospectos (Fase 2): CRM, expedientes e historial ───────────────────────────────────────────────────────────────────
+// La base hace cumplir las reglas de etapa (fuentes, campaña vigente, no contactar, ejemplos nunca se contactan). Aquí solo se traducen los errores.
+export const ETAPAS = ['prospecto_identificado', 'investigado', 'contacto_pendiente', 'contactado', 'conversacion_iniciada', 'calificado', 'demostracion_propuesta', 'demostracion_confirmada', 'demostracion_realizada', 'propuesta_presentada', 'seguimiento', 'negociacion', 'aprobacion_pendiente', 'cliente_activado', 'perdido', 'recontacto_futuro', 'no_contactar'] as const
+export type Etapa = (typeof ETAPAS)[number]
+
+const vacioNull = (s?: string) => (s && s.trim() ? s.trim() : null)
+function errorProspecto(e: unknown): string | null {
+  if (!e) return null
+  if ((e as ErrorBase).code === '23505') return 'Ese prospecto ya existe (mismo nombre y ciudad, correo, teléfono o web).'
+  return textoError(e)
+}
+
+export interface NuevoProspecto { nombre_comercial: string; ciudad: string; segmento: string; fuente: string; fuente_url?: string; correo?: string; telefono?: string; web?: string; es_ficticio?: boolean }
+export async function crearProspecto(p: NuevoProspecto): Promise<string | null> {
+  const { error } = await supabase.from('growth_prospectos').insert({
+    nombre_comercial: limpio(p.nombre_comercial), ciudad: limpio(p.ciudad), segmento: limpio(p.segmento), fuente: limpio(p.fuente),
+    fuente_url: vacioNull(p.fuente_url), correo: vacioNull(p.correo), telefono: vacioNull(p.telefono), web: vacioNull(p.web), es_ficticio: !!p.es_ficticio,
+  })
+  return errorProspecto(error)
+}
+
+/** Tres prospectos claramente de ejemplo para practicar el flujo. Nunca pueden pasar a "contactado". */
+export async function cargarEjemplos(): Promise<string | null> {
+  const ej = [['Café Ficticio del Parque', 'cafetería'], ['Pizzería de Ejemplo', 'pizzería'], ['Hamburguesas Imaginarias', 'hamburguesería']]
+  for (const [nombre, segmento] of ej) {
+    const e = await crearProspecto({ nombre_comercial: `[EJEMPLO] ${nombre}`, ciudad: 'Armenia', segmento, fuente: 'Dato de ejemplo (no es un negocio real)', es_ficticio: true })
+    if (e && !/ya existe/.test(e)) return e
+  }
+  return null
+}
+
+export interface CambiosProspecto { etapa?: Etapa; campana_id?: string | null; motivo_perdida?: string; proxima_accion?: string; proxima_accion_en?: string | null; necesidades_confirmadas?: string }
+export async function actualizarProspecto(id: string, c: CambiosProspecto): Promise<string | null> {
+  const { error } = await supabase.from('growth_prospectos').update(c).eq('id', id)
+  return errorProspecto(error)
+}
+
+export interface Expediente { investigacion: Record<string, unknown>; ventas: Record<string, unknown>; fundador: Record<string, unknown> }
+export async function guardarExpediente(prospectoId: string, e: Expediente): Promise<string | null> {
+  const { error } = await supabase.from('growth_expedientes').upsert({ prospecto_id: prospectoId, ...e }, { onConflict: 'prospecto_id' })
+  return resultado(error)
+}
+
+export async function agregarNota(prospectoId: string, texto: string): Promise<string | null> {
+  if (limpio(texto).length < 2) return 'Escribe la nota.'
+  const { error } = await supabase.from('growth_historial').insert({ prospecto_id: prospectoId, tipo: 'nota', detalle: limpio(texto).slice(0, 2000) })
+  return resultado(error)
+}

@@ -23,6 +23,7 @@ import { Tareas } from './paginas/Tareas'
 import { Conversaciones } from './paginas/Conversaciones'
 import { Reuniones } from './paginas/Reuniones'
 import { Crecimiento } from './paginas/Crecimiento'
+import { Prospectos } from './paginas/Prospectos'
 import { Biblioteca, Memoria } from './paginas/Conocimiento'
 import { Integraciones, Presupuestos, Configuracion } from './paginas/Gobierno'
 import { Auditoria } from './paginas/Auditoria'
@@ -44,6 +45,7 @@ function Pantalla({ seccion }: { seccion: Seccion }) {
     case 'tareas': return <Tareas />
     case 'reuniones': return <Reuniones />
     case 'crecimiento': return <Crecimiento />
+    case 'prospectos': return <Prospectos />
     case 'biblioteca': return <Biblioteca />
     case 'memoria': return <Memoria />
     case 'integraciones': return <Integraciones />
