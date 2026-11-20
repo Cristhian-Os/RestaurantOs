@@ -19,6 +19,10 @@ Nombre: el panel se llama **"Mis sedes"**, no "superadministrador", para no conf
 ## Fases (cada una se aprueba antes de la siguiente)
 
 ### Fase A — Copiar carta
+Estado 20-nov: **hecha y probada en el proyecto de prueba** (migración `20261120140000_copiar_carta_de_sede`, prueba `tests/copiar_carta_de_sede.sql`, botón `CopiarCartaSede`). Falta producción (fase D).
+- Lo copiado es independiente: editar, ocultar o borrar en una sede no toca la otra (probado).
+- Las fotos se duplican desde la app; si alguna falla, el plato sigue mostrando la foto de la otra sede y se avisa.
+- No se copian: mesas, stock, agotados del día, menús por horario (tienen su propio botón).
 - Función del servidor `copiar_carta_de_sede(origen)`: copia a la sede actual platos (categoría, orden, tamaños, opciones, toppings, foto), listas de opciones, proveedores, ingredientes (stock 0, con sustituto y proveedor reconectados) y recetas (reconectadas a los platos e ingredientes nuevos).
 - Solo el dueño de la cuenta, solo entre sedes de su cuenta, todo o nada.
 - Solo a una sede con la carta vacía, para no duplicar platos. Después el dueño borra lo que sobre.
