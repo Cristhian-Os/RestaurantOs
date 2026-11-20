@@ -208,3 +208,43 @@ export async function marcarLeidas(ids: string[]): Promise<string | null> {
   const { error } = await supabase.from('central_notificaciones').update({ leida: true }).in('id', ids)
   return resultado(error)
 }
+
+// ── Crecimiento (Fase 1): matriz de funciones, autorizaciones de campaña y lista de "no contactar" ─────────────────────────
+// Solo guardan reglas y permisos. Nada aquí contacta a nadie ni publica; la base hace cumplir los requisitos (migración 20261119120000).
+export type EstadoFuncion = 'produccion' | 'parcial' | 'desarrollo' | 'planeada' | 'no_existe' | 'sin_verificar'
+const hoyBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+
+export async function guardarFuncion(id: string, f: { estado: EstadoFuncion; evidencia: string; limitaciones: string }): Promise<string | null> {
+  const { error } = await supabase.from('growth_funciones')
+    .update({ estado: f.estado, evidencia: limpio(f.evidencia), limitaciones: limpio(f.limitaciones), verificado_en: f.estado === 'sin_verificar' ? null : hoyBogota() }).eq('id', id)
+  return resultado(error)
+}
+
+export interface NuevaCampana { nombre: string; objetivo: string; ciudad: string; segmento: string; max_prospectos: number }
+/** Crea un BORRADOR de campaña con las reglas predeterminadas del documento maestro (el resto de campos obligatorios). */
+export async function crearCampana(c: NuevaCampana): Promise<string | null> {
+  const { error } = await supabase.from('growth_autorizaciones').insert({
+    tipo: 'campana', nombre: limpio(c.nombre),
+    alcance: {
+      objetivo: limpio(c.objetivo), ciudad: limpio(c.ciudad), segmento: limpio(c.segmento), max_prospectos: c.max_prospectos,
+      criterios_exclusion: 'Clientes actuales, personas en la lista de no contactar y negocios sin canal comercial público',
+      max_contactos_por_prospecto: 3, canales: ['correo'], horario: 'L-V 7:00-19:00, sábado 8:00-15:00, sin domingos ni festivos (America/Bogota)',
+      plantillas: 'Se aprueban antes del primer envío', planes_permitidos: ['emprende', 'pro'], descuentos_permitidos: 'ninguno',
+      frecuencia_seguimiento: 'cada 3 días, máximo 2 seguimientos', criterios_detencion: 'respuesta negativa, baja, rebote, o llegar al máximo de contactos',
+    },
+  })
+  return resultado(error)
+}
+export async function activarAutorizacion(id: string, dias: number): Promise<string | null> {
+  const { error } = await supabase.rpc('growth_activar_autorizacion', { p_id: id, p_hasta: new Date(Date.now() + dias * 86_400_000).toISOString() })
+  return resultado(error)
+}
+export async function revocarAutorizacion(id: string, motivo: string): Promise<string | null> {
+  const { error } = await supabase.rpc('growth_revocar_autorizacion', { p_id: id, p_motivo: limpio(motivo) })
+  return resultado(error)
+}
+export async function agregarNoContactar(canal: 'correo' | 'whatsapp' | 'telefono' | 'redes', valor: string, motivo: 'baja_solicitada' | 'queja' | 'rebote' | 'manual'): Promise<string | null> {
+  if (limpio(valor).length < 3) return 'Escribe el correo o número a no contactar.'
+  const { error } = await supabase.rpc('growth_suprimir', { p_canal: canal, p_valor: limpio(valor), p_motivo: motivo, p_fuente: 'Agregado a mano en Central' })
+  return resultado(error)
+}
