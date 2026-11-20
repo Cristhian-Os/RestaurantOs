@@ -23,6 +23,7 @@ import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { Toggle } from '../ui/Toggle'
 import { TarjetaMenuHorario } from './horarios/TarjetaMenuHorario'
+import { CopiarCartaSede } from './CopiarCartaSede'
 import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 
 const S = {
@@ -1542,6 +1543,8 @@ export const MenuManager = memo(({ onAbrirMenusHorario }: { onAbrirMenusHorario?
           </motion.div>
         )}
       </AnimatePresence>
+
+      {!loading && <CopiarCartaSede cartaVacia={dishes.length === 0} />}
 
       {/* Lista */}
       {loading ? (
