@@ -16,6 +16,7 @@ import Modal from 'antd/es/modal'
 import Select from 'antd/es/select'
 import Spin from 'antd/es/spin'
 import type { RecetaLine, Ingrediente } from '../../types/inventory'
+import { UNIDADES, convertir, cantidadAmigable, etiquetaUnidad, unidadesCompatibles } from '../../lib/unidades'
 
 interface RecipeBuilderProps {
   productId?: string
@@ -78,23 +79,40 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
   useEffect(() => {
     setCalcOpen({}); setCalcQty({}); setCalcTotal({})
     if (!productId) { setLines([emptyLine()]); return }
-    if (recetaQuery.data) {
-      const loaded: RecetaLine[] = recetaQuery.data.map(r => ({
-        id: r.id,
-        nombre: r.nombre ?? '',
-        costo_unitario: Number(r.costo_unitario) || 0,
-        cantidad_necesaria: Number(r.cantidad_necesaria) || 0,
-        unidad: r.unidad ?? '',
-        ingrediente_id: r.ingrediente_id ?? null,
-      }))
+    // Espera a tener también los ingredientes: así las líneas vinculadas se muestran en una
+    // unidad natural (0.2 kg → 200 g). Depende solo de isSuccess para no borrar lo que se está editando.
+    if (recetaQuery.data && ingredientesQuery.isSuccess) {
+      const loaded: RecetaLine[] = recetaQuery.data.map(r => {
+        const ing = r.ingrediente_id ? ingredientesQuery.data?.find(i => i.id === r.ingrediente_id) : undefined
+        const cant = Number(r.cantidad_necesaria) || 0
+        // Línea vinculada: la cantidad guardada está en la unidad del ingrediente.
+        const vista = ing ? cantidadAmigable(cant, ing.unidad_medida) : { cantidad: cant, unidad: r.unidad ?? '' }
+        return {
+          id: r.id,
+          nombre: r.nombre ?? '',
+          costo_unitario: Number(r.costo_unitario) || 0,
+          cantidad_necesaria: vista.cantidad,
+          unidad: vista.unidad,
+          ingrediente_id: r.ingrediente_id ?? null,
+        }
+      })
       setLines(loaded.length > 0 ? loaded : [emptyLine()])
     }
-  }, [recetaQuery.data, productId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recetaQuery.data, productId, ingredientesQuery.isSuccess])
 
   // ─── Total en vivo ────────────────────────────────────────
+  // Cantidad de la fila en la unidad del ingrediente vinculado (el precio unitario es por esa unidad).
+  // Sin vínculo no hay conversión: la fila es solo costeo y usa lo que se escribió.
+  const cantidadCosteo = useCallback((l: RecetaLine): number => {
+    const q = Number(l.cantidad_necesaria) || 0
+    const ing = l.ingrediente_id ? ingredientesOpts.find(i => i.id === l.ingrediente_id) : undefined
+    if (!ing) return q
+    return convertir(q, l.unidad, ing.unidad_medida) ?? q
+  }, [ingredientesOpts])
   const total = useMemo(
-    () => lines.reduce((s, l) => s + (Number(l.costo_unitario) || 0) * (Number(l.cantidad_necesaria) || 0), 0),
-    [lines],
+    () => lines.reduce((s, l) => s + (Number(l.costo_unitario) || 0) * cantidadCosteo(l), 0),
+    [lines, cantidadCosteo],
   )
   const validLines = useMemo(
     () => lines.filter(l => l.nombre.trim() !== '' && l.cantidad_necesaria > 0).length,
@@ -155,13 +173,29 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
     if (field === 'qty')   setCalcQty(prev => ({ ...prev, [idx]: value }))
     else                   setCalcTotal(prev => ({ ...prev, [idx]: value }))
     if (qty > 0 && total >= 0) {
-      setLines(prev => prev.map((l, i) => i === idx ? { ...l, costo_unitario: total / qty } : l))
+      setLines(prev => prev.map((l, i) => {
+        if (i !== idx) return l
+        // Fila vinculada: el precio unitario es por unidad del ingrediente (ej. por kg), aunque se compre en libras.
+        const ing = l.ingrediente_id ? ingredientesOpts.find(x => x.id === l.ingrediente_id) : undefined
+        const qtyIng = ing ? convertir(qty, l.unidad, ing.unidad_medida) : qty
+        return { ...l, costo_unitario: total / (qtyIng && qtyIng > 0 ? qtyIng : qty) }
+      }))
     }
-  }, [calcQty, calcTotal])
+  }, [calcQty, calcTotal, ingredientesOpts])
 
   // ─── Guardar ──────────────────────────────────────────────
   const saveMutation = useMutation({
-    mutationFn: () => inventoryService.saveRecetaLines(productId, lines),
+    mutationFn: () => {
+      // Las líneas vinculadas se guardan en la unidad del ingrediente: el inventario descuenta directo en esa unidad.
+      const aGuardar = lines.map(l => {
+        const ing = l.ingrediente_id ? ingredientesOpts.find(i => i.id === l.ingrediente_id) : undefined
+        if (!ing) return l
+        const q = convertir(Number(l.cantidad_necesaria) || 0, l.unidad, ing.unidad_medida)
+        if (q === null) throw new Error(`"${l.nombre}" se maneja en ${etiquetaUnidad(ing.unidad_medida)}: no se puede usar ${etiquetaUnidad(l.unidad)}`)
+        return { ...l, cantidad_necesaria: q, unidad: ing.unidad_medida }
+      })
+      return inventoryService.saveRecetaLines(productId, aGuardar)
+    },
     onSuccess: () => {
       message.success('Receta guardada')
       queryClient.invalidateQueries({ queryKey: ['receta', productId] })
@@ -249,6 +283,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                   <span style={{ flex: 3 }}>Materia prima</span>
                   <span style={{ flex: 1.4, textAlign: 'right' }}>Precio unit.</span>
                   <span style={{ flex: 1.2, textAlign: 'right' }}>Cantidad</span>
+                  <span style={{ flex: 1 }}>Unidad</span>
                   <span style={{ flex: 1.4, textAlign: 'right' }}>Subtotal</span>
                   <span style={{ width: 32 }} />
                 </div>
@@ -256,7 +291,10 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                 {/* Filas editables */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                   {lines.map((line, idx) => {
-                    const subtotal = (Number(line.costo_unitario) || 0) * (Number(line.cantidad_necesaria) || 0)
+                    const subtotal = (Number(line.costo_unitario) || 0) * cantidadCosteo(line)
+                    const ingVinc = line.ingrediente_id ? ingredientesOpts.find(i => i.id === line.ingrediente_id) : undefined
+                    const opcionesUnidad: string[] = ingVinc ? unidadesCompatibles(ingVinc.unidad_medida) : [...UNIDADES]
+                    if (line.unidad && !opcionesUnidad.includes(line.unidad)) opcionesUnidad.push(line.unidad)
                     return (
                       <div key={idx} className="recipe-row" style={{
                         display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem',
@@ -308,6 +346,16 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                           placeholder="Cant."
                           style={{ ...inputBase, flex: 1.2, minWidth: 76, textAlign: 'right' }}
                         />
+                        {/* Unidad de la cantidad (g, kg, lb, ml, litro...) */}
+                        <select
+                          value={line.unidad ?? ''}
+                          onChange={e => updateLine(idx, 'unidad', e.target.value)}
+                          aria-label="Unidad de la cantidad"
+                          style={{ ...inputBase, flex: 1, minWidth: 84 }}
+                        >
+                          {!line.unidad && <option value="">Unidad</option>}
+                          {opcionesUnidad.map(u => <option key={u} value={u}>{etiquetaUnidad(u)}</option>)}
+                        </select>
                         {/* Subtotal (vivo) */}
                         <span style={{ flex: 1.4, minWidth: 80, textAlign: 'right', fontWeight: 700, color: 'var(--w-accent-text)', fontSize: '0.9375rem' }}>
                           {fmtCOP(subtotal)}
@@ -348,13 +396,7 @@ export function RecipeBuilder({ productId: propProductId = '', productName: prop
                               placeholder="ej: 10"
                               style={{ ...inputBase, width: 80 }}
                             />
-                            <input
-                              type="text"
-                              value={line.unidad ?? ''}
-                              onChange={e => updateLine(idx, 'unidad', e.target.value)}
-                              placeholder="litros, kg, unid."
-                              style={{ ...inputBase, width: 110 }}
-                            />
+                            <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>{etiquetaUnidad(line.unidad) || 'unidades'}</span>
                             <span style={{ fontSize: '0.75rem', color: 'var(--w-text-3)' }}>por</span>
                             <span style={{ fontSize: '0.875rem' }}>$</span>
                             <input

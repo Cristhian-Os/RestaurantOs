@@ -1,11 +1,13 @@
 export interface Ingrediente {
   id: string
   nombre: string
-  unidad_medida: 'kg' | 'litro' | 'pieza' | 'gramo' | 'ml' | 'paquete'
+  unidad_medida: 'kg' | 'litro' | 'pieza' | 'gramo' | 'libra' | 'ml' | 'paquete'
   stock_actual: number
   stock_minimo: number
   costo_unitario: number
   sustituto_id?: string | null   // si se agota, ofrecer este ingrediente como cambio
+  empaque_paquetes?: number | null   // contenido por defecto al comprar por cajas: paquetes por caja
+  empaque_contenido?: number | null  // ... y cantidad que trae cada paquete (en la unidad del ingrediente)
   created_at: string
   updated_at: string
 }

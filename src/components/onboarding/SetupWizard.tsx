@@ -22,7 +22,7 @@ interface Resultado { creados: number; existentes: number; errores: { fila: numb
 
 const PASOS = ['Tipo de negocio', 'Mesas', 'Proveedores', 'Inventario', 'Menú', 'Recetas', 'Marca y datos', 'Equipo', 'Listo']
 export const PASOS_ASISTENTE = PASOS
-const UNIDADES = ['kg', 'gramo', 'litro', 'ml', 'pieza', 'paquete']
+const UNIDADES = ['kg', 'gramo', 'libra', 'litro', 'ml', 'pieza', 'paquete']
 
 const TIPOS = [
   { id: 'heladeria', label: 'Heladería', emoji: '🍨' }, { id: 'cafeteria', label: 'Cafetería', emoji: '☕' },
