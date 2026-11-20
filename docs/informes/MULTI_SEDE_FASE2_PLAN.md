@@ -61,3 +61,9 @@ Estado 20-nov: **hecha y probada en el proyecto de prueba** (migración `2026112
 - Pantalla: botón "Pasar a otra sede" en cada ingrediente y botón "Traslados" (historial) en Inventario → Ingredientes. Solo aparecen si la cuenta tiene otra sede.
 - Pendiente: producción (copia previa + "apruebo, aplica") y revisión visual en el celular.
 - Nota: al llegar a una sede, el costo del ingrediente existente no se promedia; solo se suma la cantidad.
+
+
+## Estado fase D (producción, 2026-11-20)
+- Con "apruebo, aplica" de Cristhian: aplicadas en producción `copiar_carta_de_sede`, `resumen_sedes` y `trasladar_ingrediente` (tabla `traslados_ingredientes`). Solo agregan; no tocaron datos. Verificado: `anon` y PUBLIC no pueden ejecutarlas, RLS activo en el historial.
+- Premium habilitado (`planes.disponible = true`) con el precio y condiciones ya establecidos: 325.000 / sede extra 65.000. Reversa: `supabase/rollback/20261120170000_premium_disponible_down.sql` (deja `disponible = false`).
+- Pendiente: revisión visual en celular; prueba real de aislamiento con la 2.ª sede de Angela; cobro automático de sede extra por Wompi.
