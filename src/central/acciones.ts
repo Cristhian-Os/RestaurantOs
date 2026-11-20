@@ -208,3 +208,130 @@ export async function marcarLeidas(ids: string[]): Promise<string | null> {
   const { error } = await supabase.from('central_notificaciones').update({ leida: true }).in('id', ids)
   return resultado(error)
 }
+
+// ── Crecimiento (Fase 1): matriz de funciones, autorizaciones de campaña y lista de "no contactar" ─────────────────────────
+// Solo guardan reglas y permisos. Nada aquí contacta a nadie ni publica; la base hace cumplir los requisitos (migración 20261119120000).
+export type EstadoFuncion = 'produccion' | 'parcial' | 'desarrollo' | 'planeada' | 'no_existe' | 'sin_verificar'
+const hoyBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+
+export async function guardarFuncion(id: string, f: { estado: EstadoFuncion; evidencia: string; limitaciones: string }): Promise<string | null> {
+  const { error } = await supabase.from('growth_funciones')
+    .update({ estado: f.estado, evidencia: limpio(f.evidencia), limitaciones: limpio(f.limitaciones), verificado_en: f.estado === 'sin_verificar' ? null : hoyBogota() }).eq('id', id)
+  return resultado(error)
+}
+
+export interface NuevaCampana { nombre: string; objetivo: string; ciudad: string; segmento: string; max_prospectos: number }
+/** Crea un BORRADOR de campaña con las reglas predeterminadas del documento maestro (el resto de campos obligatorios). */
+export async function crearCampana(c: NuevaCampana): Promise<string | null> {
+  const { error } = await supabase.from('growth_autorizaciones').insert({
+    tipo: 'campana', nombre: limpio(c.nombre),
+    alcance: {
+      objetivo: limpio(c.objetivo), ciudad: limpio(c.ciudad), segmento: limpio(c.segmento), max_prospectos: c.max_prospectos,
+      criterios_exclusion: 'Clientes actuales, personas en la lista de no contactar y negocios sin canal comercial público',
+      max_contactos_por_prospecto: 3, canales: ['correo'], horario: 'L-V 7:00-19:00, sábado 8:00-15:00, sin domingos ni festivos (America/Bogota)',
+      plantillas: 'Se aprueban antes del primer envío', planes_permitidos: ['emprende', 'pro'], descuentos_permitidos: 'ninguno',
+      frecuencia_seguimiento: 'cada 3 días, máximo 2 seguimientos', criterios_detencion: 'respuesta negativa, baja, rebote, o llegar al máximo de contactos',
+    },
+  })
+  return resultado(error)
+}
+export async function activarAutorizacion(id: string, dias: number): Promise<string | null> {
+  const { error } = await supabase.rpc('growth_activar_autorizacion', { p_id: id, p_hasta: new Date(Date.now() + dias * 86_400_000).toISOString() })
+  return resultado(error)
+}
+export async function revocarAutorizacion(id: string, motivo: string): Promise<string | null> {
+  const { error } = await supabase.rpc('growth_revocar_autorizacion', { p_id: id, p_motivo: limpio(motivo) })
+  return resultado(error)
+}
+export async function agregarNoContactar(canal: 'correo' | 'whatsapp' | 'telefono' | 'redes', valor: string, motivo: 'baja_solicitada' | 'queja' | 'rebote' | 'manual'): Promise<string | null> {
+  if (limpio(valor).length < 3) return 'Escribe el correo o número a no contactar.'
+  const { error } = await supabase.rpc('growth_suprimir', { p_canal: canal, p_valor: limpio(valor), p_motivo: motivo, p_fuente: 'Agregado a mano en Central' })
+  return resultado(error)
+}
+
+// ── Prospectos (Fase 2): CRM, expedientes e historial ───────────────────────────────────────────────────────────────────
+// La base hace cumplir las reglas de etapa (fuentes, campaña vigente, no contactar, ejemplos nunca se contactan). Aquí solo se traducen los errores.
+export const ETAPAS = ['prospecto_identificado', 'investigado', 'contacto_pendiente', 'contactado', 'conversacion_iniciada', 'calificado', 'demostracion_propuesta', 'demostracion_confirmada', 'demostracion_realizada', 'propuesta_presentada', 'seguimiento', 'negociacion', 'aprobacion_pendiente', 'cliente_activado', 'perdido', 'recontacto_futuro', 'no_contactar'] as const
+export type Etapa = (typeof ETAPAS)[number]
+
+const vacioNull = (s?: string) => (s && s.trim() ? s.trim() : null)
+function errorProspecto(e: unknown): string | null {
+  if (!e) return null
+  if ((e as ErrorBase).code === '23505') return 'Ese prospecto ya existe (mismo nombre y ciudad, correo, teléfono o web).'
+  return textoError(e)
+}
+
+export interface NuevoProspecto { nombre_comercial: string; ciudad: string; segmento: string; fuente: string; fuente_url?: string; correo?: string; telefono?: string; web?: string; es_ficticio?: boolean }
+export async function crearProspecto(p: NuevoProspecto): Promise<string | null> {
+  const { error } = await supabase.from('growth_prospectos').insert({
+    nombre_comercial: limpio(p.nombre_comercial), ciudad: limpio(p.ciudad), segmento: limpio(p.segmento), fuente: limpio(p.fuente),
+    fuente_url: vacioNull(p.fuente_url), correo: vacioNull(p.correo), telefono: vacioNull(p.telefono), web: vacioNull(p.web), es_ficticio: !!p.es_ficticio,
+  })
+  return errorProspecto(error)
+}
+
+/** Tres prospectos claramente de ejemplo para practicar el flujo. Nunca pueden pasar a "contactado". */
+export async function cargarEjemplos(): Promise<string | null> {
+  const ej = [['Café Ficticio del Parque', 'cafetería'], ['Pizzería de Ejemplo', 'pizzería'], ['Hamburguesas Imaginarias', 'hamburguesería']]
+  for (const [nombre, segmento] of ej) {
+    const e = await crearProspecto({ nombre_comercial: `[EJEMPLO] ${nombre}`, ciudad: 'Armenia', segmento, fuente: 'Dato de ejemplo (no es un negocio real)', es_ficticio: true })
+    if (e && !/ya existe/.test(e)) return e
+  }
+  return null
+}
+
+export interface CambiosProspecto { etapa?: Etapa; campana_id?: string | null; motivo_perdida?: string; proxima_accion?: string; proxima_accion_en?: string | null; necesidades_confirmadas?: string }
+export async function actualizarProspecto(id: string, c: CambiosProspecto): Promise<string | null> {
+  const { error } = await supabase.from('growth_prospectos').update(c).eq('id', id)
+  return errorProspecto(error)
+}
+
+export interface Expediente { investigacion: Record<string, unknown>; ventas: Record<string, unknown>; fundador: Record<string, unknown> }
+export async function guardarExpediente(prospectoId: string, e: Expediente): Promise<string | null> {
+  const { error } = await supabase.from('growth_expedientes').upsert({ prospecto_id: prospectoId, ...e }, { onConflict: 'prospecto_id' })
+  return resultado(error)
+}
+
+export async function agregarNota(prospectoId: string, texto: string): Promise<string | null> {
+  if (limpio(texto).length < 2) return 'Escribe la nota.'
+  const { error } = await supabase.from('growth_historial').insert({ prospecto_id: prospectoId, tipo: 'nota', detalle: limpio(texto).slice(0, 2000) })
+  return resultado(error)
+}
+
+// ── Fase 3: misión del día y agenda comercial ───────────────────────────────
+/** Pide la misión de hoy (si ya existe no crea otra). Se decide por reglas con datos reales, sin IA. */
+export async function generarMision(): Promise<string | null> {
+  const r = await invocar<{ ok: boolean }>('central-mision', { modo: 'manana' })
+  return r.ok === true ? null : r.mensaje
+}
+/** El dueño solo cambia el estado de la misión; si la bloquea debe decir qué la bloqueó. */
+export async function actualizarMision(id: string, estado: 'en_curso' | 'completada' | 'bloqueada', bloqueo?: string): Promise<string | null> {
+  const { error } = await supabase.from('growth_misiones').update({ estado, bloqueo: estado === 'bloqueada' ? limpio(bloqueo ?? '') : null }).eq('id', id)
+  return resultado(error)
+}
+
+export type TipoCita = 'llamada' | 'demostracion' | 'visita' | 'seguimiento'
+export type EstadoCita = 'propuesta' | 'confirmada' | 'realizada' | 'cancelada' | 'no_asistio'
+export interface NuevaCita { prospecto_id: string; tipo: TipoCita; canal: string; contacto?: string; resumen?: string }
+export async function crearCita(c: NuevaCita): Promise<string | null> {
+  const { error } = await supabase.from('growth_citas').insert({ ...c, contacto: limpio(c.contacto ?? ''), resumen: limpio(c.resumen ?? '') })
+  return resultado(error)
+}
+export interface CambiosCita { estado?: EstadoCita; fecha_hora?: string; aceptacion?: string; resultado?: string; necesidades?: string; objeciones?: string }
+export async function actualizarCita(id: string, c: CambiosCita): Promise<string | null> {
+  const { error } = await supabase.from('growth_citas').update(c).eq('id', id)
+  return resultado(error)
+}
+
+// ── Fase 4 (parte 1): bandeja de mensajes en modo borrador (no hay correo conectado: nada se envía solo) ──
+export type CanalMensaje = 'correo' | 'whatsapp' | 'telefono'
+export type EstadoMensaje = 'borrador' | 'aprobado' | 'enviado' | 'fallido' | 'recibido' | 'cancelado' | 'hecho_manual'
+export interface NuevoMensaje { prospecto_id: string; canal: CanalMensaje; paso: number; asunto: string; cuerpo: string; campana_id?: string | null }
+export async function crearMensaje(m: NuevoMensaje): Promise<string | null> {
+  const { error } = await supabase.from('growth_mensajes').insert({ ...m, asunto: limpio(m.asunto), cuerpo: limpio(m.cuerpo), campana_id: m.campana_id || null })
+  return error?.code === '23505' ? 'Ya existe un mensaje para ese prospecto, canal y paso.' : resultado(error)
+}
+export async function actualizarMensaje(id: string, c: { asunto?: string; cuerpo?: string; campana_id?: string | null; estado?: EstadoMensaje }): Promise<string | null> {
+  const { error } = await supabase.from('growth_mensajes').update(c).eq('id', id)
+  return resultado(error)
+}
