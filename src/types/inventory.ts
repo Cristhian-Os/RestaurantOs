@@ -6,6 +6,8 @@ export interface Ingrediente {
   stock_minimo: number
   costo_unitario: number
   sustituto_id?: string | null   // si se agota, ofrecer este ingrediente como cambio
+  empaque_paquetes?: number | null   // contenido por defecto al comprar por cajas: paquetes por caja
+  empaque_contenido?: number | null  // ... y cantidad que trae cada paquete (en la unidad del ingrediente)
   created_at: string
   updated_at: string
 }

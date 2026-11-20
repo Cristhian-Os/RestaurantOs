@@ -83,9 +83,13 @@ export function IngredientesManager() {
       if (!compraFor) throw new Error('Sin ingrediente')
       const cantidad = parseFloat(compraCantidad)
       const precio = parseFloat(compraPrecio)
+      // Solo si se usó la calculadora se guarda el contenido como nuevo valor por defecto.
+      const n2 = parseFloat(empaque.n2), n3 = parseFloat(empaque.n3)
+      const guardarEmpaque = empaqueOpen && n2 > 0 && n3 > 0
       return inventoryService.updateIngrediente(compraFor.id, {
         stock_actual: Number(compraFor.stock_actual) + cantidad,
         costo_unitario: precio,
+        ...(guardarEmpaque ? { empaque_paquetes: n2, empaque_contenido: n3 } : {}),
       })
     },
     onSuccess: () => {
@@ -154,7 +158,10 @@ export function IngredientesManager() {
   }
 
   const openCompra = (ing: Ingrediente) => {
-    setEmpaqueOpen(false); setEmpaque({ n1: '', n2: '1', n3: '', total: '' })
+    // Si el ingrediente ya tiene contenido guardado, la calculadora se abre con esos valores.
+    const tiene = Number(ing.empaque_paquetes) > 0 && Number(ing.empaque_contenido) > 0
+    setEmpaqueOpen(tiene)
+    setEmpaque({ n1: '', n2: tiene ? String(ing.empaque_paquetes) : '1', n3: tiene ? String(ing.empaque_contenido) : '', total: '' })
     setCompraFor(ing)
     setCompraCantidad('')
     setCompraPrecio(String(ing.costo_unitario))
@@ -312,7 +319,7 @@ export function IngredientesManager() {
             {empaqueOpen && (
               <div className="flex flex-col gap-2 rounded-[var(--w-r-md)] border border-dashed border-[color:var(--w-accent)] p-3">
                 <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">
-                  Ej. leche condensada: 1 caja · 6 tarros por caja · 5 {etiquetaUnidad(compraFor.unidad_medida)} cada tarro. Si no hay paquetes dentro, deja 1.
+                  Ej. leche condensada: 1 caja · 6 tarros por caja · 5 {etiquetaUnidad(compraFor.unidad_medida)} cada tarro. Si no hay paquetes dentro, deja 1. Lo que escribas aquí queda guardado para la próxima compra.
                 </p>
                 <Input label="Cuántas cajas o paquetes compré" type="number" min={0} value={empaque.n1} onChange={e => cambiarEmpaque('n1', e.target.value)} placeholder="1" />
                 <Input label="Cuántos paquetes o tarros trae cada uno" type="number" min={0} value={empaque.n2} onChange={e => cambiarEmpaque('n2', e.target.value)} placeholder="1" />
