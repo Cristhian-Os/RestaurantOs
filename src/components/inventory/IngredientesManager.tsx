@@ -19,6 +19,7 @@ import { Card } from '../ui/Card'
 import { Input, Select } from '../ui/Field'
 import { Modal } from '../ui/Modal'
 import { StatePanel } from '../ui/StatePanel'
+import { TrasladarIngrediente, HistorialTraslados } from './TrasladosSedes'
 import type { Ingrediente } from '../../types/inventory'
 
 const UNIDADES = ['kg', 'litro', 'pieza', 'gramo', 'ml', 'paquete'] as const
@@ -166,6 +167,7 @@ export function IngredientesManager() {
           if (list.length === 0) { message.warning('No entendí ningún ingrediente'); return }
           setNuevo(list[0]); setPendientes(list.slice(1)); setShowNuevo(true)
         }} />
+          <HistorialTraslados />
           <Button variant={showNuevo ? 'secondary' : 'primary'} onClick={() => { setShowNuevo(v => !v); setPendientes([]) }}>
             {showNuevo ? 'Cerrar' : '+ Nuevo ingrediente'}
           </Button>
@@ -250,6 +252,7 @@ export function IngredientesManager() {
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" className="min-h-[44px]" onClick={() => openCompra(ing)}>Registrar compra</Button>
                 <Button size="sm" className="min-h-[44px]" variant="secondary" onClick={() => openEdit(ing)}>Editar</Button>
+                <TrasladarIngrediente ingrediente={ing} onHecho={invalidate} />
                 <Button size="sm" className="min-h-[44px]" variant="danger" onClick={() => { if (window.confirm(`¿Eliminar ${ing.nombre}?`)) eliminarMutation.mutate(ing.id) }}>Eliminar</Button>
               </div>
             </Card>
