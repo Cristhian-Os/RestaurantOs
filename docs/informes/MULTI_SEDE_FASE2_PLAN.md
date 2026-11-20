@@ -69,3 +69,5 @@ Estado 20-nov: **hecha y probada en el proyecto de prueba** (migración `2026112
 - Pendiente: revisión visual en celular; prueba real de aislamiento con la 2.ª sede de Angela; cobro automático de sede extra por Wompi.
 
 - 2026-11-20: añadidos en producción (con "apruebo, aplica"): botón "Agregar sede" en Mis sedes y selector "Ver otro mes" (`resumen_sedes(p_mes date)`, sin límite hacia atrás; reversa `20261120180000_resumen_sedes_por_mes_down.sql`, prueba `tests/resumen_sedes_mes.sql`).
+
+- 2026-11-20: la sede activa pasó a ser POR SESIÓN/dispositivo (`sede_activa_sesion`, `current_restaurant_id()` y `cambiar_sede` actualizadas, `admin_update_employee` sigue la sede de la sesión) y cada aparato recuerda su última sede (`src/lib/sedeDispositivo.ts`). Aplicado en producción con "apruebo, aplica". Verificado con la cuenta real de Cholaos: ve sus 90 platos y 37 ingredientes (de 218 platos en total). Reversa: `supabase/rollback/20261120190000_sede_activa_por_sesion_down.sql`. Pendiente: `elegir_plan` aún usa la sede de casa; verificar con un login real que el token trae `session_id`.
