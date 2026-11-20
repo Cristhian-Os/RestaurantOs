@@ -65,6 +65,24 @@ $$,
           $$jsonb_build_object('comensal', v_comensal) ELSE '{}'::jsonb END);$$]);
 END $mig$;
 
+-- Carta del bot de WhatsApp (migración 20261117134000) vuelve a listar todos los platos con precio general
+DO $mig$
+BEGIN
+  PERFORM pg_temp._revertir('public.wa_bot_contexto(uuid,uuid,uuid)'::regprocedure,
+    ARRAY[
+      E'\nBEGIN\n  PERFORM set_config(''app.menu_canal'', ''qr'', true);\n',
+      $$'precio', CASE WHEN d.has_sizes THEN d.price ELSE COALESCE((m.mp->>'precio_especial')::numeric, d.price) END,$$,
+      $$'tamanos', CASE WHEN d.has_sizes AND jsonb_typeof(d.sizes) = 'array' THEN COALESCE((SELECT jsonb_agg(CASE WHEN NULLIF(m.mp->'precios_tamano'->>(sz->>'nombre'), '') IS NOT NULL THEN jsonb_set(sz, '{precio}', to_jsonb((m.mp->'precios_tamano'->>(sz->>'nombre'))::numeric)) ELSE sz END ORDER BY ord) FROM jsonb_array_elements(d.sizes) WITH ORDINALITY AS tz(sz, ord)), d.sizes) ELSE '[]'::jsonb END,$$,
+      $$    FROM dishes d CROSS JOIN LATERAL (SELECT public._menu_plato(d, COALESCE(NULLIF(current_setting('app.menu_momento', true), '')::timestamptz, now())) AS mp) m WHERE d.restaurant_id = p_rid AND d.available AND d.availability_status <> 'discontinued' AND COALESCE((m.mp->>'permitido')::boolean, true) LIMIT 400) q;$$
+    ],
+    ARRAY[
+      E'\nBEGIN\n',
+      $$'precio', d.price,$$,
+      $$'tamanos', CASE WHEN d.has_sizes AND jsonb_typeof(d.sizes) = 'array' THEN d.sizes ELSE '[]'::jsonb END,$$,
+      $$    FROM dishes d WHERE d.restaurant_id = p_rid AND d.available AND d.availability_status <> 'discontinued' LIMIT 400) q;$$
+    ]);
+END $mig$;
+
 -- _precio_plato vuelve a su texto anterior (misma firma)
 CREATE OR REPLACE FUNCTION public._precio_plato(p_dish public.dishes, p_size text, p_toppings jsonb, p_sel jsonb)
  RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$

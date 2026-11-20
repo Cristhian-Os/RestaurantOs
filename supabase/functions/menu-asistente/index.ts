@@ -1,6 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { callModel, cargarProveedor, type Fetch } from '../_shared/modelo.ts'
-import { armarCarta, agotadosDeConfig, cerrarRespuesta, validarPregunta, mesaValida, sesionValida, diaBogota, SYSTEM, FUERA_DE_TEMA, LIMITE_MESA, SIN_SERVICIO } from './carta.ts'
+import { armarCarta, aplicarMenuHorarioCarta, type EstadoMenuHorario, agotadosDeConfig, cerrarRespuesta, validarPregunta, mesaValida, sesionValida, diaBogota, SYSTEM, FUERA_DE_TEMA, LIMITE_MESA, SIN_SERVICIO } from './carta.ts'
 
 // Asistente de la carta del menú QR (público, sin sesión). La carta sale de la base en el momento de la pregunta;
 // el modelo solo redacta con esos datos. No se guarda la conversación: solo contadores de uso para limitar el costo.
@@ -53,10 +53,14 @@ Deno.serve(async (req: Request) => {
       admin.from('ingredientes').select('id, nombre').eq('restaurant_id', rest.id).limit(1000),
     ])
     if (!platos?.length) return json({ respuesta: 'Todavía no hay platos cargados en la carta.', tema: 'carta' })
+    // Menús por horario: la carta de ahora = solo el menú vigente con sus precios. Si la función no existe o falla, la carta queda como estaba.
+    const { data: horario } = await admin.rpc('menu_horario_estado', { p_restaurant_id: rest.id, p_canal: 'qr' })
+    const platosAhora = aplicarMenuHorarioCarta(platos as never, (horario ?? null) as EstadoMenuHorario | null)
+    if (!platosAhora.length) return json({ respuesta: 'Ahora no hay un menú abierto. Pregúntale al mesero qué hay disponible.', tema: 'carta' })
     const nombre = new Map((ings ?? []).map(i => [i.id as string, String(i.nombre)]))
     const porPlato = new Map<string, string[]>()
     for (const r of recetas ?? []) { const n = nombre.get(r.ingrediente_id as string); if (n) porPlato.set(r.producto_id as string, [...(porPlato.get(r.producto_id as string) ?? []), n]) }
-    const carta = armarCarta(platos as never, porPlato)
+    const carta = armarCarta(platosAhora, porPlato)
 
     const cfg = await cargarProveedor(admin)
     if (!cfg) return json({ respuesta: SIN_SERVICIO, tema: 'carta' })

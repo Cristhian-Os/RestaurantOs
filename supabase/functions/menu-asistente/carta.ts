@@ -18,6 +18,33 @@ export interface PlatoCarta {
 
 const corto = (v: unknown, n: number): string | null => { const s = String(v ?? '').replace(/\s+/g, ' ').trim(); return s ? s.slice(0, n) : null }
 
+/** Lo que devuelve menu_horario_estado(…, 'qr'): qué platos rigen ahora y a qué precio de menú. */
+export interface EstadoMenuHorario {
+  activo?: boolean
+  platos?: { dish_id: string; precio_especial?: number | null; precios_tamano?: Record<string, number> | null }[]
+}
+
+/**
+ * Menús por horario: la carta de AHORA solo incluye los platos del menú vigente (o "todo el día"), con su precio de menú.
+ * Sin estado o con el interruptor apagado devuelve la MISMA lista (el asistente funciona como siempre).
+ */
+export function aplicarMenuHorarioCarta(platos: PlatoDB[], estado: EstadoMenuHorario | null | undefined): PlatoDB[] {
+  if (!estado || estado.activo !== true) return platos
+  const porPlato = new Map((estado.platos ?? []).map(p => [p.dish_id, p]))
+  return platos.filter(p => porPlato.has(p.id)).map(p => {
+    const info = porPlato.get(p.id)!
+    const conTamanos = Array.isArray(p.sizes) && p.sizes.length > 0
+    if (conTamanos) {
+      const sizes = (p.sizes as { nombre?: unknown; precio?: unknown }[]).map(s => {
+        const nuevo = s && s.nombre != null ? info.precios_tamano?.[String(s.nombre)] : undefined
+        return nuevo != null ? { ...s, precio: Number(nuevo) } : s
+      })
+      return { ...p, sizes }
+    }
+    return info.precio_especial != null ? { ...p, price: Number(info.precio_especial) } : p
+  })
+}
+
 /** Carta que ve el modelo: solo platos a la venta, con su estado real (agotado) y sus ingredientes registrados. */
 export function armarCarta(platos: PlatoDB[], ingredientesPorPlato: Map<string, string[]>): PlatoCarta[] {
   return platos.slice(0, 200).map(p => {

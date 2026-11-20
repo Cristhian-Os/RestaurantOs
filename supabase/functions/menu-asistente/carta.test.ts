@@ -1,6 +1,6 @@
 // Prueba del asistente de la carta. Correr con:  node supabase/functions/menu-asistente/carta.test.ts
 import assert from 'node:assert/strict'
-import { armarCarta, agotadosDeConfig, pareceAlergia, cerrarRespuesta, validarPregunta, mesaValida, sesionValida, diaBogota, SYSTEM, NOTA_ALERGIA, SIN_SERVICIO } from './carta.ts'
+import { aplicarMenuHorarioCarta, armarCarta, agotadosDeConfig, pareceAlergia, cerrarRespuesta, validarPregunta, mesaValida, sesionValida, diaBogota, SYSTEM, NOTA_ALERGIA, SIN_SERVICIO } from './carta.ts'
 
 const platos = [
   { id: 'a', name: 'Cholado clásico', description: 'Fruta, helado y leche condensada', price: 14000, category: 'Cholados', availability_status: 'available', tags: ['popular'], sizes: [{ nombre: 'Grande', precio: 18000 }] },
@@ -33,4 +33,18 @@ assert.equal(diaBogota(new Date('2026-10-22T03:00:00Z')), '20261021')   // 22:00
 // El prompt trae las reglas y la carta
 const s = SYSTEM('Cholaos', JSON.stringify(carta), ['Fresa'])
 assert.match(s, /SOLO los datos de la carta/); assert.match(s, /Agotado por el cajero.*Fresa/); assert.match(s, /Cholado clásico/); assert.match(s, /tema "fuera"/)
+// Menús por horario: la carta de ahora
+assert.equal(aplicarMenuHorarioCarta(platos, null), platos)                                    // sin estado: misma lista
+assert.equal(aplicarMenuHorarioCarta(platos, { activo: false }), platos)                       // apagado: misma lista
+const ahora = aplicarMenuHorarioCarta(platos, { activo: true, platos: [
+  { dish_id: 'a', precios_tamano: { Grande: 16000 } },      // plato con tamaños: precio de menú por tamaño
+  { dish_id: 'c', precio_especial: 6500 },                   // plato sin tamaños: precio de menú
+] })
+assert.deepEqual(ahora.map(p => p.id), ['a', 'c'])           // 'b' (Brownie) no está en el menú vigente
+assert.equal((ahora[0].sizes as { precio: number }[])[0].precio, 16000)
+assert.equal(ahora[0].price, 14000)                           // el general de un plato con tamaños no cambia
+assert.equal(ahora[1].price, 6500)
+assert.equal(platos[2].price, 7000)                           // no muta el original
+assert.deepEqual(aplicarMenuHorarioCarta(platos, { activo: true, platos: [] }), [])   // sin menú vigente: carta vacía
+assert.equal(armarCarta(aplicarMenuHorarioCarta(platos, { activo: true, platos: [{ dish_id: 'c', precio_especial: 6500 }] }), new Map())[0].precio, 6500)
 console.log('carta.test OK')
