@@ -322,3 +322,16 @@ export async function actualizarCita(id: string, c: CambiosCita): Promise<string
   const { error } = await supabase.from('growth_citas').update(c).eq('id', id)
   return resultado(error)
 }
+
+// ── Fase 4 (parte 1): bandeja de mensajes en modo borrador (no hay correo conectado: nada se envía solo) ──
+export type CanalMensaje = 'correo' | 'whatsapp' | 'telefono'
+export type EstadoMensaje = 'borrador' | 'aprobado' | 'enviado' | 'fallido' | 'recibido' | 'cancelado' | 'hecho_manual'
+export interface NuevoMensaje { prospecto_id: string; canal: CanalMensaje; paso: number; asunto: string; cuerpo: string; campana_id?: string | null }
+export async function crearMensaje(m: NuevoMensaje): Promise<string | null> {
+  const { error } = await supabase.from('growth_mensajes').insert({ ...m, asunto: limpio(m.asunto), cuerpo: limpio(m.cuerpo), campana_id: m.campana_id || null })
+  return error?.code === '23505' ? 'Ya existe un mensaje para ese prospecto, canal y paso.' : resultado(error)
+}
+export async function actualizarMensaje(id: string, c: { asunto?: string; cuerpo?: string; campana_id?: string | null; estado?: EstadoMensaje }): Promise<string | null> {
+  const { error } = await supabase.from('growth_mensajes').update(c).eq('id', id)
+  return resultado(error)
+}
