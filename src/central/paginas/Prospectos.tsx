@@ -105,6 +105,29 @@ function Lista() {
   )
 }
 
+/** Paquete de llamada: arma, con lo que ya está guardado, lo que el fundador necesita para llamar. No marca ni envía nada. */
+function PaqueteLlamada({ p, form, hacer, ocupado }: { p: Prospecto; form: Record<string, string>; hacer: (fn: () => Promise<string | null>) => Promise<boolean>; ocupado: boolean }) {
+  const [copiado, setCopiado] = useState(false)
+  const ln = (t: string, v: string) => (v.trim() ? `${t}:\n${v.trim()}\n` : '')
+  const paquete = [
+    `LLAMADA A ${p.nombre_comercial} (${p.ciudad || 'sin ciudad'}${p.telefono ? ` · ${p.telefono}` : ''})`, `Etapa: ${ETQ(p.etapa)}`, '',
+    ln('Resumen', form.resumen), ln('Frase de apertura', form.apertura), ln('Hechos verificados', form.hechos), ln('Posibles necesidades por validar', form.hipotesis),
+    ln('Preguntas de diagnóstico', form.preguntas), ln('Guion', form.guion), ln('Objeciones previsibles', form.objeciones),
+  ].filter(x => x !== '').join('\n')
+  const completo = !!(form.resumen.trim() || form.guion.trim() || form.hechos.trim())
+  return (
+    <Card className="flex flex-col gap-2">
+      <TituloBloque>Paquete de llamada</TituloBloque>
+      {!completo ? <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">Llena y guarda el expediente (resumen, guion o hechos) para armar el paquete.</p>
+        : <pre className="m-0 max-h-72 overflow-auto whitespace-pre-wrap rounded-[var(--w-r-md)] bg-[var(--w-surface-sunken)] p-3 font-[inherit] text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">{paquete}</pre>}
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" disabled={!completo} onClick={() => { void navigator.clipboard?.writeText(paquete).then(() => setCopiado(true)).catch(() => setCopiado(false)) }}>{copiado ? 'Copiado' : 'Copiar'}</Button>
+        <Button size="sm" variant="secondary" loading={ocupado} onClick={() => void hacer(() => crearTarea({ titulo: `Llamar a ${p.nombre_comercial}`.slice(0, 160), descripcion: paquete.slice(0, 3900), prioridad: 'P2', nivel_requerido: 'N0' }))}>Crear tarea para mí</Button>
+      </div>
+    </Card>
+  )
+}
+
 function Detalle({ id }: { id: string }) {
   const [p, setP] = useState<Prospecto | null | undefined>(undefined)
   const [hist, setHist] = useState<Historial[]>([])
@@ -189,6 +212,8 @@ function Detalle({ id }: { id: string }) {
         <Textarea label="Para el fundador: guion de llamada" value={form.guion} onChange={campo('guion')} rows={3} />
         <div><Button size="sm" loading={ocupado} onClick={() => void guardar()}>Guardar expediente</Button></div>
       </Card>
+
+      <PaqueteLlamada p={p} form={form} hacer={hacer} ocupado={ocupado} />
 
       <Card className="flex flex-col gap-2">
         <TituloBloque>Historial</TituloBloque>

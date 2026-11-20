@@ -3,7 +3,7 @@
  * vercel.json ya manda todo a index.html, así que un enlace directo o recargar la página funciona.
  */
 export type Seccion =
-  | 'inicio' | 'oficina' | 'mundo' | 'departamentos' | 'agentes' | 'conversaciones' | 'tareas' | 'reuniones' | 'crecimiento' | 'prospectos'
+  | 'inicio' | 'oficina' | 'mundo' | 'departamentos' | 'agentes' | 'conversaciones' | 'tareas' | 'reuniones' | 'crecimiento' | 'prospectos' | 'mision' | 'agenda'
   | 'biblioteca' | 'memoria' | 'integraciones' | 'presupuestos' | 'auditoria' | 'configuracion'
 
 export interface SeccionInfo { id: Seccion; etiqueta: string; grupo: 'Oficina' | 'Trabajo' | 'Conocimiento' | 'Gobierno'; icono: string; principal?: boolean }
@@ -17,6 +17,8 @@ export const SECCIONES: SeccionInfo[] = [
   { id: 'conversaciones', etiqueta: 'Conversaciones', grupo: 'Trabajo', icono: 'chat' },
   { id: 'tareas', etiqueta: 'Tareas', grupo: 'Trabajo', icono: 'tareas', principal: true },
   { id: 'reuniones', etiqueta: 'Reuniones', grupo: 'Trabajo', icono: 'reuniones' },
+  { id: 'mision', etiqueta: 'Misión del día', grupo: 'Trabajo', icono: 'tareas' },
+  { id: 'agenda', etiqueta: 'Agenda', grupo: 'Trabajo', icono: 'reuniones' },
   { id: 'prospectos', etiqueta: 'Prospectos', grupo: 'Trabajo', icono: 'agentes' },
   { id: 'crecimiento', etiqueta: 'Crecimiento', grupo: 'Trabajo', icono: 'dinero' },
   { id: 'biblioteca', etiqueta: 'Biblioteca', grupo: 'Conocimiento', icono: 'biblioteca' },
