@@ -297,3 +297,28 @@ export async function agregarNota(prospectoId: string, texto: string): Promise<s
   const { error } = await supabase.from('growth_historial').insert({ prospecto_id: prospectoId, tipo: 'nota', detalle: limpio(texto).slice(0, 2000) })
   return resultado(error)
 }
+
+// ── Fase 3: misión del día y agenda comercial ───────────────────────────────
+/** Pide la misión de hoy (si ya existe no crea otra). Se decide por reglas con datos reales, sin IA. */
+export async function generarMision(): Promise<string | null> {
+  const r = await invocar<{ ok: boolean }>('central-mision', { modo: 'manana' })
+  return r.ok === true ? null : r.mensaje
+}
+/** El dueño solo cambia el estado de la misión; si la bloquea debe decir qué la bloqueó. */
+export async function actualizarMision(id: string, estado: 'en_curso' | 'completada' | 'bloqueada', bloqueo?: string): Promise<string | null> {
+  const { error } = await supabase.from('growth_misiones').update({ estado, bloqueo: estado === 'bloqueada' ? limpio(bloqueo ?? '') : null }).eq('id', id)
+  return resultado(error)
+}
+
+export type TipoCita = 'llamada' | 'demostracion' | 'visita' | 'seguimiento'
+export type EstadoCita = 'propuesta' | 'confirmada' | 'realizada' | 'cancelada' | 'no_asistio'
+export interface NuevaCita { prospecto_id: string; tipo: TipoCita; canal: string; contacto?: string; resumen?: string }
+export async function crearCita(c: NuevaCita): Promise<string | null> {
+  const { error } = await supabase.from('growth_citas').insert({ ...c, contacto: limpio(c.contacto ?? ''), resumen: limpio(c.resumen ?? '') })
+  return resultado(error)
+}
+export interface CambiosCita { estado?: EstadoCita; fecha_hora?: string; aceptacion?: string; resultado?: string; necesidades?: string; objeciones?: string }
+export async function actualizarCita(id: string, c: CambiosCita): Promise<string | null> {
+  const { error } = await supabase.from('growth_citas').update(c).eq('id', id)
+  return resultado(error)
+}
