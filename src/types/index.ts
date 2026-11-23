@@ -5,6 +5,7 @@ export interface Order {
   total:         number
   status:        'pending' | 'completed' | 'cancelled' | 'cooking' | 'ready'
   table_num:     number | null
+  mesa_id?:      string | null
   created_at:    string
   updated_at:    string
   tipo_pedido?:  'LOCAL' | 'LLEVAR' | 'DOMICILIO' | 'RAPPI'

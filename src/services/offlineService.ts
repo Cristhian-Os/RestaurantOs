@@ -1,12 +1,25 @@
 import { useMutation } from '@tanstack/react-query'
 import { supabase } from './supabaseClient'
 import { queryClient } from './queryClient'
+import { esErrorDeRed } from './paymentQueue'
 import message from 'antd/es/message'
 import type { Order } from '../types'
 
 export interface OfflineOrder extends Order {
   sync_status: 'pending' | 'synced' | 'conflict'
   conflict_reason?: string
+}
+
+export interface SyncResult {
+  synced: OfflineOrder[]
+  conflicts: OfflineOrder[]
+  failed: OfflineOrder[]   // sin conexión: se quedan en la cola y se reintentan solos
+}
+
+// Evento de window: la cola de pedidos sin enviar cambió (la pantalla de pedidos lo escucha).
+export const OFFLINE_CAMBIO = 'offline-orders-cambio'
+const avisarCambio = () => {
+  try { window.dispatchEvent(new Event(OFFLINE_CAMBIO)) } catch { /* no crítico */ }
 }
 
 // ── Almacenamiento: IndexedDB (antes localStorage) ──────────────────────
@@ -80,6 +93,10 @@ async function migrateLegacyOnce(): Promise<void> {
   }
 }
 
+// Solo una sincronización a la vez: si el evento "online", el reintento automático y el arranque
+// coinciden, el mismo pedido no se envía dos veces (eso creaba pedidos dobles).
+let syncEnCurso: Promise<SyncResult> | null = null
+
 export const offlineService = {
   // ─── Guardar orden localmente cuando offline ────────────────
   async saveOrderLocally(order: Order): Promise<void> {
@@ -90,6 +107,7 @@ export const offlineService = {
       sync_status: 'pending',
     }
     await idbPut(offlineOrder)
+    avisarCambio()
   },
 
   // ─── Obtener órdenes pendientes de sincronizar ──────────────
@@ -98,18 +116,28 @@ export const offlineService = {
     return idbGetAll()
   },
 
+  // ─── Descartar un pedido que no se pudo enviar (lo decide el personal) ───
+  async discardOrder(id: string): Promise<void> {
+    await idbDelete(id)
+    avisarCambio()
+  },
+
   // ─── Sincronizar órdenes cuando vuelve conexión ────────────
-  async syncOfflineOrders(): Promise<{
-    synced: OfflineOrder[]
-    conflicts: OfflineOrder[]
-  }> {
-    const offlineOrders = await this.getOfflineOrders()
+  syncOfflineOrders(): Promise<SyncResult> {
+    if (syncEnCurso) return syncEnCurso
+    syncEnCurso = this.syncOnce().finally(() => { syncEnCurso = null })
+    return syncEnCurso
+  },
+
+  async syncOnce(): Promise<SyncResult> {
+    const offlineOrders = (await this.getOfflineOrders())
+      .filter(o => o.sync_status === 'pending')
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))   // en el orden en que se tomaron
     const synced: OfflineOrder[] = []
     const conflicts: OfflineOrder[] = []
+    const failed: OfflineOrder[] = []
 
     for (const order of offlineOrders) {
-      if (order.sync_status === 'synced') continue
-
       try {
         // Parsear items (se guardan como string JSON al crear offline)
         let items: unknown = order.items
@@ -122,41 +150,43 @@ export const offlineService = {
         // descuento de inventario, etc.) y use el auth.uid() del usuario YA
         // autenticado al volver la conexión (no el user_id offline).
         const { error } = await supabase.rpc('crear_orden_completa', {
-          p_mesa_id:     null,
-          p_items:       items,
-          p_tipo_pedido: order.tipo_pedido ?? 'LOCAL',
-          p_notes:       order.notes ?? null,
-          p_table_num:   order.table_num ?? null,
+          p_mesa_id:       order.mesa_id ?? null,
+          p_items:         items,
+          p_tipo_pedido:   order.tipo_pedido ?? 'LOCAL',
+          p_notes:         order.notes ?? null,
+          p_table_num:     order.table_num ?? null,
+          p_customer_name: order.customer_name ?? null,
         })
 
-        if (error) {
-          // Stock insuficiente / conflicto de inventario
-          if (error.code === '23514' || /stock|insuficiente|inventario/i.test(error.message)) {
-            order.sync_status = 'conflict'
-            order.conflict_reason = 'Desajuste de inventario: el stock cambió desde que se creó la orden offline.'
-            await idbPut(order)
-            conflicts.push(order)
-          } else {
-            throw error
-          }
-        } else {
-          await idbDelete(order.id)
-          synced.push(order)
+        if (error) throw error
+        await idbDelete(order.id)
+        synced.push(order)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String((e as { message?: unknown } | null)?.message ?? '')
+        if (esErrorDeRed(msg)) {
+          // Sin conexión real: se queda en la cola y se reintenta solo, sin saltarse el orden.
+          failed.push(order)
+          break
         }
-      } catch (error) {
-        console.error('Sync error:', error)
-        // Reintentar más tarde (se queda pendiente en IndexedDB)
+        // El servidor lo rechazó (stock, permisos, datos): no se reintenta solo, lo revisa el personal.
+        order.sync_status = 'conflict'
+        order.conflict_reason = /stock|insuficiente|inventario/i.test(msg)
+          ? 'Desajuste de inventario: el stock cambió desde que se creó la orden offline.'
+          : (msg || 'El servidor rechazó el pedido.')
+        await idbPut(order)
+        conflicts.push(order)
       }
     }
 
-    return { synced, conflicts }
+    if (synced.length > 0 || conflicts.length > 0) avisarCambio()
+    return { synced, conflicts, failed }
   },
 
   // ─── Hook para monitorear conexión ───────────────────────────
   useOfflineSync() {
     return useMutation({
       mutationFn: () => this.syncOfflineOrders(),
-      onSuccess: (result: { synced: OfflineOrder[]; conflicts: OfflineOrder[] }) => {
+      onSuccess: (result: SyncResult) => {
         if (result.conflicts.length > 0) {
           console.warn('Conflictos detectados:', result.conflicts)
         }
@@ -165,35 +195,38 @@ export const offlineService = {
   },
 }
 
+async function sincronizarYAvisar() {
+  try {
+    const { synced, conflicts } = await offlineService.syncOfflineOrders()
+    if (synced.length > 0) {
+      // Refrescar las vistas que dependen de órdenes
+      queryClient.invalidateQueries()
+      message.success(
+        `Conexión restaurada — ${synced.length} pedido(s) offline sincronizado(s) y enviado(s) a cocina`,
+      )
+    }
+    if (conflicts.length > 0) {
+      message.warning(
+        `${conflicts.length} pedido(s) offline no se pudieron enviar. Revísalos en Pedidos: puedes descartarlos y volver a tomarlos.`,
+      )
+    }
+  } catch (e) {
+    console.error('Error en sincronización offline:', e)
+  }
+}
+
 // Sincronizar cuando vuelve la conexión.
 // Guard para registrar el listener UNA sola vez (Dashboard puede remontarse).
 let offlineSyncInitialized = false
 export function initializeOfflineSync() {
   if (offlineSyncInitialized) return
   offlineSyncInitialized = true
-  window.addEventListener('online', async () => {
-    try {
-      const { synced, conflicts } = await offlineService.syncOfflineOrders()
-      if (synced.length > 0) {
-        // Refrescar las vistas que dependen de órdenes
-        queryClient.invalidateQueries()
-        message.success(
-          `Conexión restaurada — ${synced.length} pedido(s) offline sincronizado(s) y enviado(s) a cocina`,
-        )
-      }
-      if (conflicts.length > 0) {
-        message.warning(
-          `${conflicts.length} pedido(s) offline no se pudieron sincronizar por inventario. Revísalos manualmente.`,
-        )
-      }
-    } catch (e) {
-      console.error('Error en sincronización offline:', e)
-    }
-  })
+  window.addEventListener('online', () => { void sincronizarYAvisar() })
+  // Reintento automático: si el WiFi vuelve pero el evento "online" no llega (o el primer intento falló),
+  // los pedidos guardados no se quedan esperando para siempre.
+  window.setInterval(() => {
+    if (typeof navigator !== 'undefined' && navigator.onLine) void sincronizarYAvisar()
+  }, 30_000)
   // Intento inicial por si quedó algo pendiente de una sesión anterior
-  if (typeof navigator !== 'undefined' && navigator.onLine) {
-    offlineService.syncOfflineOrders().then(({ synced }) => {
-      if (synced.length > 0) queryClient.invalidateQueries()
-    }).catch(() => {})
-  }
+  if (typeof navigator !== 'undefined' && navigator.onLine) void sincronizarYAvisar()
 }

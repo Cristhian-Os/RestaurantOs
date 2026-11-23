@@ -15,7 +15,8 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
-import { offlineService } from '../../services/offlineService'
+import { offlineService, OFFLINE_CAMBIO, type OfflineOrder } from '../../services/offlineService'
+import { esErrorDeRed } from '../../services/paymentQueue'
 import { domiciliosService, type MetodoPago } from '../../services/domiciliosService'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import { inventoryService } from '../../services/inventoryService'
@@ -417,6 +418,23 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
 
+  // Pedidos guardados sin enviar: los que esperan conexión y los que el servidor rechazó.
+  const [colaPendientes, setColaPendientes] = useState(0)
+  const [colaProblemas, setColaProblemas]   = useState<OfflineOrder[]>([])
+  useEffect(() => {
+    let vivo = true
+    const leer = () => {
+      offlineService.getOfflineOrders().then(lista => {
+        if (!vivo) return
+        setColaPendientes(lista.filter(o => o.sync_status === 'pending').length)
+        setColaProblemas(lista.filter(o => o.sync_status === 'conflict'))
+      }).catch(() => { /* no crítico */ })
+    }
+    leer()
+    window.addEventListener(OFFLINE_CAMBIO, leer)
+    return () => { vivo = false; window.removeEventListener(OFFLINE_CAMBIO, leer) }
+  }, [])
+
   // Cargar mesas
   useEffect(() => {
     supabase.from('mesas').select('*').eq('activa', true).order('numero')
@@ -563,6 +581,42 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     if (tipoPedido === 'LOCAL' && !selectedMesa && !barra) { message.warning('Selecciona una mesa o Barra'); return }
     if (!customerName.trim()) { message.warning('Escribe el nombre del comensal'); return }
     if (tipoPedido === 'DOMICILIO' && domDireccion.trim().length < 5) { message.warning('Escribe la dirección del domicilio'); return }
+    if (!isOnline && tipoPedido === 'DOMICILIO') {
+      // El domicilio necesita crear también su dirección y su pago en el servidor: sin internet no se puede guardar a medias.
+      message.warning('Sin internet no se puede tomar un domicilio. Usa Mesa o Para llevar, o espera a que vuelva la conexión.')
+      return
+    }
+
+    // Guarda el pedido en el celular para enviarlo solo cuando haya internet.
+    const guardarEnCola = async (lineas: unknown[]) => {
+      const { data: { user: offlineUser } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+      // Si la sesión expiró o no hay red para consultarla, usamos un id de respaldo (al sincronizar manda el usuario ya autenticado).
+      const offlineUserId = offlineUser?.id ?? profile.id ?? 'offline-anonymous'
+      await offlineService.saveOrderLocally({
+        id: crypto.randomUUID(),
+        user_id: offlineUserId,
+        items: JSON.stringify(lineas),
+        total: cartTotal,
+        status: 'pending',
+        tipo_pedido: tipoPedido,
+        mesa_id: selectedMesa?.id ?? null,
+        table_num: selectedMesa?.numero ?? null,
+        customer_name: customerName.trim() || undefined,
+        notes: (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || undefined,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      message.warning('Sin conexión — Pedido guardado. Se enviará a cocina solo cuando vuelva el internet.')
+    }
+    const reiniciarFormulario = () => {
+      setCart([])
+      setPersonas(0)
+      setStep('mesa')
+      setMesa(null); setBarra(false)
+      setOrderNotes('')
+      setCustomerName('')
+      setDomDireccion(''); setDomTelefono(''); setDomTarifa(''); setDomMetodo('transferencia')
+    }
 
     setSubmitting(true)
     try {
@@ -589,6 +643,12 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           p_table_num:      selectedMesa?.numero ?? null,
           p_customer_name:  customerName.trim() || null,
         })
+        if (error && esErrorDeRed(error.message) && tipoPedido !== 'DOMICILIO') {
+          // WiFi sin internet real: el pedido no llegó al servidor. Se guarda y se envía solo; el cajero no lo rehace.
+          await guardarEnCola(items)
+          reiniciarFormulario()
+          return
+        }
         if (error) throw error
         if (tipoPedido === 'DOMICILIO') {
           try {
@@ -620,34 +680,10 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
         )
         onOrderCreated?.(data.order_id, data.total)
       } else {
-        const { data: { user: offlineUser } } = await supabase.auth.getUser()
-        // BUG FIX #8: user!.id lanzaba excepción si la sesión expiraba offline.
-        // Ahora usamos un fallback seguro.
-        const offlineUserId = offlineUser?.id ?? 'offline-anonymous'
-        await offlineService.saveOrderLocally({
-          id: crypto.randomUUID(),
-          user_id: offlineUserId,
-          items: JSON.stringify(items),
-          total: cartTotal,
-          status: 'pending',
-          tipo_pedido: tipoPedido,
-          table_num: selectedMesa?.numero ?? null,
-          customer_name: customerName.trim() || undefined,
-          notes: orderNotes || undefined,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        message.warning('Sin conexión — Orden guardada localmente')
+        await guardarEnCola(items)
       }
 
-      // Reset
-      setCart([])
-      setPersonas(0)
-      setStep('mesa')
-      setMesa(null); setBarra(false)
-      setOrderNotes('')
-      setCustomerName('')
-      setDomDireccion(''); setDomTelefono(''); setDomTarifa(''); setDomMetodo('transferencia')
+      reiniciarFormulario()
     } catch (e) {
       message.error(`${e instanceof Error ? e.message : 'Error al enviar orden'}`)
     } finally {
@@ -662,11 +698,23 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       <ModuleHeader icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 13h6M9 17h4"/></svg>} title="Nueva orden" subtitle="Elige la mesa, los platos y confirma" />
 
       {/* Indicador offline */}
-      {!isOnline && (
+      {(!isOnline || colaPendientes > 0) && (
         <div className="bg-[var(--w-warning-bg)] border border-[var(--w-warning)] rounded-[var(--w-r-lg)] px-4 py-3 text-xs font-medium text-[color:var(--w-warning-text)] flex items-center gap-2">
-          Modo offline — Las órdenes se sincronizarán al recuperar conexión
+          {!isOnline ? 'Sin internet — Los pedidos se guardan y se envían solos al volver la conexión.' : ''}
+          {colaPendientes > 0 && ` ${colaPendientes} pedido(s) guardado(s) esperando para enviarse a cocina.`}
         </div>
       )}
+      {colaProblemas.map(p => (
+        <div key={p.id} className="bg-[var(--w-danger-bg)] border border-[var(--w-danger)] rounded-[var(--w-r-lg)] px-4 py-3 text-xs font-medium text-[color:var(--w-danger-text)] flex items-center justify-between gap-3">
+          <span>No se pudo enviar el pedido de {p.customer_name || 'un cliente'}: {p.conflict_reason}. Tómalo de nuevo.</span>
+          <button
+            onClick={() => { void offlineService.discardOrder(p.id) }}
+            className="shrink-0 rounded-[var(--w-r-md)] border border-[var(--w-danger)] px-3 py-1 font-bold"
+          >
+            Descartar
+          </button>
+        </div>
+      ))}
 
       {/* Steps indicator */}
       <div className="flex items-center gap-2 mb-2">
