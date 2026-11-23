@@ -19,3 +19,6 @@ dist/
 
 # Preview local config
 .claude/
+
+# se genera en cada build (scripts/generar-funciones.mjs)
+public/funciones.json

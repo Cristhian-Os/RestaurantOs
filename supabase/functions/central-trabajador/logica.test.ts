@@ -89,3 +89,39 @@ assert.match(pedido.sistema, /NO se publica/)
 assert.match(armarPedidoContenido({}, []).sistema, /ninguna verificada/)
 assert.match(textoDocumento((validarPieza(buena) as { pieza: never }).pieza, '2026-11-24'), /NO PUBLICADO/)
 console.log('central-trabajador (Nico): todo OK')
+
+// ── Sincronización de funciones: lo automático solo baja o avisa ──
+import { conHuella, evidenciaAuto, huellaDe, manifiestoValido, planSincronizacion } from './logica.ts'
+const F = (id: string, huella: string, existe = true) => ({ id, nombre: `Función ${id}`, area: 'Operación', evidencia: [`src/${id}.tsx`], existe, huella })
+const H1 = 'aaaaaaaaaaaa', H2 = 'bbbbbbbbbbbb'
+// nueva: entra como "parcial" con evidencia y huella; nunca como producción
+let plan: ReturnType<typeof planSincronizacion> = planSincronizacion([F('mesas', H1)], [], '2026-11-24')
+assert.equal(plan.insertar.length, 1); assert.equal(plan.insertar[0].estado, 'parcial'); assert.equal(huellaDe(plan.insertar[0].evidencia), H1)
+assert.equal(planSincronizacion([F('mesas', H1, false)], [], '2026-11-24').insertar.length, 0, 'lo que no existe en el código no se agrega')
+// sin cambios: no toca nada
+const auto = evidenciaAuto(F('mesas', H1), '2026-11-24')
+plan = planSincronizacion([F('mesas', H1)], [{ id: 'mesas', estado: 'parcial', evidencia: auto }], '2026-11-25')
+assert.deepEqual(plan, { insertar: [], actualizar: [], bajar: [], reverificar: [] })
+// cambió el código: una función "parcial" solo actualiza su evidencia
+plan = planSincronizacion([F('mesas', H2)], [{ id: 'mesas', estado: 'parcial', evidencia: auto }], '2026-11-25')
+assert.equal(plan.actualizar.length, 1); assert.deepEqual(plan.reverificar, []); assert.equal(huellaDe(plan.actualizar[0].evidencia), H2)
+// cambió el código de una "En producción": se actualiza la huella Y se pide volver a verificar; el estado no se toca (no hay campo estado en el plan)
+plan = planSincronizacion([F('mesas', H2)], [{ id: 'mesas', estado: 'produccion', evidencia: `Verificado a mano por Cristhian. [huella:${H1}]` }], '2026-11-25')
+assert.deepEqual(plan.reverificar, ['mesas']); assert.ok(plan.actualizar[0].evidencia.startsWith('Verificado a mano por Cristhian.')); assert.equal(huellaDe(plan.actualizar[0].evidencia), H2)
+// evidencia manual sin huella: se empieza a seguir, sin alarma
+plan = planSincronizacion([F('mesas', H1)], [{ id: 'mesas', estado: 'produccion', evidencia: 'Probado en Cholaos el 2026-11-01' }], '2026-11-25')
+assert.deepEqual(plan.reverificar, []); assert.equal(huellaDe(plan.actualizar[0].evidencia), H1)
+// desapareció del código: baja (la dirección segura)
+plan = planSincronizacion([F('mesas', H1, false)], [{ id: 'mesas', estado: 'produccion', evidencia: 'x'.repeat(10) }], '2026-11-25')
+assert.deepEqual(plan.bajar, ['mesas'])
+assert.deepEqual(planSincronizacion([F('mesas', H1, false)], [{ id: 'mesas', estado: 'desarrollo', evidencia: '' }], '2026-11-25').bajar, [])
+// filas que el manifiesto no menciona se dejan en paz
+assert.deepEqual(planSincronizacion([], [{ id: 'planes_precios', estado: 'produccion', evidencia: 'tabla planes' }], '2026-11-25'), { insertar: [], actualizar: [], bajar: [], reverificar: [] })
+// conHuella respeta el límite y reemplaza
+assert.equal(conHuella(`texto [huella:${H1}]`, H2), `texto [huella:${H2}]`)
+assert.ok(conHuella('y'.repeat(1000), H1).length <= 1000)
+// el manifiesto viene de internet: se filtra lo malformado
+const manifiestoCrudo = { funciones: [F('ok_uno', H1), { ...F('Mal Id', H1) }, { ...F('sin_huella', H1), huella: 'zz' }, { ...F('ruta_mala', H1), evidencia: ['../../etc/passwd'] }, 'basura', null] }
+assert.deepEqual(manifiestoValido(manifiestoCrudo).map(f => f.id), ['ok_uno'])
+assert.deepEqual(manifiestoValido(null), [])
+console.log('central-trabajador (funciones): todo OK')

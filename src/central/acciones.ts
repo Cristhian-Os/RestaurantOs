@@ -341,9 +341,9 @@ export async function moverInterruptor(clave: 'agentes_activos' | 'pausa_agentes
   const { error } = await supabase.rpc('central_interruptor', { p_clave: clave, p_valor: valor })
   return resultado(error)
 }
-export interface RespuestaTrabajador { ok: boolean; campanas?: number; trabajos?: string[]; ejecutados?: { id: string; estado: string; detalle?: unknown }[]; mensaje?: string }
+export interface RespuestaTrabajador { ok: boolean; funciones?: { total: number; nuevas: number; actualizadas: number; bajadas: number; reverificar: number; fallos: number }; campanas?: number; trabajos?: string[]; ejecutados?: { id: string; estado: string; detalle?: unknown }[]; mensaje?: string }
 /** "encolar": crea el trabajo de hoy por cada campaña vigente (sin duplicar). "ejecutar": toma trabajos de la cola y los corre (solo investiga: no contacta a nadie). */
-export const pedirAlTrabajador = (accion: 'encolar' | 'ejecutar') => invocar<RespuestaTrabajador>('central-trabajador', { accion })
+export const pedirAlTrabajador = (accion: 'encolar' | 'ejecutar' | 'sincronizar_funciones') => invocar<RespuestaTrabajador>('central-trabajador', { accion })
 
 // ── Conversación de dos vías por Telegram (la hace el SERVIDOR; aquí solo se pide activarla, quitarla o ver si está activa) ──
 export interface EstadoTelegramChat { ok: boolean; activo: boolean; pendientes: number; ultimoError: string | null }

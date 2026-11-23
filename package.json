@@ -7,7 +7,7 @@
     "dev": "vite",
     "check:resti": "node scripts/check-resti-targets.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
-    "build": "node scripts/check-resti-targets.mjs && vite build",
+    "build": "node scripts/generar-funciones.mjs && node scripts/check-resti-targets.mjs && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

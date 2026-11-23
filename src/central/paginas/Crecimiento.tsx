@@ -12,6 +12,7 @@ import { supabase } from '../../services/supabaseClient'
 import { activarAutorizacion, agregarNoContactar, crearCampana, guardarFuncion, revocarAutorizacion, textoError, type EstadoFuncion } from '../acciones.ts'
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
 import { TrabajoAgentes } from './TrabajoAgentes.tsx'
+import { pedirAlTrabajador } from '../acciones.ts'
 
 interface Funcion { id: string; nombre: string; area: string; estado: EstadoFuncion; limitaciones: string; evidencia: string; verificado_en: string | null }
 interface Autorizacion { id: string; tipo: string; nombre: string; alcance: Record<string, unknown>; estado: string; vigente_hasta: string | null; revocada_motivo: string | null }
@@ -80,6 +81,27 @@ function FilaFuncion({ f, recargar }: { f: Funcion; recargar: () => Promise<void
   )
 }
 
+function SincronizarFunciones({ recargar }: { recargar: () => Promise<void> }) {
+  const [ocupado, setOcupado] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const correr = async () => {
+    setOcupado(true); setMsg(null); setErr(null)
+    const r = await pedirAlTrabajador('sincronizar_funciones')
+    setOcupado(false)
+    if (r.ok === true && r.datos.funciones) { const f = r.datos.funciones; setMsg(`Revisé ${f.total} funciones del código: ${f.nuevas} nueva(s), ${f.actualizadas} actualizada(s), ${f.bajadas} que ya no aparecen, ${f.reverificar} para volver a verificar.`); await recargar() }
+    else setErr(r.ok === true ? 'Respuesta inesperada.' : r.mensaje)
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">La lista se compara con el código de la app. Lo nuevo entra como "Parcial". Nada pasa a "En producción" sin que tú lo verifiques.</p>
+      <div><Button size="sm" variant="secondary" loading={ocupado} onClick={() => void correr()}>Actualizar desde el código</Button></div>
+      {msg && <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text)]">{msg}</p>}
+      <ErrorAccion texto={err} />
+    </div>
+  )
+}
+
 function Funciones() {
   const { filas, error, recargar } = useFilas<Funcion>('growth_funciones', 'nombre')
   const verificadas = filas?.filter(f => f.estado !== 'sin_verificar').length ?? 0
@@ -87,6 +109,7 @@ function Funciones() {
     <div className="flex flex-col gap-3">
       <TituloBloque>Qué se puede ofrecer (fuente de verdad)</TituloBloque>
       <AvisoHonesto tono="warning">Los agentes solo deben ofrecer lo que aparece "En producción" con evidencia. Lo que dice "Sin verificar" no se promete a nadie hasta revisarlo.</AvisoHonesto>
+      <SincronizarFunciones recargar={recargar} />
       {error && <ErrorAccion texto={error} />}
       {!filas ? <StatePanel kind="loading" title="Cargando…" /> : (
         <>

@@ -167,3 +167,55 @@ export function textoDocumento(p: Pieza, fecha: string): string {
   return [`BORRADOR · NO PUBLICADO · ${fecha}`, `Pilar: ${p.pilar} · Canal: ${p.canal} · Formato: ${p.formato}`, '', p.copy, '', `Invitación: ${p.cta || '—'}`, `Idea visual: ${p.idea_visual || '—'}`, '',
     'Generado por Nico (IA). Antes de publicar: verifica que todo sea cierto y que respete la política de publicación.'].join('\n')
 }
+
+// ───────────────────────── Funciones de la app: sincronizar el manifiesto del código con growth_funciones ─────────────────────────
+// Regla de oro: lo automático solo BAJA o AVISA. Nada sube a "En producción" sin que una persona lo verifique en Central.
+export interface FuncionManifiesto { id: string; nombre: string; area: string; evidencia: string[]; existe: boolean; huella: string }
+export interface FilaFuncion { id: string; estado: string; evidencia: string }
+export interface Plan {
+  insertar: { id: string; nombre: string; area: string; estado: 'parcial'; evidencia: string; limitaciones: string; verificado_en: string }[]
+  actualizar: { id: string; evidencia: string }[]
+  bajar: string[]          // existían como producción/parcial y ya no están en el código → "sin verificar"
+  reverificar: string[]    // estaban "En producción" y el código cambió → avisar para volver a verificar
+}
+const HUELLA = /\[huella:([0-9a-f]{12})\]/
+const ID = /^[a-z0-9_]{3,60}$/
+export const huellaDe = (evidencia: string): string | null => evidencia.match(HUELLA)?.[1] ?? null
+export const LIMITE_AUTO = 'Existe en el código; nadie ha verificado todavía que funcione en producción.'
+export const evidenciaAuto = (f: FuncionManifiesto, fecha: string) => `Existe en el código (${f.evidencia.slice(0, 2).join(', ')}). Revisión automática ${fecha}. [huella:${f.huella}]`.slice(0, 1000)
+/** Cambia (o agrega) la huella conservando el resto de la evidencia, que puede ser escrita a mano por una persona. */
+export function conHuella(evidencia: string, huella: string): string {
+  const etiqueta = `[huella:${huella}]`
+  if (HUELLA.test(evidencia)) return evidencia.replace(HUELLA, etiqueta)
+  return `${evidencia.slice(0, 1000 - etiqueta.length - 1).trimEnd()} ${etiqueta}`
+}
+/** Descarta del manifiesto lo que no tenga la forma esperada (la lista viene de internet: se trata como dato no confiable). */
+export function manifiestoValido(raw: unknown): FuncionManifiesto[] {
+  const lista = raw && typeof raw === 'object' && Array.isArray((raw as { funciones?: unknown }).funciones) ? (raw as { funciones: unknown[] }).funciones : []
+  const out: FuncionManifiesto[] = []
+  for (const x of lista) {
+    const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>
+    const id = typeof o.id === 'string' ? o.id : '', nombre = txt(o.nombre, 120), area = txt(o.area, 60) || 'General'
+    const evidencia = Array.isArray(o.evidencia) ? o.evidencia.filter((e): e is string => typeof e === 'string' && e.length > 0 && e.length < 200 && !e.includes('..')).slice(0, 8) : []
+    if (!ID.test(id) || nombre.length < 3 || !evidencia.length || typeof o.existe !== 'boolean' || typeof o.huella !== 'string' || !/^[0-9a-f]{12}$/.test(o.huella)) continue
+    out.push({ id, nombre, area, evidencia, existe: o.existe, huella: o.huella })
+  }
+  return out
+}
+export function planSincronizacion(manifiesto: FuncionManifiesto[], filas: FilaFuncion[], fecha: string): Plan {
+  const plan: Plan = { insertar: [], actualizar: [], bajar: [], reverificar: [] }
+  const porId = new Map(filas.map(f => [f.id, f]))
+  for (const f of manifiesto) {
+    const fila = porId.get(f.id)
+    if (!fila) {
+      if (f.existe) plan.insertar.push({ id: f.id, nombre: f.nombre, area: f.area, estado: 'parcial', evidencia: evidenciaAuto(f, fecha), limitaciones: LIMITE_AUTO, verificado_en: fecha })
+      continue
+    }
+    if (!f.existe) { if (fila.estado === 'produccion' || fila.estado === 'parcial') plan.bajar.push(f.id); continue }
+    const previa = huellaDe(fila.evidencia)
+    if (previa === f.huella) continue
+    plan.actualizar.push({ id: f.id, evidencia: fila.evidencia.startsWith('Existe en el código') ? evidenciaAuto(f, fecha) : conHuella(fila.evidencia, f.huella) })
+    if (fila.estado === 'produccion' && previa !== null) plan.reverificar.push(f.id)   // la primera vez solo se empieza a seguir: no hay con qué comparar
+  }
+  return plan
+}

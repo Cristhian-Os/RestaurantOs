@@ -31,6 +31,7 @@ function resumen(r: RespuestaTrabajador): string {
       return `${ETQ[e.estado] ?? e.estado}: ${typeof d === 'string' ? d : 'sin detalle'}`
     }).join(' · ')
   }
+  if (r.funciones) return `Revisé ${r.funciones.total} funciones del código: ${r.funciones.nuevas} nueva(s), ${r.funciones.actualizadas} actualizada(s), ${r.funciones.bajadas} que ya no aparecen, ${r.funciones.reverificar} para volver a verificar.${r.funciones.fallos ? ` (${r.funciones.fallos} error(es) al guardar)` : ''}`
   if (r.trabajos) return r.trabajos.length ? `Trabajo de hoy listo para ${r.trabajos.length} campaña(s) vigente(s).` : `No hay campañas vigentes (${r.campanas ?? 0}). Crea y activa una abajo.`
   return 'Listo.'
 }
@@ -85,7 +86,7 @@ export function TrabajoAgentes() {
     if (e) setError(e)
     await recargar()
   }
-  const pedir = async (accion: 'encolar' | 'ejecutar') => {
+  const pedir = async (accion: 'encolar' | 'ejecutar' | 'sincronizar_funciones') => {
     setOcupado(accion); setError(null); setAviso(null)
     const r = await pedirAlTrabajador(accion)
     setOcupado(null)

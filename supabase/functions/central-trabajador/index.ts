@@ -12,7 +12,7 @@ import { cargarLlaves } from '../_shared/central_llaves.ts'
 import { costoEstimado, modeloDe, proveedorPorId } from '../central-agente/logica.ts'
 import {
   MAX_RESULTADOS_WEB, MAX_TOKENS_BUSQUEDA, armarPedido, armarPedidoContenido, citasDeRespuesta, claveTrabajoDiario, costoCorrida, cupoRestante, extraerJson,
-  textoDocumento, validarCandidatos, validarPieza, type Alcance, type FuncionReal,
+  manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type FuncionReal,
 } from './logica.ts'
 
 type Trabajo = { id: string; tipo: string; agente_id: string; autorizacion_id: string | null }
@@ -55,6 +55,36 @@ Deno.serve(async (req: Request) => {
         }
       }
       return out({ ok: true, campanas: (camp ?? []).length, trabajos: ids })
+    }
+
+
+    // ── sincronizar_funciones: compara lo que existe en el código (funciones.json de la app) con la matriz. Solo AGREGA como "parcial", BAJA o AVISA: nunca sube a producción. ──
+    if (body.accion === 'sincronizar_funciones') {
+      let crudo: unknown = null
+      try {
+        const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 15_000)
+        const r = await fetch('https://usarestaurantos.com/funciones.json', { signal: ctl.signal }).finally(() => clearTimeout(timer))
+        if (r.ok) crudo = await r.json().catch(() => null)
+      } catch { /* se informa abajo */ }
+      const manifiesto = manifiestoValido(crudo)
+      if (!manifiesto.length) return out({ ok: false, error: 'sin_manifiesto', mensaje: 'No se pudo leer la lista de funciones de la app (¿ya se publicó la versión nueva?).' }, 502)
+      const { data: filas, error: eFilas } = await admin.from('growth_funciones').select('id, estado, evidencia')
+      if (eFilas) return out({ ok: false, error: 'lectura', mensaje: 'No se pudo leer la matriz de funciones.' }, 500)
+      const plan = planSincronizacion(manifiesto, (filas ?? []) as { id: string; estado: string; evidencia: string }[], hoy)
+      let fallos = 0
+      if (plan.insertar.length) { const { error } = await admin.from('growth_funciones').insert(plan.insertar); if (error) fallos++ }
+      for (const a of plan.actualizar) { const { error } = await admin.from('growth_funciones').update({ evidencia: a.evidencia }).eq('id', a.id); if (error) fallos++ }
+      for (const id of plan.bajar) {
+        const { error } = await admin.from('growth_funciones').update({ estado: 'sin_verificar', limitaciones: 'Ya no se encuentra en el código: confirma si sigue existiendo antes de ofrecerla.' }).eq('id', id)
+        if (error) fallos++
+      }
+      const nombres = (ids: string[]) => ids.map(i => manifiesto.find(f => f.id === i)?.nombre ?? i).join(', ').slice(0, 300)
+      if (plan.reverificar.length || plan.bajar.length) {
+        const detalle = [plan.reverificar.length ? `Cambió el código de: ${nombres(plan.reverificar)}. Vuelve a verificarlas.` : '', plan.bajar.length ? `Ya no aparecen en el código: ${nombres(plan.bajar)}.` : ''].filter(Boolean).join(' ')
+        await admin.from('central_notificaciones').insert({ tipo: 'alerta', severidad: 'importante', titulo: 'Funciones de la app para revisar', detalle: detalle.slice(0, 1000), origen: 'funciones', enlace: '/central' })
+        await aviso(`🔧 Funciones de la app para revisar: ${detalle}`.slice(0, 500))
+      }
+      return out({ ok: true, funciones: { total: manifiesto.length, nuevas: plan.insertar.length, actualizadas: plan.actualizar.length, bajadas: plan.bajar.length, reverificar: plan.reverificar.length, fallos } })
     }
 
     // ── ejecutar ──
