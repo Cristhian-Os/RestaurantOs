@@ -756,7 +756,8 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
                 {[
                   { val: 'LOCAL',     label: 'En mesa',   show: true },
                   { val: 'LLEVAR',    label: 'Para llevar', show: true },
-                  { val: 'DOMICILIO', label: 'Domicilio',  show: true },
+                  // El mesero no toma domicilios (llevan dirección y pago por transferencia): los toma Caja o el admin.
+                  { val: 'DOMICILIO', label: 'Domicilio',  show: profile.role !== 'waiter' },
                   { val: 'RAPPI',     label: 'Rappi',      show: ['admin','cashier'].includes(profile.role) },
                 ].filter(o => o.show).map(opt => (
                   <button key={opt.val}

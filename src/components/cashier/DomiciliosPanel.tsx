@@ -171,8 +171,16 @@ function Tarjeta({ d, reps, onAccion, onChanged }: { d: Domicilio; reps: Reparti
           <Button size="sm" variant="danger" onClick={() => onAccion({ tipo: 'rechazar', d })}>Rechazar</Button>
         </>)}
         {d.metodo_pago === 'transferencia' && (d.pago_estado === 'pendiente_comprobante' || d.pago_estado === 'comprobante_enviado') && (
+          <label className="inline-flex cursor-pointer items-center rounded-[var(--w-r-md)] bg-[var(--w-accent)] px-3 py-1.5 text-[length:var(--w-fs-label)] font-bold text-[color:var(--w-on-accent)]">
+            {d.pago_estado === 'pendiente_comprobante' ? 'Tomar foto del comprobante' : 'Tomar otra foto'}
+            {/* capture: en el celular abre la cámara directo; la foto de la pantalla de la transferencia queda como comprobante */}
+            <input type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) run(() => domiciliosService.subirComprobante(d, f), 'Comprobante guardado') }} />
+          </label>
+        )}
+        {d.metodo_pago === 'transferencia' && (d.pago_estado === 'pendiente_comprobante' || d.pago_estado === 'comprobante_enviado') && (
           <label className="inline-flex cursor-pointer items-center rounded-[var(--w-r-md)] border border-[var(--w-border-strong)] px-3 py-1.5 text-[length:var(--w-fs-label)] font-semibold">
-            {d.pago_estado === 'pendiente_comprobante' ? 'Adjuntar comprobante' : 'Cambiar comprobante'}
+            Elegir de la galería
             <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) run(() => domiciliosService.subirComprobante(d, f), 'Comprobante guardado') }} />
           </label>
