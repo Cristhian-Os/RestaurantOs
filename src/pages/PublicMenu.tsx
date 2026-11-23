@@ -64,6 +64,7 @@ interface CartItem {
   optsText: string  // resumen de opciones elegidas (tamaño, sabores, queso/helado, toppings, adicionales)
   sel?:     ItemSel // selección del constructor: se guarda en el pedido para poder editarlo después
   customIngredients?: { id: string; cantidad: number }[]  // solo para "plato personalizado"
+  llevar?:  boolean // el cliente lo quiere para llevar: va al inicio de la nota de la línea (cocina y ticket lo ven)
 }
 
 // Línea de un pedido ya enviado, en el modal de edición
@@ -1338,6 +1339,12 @@ export default function PublicMenu() {
   const removeCartItem = useCallback((uid: string) => {
     setCart(prev => prev.filter(i => i.uid !== uid))
   }, [])
+  const toggleLlevar = useCallback((uid: string) => {
+    setCart(prev => prev.map(i => i.uid === uid ? { ...i, llevar: !i.llevar } : i))
+  }, [])
+  const todoLlevar = useCallback((valor: boolean) => {
+    setCart(prev => prev.map(i => ({ ...i, llevar: valor })))
+  }, [])
 
   // ── send order ─────────────────────────────────────────────────
   const isClosedBySchedule = useMemo(() => {
@@ -1365,7 +1372,7 @@ export default function PublicMenu() {
       // lo recalcula en el servidor a partir de dishes/ingredientes reales, para
       // que nadie pueda manipular el total del pedido (y lo que luego cobra Wompi).
       const items = cart.map(i => {
-        const line_notes = lineNotes(i.optsText, i.notes) || null
+        const line_notes = [i.llevar ? 'PARA LLEVAR' : '', lineNotes(i.optsText, i.notes)].filter(Boolean).join(' · ') || null
         return i.customIngredients
           ? { kind: 'custom', quantity: i.qty, line_notes, ingredients: i.customIngredients }
           : { kind: 'dish', dish_id: i.dish.id, quantity: i.qty, size: i.size || null, toppings: i.toppings, sel: i.sel ?? null, line_notes }
@@ -2062,6 +2069,13 @@ export default function PublicMenu() {
                   style={{ width: 40, height: 40, borderRadius: '0.875rem', border: '1px solid var(--w-border)', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontSize: '1.125rem', cursor: 'pointer' }}>✕</button>
               </div>
 
+              {cart.length > 1 && (
+                <button type="button" onClick={() => todoLlevar(!cart.every(i => i.llevar))}
+                  style={{ width: '100%', minHeight: 44, marginBottom: '0.75rem', borderRadius: '0.875rem', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem',
+                    border: '1px solid var(--w-border-strong)', background: 'var(--w-surface)', color: 'var(--w-text)' }}>
+                  {cart.every(i => i.llevar) ? 'Quitar "para llevar" de todo' : 'Todo el pedido para llevar'}
+                </button>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '1rem', borderTop: '1px solid var(--w-border)' }}>
                 {cart.map(item => (
                   <div key={item.uid} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', padding: '0.75rem 0', borderBottom: '1px solid var(--w-border)' }}>
@@ -2071,6 +2085,12 @@ export default function PublicMenu() {
                       {(item.optsText || item.dish.description) && <p style={{ fontSize: '0.6875rem', color: 'var(--w-text-3)', margin: '0.125rem 0 0', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2 as unknown as number, WebkitBoxOrient: 'vertical' as unknown as 'vertical' }}>{item.optsText || item.dish.description}</p>}
                       {item.notes && <p style={{ fontSize: '0.6875rem', color: 'var(--w-text-3)', margin: 0 }}>Nota: {item.notes}</p>}
                       <p style={{ fontWeight: 700, color: 'var(--w-accent-text)', fontSize: '0.9375rem', margin: '0.25rem 0 0', fontFamily: 'var(--w-font)' }}>{fmtCOP(item.price * item.qty)}</p>
+                      <button type="button" onClick={() => toggleLlevar(item.uid)} aria-pressed={!!item.llevar}
+                        style={{ marginTop: '0.375rem', minHeight: 36, padding: '0 0.75rem', borderRadius: 9999, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700,
+                          border: item.llevar ? '1px solid var(--w-accent)' : '1px solid var(--w-border-strong)',
+                          background: item.llevar ? 'var(--w-accent)' : 'var(--w-surface)', color: item.llevar ? 'var(--w-on-accent)' : 'var(--w-text-2)' }}>
+                        {item.llevar ? '✓ Para llevar' : 'Para llevar'}
+                      </button>
                     </div>
                     <span style={{ padding: '0.375rem 0.625rem', borderRadius: '0.75rem', background: 'var(--w-surface-sunken)', border: '1px solid var(--w-border)', color: 'var(--w-text)', fontWeight: 700, fontSize: '0.8125rem' }}>×{item.qty}</span>
                     <button onClick={() => removeCartItem(item.uid)} aria-label={`Quitar ${item.dish.name}`}
