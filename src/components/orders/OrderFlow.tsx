@@ -11,7 +11,7 @@
  */
 import { ModuleHeader } from '../tasks/ModuleHeader'
 import { BARRA_NOTE } from '../../lib/destino'
-import { useState, useEffect, useCallback, useMemo, memo } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
@@ -406,6 +406,9 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
   const [loadingMesas,  setLoadingMesas]  = useState(true)
   const [loadingDishes, setLoadingDishes] = useState(true)
   const [submitting, setSubmitting]       = useState(false)
+  // Código único del envío en curso: se conserva mientras el pedido no cambie, para que repetir el toque en "Enviar"
+  // (tras un fallo dudoso) devuelva el mismo pedido en vez de crear otro. Se borra al enviarse o guardarse en cola.
+  const envioRef = useRef<{ firma: string; llave: string } | null>(null)
   const [isOnline, setIsOnline]           = useState(navigator.onLine)
   const [orderNotes, setOrderNotes]       = useState('')
 
@@ -589,8 +592,14 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
 
     // Guarda el pedido en el celular para enviarlo solo cuando haya internet.
     // Código único de ESTE envío: viaja al servidor y, si el internet falla, a la cola. Así, aunque el pedido haya llegado
-    // y la respuesta se pierda, el reintento devuelve el mismo pedido en vez de crear otro.
-    const llave = crypto.randomUUID()
+    // y la respuesta se pierda, el reintento devuelve el mismo pedido en vez de crear otro. Si el pedido cambia
+    // (otro producto, mesa o nombre), es otro pedido y recibe un código nuevo.
+    const firmaEnvio = JSON.stringify([
+      tipoPedido, selectedMesa?.id ?? (barra ? 'barra' : ''), customerName.trim(), orderNotes, domDireccion.trim(), domTelefono, domTarifa, domMetodo,
+      cart.map(i => [i.dish.id, i.quantity, i.size, i.toppings, i.optsText, i.notes, i.comensal ?? '']),
+    ])
+    if (envioRef.current?.firma !== firmaEnvio) envioRef.current = { firma: firmaEnvio, llave: crypto.randomUUID() }
+    const llave = envioRef.current.llave
     const guardarEnCola = async (lineas: unknown[]) => {
       const { data: { user: offlineUser } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
       // Si la sesión expiró o no hay red para consultarla, usamos un id de respaldo (al sincronizar manda el usuario ya autenticado).
@@ -612,6 +621,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
       message.warning('Sin conexión — Pedido guardado. Se enviará a cocina solo cuando vuelva el internet.')
     }
     const reiniciarFormulario = () => {
+      envioRef.current = null
       setCart([])
       setPersonas(0)
       setStep('mesa')
@@ -654,6 +664,12 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           return
         }
         if (error) throw error
+        if (data?.duplicado) {
+          // Un intento anterior sí llegó al servidor (se perdió la respuesta): ya existe, no se crea otro ni se repite nada.
+          message.info('Ese pedido ya se había enviado: no se creó otro.')
+          reiniciarFormulario()
+          return
+        }
         if (tipoPedido === 'DOMICILIO') {
           try {
             await domiciliosService.crear({

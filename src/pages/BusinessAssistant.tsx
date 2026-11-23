@@ -9,6 +9,7 @@ import { StatePanel } from '../components/ui/StatePanel'
 import { ModuleHeader, StatCard } from '../components/tasks/ModuleHeader'
 import { ResumenIA } from '../components/analytics/ResumenIA'
 import { CancelacionesPanel } from '../components/analytics/CancelacionesPanel'
+import { DuplicadosPanel } from '../components/analytics/DuplicadosPanel'
 import { analyticsService, UMBRALES_INICIALES, type Cuadrante, type Umbrales } from '../services/analyticsService'
 
 const cop = (n: number) => `$${Math.round(n).toLocaleString('es-CO')}`
@@ -149,6 +150,8 @@ export default function BusinessAssistant() {
               ))}
             </div>
           </Cargando>
+          <h3 className="text-[length:var(--w-fs-body-lg)] font-bold text-[color:var(--w-text)] mt-6 mb-2">Posibles pedidos repetidos</h3>
+          <DuplicadosPanel />
           <div className="mt-4 p-4 bg-[var(--w-surface)] rounded-[var(--w-r-lg)] border border-[var(--w-border)] shadow-[var(--w-shadow-sm)] grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             {campo('anulacion_pct_max', 'Avisar si una persona anula más de (%)')}
             {campo('min_pedidos', 'Solo si tomó al menos (pedidos)')}

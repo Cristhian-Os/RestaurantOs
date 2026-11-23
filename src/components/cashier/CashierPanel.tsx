@@ -9,7 +9,7 @@
  *  • Corte de caja diario y mensual
  */
 import { destinoPedido } from '../../lib/destino'
-import { useState, useEffect, useCallback, memo } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../services/supabaseClient'
 import { descargarCorteExcel, descargarCorteMensualExcel, type CorteProducto, type CortePago } from '../../services/corteExcel'
@@ -34,6 +34,7 @@ import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Profile } from '../../pages/Dashboard'
 import { usePedirMotivoCancelacion } from '../../hooks/usePedirMotivoCancelacion'
+import { detectarPosiblesDuplicados } from '../../services/pedidosDuplicados'
 
 const FX = {
   card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
@@ -224,6 +225,8 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [editingOrder,  setEditingOrder]  = useState<Order | null>(null)
   const [cancellingOrder, setCancellingOrder] = useState<string | null>(null)
   const { pedirMotivo, modal: modalMotivoCancelacion } = usePedirMotivoCancelacion()
+  // Pedidos abiertos que parecen el mismo enviado dos veces (solo aviso; el cajero decide).
+  const posiblesRepetidos = useMemo(() => detectarPosiblesDuplicados([...pendingPayment, ...cookingOrders, ...readyOrders]), [pendingPayment, cookingOrders, readyOrders])
   const [baseHoy,       setBaseHoy]       = useState<number | null>(null)
   const [baseInput,     setBaseInput]     = useState('')
   const [editandoBase,  setEditandoBase]  = useState(false)
@@ -1038,6 +1041,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <p className="text-xs text-[color:var(--w-text-3)]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
+                    {posiblesRepetidos.get(order.id) && (
+                      <p role="alert" className="text-xs font-bold mt-0.5 text-[color:var(--w-danger-text)]">⚠ Parece repetido con {posiblesRepetidos.get(order.id)!.join(', ')}. Revisa antes de cobrar.</p>
+                    )}
                     {order.notes && <p className="text-xs text-[color:var(--w-text-2)] italic mt-1">{order.notes}</p>}
                   </div>
                   <span className="text-2xl font-bold text-[color:var(--w-accent-text)]">${Math.round(order.total).toLocaleString('es-CO')}</span>
@@ -1133,6 +1139,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <p className="text-xs text-[color:var(--w-text-3)]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
+                    {posiblesRepetidos.get(order.id) && (
+                      <p role="alert" className="text-xs font-bold mt-0.5 text-[color:var(--w-danger-text)]">⚠ Parece repetido con {posiblesRepetidos.get(order.id)!.join(', ')}. Revisa antes de cobrar.</p>
+                    )}
                     <p className="text-xs font-bold mt-0.5 text-[color:var(--w-warning-text)]">Preparándose en cocina</p>
                   </div>
                   <span className="text-2xl font-bold text-[color:var(--w-accent-text)]">${Math.round(order.total).toLocaleString('es-CO')}</span>
@@ -1211,6 +1220,9 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     <p className="text-xs text-[color:var(--w-text-3)]">
                       {orderRef(order)} ·{new Date(order.created_at).toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
                     </p>
+                    {posiblesRepetidos.get(order.id) && (
+                      <p role="alert" className="text-xs font-bold mt-0.5 text-[color:var(--w-danger-text)]">⚠ Parece repetido con {posiblesRepetidos.get(order.id)!.join(', ')}. Revisa antes de cobrar.</p>
+                    )}
                     <p className={`text-xs font-bold mt-0.5 ${order.delivered_at ? 'text-[color:var(--w-success-text)]' : 'text-[color:var(--w-warning-text)]'}`}>
                       {order.delivered_at ? '✓ Entregado al mesero' : 'Esperando que el mesero lo recoja'}
                     </p>
