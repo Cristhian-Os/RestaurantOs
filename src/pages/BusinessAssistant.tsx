@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card'
 import { StatePanel } from '../components/ui/StatePanel'
 import { ModuleHeader, StatCard } from '../components/tasks/ModuleHeader'
 import { ResumenIA } from '../components/analytics/ResumenIA'
+import { CancelacionesPanel } from '../components/analytics/CancelacionesPanel'
 import { analyticsService, UMBRALES_INICIALES, type Cuadrante, type Umbrales } from '../services/analyticsService'
 
 const cop = (n: number) => `$${Math.round(n).toLocaleString('es-CO')}`
@@ -31,7 +32,7 @@ export default function BusinessAssistant() {
   const qc = useQueryClient()
   const [umbrales, setUmbrales] = useState<Umbrales>(UMBRALES_INICIALES)
   const [guardando, setGuardando] = useState(false)
-  const [seccion, setSeccion] = useState<'menu' | 'costos' | 'revisar' | 'demanda'>('menu')
+  const [seccion, setSeccion] = useState<'menu' | 'costos' | 'revisar' | 'demanda' | 'cancelados'>('menu')
 
   useEffect(() => { void analyticsService.cargarUmbrales().then(setUmbrales) }, [])
 
@@ -69,6 +70,7 @@ export default function BusinessAssistant() {
             { key: 'costos', label: 'Costos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
             { key: 'revisar', label: 'Revisar', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg> },
             { key: 'demanda', label: 'Demanda', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> },
+            { key: 'cancelados', label: 'Cancelados' },
           ]} />
         </div>
 
@@ -156,6 +158,9 @@ export default function BusinessAssistant() {
             </button>
           </div>
         </section>)}
+
+        {/* Cancelados con motivo (auditoría) */}
+        {seccion === 'cancelados' && <CancelacionesPanel />}
 
         {/* Demanda */}
         {seccion === 'demanda' && (<section className="mb-8">
