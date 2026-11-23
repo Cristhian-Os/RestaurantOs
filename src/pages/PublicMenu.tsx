@@ -1089,6 +1089,7 @@ export default function PublicMenu() {
   const [clientName,    setClientName]    = useState('')
   const [showCart,      setShowCart]      = useState(false)
   const [sent,          setSent]          = useState(false)
+  const [showPayNotice, setShowPayNotice] = useState(false)   // aviso "paga en caja" justo al confirmar el pedido
   const [sending,       setSending]       = useState(false)
   const [sendError,     setSendError]     = useState<string | null>(null)
   const [customizing,   setCustomizing]   = useState<Dish | null>(null)
@@ -1403,6 +1404,7 @@ export default function PublicMenu() {
       setIsPaid(false)
       setShowTracking(true)
       setSent(true)
+      setShowPayNotice(true)
       setCart([])
       setShowCart(false)
       // Avisar a cocina y admin (push, suena con la app cerrada). El servidor decide texto y
@@ -1779,6 +1781,38 @@ export default function PublicMenu() {
           )}
         </AnimatePresence>
 
+        {/* ── Aviso al confirmar: el pedido llega a cocina solo cuando se paga en caja ── */}
+        <AnimatePresence>
+          {showPayNotice && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              role="dialog" aria-modal="true" aria-labelledby="pm-pay-notice-title"
+              style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+                style={{ width: '100%', maxWidth: 380, background: 'var(--w-surface)', border: '1px solid var(--w-border)', borderRadius: '1.25rem', padding: '1.5rem 1.25rem', textAlign: 'center' }}
+              >
+                <p id="pm-pay-notice-title" style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: 'var(--w-text)', fontSize: '1.25rem', margin: 0 }}>
+                  ¡Pedido recibido!
+                </p>
+                <p style={{ fontFamily: 'var(--w-font)', color: 'var(--w-text)', fontSize: '1rem', lineHeight: 1.45, margin: '0.75rem 0 0' }}>
+                  Acércate a caja y paga para que tu pedido llegue a cocina.
+                </p>
+                <p style={{ fontFamily: 'var(--w-font)', color: 'var(--w-text-3)', fontSize: '0.8125rem', lineHeight: 1.4, margin: '0.5rem 0 1.25rem' }}>
+                  Si no pagas, no lo preparamos.
+                </p>
+                <button
+                  onClick={() => setShowPayNotice(false)}
+                  style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '0.875rem', border: 'none', cursor: 'pointer', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1rem' }}
+                >
+                  Entendido
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── Success banner ── */}
         <AnimatePresence>
           {sent && (
@@ -1786,7 +1820,7 @@ export default function PublicMenu() {
               style={{ background: 'color-mix(in oklch, var(--w-success) 14%, var(--w-surface))', border: '1px solid var(--w-success)', borderRadius: '1rem', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
               <div style={{ flex: 1 }}>
                 <p style={{ fontFamily: 'var(--w-font)', fontWeight: 600, color: 'var(--w-text)', margin: 0, fontSize: '1.0625rem' }}>Pedido enviado</p>
-                <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-text-3)' }}>Revisa el estado de tu pedido abajo.</p>
+                <p className="ed-body" style={{ fontSize: '0.8125rem', margin: '0.125rem 0 0', color: 'var(--w-text-3)' }}>Recuerda pagar en caja para que llegue a cocina. Revisa su estado abajo.</p>
               </div>
               <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--w-text-3)', fontSize: '1.125rem' }}>✕</button>
             </motion.div>
