@@ -8,7 +8,7 @@ import { Badge, type Tone } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { supabase } from '../../services/supabaseClient'
-import { moverInterruptor, pedirAlTrabajador, textoError, type RespuestaTrabajador } from '../acciones.ts'
+import { moverInterruptor, pedirAlTrabajador, telegramChat, textoError, type EstadoTelegramChat, type RespuestaTrabajador } from '../acciones.ts'
 import { AvisoHonesto, ErrorAccion, TituloBloque } from '../ui.tsx'
 
 interface Trabajo { id: string; tipo: string; agente_id: string; estado: string; intentos: number; error: string | null; costo: number; resultado: Record<string, unknown> | null; created_at: string }
@@ -33,6 +33,26 @@ function resumen(r: RespuestaTrabajador): string {
   }
   if (r.trabajos) return r.trabajos.length ? `Trabajo de hoy listo para ${r.trabajos.length} campaña(s) vigente(s).` : `No hay campañas vigentes (${r.campanas ?? 0}). Crea y activa una abajo.`
   return 'Listo.'
+}
+
+function ConversacionTelegram() {
+  const [est, setEst] = useState<EstadoTelegramChat | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+  const leer = useCallback(async () => { const r = await telegramChat<EstadoTelegramChat>('estado'); if (r.ok === true) { setEst(r.datos); setError(null) } else setError(r.mensaje) }, [])
+  useEffect(() => { void leer() }, [leer])
+  const cambiar = async (accion: 'registrar' | 'quitar') => { setOcupado(true); const r = await telegramChat(accion); setOcupado(false); if (r.ok !== true) setError(r.mensaje); await leer() }
+  return (
+    <Card className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2"><p className="m-0 min-w-0 flex-1 font-bold text-[color:var(--w-text)]">Conversación por Telegram</p><Badge tone={est?.activo ? 'success' : 'neutral'}>{est === null ? '…' : est.activo ? 'Activa' : 'Apagada'}</Badge></div>
+      <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">Cuando está activa puedes escribirle a Chef Mayor por Telegram y te responde. Solo atiende a tu chat. Por ahí solo puedes conversar, ver el /estado y /apagar los agentes; encender, aprobar o gastar se hace aquí, con tu código de 2 pasos.</p>
+      {est?.activo && est.pendientes > 0 && <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Mensajes sin entregar: {est.pendientes}{est.ultimoError ? ` · ${est.ultimoError}` : ''}</p>}
+      <ErrorAccion texto={error} />
+      <div>{est?.activo
+        ? <Button size="sm" variant="secondary" loading={ocupado} onClick={() => void cambiar('quitar')}>Desactivar</Button>
+        : <Button size="sm" loading={ocupado} disabled={est === null && !error} onClick={() => void cambiar('registrar')}>Activar conversación</Button>}</div>
+    </Card>
+  )
 }
 
 export function TrabajoAgentes() {
@@ -78,6 +98,7 @@ export function TrabajoAgentes() {
     <div className="flex flex-col gap-3">
       <TituloBloque>Trabajo de los agentes</TituloBloque>
       <AvisoHonesto>Hoy los agentes solo investigan: Mateo busca negocios de tu campaña en la web y los deja como "prospecto identificado" para que tú los verifiques. No escriben ni contactan a nadie. Gastan de tu tope mensual de IA.</AvisoHonesto>
+      <ConversacionTelegram />
       <Card className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <p className="m-0 min-w-0 flex-1 font-bold text-[color:var(--w-text)]">Interruptor de los agentes</p>

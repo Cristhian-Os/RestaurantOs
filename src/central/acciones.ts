@@ -344,3 +344,7 @@ export async function moverInterruptor(clave: 'agentes_activos' | 'pausa_agentes
 export interface RespuestaTrabajador { ok: boolean; campanas?: number; trabajos?: string[]; ejecutados?: { id: string; estado: string; detalle?: unknown }[]; mensaje?: string }
 /** "encolar": crea el trabajo de hoy por cada campaña vigente (sin duplicar). "ejecutar": toma trabajos de la cola y los corre (solo investiga: no contacta a nadie). */
 export const pedirAlTrabajador = (accion: 'encolar' | 'ejecutar') => invocar<RespuestaTrabajador>('central-trabajador', { accion })
+
+// ── Conversación de dos vías por Telegram (la hace el SERVIDOR; aquí solo se pide activarla, quitarla o ver si está activa) ──
+export interface EstadoTelegramChat { ok: boolean; activo: boolean; pendientes: number; ultimoError: string | null }
+export const telegramChat = <T = { ok: boolean }>(accion: 'registrar' | 'quitar' | 'estado') => invocar<T>('central-telegram-chat', { accion })
