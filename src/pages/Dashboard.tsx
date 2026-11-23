@@ -274,11 +274,11 @@ function LineaVentas({ dias }: { dias: { etiqueta: string; valor: number }[] }) 
   )
 }
 
-/** Anillo de estado de cocina: en preparación / listos. */
-function AnilloCocina({ cooking, ready }: { cooking: number; ready: number }) {
-  const total = cooking + ready
+/** Anillo de estado de cocina: en preparación / listos / pendientes. */
+function AnilloCocina({ cooking, ready, pending }: { cooking: number; ready: number; pending: number }) {
+  const total = cooking + ready + pending
   const partes = [
-    { n: cooking, c: 'var(--w-accent)' }, { n: ready, c: 'var(--w-success)' },
+    { n: cooking, c: 'var(--w-accent)' }, { n: ready, c: 'var(--w-success)' }, { n: pending, c: 'var(--w-warning)' },
   ]
   let acum = 0
   return (
@@ -403,10 +403,11 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
   const fecha = (d => d.charAt(0).toUpperCase() + d.slice(1))(new Date().toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'}))
   const ventasHoy = ventas ? ventas.hoy : (metrics?.total_sales_today ?? 0)
   const pctMesas = mesas && mesas.total > 0 ? Math.round((mesas.ocupadas / mesas.total) * 100) : 0
-  const cooking = metrics?.cooking_count ?? 0, ready = metrics?.ready_count ?? 0
+  const cooking = metrics?.cooking_count ?? 0, ready = metrics?.ready_count ?? 0, pending = metrics?.pending_count ?? 0
   const filasCocina = [
     { target: 'card-en-cocina', label: 'En preparación', n: cooking, color: 'var(--w-accent)', nav: 'kitchen' as NavView },
     { target: 'card-listas', label: 'Listos', n: ready, color: 'var(--w-success)', nav: 'cashier' as NavView },
+    { target: 'card-pendientes', label: 'Pendientes', n: pending, color: 'var(--w-warning)', nav: 'kitchen' as NavView },
     { target: 'card-completadas', label: 'Completadas hoy', n: metrics?.completed_today ?? 0, color: 'var(--w-info)', nav: 'analytics' as NavView },
   ]
   const tituloCard = 'm-0 font-bold text-[color:var(--w-text)]'
@@ -461,7 +462,7 @@ const AdminDashboard = memo(({ profile, onNavigate }: {
             <button type="button" onClick={() => onNavigate('kitchen')} className={verMas}>Ver detalles →</button>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <AnilloCocina cooking={cooking} ready={ready} />
+            <AnilloCocina cooking={cooking} ready={ready} pending={pending} />
             <ul className="m-0 flex min-w-[150px] flex-1 list-none flex-col gap-1 p-0">
               {filasCocina.map(f => (
                 <li key={f.target}>

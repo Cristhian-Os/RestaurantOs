@@ -15,6 +15,7 @@ export function intencionLocal(texto: string): RestiBrainResponse | null {
   if (/mesas activas/.test(t)) return ir('card-mesas-activas', 'Estas son tus mesas activas.')
   if (/\bmesas?\b/.test(t)) return ir('tab-mesas', 'Aquí está el mapa de mesas.')
   if (/\bventas?\b/.test(t)) return ir('card-ventas-hoy', 'Aquí ves las ventas de hoy.')
+  if (/pendientes?/.test(t)) return ir('card-pendientes', 'Estos son los pedidos pendientes.')
   if (/completad[ao]s?/.test(t)) return ir('card-completadas', 'Estas son las órdenes completadas de hoy.')
   if (/\b(listas?|listos?)\b/.test(t)) return ir('card-listas', 'Estas son las órdenes listas.')
   if (/\bcocina\b/.test(t)) return ir('card-en-cocina', 'Te muestro la cocina.')
