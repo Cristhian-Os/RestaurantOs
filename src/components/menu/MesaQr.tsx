@@ -73,10 +73,10 @@ export function useMesaQr(restaurantId: string | null, mesaStr: string, activo: 
     setTimeout(() => setAviso(a => (a === m ? null : a)), 5000)
   }, [])
 
-  const enviar = useCallback(async (items: ItemPedido[], nombre: string): Promise<ResultadoEnvio> => {
+  const enviar = useCallback(async (items: ItemPedido[], nombre: string, llave?: string): Promise<ResultadoEnvio> => {
     if (!valido || !restaurantId) return { ok: false, error: 'mensaje', mensaje: 'Mesa no disponible' }
-    const { data, error } = await supabase.rpc('mesa_pedir_publico', {
-      p_restaurant: restaurantId, p_mesa: mesaNum, p_dispositivo: disp, p_nombre: nombre.trim() || null, p_items: items, p_codigo: codigo || null,
+    const { data, error } = await supabase.rpc('mesa_pedir_publico_idem', {
+      p_restaurant: restaurantId, p_mesa: mesaNum, p_dispositivo: disp, p_nombre: nombre.trim() || null, p_items: items, p_codigo: codigo || null, p_idempotency_key: llave ?? null,
     })
     if (error) return { ok: false, error: 'mensaje', mensaje: error.message }
     const r = data as { ok: boolean; error?: 'codigo_requerido' | 'codigo_incorrecto' | 'bloqueada' }

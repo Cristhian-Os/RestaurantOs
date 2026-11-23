@@ -1092,6 +1092,7 @@ export default function PublicMenu() {
   const [sent,          setSent]          = useState(false)
   const [showPayNotice, setShowPayNotice] = useState(false)   // aviso "paga en caja" justo al confirmar el pedido
   const [sending,       setSending]       = useState(false)
+  const envioRef = useRef<{ firma: string; llave: string } | null>(null)
   const [sendError,     setSendError]     = useState<string | null>(null)
   const [customizing,   setCustomizing]   = useState<Dish | null>(null)
   const [showCustom,    setShowCustom]    = useState(false)
@@ -1377,14 +1378,20 @@ export default function PublicMenu() {
           ? { kind: 'custom', quantity: i.qty, line_notes, ingredients: i.customIngredients }
           : { kind: 'dish', dish_id: i.dish.id, quantity: i.qty, size: i.size || null, toppings: i.toppings, sel: i.sel ?? null, line_notes }
       })
+      // Código único por envío: si se cae el internet y el cliente vuelve a tocar "Enviar" con el mismo carrito,
+      // el servidor devuelve el mismo pedido en vez de crear otro. Si cambia algo del carrito, el código cambia.
+      const firmaEnvio = JSON.stringify([mesa.trim(), clientName.trim(), barra, items])
+      if (envioRef.current?.firma !== firmaEnvio) envioRef.current = { firma: firmaEnvio, llave: crypto.randomUUID() }
+      const llave = envioRef.current.llave
       if (qr.activo) {
         // Mesa con QR: el pedido espera al mesero (no entra a cocina hasta que lo acepte)
-        const r = await qr.enviar(items, clientName)
+        const r = await qr.enviar(items, clientName, llave)
         if (r.ok === false) {
           if (r.error === 'mensaje') throw new Error(r.mensaje)
           setShowCart(false); setQrAbierto(true)   // pide el código de la mesa
           return
         }
+        envioRef.current = null
         setCart([]); setShowCart(false); setQrAbierto(true)
         return
       }
@@ -1393,12 +1400,13 @@ export default function PublicMenu() {
         clientName.trim() ? `Cliente: ${clientName.trim()}` : null,
         !mesa.trim() ? (barra ? BARRA_NOTE : 'Pedido en mostrador / sin mesa') : null,
       ].filter(Boolean)
-      const { data: newOrderId, error } = await supabase.rpc('create_public_order', {
+      const { data: newOrderId, error } = await supabase.rpc('create_public_order_idem', {
         p_restaurant_id:  restaurantId,
         p_table_num:      tableNum,
         p_customer_name:  clientName.trim() || null,
         p_notes:          noteParts.length ? noteParts.join(' · ') : null,
         p_items:          items,
+        p_idempotency_key: llave,
       })
 
       // Solo confirmamos y vaciamos el carrito si el pedido SE GUARDÓ de verdad
@@ -1406,6 +1414,7 @@ export default function PublicMenu() {
         throw new Error(error?.message || 'No se pudo registrar el pedido')
       }
 
+      envioRef.current = null
       setOrderId(newOrderId)
       setOrderStatus('pending')
       setIsPaid(false)
