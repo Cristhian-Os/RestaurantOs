@@ -14,6 +14,7 @@ import { supabase } from '../../services/supabaseClient'
 import { pushNotificationService } from '../../services/pushNotificationService'
 import message from 'antd/es/message'
 import { reimprimirComanda } from '../../lib/print/comandas'
+import { usePedirMotivoCancelacion } from '../../hooks/usePedirMotivoCancelacion'
 
 // ─── Configuración ────────────────────────────────────────────
 const WARN_SECS = 300   // el cronómetro pasa a ámbar
@@ -282,6 +283,7 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
   const level = levelOf(secs, isReady)
   const [busyItem, setBusyItem] = useState<number | null>(null)
   const [cancellingOrder, setCancellingOrder] = useState(false)
+  const { pedirMotivo, modal: modalMotivoCancelacion } = usePedirMotivoCancelacion()
 
   const next: Status | null = order.status === 'pending' ? 'cooking' : order.status === 'cooking' ? 'ready' : null
   const note = orderNote(order)
@@ -299,10 +301,11 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
   }
 
   const cancelOrder = async () => {
-    if (!window.confirm('¿Cancelar todo el pedido?')) return
+    const motivo = await pedirMotivo('¿Cancelar todo el pedido?')
+    if (!motivo) return
     setCancellingOrder(true)
     try {
-      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id, p_motivo: motivo })
       if (error) { message.error(error.message); return }
       message.success('Pedido cancelado')
       onRefresh()
@@ -320,6 +323,7 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
   const click = () => { if (next) onAdvance(order.id, next) }
 
   return (
+    <>
     <div
       role={next ? 'button' : undefined}
       tabIndex={next ? 0 : undefined}
@@ -381,6 +385,8 @@ const OrderCard = memo(({ order, compact, colorOf, onAdvance, onRefresh }: CardP
       </div>
       {isReady && <div className="kb-hint">Esperando cobro en caja</div>}
     </div>
+    {modalMotivoCancelacion}
+    </>
   )
 })
 OrderCard.displayName = 'OrderCard'

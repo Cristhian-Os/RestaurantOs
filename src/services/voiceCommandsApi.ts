@@ -117,7 +117,7 @@ export async function applyChange(c: Change, role: VoiceRole = 'admin'): Promise
     case 'order_status':
       return expectRows(await supabase.from('orders').update({ status: c.status, updated_at: now }).eq('id', c.orderId).in('status', ['pending', 'cooking', 'ready']).select('id'), 'Pedido')
     case 'order_cancel': {
-      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: c.orderId })
+      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: c.orderId, p_motivo: 'Cancelado por comando de voz del administrador' })
       if (error) throw new Error(error.message)
       return
     }

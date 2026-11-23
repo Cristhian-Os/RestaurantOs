@@ -33,6 +33,7 @@ import message from 'antd/es/message'
 import { ModuleHeader, StatCard } from '../tasks/ModuleHeader'
 import { limpiarTranscripcion } from '../../services/voiceText'
 import type { Profile } from '../../pages/Dashboard'
+import { usePedirMotivoCancelacion } from '../../hooks/usePedirMotivoCancelacion'
 
 const FX = {
   card:  { border: '1px solid var(--w-border)', boxShadow: 'var(--w-shadow-sm)' },
@@ -222,6 +223,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
   const [propinaRespuesta, setPropinaRespuesta] = useState<'si' | 'no' | null>(null)
   const [editingOrder,  setEditingOrder]  = useState<Order | null>(null)
   const [cancellingOrder, setCancellingOrder] = useState<string | null>(null)
+  const { pedirMotivo, modal: modalMotivoCancelacion } = usePedirMotivoCancelacion()
   const [baseHoy,       setBaseHoy]       = useState<number | null>(null)
   const [baseInput,     setBaseInput]     = useState('')
   const [editandoBase,  setEditandoBase]  = useState(false)
@@ -1082,10 +1084,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     whileTap={{ scale: 0.97 }}
                     disabled={cancellingOrder === order.id}
                     onClick={async () => {
-                      if (!window.confirm('¿Cancelar este pedido?')) return
+                      const motivo = await pedirMotivo('¿Cancelar este pedido?')
+                      if (!motivo) return
                       setCancellingOrder(order.id)
                       try {
-                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id, p_motivo: motivo })
                         if (error) { alert('Error: ' + error.message); return }
                         setPendingPayment(prev => prev.filter(o => o.id !== order.id))
                       } catch (err: any) {
@@ -1147,10 +1150,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                   whileTap={{ scale: 0.97 }}
                   disabled={cancellingOrder === order.id}
                   onClick={async () => {
-                    if (!window.confirm('¿Cancelar este pedido? Ya está en preparación.')) return
+                    const motivo = await pedirMotivo('¿Cancelar este pedido? Ya está en preparación.')
+                    if (!motivo) return
                     setCancellingOrder(order.id)
                     try {
-                      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                      const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id, p_motivo: motivo })
                       if (error) { alert('Error: ' + error.message); return }
                       setCooking(prev => prev.filter(o => o.id !== order.id))
                     } catch (err: any) {
@@ -1288,10 +1292,11 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
                     whileTap={{ scale: 0.97 }}
                     disabled={cancellingOrder === order.id}
                     onClick={async () => {
-                      if (!window.confirm('¿Cancelar este pedido?')) return
+                      const motivo = await pedirMotivo('¿Cancelar este pedido?')
+                      if (!motivo) return
                       setCancellingOrder(order.id)
                       try {
-                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id })
+                        const { error } = await supabase.rpc('cancelar_orden', { p_order_id: order.id, p_motivo: motivo })
                         if (error) { alert('Error: ' + error.message); return }
                         setReady(prev => prev.filter(o => o.id !== order.id))
                       } catch (err: any) {
@@ -1354,6 +1359,7 @@ export const CashierPanel = memo<CashierPanelProps>(({ profile }) => {
         {showPagos && (
           <PagosDelDia esAdmin={profile.role === 'admin'} onClose={() => setShowPagos(false)} onChanged={fetchData} />
         )}
+        {modalMotivoCancelacion}
         {splitOrder && (
           <SplitPayModal
             key={splitOrder.order.id}
