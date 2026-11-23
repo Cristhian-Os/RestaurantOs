@@ -94,7 +94,7 @@ BEGIN
   jc := central_trabajo_encolar('investigar_prospectos', ag, 'rt-invest-0002', au);
   SELECT count(*) INTO n FROM central_trabajo_tomar('w', 5) WHERE id = jc;
   RESET ROLE;
-  SELECT estado, error INTO e, f FROM (SELECT estado, error, now() AS x FROM central_trabajos WHERE id = jc) q;
+  SELECT estado INTO e FROM central_trabajos WHERE id = jc;
   r := r || format(E'\n7 tope mensual alcanzado: el trabajo con IA queda pausado: %s', CASE WHEN n = 0 AND e = 'paused' THEN 'OK' ELSE 'FALLA ('||e||')' END);
 
   -- 8. Revocar la autorización cancela sus trabajos
