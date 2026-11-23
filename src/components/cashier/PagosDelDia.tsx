@@ -11,12 +11,14 @@ import message from 'antd/es/message'
 import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
 import { cn } from '../../lib/cn'
+import { Comprobante } from './Comprobante'
+import { subirComprobantePago } from '../../services/comprobantesPago'
 
 type Metodo = 'efectivo' | 'transferencia' | 'tarjeta'
 
 interface PagoDia {
   id: string; comensal: string | null; payment_method: Metodo; monto: number; propina: number
-  referencia: string | null; transferencia_verificada: boolean; paid_at: string
+  referencia: string | null; transferencia_verificada: boolean; comprobante_path: string | null; paid_at: string
   anulado_at: string | null; anulado_motivo: string | null
   metodo_original: string | null; corregido_motivo: string | null
   orders: { order_number_today: number | null; table_num: number | null; tipo_pedido: string; customer_name: string | null; status: string } | null
@@ -56,7 +58,7 @@ export function PagosDelDia({ esAdmin, onClose, onChanged }: Props) {
   const cargar = useCallback(async () => {
     const { desde, hasta } = ventanaHoy()
     const { data, error } = await supabase.from('order_payments')
-      .select('id, comensal, payment_method, monto, propina, referencia, transferencia_verificada, paid_at, anulado_at, anulado_motivo, metodo_original, corregido_motivo, orders!inner(order_number_today, table_num, tipo_pedido, customer_name, status)')
+      .select('id, comensal, payment_method, monto, propina, referencia, transferencia_verificada, comprobante_path, paid_at, anulado_at, anulado_motivo, metodo_original, corregido_motivo, orders!inner(order_number_today, table_num, tipo_pedido, customer_name, status)')
       .gte('paid_at', desde).lt('paid_at', hasta).order('paid_at')
     if (error) message.error('No se pudieron leer los pagos: ' + error.message)
     setPagos(((data ?? []) as unknown as PagoDia[]).filter(p => p.orders?.status !== 'cancelled'))
@@ -91,6 +93,14 @@ export function PagosDelDia({ esAdmin, onClose, onChanged }: Props) {
   const verificar = (p: PagoDia) =>
     accion(p.id, () => supabase.rpc('marcar_transferencia', { p_pago_id: p.id, p_verificada: !p.transferencia_verificada }),
       p.transferencia_verificada ? 'Desmarcada' : 'Transferencia verificada')
+
+  const adjuntar = async (p: PagoDia, file: File | undefined) => {
+    if (!file) return
+    setOcupado(p.id)
+    try { await subirComprobantePago(p.id, file); message.success('Comprobante guardado'); await cargar() }
+    catch (e) { message.error('No se pudo guardar la foto: ' + (e instanceof Error ? e.message : 'error') + '. Revisa el internet e inténtalo otra vez.') }
+    finally { setOcupado(null) }
+  }
 
   const lista = pagos.filter(p => !soloTransf || p.payment_method === 'transferencia')
   const vigentes = pagos.filter(p => !p.anulado_at)
@@ -157,6 +167,16 @@ export function PagosDelDia({ esAdmin, onClose, onChanged }: Props) {
                         {p.transferencia_verificada ? '✓ Verificada' : 'Marcar verificada'}
                       </button>
                     )}
+                    {p.payment_method === 'transferencia' && (
+                      <label className={cn('inline-flex min-h-[44px] cursor-pointer items-center rounded-[var(--w-r-md)] px-3 text-xs font-bold', ocupado === p.id && 'opacity-50 pointer-events-none',
+                        p.comprobante_path ? 'text-[color:var(--w-text-2)]' : 'bg-[var(--w-accent)] text-[color:var(--w-on-accent)]')}
+                        style={p.comprobante_path ? FX.soft : undefined}>
+                        {p.comprobante_path ? 'Tomar otra foto' : 'Tomar foto del comprobante'}
+                        {/* capture: en el celular abre la cámara directo */}
+                        <input type="file" accept="image/*" capture="environment" className="hidden" disabled={ocupado === p.id}
+                          onChange={e => { void adjuntar(p, e.target.files?.[0]); e.target.value = '' }} />
+                      </label>
+                    )}
                     {esAdmin && (
                       <button onClick={() => anular(p)} disabled={ocupado === p.id}
                         className="min-h-[44px] px-3 rounded-[var(--w-r-md)] text-xs font-bold text-[color:var(--w-danger-text)]" style={FX.soft}>
@@ -165,6 +185,7 @@ export function PagosDelDia({ esAdmin, onClose, onChanged }: Props) {
                     )}
                   </div>
                 )}
+                {p.comprobante_path && !p.anulado_at && <div className="mt-2"><Comprobante path={p.comprobante_path} /></div>}
                 {p.metodo_original && !p.anulado_at && (
                   <p className="text-[length:var(--w-fs-caption)] text-[color:var(--w-warning-text)] mt-1">Corregido (era {LABEL[p.metodo_original as Metodo] ?? p.metodo_original}): {p.corregido_motivo}</p>
                 )}

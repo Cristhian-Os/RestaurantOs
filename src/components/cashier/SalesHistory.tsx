@@ -55,13 +55,13 @@ interface Cancelado { id: string; order_number_today: number | null; customer_na
 interface SaleCardProps {
   order:    SaleOrder
   takenBy?: string
-  comprobante?: ComprobanteInfo
+  comprobantes?: ComprobanteInfo[]
   open:     boolean
   onToggle: () => void
   onRecibo: () => void
 }
 
-const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, comprobante, open, onToggle, onRecibo }, ref) => {
+const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, comprobantes, open, onToggle, onRecibo }, ref) => {
   // Cuenta dividida con varios métodos => "Pago mixto"; si no, el método del pedido.
   const distintos = new Set((order.pagos ?? []).map(p => p.payment_method)).size
   const metodo = METODO[distintos > 1 ? 'mixto' : (order.payment_method ?? '')] ?? { label: order.payment_method ?? 'Sin método', color: 'var(--w-text-3)' }
@@ -107,11 +107,15 @@ const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, co
           {order.notes && <p className="m-0 mt-2 text-xs italic text-[color:var(--w-text-2)]">Nota del pedido: {order.notes}</p>}
           {Number(order.propina) > 0 && <p className="m-0 mt-2 text-xs text-[color:var(--w-text-2)]">Propina: {fmt(Number(order.propina))}</p>}
           {takenBy && <p className="m-0 mt-1 text-xs text-[color:var(--w-text-2)]">Tomó el pedido: {takenBy}</p>}
-          {comprobante && (
-            <div className="mt-3 flex flex-col gap-1.5 border-t border-[var(--w-surface-sunken)] pt-2.5">
-              <p className="m-0 text-xs font-bold text-[color:var(--w-text)]">Comprobante de la transferencia</p>
-              <Comprobante path={comprobante.path} />
-              {comprobante.confirmadoAt && <p className="m-0 text-xs text-[color:var(--w-text-2)]">Confirmado a las {hora(comprobante.confirmadoAt)}{comprobante.confirmadoPor ? ` por ${comprobante.confirmadoPor}` : ''}</p>}
+          {comprobantes && comprobantes.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2 border-t border-[var(--w-surface-sunken)] pt-2.5">
+              <p className="m-0 text-xs font-bold text-[color:var(--w-text)]">Comprobante{comprobantes.length > 1 ? 's' : ''} de la transferencia</p>
+              {comprobantes.map(c => (
+                <div key={c.path} className="flex flex-col gap-1.5">
+                  <Comprobante path={c.path} />
+                  {c.confirmadoAt && <p className="m-0 text-xs text-[color:var(--w-text-2)]">Confirmado a las {hora(c.confirmadoAt)}{c.confirmadoPor ? ` por ${c.confirmadoPor}` : ''}</p>}
+                </div>
+              ))}
             </div>
           )}
           <button type="button" onClick={onRecibo} className="w-full min-h-[44px] mt-3 rounded-[var(--w-r-lg)] text-xs font-bold text-[color:var(--w-text)] border-none cursor-pointer" style={FX.soft}>
@@ -136,7 +140,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [openId, setOpenId]     = useState<string | null>(null)
   const [reciboId, setReciboId] = useState<string | null>(null)
   const [gastos, setGastos]     = useState<GastoDetalle[]>([])
-  const [comprobantes, setComprobantes] = useState<Record<string, ComprobanteInfo>>({})
+  const [comprobantes, setComprobantes] = useState<Record<string, ComprobanteInfo[]>>({})
   const [cancelados, setCancelados] = useState<Cancelado[]>([])
   const { etiquetas }           = useCategoriasGasto()
 
@@ -152,13 +156,15 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       const list: SaleOrder[] = (data ?? []).map(o => ({ ...o, items: parseItems(o.items) }))
 
       // Pagos de cada pedido (cuentas divididas): el dinero se suma por lo que se pagó con cada método.
+      const pagoComp: { orderId: string; path: string }[] = []
       if (list.length > 0) {
         const { data: pagos } = await supabase.from('order_payments')
-          .select('order_id, comensal, payment_method, monto').is('anulado_at', null).in('order_id', list.map(o => o.id))
+          .select('order_id, comensal, payment_method, monto, comprobante_path').is('anulado_at', null).in('order_id', list.map(o => o.id))
         const porPedido = new Map<string, { comensal: string | null; payment_method: string; monto: number }[]>()
         for (const p of pagos ?? []) {
           const arr = porPedido.get(p.order_id as string) ?? []
           arr.push({ comensal: p.comensal as string | null, payment_method: p.payment_method as string, monto: Number(p.monto) })
+          if (p.comprobante_path) pagoComp.push({ orderId: p.order_id as string, path: p.comprobante_path as string })
           porPedido.set(p.order_id as string, arr)
         }
         for (const o of list) o.pagos = porPedido.get(o.id)
@@ -188,15 +194,22 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       const ids = [...new Set([
         ...list.map(o => o.user_id), ...cancList.map(c => c.cancelado_por), ...(doms ?? []).map(d => d.pago_confirmado_por as string | null),
       ].filter((x): x is string => !!x))]
+      let nombres: Record<string, string> = {}
       if (ids.length > 0) {
         const { data: profs } = await supabase.from('profiles').select('id, full_name, role').in('id', ids).in('role', ['waiter', 'cashier', 'admin'])
-        const nombres = Object.fromEntries((profs ?? []).filter(p => p.full_name).map(p => [p.id, p.full_name as string]))
-        setStaff(nombres)
-        setComprobantes(Object.fromEntries((doms ?? []).map(d => [d.order_id as string, {
+        nombres = Object.fromEntries((profs ?? []).filter(p => p.full_name).map(p => [p.id, p.full_name as string]))
+      }
+      setStaff(nombres)
+      // Fotos de comprobante por venta: las del domicilio (con quién confirmó) y las de transferencias cobradas en Caja.
+      const compPorPedido: Record<string, ComprobanteInfo[]> = {}
+      for (const d of doms ?? []) {
+        (compPorPedido[d.order_id as string] ??= []).push({
           path: d.comprobante_path as string, confirmadoAt: d.pago_confirmado_at as string | null,
           confirmadoPor: d.pago_confirmado_por ? nombres[d.pago_confirmado_por as string] : undefined,
-        }])))
-      } else { setStaff({}); setComprobantes({}) }
+        })
+      }
+      for (const c of pagoComp) (compPorPedido[c.orderId] ??= []).push({ path: c.path, confirmadoAt: null })
+      setComprobantes(compPorPedido)
     } catch (e) {
       message.error('No se pudo cargar el historial: ' + (e instanceof Error ? e.message : 'error desconocido'))
     } finally {
@@ -274,7 +287,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-2.5">
             {shown.map(o => (
               <motion.div key={o.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <SaleCard order={o} takenBy={o.user_id ? staff[o.user_id] : undefined} comprobante={comprobantes[o.id]}
+                <SaleCard order={o} takenBy={o.user_id ? staff[o.user_id] : undefined} comprobantes={comprobantes[o.id]}
                   open={openId === o.id} onToggle={() => setOpenId(openId === o.id ? null : o.id)} onRecibo={() => setReciboId(o.id)} />
               </motion.div>
             ))}
