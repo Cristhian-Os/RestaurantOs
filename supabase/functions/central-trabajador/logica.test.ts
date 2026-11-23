@@ -70,3 +70,22 @@ assert.ok(costoCorrida(0) > 0)
 assert.ok(costoCorrida(0.01) > costoCorrida(0))
 
 console.log('central-trabajador: todo OK')
+
+// ── Nico: borradores de contenido ──
+import { PROHIBIDO, armarPedidoContenido, textoDocumento, validarPieza } from './logica.ts'
+const buena = { titulo: 'Tres errores al contar el inventario', pilar: 'educacion', canal: 'instagram', formato: 'carrusel', copy: 'Contar el inventario una vez por semana y anotar lo que se bota evita sorpresas a fin de mes.', cta: 'Cuéntanos cómo lo haces hoy.', idea_visual: 'Hoja de conteo sobre una mesa de cocina.' }
+assert.ok('pieza' in validarPieza(buena))
+assert.deepEqual(validarPieza({ ...buena, copy: 'Con nosotros emites factura electrónica DIAN sin esfuerzo y con garantía' }), { motivo: 'promesa_no_permitida' })
+for (const t of ['Funciona sin internet', 'Gratis por un mes', '20% de descuento', 'Ingresos pasivos para tu negocio', 'Somos el mejor sistema', 'Sistema multisede'])
+  assert.deepEqual(validarPieza({ ...buena, copy: `Texto largo de prueba. ${t}. Fin del texto.` }), { motivo: 'promesa_no_permitida' }, t)
+assert.deepEqual(validarPieza({ ...buena, pilar: 'ventas' }), { motivo: 'pilar_invalido' })
+assert.deepEqual(validarPieza({ ...buena, canal: 'myspace' }), { motivo: 'canal_o_formato_invalido' })
+assert.deepEqual(validarPieza({ titulo: 'x' }), { motivo: 'incompleto' })
+assert.deepEqual(validarPieza(null), { motivo: 'incompleto' })
+assert.ok(!PROHIBIDO.test('Anota lo que se bota cada semana'))
+const pedido = armarPedidoContenido({ ciudad: 'Armenia', segmento: 'cafeterías' }, [{ nombre: 'Planes y precios', limitaciones: '' }])
+assert.match(pedido.sistema, /Planes y precios/)
+assert.match(pedido.sistema, /NO se publica/)
+assert.match(armarPedidoContenido({}, []).sistema, /ninguna verificada/)
+assert.match(textoDocumento((validarPieza(buena) as { pieza: never }).pieza, '2026-11-24'), /NO PUBLICADO/)
+console.log('central-trabajador (Nico): todo OK')

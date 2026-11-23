@@ -26,6 +26,7 @@ function resumen(r: RespuestaTrabajador): string {
     if (!r.ejecutados.length) return 'No había trabajos listos. Si apagaste los agentes, o no hay campaña vigente, es lo esperado.'
     return r.ejecutados.map(e => {
       const d = e.detalle as Record<string, unknown> | string | undefined
+      if (e.estado === 'succeeded' && d && typeof d === 'object' && 'guardado' in d) return d.guardado ? `Nico dejó un borrador en la Biblioteca: «${String(d.titulo ?? '')}». No se publicó nada.` : String(d.motivo ?? 'Nico no dejó borrador.')
       if (e.estado === 'succeeded' && d && typeof d === 'object') return `Terminó: ${d.creados ?? 0} negocio(s) nuevo(s), ${d.duplicados ?? 0} repetido(s), ${d.descartados ?? 0} descartado(s) por no tener fuente verificable.${d.motivo ? ` ${String(d.motivo)}` : ''}`
       return `${ETQ[e.estado] ?? e.estado}: ${typeof d === 'string' ? d : 'sin detalle'}`
     }).join(' · ')
