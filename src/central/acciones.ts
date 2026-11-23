@@ -348,3 +348,9 @@ export const pedirAlTrabajador = (accion: 'encolar' | 'ejecutar' | 'sincronizar_
 // ── Conversación de dos vías por Telegram (la hace el SERVIDOR; aquí solo se pide activarla, quitarla o ver si está activa) ──
 export interface EstadoTelegramChat { ok: boolean; activo: boolean; pendientes: number; ultimoError: string | null }
 export const telegramChat = <T = { ok: boolean }>(accion: 'registrar' | 'quitar' | 'estado') => invocar<T>('central-telegram-chat', { accion })
+
+// ── Propuestas de herramientas y conectores (Tomi propone; solo el dueño con 2 pasos aprueba o rechaza; lo decide la base) ──
+export async function decidirPropuesta(id: string, decision: 'aprobar' | 'rechazar', nota: string): Promise<string | null> {
+  const { error } = await supabase.rpc('central_decidir_propuesta', { p_id: id, p_decision: decision, p_nota: limpio(nota) || null })
+  return resultado(error)
+}
