@@ -335,3 +335,12 @@ export async function actualizarMensaje(id: string, c: { asunto?: string; cuerpo
   const { error } = await supabase.from('growth_mensajes').update(c).eq('id', id)
   return resultado(error)
 }
+
+// ── Trabajo automático de los agentes (cola central_trabajos). Los interruptores los decide la base; aquí solo se piden. ──
+export async function moverInterruptor(clave: 'agentes_activos' | 'pausa_agentes' | 'pausa_tipos', valor: boolean | string[]): Promise<string | null> {
+  const { error } = await supabase.rpc('central_interruptor', { p_clave: clave, p_valor: valor })
+  return resultado(error)
+}
+export interface RespuestaTrabajador { ok: boolean; campanas?: number; trabajos?: string[]; ejecutados?: { id: string; estado: string; detalle?: unknown }[]; mensaje?: string }
+/** "encolar": crea el trabajo de hoy por cada campaña vigente (sin duplicar). "ejecutar": toma trabajos de la cola y los corre (solo investiga: no contacta a nadie). */
+export const pedirAlTrabajador = (accion: 'encolar' | 'ejecutar') => invocar<RespuestaTrabajador>('central-trabajador', { accion })

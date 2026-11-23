@@ -11,6 +11,7 @@ import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { activarAutorizacion, agregarNoContactar, crearCampana, guardarFuncion, revocarAutorizacion, textoError, type EstadoFuncion } from '../acciones.ts'
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
+import { TrabajoAgentes } from './TrabajoAgentes.tsx'
 
 interface Funcion { id: string; nombre: string; area: string; estado: EstadoFuncion; limitaciones: string; evidencia: string; verificado_en: string | null }
 interface Autorizacion { id: string; tipo: string; nombre: string; alcance: Record<string, unknown>; estado: string; vigente_hasta: string | null; revocada_motivo: string | null }
@@ -179,9 +180,10 @@ function NoContactar() {
 export function Crecimiento() {
   return (
     <Pagina titulo="Crecimiento" subtitulo="Reglas y permisos antes de vender: qué se puede ofrecer, a quién se puede contactar y con qué autorización.">
-      <AvisoHonesto tono="warning">Fase 1: aquí solo se guardan reglas. Todavía no hay prospectos, envíos de correo ni publicaciones.</AvisoHonesto>
+      <AvisoHonesto tono="warning">Todavía no hay envíos de correo ni publicaciones: nadie contacta a un prospecto. Los agentes solo investigan y proponen.</AvisoHonesto>
       <Funciones />
       <Autorizaciones />
+      <TrabajoAgentes />
       <NoContactar />
     </Pagina>
   )
