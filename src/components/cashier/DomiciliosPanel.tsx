@@ -15,6 +15,7 @@ import { Modal } from '../ui/Modal'
 import { StatePanel } from '../ui/StatePanel'
 import { formatCOP } from '../../config/billing'
 import { domiciliosService, type Domicilio, type PagoEstado, type RepartidorLite } from '../../services/domiciliosService'
+import { Comprobante } from './Comprobante'
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Algo salió mal')
 
@@ -42,13 +43,6 @@ type Accion =
   | { tipo: 'rechazar' | 'cancelar' | 'sin_codigo'; d: Domicilio }
   | { tipo: 'codigo'; d: Domicilio }
   | { tipo: 'cobro'; d: Domicilio }
-
-function Comprobante({ path }: { path: string }) {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => { let vivo = true; domiciliosService.urlComprobante(path).then(u => { if (vivo) setUrl(u) }); return () => { vivo = false } }, [path])
-  if (!url) return <p className="text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">Cargando comprobante…</p>
-  return <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Comprobante de transferencia" className="max-h-56 w-full rounded-[var(--w-r-md)] object-contain" /></a>
-}
 
 function ModalAccion({ accion, onClose, onDone }: { accion: Accion | null; onClose: () => void; onDone: () => void }) {
   const [texto, setTexto] = useState('')

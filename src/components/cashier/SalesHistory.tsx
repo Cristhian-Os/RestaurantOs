@@ -15,6 +15,7 @@ import { supabase } from '../../services/supabaseClient'
 import { hoyBogota } from '../../services/menuOptions'
 import { GastosDesglose, type GastoDetalle } from './GastosDesglose'
 import { TicketModal } from '../print/TicketModal'
+import { Comprobante } from './Comprobante'
 import { totalGastos } from '../../services/gastosResumen'
 import { useCategoriasGasto } from '../../hooks/useCategoriasGasto'
 import {
@@ -46,17 +47,21 @@ const FILTERS: { key: PayFilter; label: string }[] = [
   { key: 'mixto', label: 'Mixtos' }, { key: 'rappi', label: 'Rappi' },
 ]
 
+interface ComprobanteInfo { path: string; confirmadoPor?: string; confirmadoAt: string | null }
+interface Cancelado { id: string; order_number_today: number | null; customer_name: string | null; table_num: number | null; total: number; tipo_pedido: string | null; cancelado_motivo: string | null; cancelado_por: string | null; cancelado_at: string | null; updated_at: string; items: unknown }
+
 // ─── Una venta ───────────────────────────────────────────────────────────────
 
 interface SaleCardProps {
   order:    SaleOrder
   takenBy?: string
+  comprobante?: ComprobanteInfo
   open:     boolean
   onToggle: () => void
   onRecibo: () => void
 }
 
-const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, open, onToggle, onRecibo }, ref) => {
+const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, comprobante, open, onToggle, onRecibo }, ref) => {
   // Cuenta dividida con varios métodos => "Pago mixto"; si no, el método del pedido.
   const distintos = new Set((order.pagos ?? []).map(p => p.payment_method)).size
   const metodo = METODO[distintos > 1 ? 'mixto' : (order.payment_method ?? '')] ?? { label: order.payment_method ?? 'Sin método', color: 'var(--w-text-3)' }
@@ -102,6 +107,13 @@ const SaleCard = forwardRef<HTMLDivElement, SaleCardProps>(({ order, takenBy, op
           {order.notes && <p className="m-0 mt-2 text-xs italic text-[color:var(--w-text-2)]">Nota del pedido: {order.notes}</p>}
           {Number(order.propina) > 0 && <p className="m-0 mt-2 text-xs text-[color:var(--w-text-2)]">Propina: {fmt(Number(order.propina))}</p>}
           {takenBy && <p className="m-0 mt-1 text-xs text-[color:var(--w-text-2)]">Tomó el pedido: {takenBy}</p>}
+          {comprobante && (
+            <div className="mt-3 flex flex-col gap-1.5 border-t border-[var(--w-surface-sunken)] pt-2.5">
+              <p className="m-0 text-xs font-bold text-[color:var(--w-text)]">Comprobante de la transferencia</p>
+              <Comprobante path={comprobante.path} />
+              {comprobante.confirmadoAt && <p className="m-0 text-xs text-[color:var(--w-text-2)]">Confirmado a las {hora(comprobante.confirmadoAt)}{comprobante.confirmadoPor ? ` por ${comprobante.confirmadoPor}` : ''}</p>}
+            </div>
+          )}
           <button type="button" onClick={onRecibo} className="w-full min-h-[44px] mt-3 rounded-[var(--w-r-lg)] text-xs font-bold text-[color:var(--w-text)] border-none cursor-pointer" style={FX.soft}>
             🖨 Recibo (imprimir / PDF / WhatsApp)
           </button>
@@ -124,6 +136,8 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [openId, setOpenId]     = useState<string | null>(null)
   const [reciboId, setReciboId] = useState<string | null>(null)
   const [gastos, setGastos]     = useState<GastoDetalle[]>([])
+  const [comprobantes, setComprobantes] = useState<Record<string, ComprobanteInfo>>({})
+  const [cancelados, setCancelados] = useState<Cancelado[]>([])
   const { etiquetas }           = useCategoriasGasto()
 
   const load = useCallback(async () => {
@@ -159,12 +173,30 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       if (gErr) { setGastos([]); message.warning('No se pudieron cargar los gastos del día') }
       else setGastos(((gd ?? []) as { id: string; concepto: string; monto: number; categoria: string | null; created_at: string }[]))
 
+      // Comprobantes de transferencia (domicilios) de las ventas del día, y pedidos cancelados del día con su motivo.
+      // Si fallan, las ventas se siguen mostrando.
+      const idsVenta = list.map(o => o.id)
+      const { data: doms } = idsVenta.length === 0 ? { data: [] } : await supabase.from('domicilios')
+        .select('order_id, comprobante_path, pago_confirmado_por, pago_confirmado_at').in('order_id', idsVenta).not('comprobante_path', 'is', null)
+      const { data: canc } = await supabase.from('orders')
+        .select('id, order_number_today, customer_name, table_num, total, tipo_pedido, cancelado_motivo, cancelado_por, cancelado_at, updated_at, items')
+        .eq('status', 'cancelled').gte('updated_at', from).lt('updated_at', to).order('updated_at', { ascending: false })
+      const cancList = (canc ?? []) as unknown as Cancelado[]
+      setCancelados(cancList)
+
       // Quién tomó el pedido (solo personal; los pedidos del QR traen el usuario del cliente).
-      const ids = [...new Set(list.map(o => o.user_id).filter((x): x is string => !!x))]
+      const ids = [...new Set([
+        ...list.map(o => o.user_id), ...cancList.map(c => c.cancelado_por), ...(doms ?? []).map(d => d.pago_confirmado_por as string | null),
+      ].filter((x): x is string => !!x))]
       if (ids.length > 0) {
         const { data: profs } = await supabase.from('profiles').select('id, full_name, role').in('id', ids).in('role', ['waiter', 'cashier', 'admin'])
-        setStaff(Object.fromEntries((profs ?? []).filter(p => p.full_name).map(p => [p.id, p.full_name as string])))
-      } else setStaff({})
+        const nombres = Object.fromEntries((profs ?? []).filter(p => p.full_name).map(p => [p.id, p.full_name as string]))
+        setStaff(nombres)
+        setComprobantes(Object.fromEntries((doms ?? []).map(d => [d.order_id as string, {
+          path: d.comprobante_path as string, confirmadoAt: d.pago_confirmado_at as string | null,
+          confirmadoPor: d.pago_confirmado_por ? nombres[d.pago_confirmado_por as string] : undefined,
+        }])))
+      } else { setStaff({}); setComprobantes({}) }
     } catch (e) {
       message.error('No se pudo cargar el historial: ' + (e instanceof Error ? e.message : 'error desconocido'))
     } finally {
@@ -242,7 +274,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-2.5">
             {shown.map(o => (
               <motion.div key={o.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <SaleCard order={o} takenBy={o.user_id ? staff[o.user_id] : undefined}
+                <SaleCard order={o} takenBy={o.user_id ? staff[o.user_id] : undefined} comprobante={comprobantes[o.id]}
                   open={openId === o.id} onToggle={() => setOpenId(openId === o.id ? null : o.id)} onRecibo={() => setReciboId(o.id)} />
               </motion.div>
             ))}
@@ -254,6 +286,28 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
               <div key={p.producto} className="flex items-center justify-between gap-3 bg-[var(--w-surface)] rounded-[var(--w-r-md)] px-3.5 py-2.5" style={FX.soft}>
                 <span className="text-sm text-[color:var(--w-text)] min-w-0 truncate">{p.cantidad}× {p.producto}</span>
                 <span className="text-sm font-bold text-[color:var(--w-text-2)] shrink-0">{fmt(p.subtotal)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pedidos cancelados del día: quién, cuándo y por qué (auditoría). Las cancelaciones viejas no tienen motivo guardado. */}
+        {cancelados.length > 0 && (
+          <div className="flex flex-col gap-2 border-t border-[var(--w-border)] pt-3">
+            <p className="m-0 text-sm font-bold text-[color:var(--w-danger-text)]">Pedidos cancelados ({cancelados.length})</p>
+            {cancelados.map(c => (
+              <div key={c.id} className="bg-[var(--w-danger-bg)] border border-[var(--w-danger)] rounded-[var(--w-r-lg)] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="m-0 text-sm font-bold text-[color:var(--w-text)]">{orderRef(c)} · {c.table_num ? `Mesa ${c.table_num}` : (c.customer_name || c.tipo_pedido || 'Pedido')}</p>
+                  <p className="m-0 shrink-0 text-sm font-bold text-[color:var(--w-text)]">{fmt(Number(c.total))}</p>
+                </div>
+                <p className="m-0 mt-1 text-xs text-[color:var(--w-text-2)]">{itemsSummary(parseItems(c.items)) || 'Sin productos'}</p>
+                <p className="m-0 mt-1.5 text-sm text-[color:var(--w-danger-text)]">
+                  Motivo: {c.cancelado_motivo ?? 'sin motivo guardado (cancelado antes de esta función)'}
+                </p>
+                <p className="m-0 text-xs text-[color:var(--w-text-3)]">
+                  {c.cancelado_por ? `Canceló: ${staff[c.cancelado_por] ?? 'personal'}` : 'Canceló: cliente o sin registro'} · {hora(c.cancelado_at ?? c.updated_at)}
+                </p>
               </div>
             ))}
           </div>
