@@ -588,12 +588,15 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
     }
 
     // Guarda el pedido en el celular para enviarlo solo cuando haya internet.
+    // Código único de ESTE envío: viaja al servidor y, si el internet falla, a la cola. Así, aunque el pedido haya llegado
+    // y la respuesta se pierda, el reintento devuelve el mismo pedido en vez de crear otro.
+    const llave = crypto.randomUUID()
     const guardarEnCola = async (lineas: unknown[]) => {
       const { data: { user: offlineUser } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
       // Si la sesión expiró o no hay red para consultarla, usamos un id de respaldo (al sincronizar manda el usuario ya autenticado).
       const offlineUserId = offlineUser?.id ?? profile.id ?? 'offline-anonymous'
       await offlineService.saveOrderLocally({
-        id: crypto.randomUUID(),
+        id: llave,
         user_id: offlineUserId,
         items: JSON.stringify(lineas),
         total: cartTotal,
@@ -642,6 +645,7 @@ export const OrderFlow = memo<OrderFlowProps>(({ profile, onOrderCreated }) => {
           p_notes:          (barra && !selectedMesa ? [BARRA_NOTE, orderNotes].filter(Boolean).join(' · ') : orderNotes) || null,
           p_table_num:      selectedMesa?.numero ?? null,
           p_customer_name:  customerName.trim() || null,
+          p_idempotency_key: llave,
         })
         if (error && esErrorDeRed(error.message) && tipoPedido !== 'DOMICILIO') {
           // WiFi sin internet real: el pedido no llegó al servidor. Se guarda y se envía solo; el cajero no lo rehace.

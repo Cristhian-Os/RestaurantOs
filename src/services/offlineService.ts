@@ -16,6 +16,8 @@ export interface SyncResult {
   failed: OfflineOrder[]   // sin conexión: se quedan en la cola y se reintentan solos
 }
 
+const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // Evento de window: la cola de pedidos sin enviar cambió (la pantalla de pedidos lo escucha).
 export const OFFLINE_CAMBIO = 'offline-orders-cambio'
 const avisarCambio = () => {
@@ -156,6 +158,8 @@ export const offlineService = {
           p_notes:         order.notes ?? null,
           p_table_num:     order.table_num ?? null,
           p_customer_name: order.customer_name ?? null,
+          // El id de la cola es el código único del envío: si un intento anterior sí llegó al servidor, no se duplica.
+          p_idempotency_key: ES_UUID.test(order.id) ? order.id : null,
         })
 
         if (error) throw error
