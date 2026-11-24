@@ -8,11 +8,12 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { cors, exigirDueno } from '../_shared/central_acceso.ts'
 import { avisarTelegram } from '../_shared/central_aviso.ts'
+import { cadenaGemini } from '../_shared/modelo.ts'
 import { cargarLlaves } from '../_shared/central_llaves.ts'
 import { costoEstimado, modeloDe, proveedorPorId } from '../central-agente/logica.ts'
 import {
   MAX_RESULTADOS_WEB, MAX_TOKENS_BUSQUEDA, armarPedido, armarPedidoContenido, citasDeRespuesta, claveTrabajoDiario, costoCorrida, cupoRestante, extraerJson,
-  armarPlan, lunesDeLaSemana, manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type FuncionReal,
+  armarPlan, citasGemini, lunesDeLaSemana, manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type Cita, type FuncionReal,
 } from './logica.ts'
 
 type Trabajo = { id: string; tipo: string; agente_id: string; autorizacion_id: string | null }
@@ -144,14 +145,13 @@ Deno.serve(async (req: Request) => {
           if (cupo === 0) { await cerrar(true, { creados: 0, motivo: 'La campaña ya llegó a su máximo de prospectos.' }, null, 0); continue }
         }
 
-        // Proveedor: OpenRouter (búsqueda web para Mateo; Nico escribe sin web).
-        const proveedor = proveedorPorId('openrouter')!
+        // Proveedores que saben hacer este trabajo: OpenRouter (búsqueda web, con crédito) y Gemini (búsqueda de Google, con cupo gratuito).
+        // Se prueban en el orden configurado y, si uno falla (sin saldo 402, cupo 429, caída 5xx, llave mala), se pasa al siguiente.
         const llaves = await cargarLlaves(admin)
-        const llave = llaves.leer(proveedor.secreto)
-        if (!llave) { await cerrar(false, null, 'Falta la llave de OpenRouter (Integraciones).', 0); continue }
-        const { data: filas } = await admin.from('central_config').select('clave, valor').in('clave', ['ia_modelos', 'ia_precios'])
+        const { data: filas } = await admin.from('central_config').select('clave, valor').in('clave', ['ia_modelos', 'ia_precios', 'ia_modelo_defecto'])
         const cfg: Record<string, unknown> = Object.fromEntries((filas ?? []).map((f: { clave: string; valor: unknown }) => [f.clave, f.valor]))
-        const modelo = modeloDe(proveedor, cfg.ia_modelos)
+        const orden = [...new Set([String(cfg.ia_modelo_defecto ?? ''), 'openrouter', 'gemini'])].filter(id => (id === 'openrouter' || id === 'gemini') && llaves.leer(proveedorPorId(id)!.secreto) !== '')
+        if (!orden.length) { await cerrar(false, null, 'Falta una llave de IA que sepa buscar (OpenRouter o Gemini) en Integraciones.', 0); continue }
 
         let pedido: { sistema: string; usuario: string }
         if (esMateo) pedido = armarPedido(alcance, cupo)
@@ -164,29 +164,66 @@ Deno.serve(async (req: Request) => {
         const antes = await admin.rpc('central_trabajo_puede', { p_id: t.id })
         if (!antes.data?.puede) { await cerrar(false, null, `Bloqueado: ${antes.data?.motivo ?? 'sin permiso'}`, 0); continue }
 
-        const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS)
-        let r: Response
-        try {
-          r = await fetch(`${proveedor.urlBase}/chat/completions`, {
-            method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave}` },
-            body: JSON.stringify({
-              model: modelo, max_tokens: MAX_TOKENS_BUSQUEDA, temperature: esMateo ? 0.2 : 0.7,
-              ...(esMateo ? { plugins: [{ id: 'web', max_results: MAX_RESULTADOS_WEB }] } : {}),
-              messages: [{ role: 'system', content: pedido.sistema }, { role: 'user', content: pedido.usuario }],
-            }),
-          })
-        } finally { clearTimeout(timer) }
-        const costoTokens = (j: RespIA | null) => costoEstimado(Number(j?.usage?.prompt_tokens) || 0, Number(j?.usage?.completion_tokens) || 0, cfg.ia_precios, 'openrouter')
-        if (!r.ok) {
-          // Una llamada rechazada no consumió nada: no se cuenta gasto. Se deja el motivo que dio el proveedor (recortado) para poder diagnosticar.
-          const motivo = await r.json().then((j: { error?: { message?: unknown } }) => String(j?.error?.message ?? '').replace(/\s+/g, ' ').slice(0, 140)).catch(() => '')
-          await cerrar(false, null, `El proveedor respondió ${r.status}${motivo ? `: ${motivo}` : ''}.`, 0)
-          continue
+        type Resp = { ok: true; texto: string; citas: Cita[]; porDominio: boolean; costo: number; proveedor: string } | { ok: false; motivo: string }
+        const costoDe = (entrada: number, salida: number, prov: string) => {
+          const tokens = costoEstimado(entrada, salida, cfg.ia_precios, prov)
+          return esMateo ? costoCorrida(tokens) : Math.max(0.001, tokens)
         }
-        const j = await r.json() as RespIA
-        const costo = esMateo ? costoCorrida(costoTokens(j)) : Math.max(0.001, costoTokens(j))
-        const msg = j.choices?.[0]?.message
-        const crudo = extraerJson(String(msg?.content ?? ''))
+        const motivoDe = async (r: Response) => await r.json().then((j: { error?: { message?: unknown } }) => String(j?.error?.message ?? '').replace(/\s+/g, ' ').slice(0, 120)).catch(() => '')
+        const conTiempo = async (url: string, init: RequestInit, ms: number) => {
+          const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), ms)
+          try { return await fetch(url, { ...init, signal: ctl.signal }) } finally { clearTimeout(timer) }
+        }
+        const consultarOpenRouter = async (): Promise<Resp> => {
+          const prov = proveedorPorId('openrouter')!
+          try {
+            const r = await conTiempo(`${prov.urlBase}/chat/completions`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llaves.leer(prov.secreto)}` },
+              body: JSON.stringify({
+                model: modeloDe(prov, cfg.ia_modelos), max_tokens: MAX_TOKENS_BUSQUEDA, temperature: esMateo ? 0.2 : 0.7,
+                ...(esMateo ? { plugins: [{ id: 'web', max_results: MAX_RESULTADOS_WEB }] } : {}),
+                messages: [{ role: 'system', content: pedido.sistema }, { role: 'user', content: pedido.usuario }],
+              }),
+            }, TIMEOUT_MS)
+            // Una llamada rechazada no consumió nada: no se cuenta gasto. Se deja el motivo del proveedor (recortado) para diagnosticar.
+            if (!r.ok) { const m = await motivoDe(r); return { ok: false, motivo: `${r.status}${m ? ` ${m}` : ''}` } }
+            const j = await r.json() as RespIA
+            const msg = j.choices?.[0]?.message
+            return { ok: true, texto: String(msg?.content ?? ''), citas: citasDeRespuesta(msg), porDominio: false, costo: costoDe(Number(j.usage?.prompt_tokens) || 0, Number(j.usage?.completion_tokens) || 0, 'openrouter'), proveedor: 'openrouter' }
+          } catch { return { ok: false, motivo: 'sin respuesta' } }
+        }
+        const consultarGemini = async (): Promise<Resp> => {
+          const prov = proveedorPorId('gemini')!
+          const llave = llaves.leer(prov.secreto)
+          let ultimo = 'sin respuesta'
+          for (const modelo of cadenaGemini(modeloDe(prov, cfg.ia_modelos)).slice(0, 2)) {
+            try {
+              const r = await conTiempo(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': llave },
+                body: JSON.stringify({
+                  system_instruction: { parts: [{ text: pedido.sistema }] }, contents: [{ role: 'user', parts: [{ text: pedido.usuario }] }],
+                  ...(esMateo ? { tools: [{ google_search: {} }] } : {}),
+                  generationConfig: { maxOutputTokens: 1500, temperature: esMateo ? 0.2 : 0.7 },
+                }),
+              }, 40_000)
+              if (!r.ok) { const m = await motivoDe(r); ultimo = `${r.status}${m ? ` ${m}` : ''}`; continue }   // 404/429/5xx o sin búsqueda en ese modelo: se prueba el siguiente
+              const j = await r.json() as { candidates?: { content?: { parts?: { text?: string }[] }; groundingMetadata?: { groundingChunks?: unknown } }[]; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } }
+              const c = j.candidates?.[0]
+              return { ok: true, texto: (c?.content?.parts ?? []).map(x => x.text ?? '').join(''), citas: citasGemini(c?.groundingMetadata?.groundingChunks), porDominio: true, costo: costoDe(Number(j.usageMetadata?.promptTokenCount) || 0, Number(j.usageMetadata?.candidatesTokenCount) || 0, 'gemini'), proveedor: 'gemini' }
+            } catch { ultimo = 'sin respuesta' }
+          }
+          return { ok: false, motivo: ultimo }
+        }
+        let resp: Resp | null = null
+        const fallos: string[] = []
+        for (const id of orden) {
+          const r = id === 'gemini' ? await consultarGemini() : await consultarOpenRouter()
+          if (r.ok) { resp = r; break }
+          fallos.push(`${id}: ${r.motivo}`)
+        }
+        if (!resp) { await cerrar(false, null, `El proveedor de IA no respondió. ${fallos.join(' · ')}`.slice(0, 480), 0); continue }
+        const costo = resp.costo
+        const crudo = extraerJson(resp.texto)
         if (!crudo) { await cerrar(false, null, 'La respuesta de la IA no tuvo el formato esperado.', costo); continue }
 
         // Guardar solo si sigue permitido (la campaña pudo revocarse durante la llamada).
@@ -194,7 +231,7 @@ Deno.serve(async (req: Request) => {
         if (!despues.data?.puede) { await cerrar(false, null, `Bloqueado antes de guardar: ${despues.data?.motivo ?? 'sin permiso'}`, costo); continue }
 
         if (esMateo) {
-          const { aceptados, descartados } = validarCandidatos(crudo, citasDeRespuesta(msg), alcance, cupo)
+          const { aceptados, descartados } = validarCandidatos(crudo, resp.citas, alcance, cupo, resp.porDominio)
           let creados = 0, duplicados = 0, fallos = 0
           for (const c of aceptados) {
             const { error } = await admin.from('growth_prospectos').insert({

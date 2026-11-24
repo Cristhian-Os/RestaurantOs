@@ -152,3 +152,18 @@ assert.match(armarPlan(camp, '2026-11-30', '2026-11-29', { prospectosNuevos: 7, 
 // Máximo 3 campañas (el plan no se infla)
 assert.ok(armarPlan([...camp, { ...camp[0], id: 'c2' }, { ...camp[0], id: 'c3' }, { ...camp[0], id: 'c4' }], '2026-11-30', '2026-11-29').items.every(i => i.autorizacion_id !== 'c4'))
 console.log('central-trabajador (plan semanal): todo OK')
+
+// ── Gemini: verificación por dominio ──
+import { citasGemini, dominioDeTitulo } from './logica.ts'
+assert.equal(dominioDeTitulo('WWW.Ejemplo.com'), 'ejemplo.com'); assert.equal(dominioDeTitulo('Google Maps'), null); assert.equal(dominioDeTitulo('javascript:x'), null)
+const chunks = [{ web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'pizzeriaroma.co' } }, { web: { uri: 'https://x', title: 'sin dominio' } }, null, { otro: 1 }]
+assert.deepEqual(citasGemini(chunks).map(c => c.title), ['pizzeriaroma.co']); assert.deepEqual(citasGemini(null), [])
+const crudoG = { candidatos: [
+  { nombre_comercial: 'Pizzería Roma', fuente_url: 'https://www.pizzeriaroma.co/menu', web: 'https://pizzeriaroma.co' },
+  { nombre_comercial: 'Inventado', fuente_url: 'https://no-aparecio.com/x' },
+  { nombre_comercial: 'Malicioso', fuente_url: 'javascript:alert(1)' } ] }
+const vg = validarCandidatos(crudoG, citasGemini(chunks), {}, 5, true)
+assert.deepEqual(vg.aceptados.map(c => c.nombre_comercial), ['Pizzería Roma']); assert.equal(vg.aceptados[0].web, 'https://pizzeriaroma.co')
+assert.deepEqual(vg.descartados.map(d => d.motivo), ['fuente_no_verificada', 'fuente_no_verificada'])
+assert.equal(validarCandidatos(crudoG, [], {}, 5, true).aceptados.length, 0, 'sin citas no se acepta nada')
+console.log('central-trabajador (Gemini): todo OK')

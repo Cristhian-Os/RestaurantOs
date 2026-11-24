@@ -74,12 +74,12 @@ export function extraerJson(texto: string): unknown {
 export interface ResultadoValidacion { aceptados: Candidato[]; descartados: { motivo: string; nombre: string }[] }
 
 /** Solo pasa un candidato si su fuente_url es una de las citas reales de la búsqueda. La web propia solo se guarda si su dominio coincide con una cita. */
-export function validarCandidatos(raw: unknown, citas: Cita[], alcance: Alcance, cupo: number): ResultadoValidacion {
+export function validarCandidatos(raw: unknown, citas: Cita[], alcance: Alcance, cupo: number, porDominio = false): ResultadoValidacion {
   const aceptados: Candidato[] = [], descartados: { motivo: string; nombre: string }[] = []
   const lista = raw && typeof raw === 'object' && Array.isArray((raw as { candidatos?: unknown }).candidatos) ? (raw as { candidatos: unknown[] }).candidatos : []
   const citasNorm = new Map<string, Cita>()
   for (const c of citas) { const n = urlNorm(c.url); if (n) citasNorm.set(n, c) }
-  const hostsCitas = new Set(citas.map(c => hostDe(c.url)).filter((h): h is string => !!h))
+  const hostsCitas = new Set(citas.map(c => (porDominio ? dominioDeTitulo(c.title) : hostDe(c.url))).filter((h): h is string => !!h))
   const vistos = new Set<string>()
   const ciudadBase = txt(alcance.ciudad, 100)
   for (const x of lista) {
@@ -90,7 +90,10 @@ export function validarCandidatos(raw: unknown, citas: Cita[], alcance: Alcance,
     const clave = nombre.toLowerCase()
     if (vistos.has(clave)) { descartados.push({ motivo: 'repetido', nombre }); continue }
     const fuenteNorm = urlNorm(o.fuente_url)
-    const cita = fuenteNorm ? citasNorm.get(fuenteNorm) : undefined
+    // Exacto: la URL debe ser una de las citadas. Por dominio (Gemini cita dominios): el sitio de la fuente debe ser uno de los que aparecieron en la búsqueda.
+    const cita = porDominio
+      ? (fuenteNorm && hostsCitas.has(hostDe(o.fuente_url) ?? '') ? { url: String(o.fuente_url), title: '' } : undefined)
+      : (fuenteNorm ? citasNorm.get(fuenteNorm) : undefined)
     if (!cita) { descartados.push({ motivo: 'fuente_no_verificada', nombre }); continue }
     vistos.add(clave)
     const web = hostDe(o.web) && hostsCitas.has(hostDe(o.web)!) ? txt(o.web, 300) : null
@@ -256,4 +259,22 @@ export function armarPlan(campanas: CampanaPlan[], lunes: string, hoy: string, s
   const m = items.filter(i => i.agente_id === 'mateo').length, n = items.filter(i => i.agente_id === 'nico').length, h = items.filter(i => i.tipo === 'tarea_humana').length
   const pasada = stats ? ` La semana pasada: ${stats.prospectosNuevos} negocio(s) nuevo(s), ${stats.borradores} borrador(es), ${stats.fallidos} trabajo(s) fallido(s), gasto US$ ${stats.gastoUsd.toFixed(2)}.` : ''
   return { resumen: `Semana del ${lunes}. ${m} búsqueda(s) de Mateo, ${n} borrador(es) de Nico y ${h} tarea(s) para ti.${pasada} Quita o cambia lo que no te sirva antes de aprobar.`.slice(0, 1500), items }
+}
+
+
+// ───────────────────────── Gemini con búsqueda de Google: las citas traen el DOMINIO (en "title"), no la URL real ─────────────────────────
+/** Dominio sin "www." si el título parece un dominio ("ejemplo.com"); si no, null. */
+export function dominioDeTitulo(titulo: string): string | null {
+  const t = txt(titulo, 120).toLowerCase().replace(/^www\./, '')
+  return /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(t) ? t : null
+}
+/** Citas de una respuesta de Gemini con búsqueda (groundingMetadata.groundingChunks[].web). */
+export function citasGemini(chunks: unknown): Cita[] {
+  if (!Array.isArray(chunks)) return []
+  const out: Cita[] = []
+  for (const c of chunks) {
+    const w = (c && typeof c === 'object' ? (c as { web?: { uri?: unknown; title?: unknown } }).web : null) ?? null
+    if (w && typeof w.uri === 'string' && typeof w.title === 'string' && dominioDeTitulo(w.title)) out.push({ url: w.uri.slice(0, 500), title: txt(w.title, 120) })
+  }
+  return out
 }
