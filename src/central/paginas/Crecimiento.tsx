@@ -13,6 +13,7 @@ import { activarAutorizacion, agregarNoContactar, crearCampana, guardarFuncion, 
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
 import { TrabajoAgentes } from './TrabajoAgentes.tsx'
 import { Propuestas } from './Propuestas.tsx'
+import { ConexionGoogle } from './ConexionGoogle.tsx'
 import { PlanSemanal } from './PlanSemanal.tsx'
 import { pedirAlTrabajador } from '../acciones.ts'
 
@@ -210,6 +211,7 @@ export function Crecimiento() {
       <Autorizaciones />
       <PlanSemanal />
       <Propuestas />
+      <ConexionGoogle />
       <TrabajoAgentes />
       <NoContactar />
     </Pagina>

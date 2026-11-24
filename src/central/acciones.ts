@@ -365,3 +365,8 @@ export async function aprobarPlan(id: string): Promise<{ ok: true; datos: { enco
   const { data, error } = await supabase.rpc('central_plan_aprobar', { p_plan: id })
   return error ? { ok: false, mensaje: textoError(error) } : { ok: true, datos: data as { encolados: number; para_ti: number; dias_pasados: number } }
 }
+
+// ── Conexión con Google (el buzón de ventas: correo y calendario). Solo establece la conexión; no envía nada. ──
+export interface EstadoGoogle { ok: boolean; cliente: boolean; conectado: boolean; cuenta: string | null; redirect_uri: string }
+export const googleOauth = <T = { ok: boolean }>(accion: 'estado' | 'guardar_cliente' | 'url' | 'desconectar', extra: Record<string, unknown> = {}) =>
+  invocar<T>('central-google-oauth', { accion, ...extra })
