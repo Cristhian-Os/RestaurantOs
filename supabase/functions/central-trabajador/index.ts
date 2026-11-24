@@ -196,7 +196,8 @@ Deno.serve(async (req: Request) => {
           const prov = proveedorPorId('gemini')!
           const llave = llaves.leer(prov.secreto)
           let ultimo = 'sin respuesta'
-          for (const modelo of cadenaGemini(modeloDe(prov, cfg.ia_modelos)).slice(0, 2)) {
+          const pedidoModelo = (cfg.ia_modelos as Record<string, unknown> | null)?.gemini   // si el dueño fijó uno, va primero; si no, el de mayor cupo gratuito (3.5 Flash Lite: 500 al día)
+          for (const modelo of cadenaGemini(typeof pedidoModelo === 'string' ? pedidoModelo : '').slice(0, 2)) {
             try {
               const r = await conTiempo(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': llave },

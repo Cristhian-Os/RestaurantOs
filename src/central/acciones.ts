@@ -261,10 +261,11 @@ function errorProspecto(e: unknown): string | null {
   return textoError(e)
 }
 
-export interface NuevoProspecto { nombre_comercial: string; ciudad: string; segmento: string; fuente: string; fuente_url?: string; correo?: string; telefono?: string; web?: string; es_ficticio?: boolean }
+export interface NuevoProspecto { nombre_comercial: string; ciudad: string; segmento: string; fuente: string; fuente_url?: string; ubicacion_publica?: string; campana_id?: string | null; correo?: string; telefono?: string; web?: string; es_ficticio?: boolean }
 export async function crearProspecto(p: NuevoProspecto): Promise<string | null> {
   const { error } = await supabase.from('growth_prospectos').insert({
     nombre_comercial: limpio(p.nombre_comercial), ciudad: limpio(p.ciudad), segmento: limpio(p.segmento), fuente: limpio(p.fuente),
+    ubicacion_publica: limpio(p.ubicacion_publica ?? ''), campana_id: p.campana_id ?? null,
     fuente_url: vacioNull(p.fuente_url), correo: vacioNull(p.correo), telefono: vacioNull(p.telefono), web: vacioNull(p.web), es_ficticio: !!p.es_ficticio,
   })
   return errorProspecto(error)

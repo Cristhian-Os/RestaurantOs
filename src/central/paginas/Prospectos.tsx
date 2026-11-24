@@ -10,6 +10,7 @@ import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { actualizarProspecto, agregarNota, cargarEjemplos, crearProspecto, crearTarea, ETAPAS, guardarExpediente, textoError, type Etapa } from '../acciones.ts'
+import { leerLista } from '../importarLista.ts'
 import { Enlace, useRuta } from '../navegacion.tsx'
 import { AvisoHonesto, ErrorAccion, Kpi, Pagina, TituloBloque } from '../ui.tsx'
 
@@ -39,6 +40,47 @@ function useHacer(despues: () => Promise<void>) {
   return { ocupado, error, hacer }
 }
 
+/** Pegar una lista de negocios (por ejemplo de Google Maps): se lee el texto tal cual, sin IA, y se guardan como "prospecto identificado" con su fuente. */
+function PegarLista({ alGuardar }: { alGuardar: () => Promise<void> }) {
+  const [abierto, setAbierto] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [ciudad, setCiudad] = useState('Armenia')
+  const [segmento, setSegmento] = useState('Restaurantes')
+  const [ocupado, setOcupado] = useState(false)
+  const [resumen, setResumen] = useState<string | null>(null)
+  const { filas, descartadas } = leerLista(texto)
+  const guardar = async () => {
+    setOcupado(true); setResumen(null)
+    const { data: camp } = await supabase.from('growth_autorizaciones').select('id').eq('tipo', 'campana').eq('estado', 'vigente').gt('vigente_hasta', new Date().toISOString()).limit(1)
+    const campanaId = ((camp ?? [])[0] as { id: string } | undefined)?.id ?? null
+    let ok = 0; const problemas: string[] = []
+    for (const f of filas) {
+      const e = await crearProspecto({ ...f, ciudad: ciudad.trim() || 'Armenia', segmento: segmento.trim(), fuente: 'Lista pegada por el dueño (Google Maps)', campana_id: campanaId })
+      if (e === null) ok++; else problemas.push(`${f.nombre_comercial}: ${e}`)
+    }
+    setOcupado(false)
+    setResumen(`Guardé ${ok} de ${filas.length}.${problemas.length ? ` No se guardaron: ${problemas.slice(0, 4).join(' · ')}${problemas.length > 4 ? '…' : ''}` : ''}`)
+    if (ok > 0) { setTexto(''); await alGuardar() }
+  }
+  return (
+    <Card className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2"><p className="m-0 min-w-0 flex-1 font-bold text-[color:var(--w-text)]">Pegar una lista de negocios</p>
+        <Button size="sm" variant={abierto ? 'ghost' : 'secondary'} onClick={() => setAbierto(!abierto)}>{abierto ? 'Cerrar' : 'Abrir'}</Button></div>
+      {abierto && (<>
+        <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">Una línea por negocio: <b>Nombre | dirección o barrio | enlace de Google Maps | teléfono</b>. Solo el nombre es obligatorio. Se lee el texto tal cual, sin IA, y cada negocio queda como "prospecto identificado" con su fuente. No se contacta a nadie.</p>
+        <Textarea label="Tu lista" value={texto} onChange={e => setTexto(e.target.value)} rows={8} placeholder={'Pizzería Roma | Calle 14 #12-30, Centro | https://maps.app.goo.gl/...\nCafé del Parque | Parque Sucre'} />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Input label="Ciudad" value={ciudad} onChange={e => setCiudad(e.target.value)} maxLength={100} />
+          <Input label="Tipo de negocio" value={segmento} onChange={e => setSegmento(e.target.value)} maxLength={100} />
+        </div>
+        {texto.trim() && <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">{filas.length} negocio(s) listos{descartadas.length ? ` · ${descartadas.length} descartada(s): ${descartadas.slice(0, 3).map(d => `${d.linea} (${d.motivo})`).join(' · ')}` : ''}</p>}
+        {resumen && <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text)]">{resumen}</p>}
+        <div><Button size="sm" loading={ocupado} disabled={filas.length === 0} onClick={() => void guardar()}>Guardar {filas.length || ''} prospecto(s)</Button></div>
+      </>)}
+    </Card>
+  )
+}
+
 function Lista() {
   const [filas, setFilas] = useState<Prospecto[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +100,7 @@ function Lista() {
   return (
     <Pagina titulo="Prospectos" subtitulo="Restaurantes que podrían ser clientes, con su expediente y su historial.">
       <AvisoHonesto tono="warning">Aquí solo se organiza la información. Todavía no se contacta a nadie: para pasar a "Contactado" hace falta una campaña activa, y los ejemplos nunca se pueden contactar.</AvisoHonesto>
+      <PegarLista alGuardar={recargar} />
       {error && <ErrorAccion texto={error} />}
       {!filas ? <StatePanel kind="loading" title="Cargando…" /> : (<>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
