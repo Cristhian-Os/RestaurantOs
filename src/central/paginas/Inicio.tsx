@@ -85,9 +85,13 @@ export function Inicio() {
           </div>
         </div>
       </header>
-      {conectados === 0 && (
+      {datos.config.ia_encendida === true && conectados > 0 ? (
         <AvisoHonesto>
-          Los agentes todavía <b>no están conectados</b> a ningún modelo de IA. Lo que ves de ellos es el diseño de la oficina; si hablas con uno, responde en <b>simulación local</b>. Nada se ejecuta solo.
+          La IA está <b>encendida</b>: los chats directos con los agentes responden con <b>IA real</b> (cada mensaje lo dice). En los canales los agentes todavía no participan. Los agentes solo trabajan por su cuenta en lo que tú apruebas (por ahora Mateo y Nico) y nada se contacta ni se publica sin tu aprobación.
+        </AvisoHonesto>
+      ) : (
+        <AvisoHonesto>
+          La IA está <b>apagada</b> o ningún agente está activo con un proveedor. Si hablas con un agente, responde en <b>simulación local</b>. Enciéndela en Integraciones cuando quieras.
         </AvisoHonesto>
       )}
 

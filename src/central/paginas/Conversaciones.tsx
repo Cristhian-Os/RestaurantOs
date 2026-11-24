@@ -27,7 +27,9 @@ export function Conversaciones() {
 
   return (
     <Pagina titulo="Conversaciones" subtitulo="Canales institucionales y chats directos con los agentes">
-      <AvisoHonesto>Tus mensajes se guardan a tu nombre. Los agentes aún no están conectados a un modelo de IA: en un chat directo responden en <b>simulación local</b>; en los canales todavía no participan.</AvisoHonesto>
+      <AvisoHonesto>Tus mensajes se guardan a tu nombre. {datos.config.ia_encendida === true
+        ? <>La IA está encendida: en un <b>chat directo</b> con un agente responde con <b>IA real</b>. En los <b>canales</b> los agentes todavía no participan, así que ahí no habrá respuesta.</>
+        : <>La IA está apagada: en un chat directo los agentes responden en <b>simulación local</b>; en los canales no participan.</>}</AvisoHonesto>
       {lista.length === 0 ? <StatePanel kind="empty" title="Sin conversaciones" /> : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <nav aria-label="Conversaciones" className="flex max-h-[60vh] flex-row gap-2 overflow-x-auto lg:max-h-none lg:flex-col lg:overflow-visible">
