@@ -1,11 +1,11 @@
 -- Central: programa al trabajador para que corra solo, sin que el dueño abra la app. SOLO LLAMA a la función central-trabajador (misma puerta, misma cabecera secreta que el vigía).
 -- No crea tablas ni toca datos de restaurantes. Con los agentes apagados (interruptor) o sin campaña vigente, cada llamada no hace nada.
---   · 7:30 a. m. (Bogotá), lunes a sábado: "encolar" crea el trabajo del día por cada campaña vigente (sin duplicar).
+--   · Domingo 6:00 p. m. (Bogotá): "generar_plan" arma el borrador del plan semanal (por reglas, sin IA) y te avisa por Telegram. NO ejecuta nada: solo lo que tú apruebes se programa.
 --   · Cada 10 min entre 7:00 a. m. y 6:59 p. m. (Bogotá), lunes a sábado: "ejecutar" toma hasta 2 trabajos de la cola.
 --   · 6:00 a. m. (Bogotá), todos los días: "sincronizar_funciones" compara el código de la app con la matriz de funciones.
 -- Configuración por entorno: reutiliza platform_secrets 'central_vigia_url' / 'central_vigia_jwt' / 'central_vigia_secreto' (ya existen). Si faltan, no hace nada.
 -- REVERSA:
---   select cron.unschedule(jobid) from cron.job where jobname in ('central-trabajador-encolar','central-trabajador-ejecutar','central-trabajador-funciones');
+--   select cron.unschedule(jobid) from cron.job where jobname in ('central-trabajador-plan','central-trabajador-ejecutar','central-trabajador-funciones');
 --   drop function if exists public.central_trabajador_programado(text);
 
 create extension if not exists pg_cron;
@@ -20,7 +20,7 @@ as $$
 declare
   v_url text; v_jwt text; v_sec text;
 begin
-  if p_accion not in ('encolar', 'ejecutar', 'sincronizar_funciones') then return; end if;
+  if p_accion not in ('generar_plan', 'ejecutar', 'sincronizar_funciones') then return; end if;
   select value into v_url from public.platform_secrets where key = 'central_vigia_url';
   select value into v_jwt from public.platform_secrets where key = 'central_vigia_jwt';
   select value into v_sec from public.platform_secrets where key = 'central_vigia_secreto';
@@ -36,8 +36,8 @@ $$;
 
 revoke all on function public.central_trabajador_programado(text) from public, anon, authenticated;
 
-select cron.unschedule(jobid) from cron.job where jobname in ('central-trabajador-encolar', 'central-trabajador-ejecutar', 'central-trabajador-funciones');
+select cron.unschedule(jobid) from cron.job where jobname in ('central-trabajador-encolar', 'central-trabajador-plan', 'central-trabajador-ejecutar', 'central-trabajador-funciones');
 -- Horas en UTC (Bogotá = UTC-5, sin horario de verano)
-select cron.schedule('central-trabajador-encolar',  '30 12 * * 1-6',      $$select public.central_trabajador_programado('encolar')$$);
+select cron.schedule('central-trabajador-plan',     '0 23 * * 0',         $$select public.central_trabajador_programado('generar_plan')$$);
 select cron.schedule('central-trabajador-ejecutar', '*/10 12-23 * * 1-6', $$select public.central_trabajador_programado('ejecutar')$$);
 select cron.schedule('central-trabajador-funciones', '0 11 * * *',        $$select public.central_trabajador_programado('sincronizar_funciones')$$);

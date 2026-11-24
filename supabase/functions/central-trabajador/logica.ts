@@ -219,3 +219,41 @@ export function planSincronizacion(manifiesto: FuncionManifiesto[], filas: FilaF
   }
   return plan
 }
+
+// ───────────────────────── Plan semanal: Chef Mayor arma la semana con lo que de verdad se puede ejecutar ─────────────────────────
+// Por reglas (cuesta 0): solo tareas que un agente PUEDE hacer hoy (Mateo busca negocios, Nico redacta borradores) y tareas para el dueño. Nada de promesas vacías.
+export interface CampanaPlan { id: string; nombre: string; ciudad: string }
+export interface ItemPlan { dia: string; agente_id: string; tipo: 'investigar_prospectos' | 'redactar_borrador' | 'tarea_humana'; descripcion: string; autorizacion_id: string | null }
+export interface StatsSemana { prospectosNuevos: number; borradores: number; gastoUsd: number; fallidos: number }
+const iso = (d: Date) => d.toISOString().slice(0, 10)
+const sumaDias = (fecha: string, n: number) => iso(new Date(new Date(`${fecha}T12:00:00Z`).getTime() + n * 86_400_000))
+/** Lunes de la semana que se planea: la de "mañana" (si hoy es domingo por la noche, el lunes que viene; entre semana, la semana en curso). */
+export function lunesDeLaSemana(hoy: string): string {
+  const manana = new Date(`${sumaDias(hoy, 1)}T12:00:00Z`)
+  const dow = manana.getUTCDay() === 0 ? 7 : manana.getUTCDay()   // 1 = lunes … 7 = domingo
+  return sumaDias(iso(manana), -(dow - 1))
+}
+export const diasLaborales = (lunes: string): string[] => [0, 1, 2, 3, 4, 5].map(i => sumaDias(lunes, i))
+
+export function armarPlan(campanas: CampanaPlan[], lunes: string, hoy: string, stats?: StatsSemana): { resumen: string; items: ItemPlan[] } {
+  const dias = diasLaborales(lunes)
+  const items: ItemPlan[] = []
+  for (const c of campanas.slice(0, 3)) {
+    const nombre = txt(c.nombre, 60), ciudad = txt(c.ciudad, 60) || 'la zona de la campaña'
+    dias.forEach((dia, i) => {
+      if (dia < hoy) return
+      items.push({ dia, agente_id: 'mateo', tipo: 'investigar_prospectos', descripcion: `Buscar negocios de ${ciudad} para «${nombre}»`, autorizacion_id: c.id })
+      if (i === 0 || i === 2 || i === 4) items.push({ dia, agente_id: 'nico', tipo: 'redactar_borrador', descripcion: `Borrador de contenido educativo para «${nombre}» (no se publica)`, autorizacion_id: c.id })
+    })
+  }
+  if (items.length) {
+    const tiene = (cuando: number) => dias[cuando] >= hoy
+    if (tiene(1)) items.push({ dia: dias[1], agente_id: 'chef-mayor', tipo: 'tarea_humana', descripcion: 'Verificar los negocios que encontró Mateo y marcar cuáles vale la pena investigar', autorizacion_id: null })
+    if (tiene(3)) items.push({ dia: dias[3], agente_id: 'chef-mayor', tipo: 'tarea_humana', descripcion: 'Revisar y aprobar o rechazar los borradores de contenido de Nico', autorizacion_id: null })
+    if (tiene(4)) items.push({ dia: dias[4], agente_id: 'chef-mayor', tipo: 'tarea_humana', descripcion: 'Verificar de nuevo los negocios nuevos y hablar con los que muestren interés', autorizacion_id: null })
+  }
+  items.sort((a, b) => a.dia.localeCompare(b.dia))
+  const m = items.filter(i => i.agente_id === 'mateo').length, n = items.filter(i => i.agente_id === 'nico').length, h = items.filter(i => i.tipo === 'tarea_humana').length
+  const pasada = stats ? ` La semana pasada: ${stats.prospectosNuevos} negocio(s) nuevo(s), ${stats.borradores} borrador(es), ${stats.fallidos} trabajo(s) fallido(s), gasto US$ ${stats.gastoUsd.toFixed(2)}.` : ''
+  return { resumen: `Semana del ${lunes}. ${m} búsqueda(s) de Mateo, ${n} borrador(es) de Nico y ${h} tarea(s) para ti.${pasada} Quita o cambia lo que no te sirva antes de aprobar.`.slice(0, 1500), items }
+}

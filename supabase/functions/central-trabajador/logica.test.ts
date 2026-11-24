@@ -125,3 +125,30 @@ const manifiestoCrudo = { funciones: [F('ok_uno', H1), { ...F('Mal Id', H1) }, {
 assert.deepEqual(manifiestoValido(manifiestoCrudo).map(f => f.id), ['ok_uno'])
 assert.deepEqual(manifiestoValido(null), [])
 console.log('central-trabajador (funciones): todo OK')
+
+// ── Plan semanal ──
+import { armarPlan, diasLaborales, lunesDeLaSemana } from './logica.ts'
+assert.equal(lunesDeLaSemana('2026-11-22'), '2026-11-23', 'domingo → el lunes siguiente')   // 2026-11-22 es domingo
+assert.equal(lunesDeLaSemana('2026-11-25'), '2026-11-23', 'miércoles → el lunes de esa semana')
+assert.equal(lunesDeLaSemana('2026-11-28'), '2026-11-23', 'sábado → esa semana')
+assert.equal(lunesDeLaSemana('2026-11-29'), '2026-11-30', 'domingo → el lunes siguiente')
+assert.deepEqual(diasLaborales('2026-11-23'), ['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27', '2026-11-28'])
+const camp = [{ id: 'c1', nombre: 'Armenia piloto', ciudad: 'Armenia y alrededores' }]
+let pl = armarPlan(camp, '2026-11-30', '2026-11-29')
+assert.equal(pl.items.filter(i => i.agente_id === 'mateo').length, 6, 'Mateo de lunes a sábado')
+assert.equal(pl.items.filter(i => i.agente_id === 'nico').length, 3, 'Nico lunes, miércoles y viernes')
+assert.equal(pl.items.filter(i => i.tipo === 'tarea_humana').length, 3)
+assert.ok(pl.items.every(i => i.tipo === 'tarea_humana' ? i.autorizacion_id === null : i.autorizacion_id === 'c1'), 'lo ejecutable siempre lleva su campaña')
+assert.ok(pl.items.every(i => ['mateo', 'nico', 'chef-mayor'].includes(i.agente_id)), 'solo agentes que pueden hacer algo hoy')
+assert.deepEqual([...pl.items].map(i => i.dia), [...pl.items].map(i => i.dia).sort())
+assert.match(pl.resumen, /6 búsqueda/)
+// A mitad de semana no se planean los días que ya pasaron
+pl = armarPlan(camp, '2026-11-23', '2026-11-26')
+assert.ok(pl.items.every(i => i.dia >= '2026-11-26'))
+// Sin campaña no hay plan (no se inventa trabajo)
+assert.deepEqual(armarPlan([], '2026-11-30', '2026-11-29').items, [])
+// Con estadísticas de la semana pasada
+assert.match(armarPlan(camp, '2026-11-30', '2026-11-29', { prospectosNuevos: 7, borradores: 3, gastoUsd: 0.5, fallidos: 1 }).resumen, /7 negocio\(s\) nuevo\(s\).*US\$ 0\.50/)
+// Máximo 3 campañas (el plan no se infla)
+assert.ok(armarPlan([...camp, { ...camp[0], id: 'c2' }, { ...camp[0], id: 'c3' }, { ...camp[0], id: 'c4' }], '2026-11-30', '2026-11-29').items.every(i => i.autorizacion_id !== 'c4'))
+console.log('central-trabajador (plan semanal): todo OK')

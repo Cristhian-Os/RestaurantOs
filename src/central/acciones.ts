@@ -341,9 +341,9 @@ export async function moverInterruptor(clave: 'agentes_activos' | 'pausa_agentes
   const { error } = await supabase.rpc('central_interruptor', { p_clave: clave, p_valor: valor })
   return resultado(error)
 }
-export interface RespuestaTrabajador { ok: boolean; funciones?: { total: number; nuevas: number; actualizadas: number; bajadas: number; reverificar: number; fallos: number }; campanas?: number; trabajos?: string[]; ejecutados?: { id: string; estado: string; detalle?: unknown }[]; mensaje?: string }
+export interface RespuestaTrabajador { ok: boolean; plan?: { ya_existia: boolean; estado: string; semana: string; tareas?: number }; funciones?: { total: number; nuevas: number; actualizadas: number; bajadas: number; reverificar: number; fallos: number }; campanas?: number; trabajos?: string[]; ejecutados?: { id: string; estado: string; detalle?: unknown }[]; mensaje?: string }
 /** "encolar": crea el trabajo de hoy por cada campaña vigente (sin duplicar). "ejecutar": toma trabajos de la cola y los corre (solo investiga: no contacta a nadie). */
-export const pedirAlTrabajador = (accion: 'encolar' | 'ejecutar' | 'sincronizar_funciones') => invocar<RespuestaTrabajador>('central-trabajador', { accion })
+export const pedirAlTrabajador = (accion: 'encolar' | 'ejecutar' | 'sincronizar_funciones' | 'generar_plan') => invocar<RespuestaTrabajador>('central-trabajador', { accion })
 
 // ── Conversación de dos vías por Telegram (la hace el SERVIDOR; aquí solo se pide activarla, quitarla o ver si está activa) ──
 export interface EstadoTelegramChat { ok: boolean; activo: boolean; pendientes: number; ultimoError: string | null }
@@ -353,4 +353,14 @@ export const telegramChat = <T = { ok: boolean }>(accion: 'registrar' | 'quitar'
 export async function decidirPropuesta(id: string, decision: 'aprobar' | 'rechazar', nota: string): Promise<string | null> {
   const { error } = await supabase.rpc('central_decidir_propuesta', { p_id: id, p_decision: decision, p_nota: limpio(nota) || null })
   return resultado(error)
+}
+
+// ── Plan semanal: el dueño quita, cambia y aprueba; la base impide editar un plan ya aprobado ──
+export async function cambiarItemPlan(id: string, c: { quitado?: boolean; descripcion?: string }): Promise<string | null> {
+  const { error } = await supabase.rpc('central_plan_item_cambiar', { p_item: id, p_quitado: c.quitado ?? null, p_descripcion: c.descripcion ? limpio(c.descripcion) : null, p_dia: null })
+  return resultado(error)
+}
+export async function aprobarPlan(id: string): Promise<{ ok: true; datos: { encolados: number; para_ti: number; dias_pasados: number } } | { ok: false; mensaje: string }> {
+  const { data, error } = await supabase.rpc('central_plan_aprobar', { p_plan: id })
+  return error ? { ok: false, mensaje: textoError(error) } : { ok: true, datos: data as { encolados: number; para_ti: number; dias_pasados: number } }
 }

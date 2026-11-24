@@ -12,7 +12,7 @@ import { cargarLlaves } from '../_shared/central_llaves.ts'
 import { costoEstimado, modeloDe, proveedorPorId } from '../central-agente/logica.ts'
 import {
   MAX_RESULTADOS_WEB, MAX_TOKENS_BUSQUEDA, armarPedido, armarPedidoContenido, citasDeRespuesta, claveTrabajoDiario, costoCorrida, cupoRestante, extraerJson,
-  manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type FuncionReal,
+  armarPlan, lunesDeLaSemana, manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type FuncionReal,
 } from './logica.ts'
 
 type Trabajo = { id: string; tipo: string; agente_id: string; autorizacion_id: string | null }
@@ -85,6 +85,34 @@ Deno.serve(async (req: Request) => {
         await aviso(`🔧 Funciones de la app para revisar: ${detalle}`.slice(0, 500))
       }
       return out({ ok: true, funciones: { total: manifiesto.length, nuevas: plan.insertar.length, actualizadas: plan.actualizar.length, bajadas: plan.bajar.length, reverificar: plan.reverificar.length, fallos } })
+    }
+
+
+    // ── generar_plan: Chef Mayor arma el borrador de la semana (por reglas, sin IA). El dueño lo revisa y aprueba; solo lo aprobado se convierte en trabajos. ──
+    if (body.accion === 'generar_plan') {
+      const lunes = lunesDeLaSemana(hoy)
+      const { data: yaHay } = await admin.from('central_plan_semanal').select('id, estado').eq('semana', lunes).maybeSingle()
+      if (yaHay) return out({ ok: true, plan: { ya_existia: true, estado: yaHay.estado, semana: lunes } })
+      const { data: camp, error: eCamp } = await admin.from('growth_autorizaciones').select('id, nombre, alcance').eq('tipo', 'campana').eq('estado', 'vigente').gt('vigente_hasta', new Date().toISOString()).limit(3)
+      if (eCamp) return out({ ok: false, error: 'lectura', mensaje: 'No se pudieron leer las campañas.' }, 500)
+      const campanas = ((camp ?? []) as { id: string; nombre: string; alcance: Record<string, unknown> }[]).map(c => ({ id: c.id, nombre: c.nombre, ciudad: String(c.alcance?.ciudad ?? '') }))
+      if (!campanas.length) return out({ ok: false, error: 'sin_campana', mensaje: 'No hay campaña vigente: crea y activa una antes de armar el plan.' }, 409)
+      const desde = new Date(new Date(`${lunes}T05:00:00Z`).getTime() - 7 * 86_400_000).toISOString(), hasta = `${lunes}T05:00:00.000Z`
+      const [pr, bo, tr] = await Promise.all([
+        admin.from('growth_prospectos').select('id', { count: 'exact', head: true }).eq('es_ficticio', false).gte('created_at', desde).lt('created_at', hasta),
+        admin.from('central_documentos').select('id', { count: 'exact', head: true }).like('procedencia', 'Nico%').gte('created_at', desde).lt('created_at', hasta),
+        admin.from('central_trabajos').select('estado, costo').gte('created_at', desde).lt('created_at', hasta).limit(500),
+      ])
+      const filasTr = (tr.data ?? []) as { estado: string; costo: number }[]
+      const plan = armarPlan(campanas, lunes, hoy, {
+        prospectosNuevos: pr.count ?? 0, borradores: bo.count ?? 0, fallidos: filasTr.filter(f => f.estado === 'failed').length, gastoUsd: filasTr.reduce((a, f) => a + Number(f.costo), 0),
+      })
+      if (!plan.items.length) return out({ ok: false, error: 'sin_tareas', mensaje: 'No quedan días de esta semana para planear.' }, 409)
+      const { error: eCrear } = await admin.rpc('central_plan_crear', { p_semana: lunes, p_resumen: plan.resumen, p_items: plan.items })
+      if (eCrear) return out({ ok: false, error: 'guardar', mensaje: 'No se pudo guardar el plan.' }, 500)
+      const humanas = plan.items.filter(i => i.tipo === 'tarea_humana').length
+      await aviso(`📋 El plan de la semana está listo para tu aprobación: ${plan.items.length - humanas} tarea(s) de agentes y ${humanas} para ti. Revísalo, cámbialo y apruébalo en Central → Crecimiento.`)
+      return out({ ok: true, plan: { ya_existia: false, estado: 'borrador', semana: lunes, tareas: plan.items.length } })
     }
 
     // ── ejecutar ──

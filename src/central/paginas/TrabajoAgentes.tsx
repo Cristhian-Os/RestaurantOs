@@ -86,7 +86,7 @@ export function TrabajoAgentes() {
     if (e) setError(e)
     await recargar()
   }
-  const pedir = async (accion: 'encolar' | 'ejecutar' | 'sincronizar_funciones') => {
+  const pedir = async (accion: 'encolar' | 'ejecutar' | 'sincronizar_funciones' | 'generar_plan') => {
     setOcupado(accion); setError(null); setAviso(null)
     const r = await pedirAlTrabajador(accion)
     setOcupado(null)

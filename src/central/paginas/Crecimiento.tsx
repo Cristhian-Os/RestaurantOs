@@ -13,6 +13,7 @@ import { activarAutorizacion, agregarNoContactar, crearCampana, guardarFuncion, 
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
 import { TrabajoAgentes } from './TrabajoAgentes.tsx'
 import { Propuestas } from './Propuestas.tsx'
+import { PlanSemanal } from './PlanSemanal.tsx'
 import { pedirAlTrabajador } from '../acciones.ts'
 
 interface Funcion { id: string; nombre: string; area: string; estado: EstadoFuncion; limitaciones: string; evidencia: string; verificado_en: string | null }
@@ -207,6 +208,7 @@ export function Crecimiento() {
       <AvisoHonesto tono="warning">Todavía no hay envíos de correo ni publicaciones: nadie contacta a un prospecto. Los agentes solo investigan y proponen.</AvisoHonesto>
       <Funciones />
       <Autorizaciones />
+      <PlanSemanal />
       <Propuestas />
       <TrabajoAgentes />
       <NoContactar />
