@@ -288,8 +288,14 @@ export function ciudadSegura(c: unknown): string | null {
   const primera = String(c ?? '').split(/,| y |\/|\(/i)[0].trim()
   return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]{2,39}$/.test(primera) ? primera : null
 }
+/** Recuadros conocidos (sur, oeste, norte, este). "Armenia" incluye sus alrededores (Calarcá, Montenegro, La Tebaida, Circasia). Una consulta por recuadro es mucho más liviana para el servidor que buscar por nombre de ciudad. */
+const RECUADROS: Record<string, [number, number, number, number]> = { armenia: [4.42, -75.80, 4.64, -75.60] }
+export const SERVIDORES_OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter']
 export function consultaOverpass(ciudad: string, limite = 400): string {
-  return `[out:json][timeout:25];\narea["boundary"="administrative"]["admin_level"="6"]["name"="${ciudad}"]->.a;\nnwr(area.a)["amenity"~"^(restaurant|fast_food|cafe)$"]["name"];\nout center tags ${Math.min(Math.max(limite, 1), 800)};`
+  const n = Math.min(Math.max(limite, 1), 800)
+  const r = RECUADROS[normNombre(ciudad)]
+  if (r) return `[out:json][timeout:25];\nnwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"](${r.join(',')});\nout center tags ${n};`
+  return `[out:json][timeout:25];\narea["boundary"="administrative"]["admin_level"="6"]["name"="${ciudad}"]->.a;\nnwr(area.a)["amenity"~"^(restaurant|fast_food|cafe)$"]["name"];\nout center tags ${n};`
 }
 export const normNombre = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 const SEG: Record<string, string> = { restaurant: 'Restaurante', fast_food: 'Comida rápida', cafe: 'Cafetería' }

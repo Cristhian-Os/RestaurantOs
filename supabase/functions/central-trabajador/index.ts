@@ -13,7 +13,7 @@ import { cargarLlaves } from '../_shared/central_llaves.ts'
 import { costoEstimado, modeloDe, proveedorPorId } from '../central-agente/logica.ts'
 import {
   MAX_RESULTADOS_WEB, MAX_TOKENS_BUSQUEDA, armarPedido, armarPedidoContenido, citasDeRespuesta, claveTrabajoDiario, costoCorrida, cupoRestante, extraerJson,
-  armarPlan, ciudadSegura, citasGemini, consultaOverpass, negociosDeOsm, normNombre, lunesDeLaSemana, manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type Cita, type FuncionReal,
+  SERVIDORES_OVERPASS, armarPlan, ciudadSegura, citasGemini, consultaOverpass, negociosDeOsm, normNombre, lunesDeLaSemana, manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type Cita, type FuncionReal,
 } from './logica.ts'
 
 type Trabajo = { id: string; tipo: string; agente_id: string; autorizacion_id: string | null }
@@ -140,6 +140,7 @@ Deno.serve(async (req: Request) => {
         // Mateo respeta el máximo de prospectos de la campaña.
         let cupo = 0
         let osmCorrio = false
+        const motivosOsm: string[] = []
         if (esMateo) {
           const { count: existentes } = await admin.from('growth_prospectos').select('id', { count: 'exact', head: true }).eq('campana_id', t.autorizacion_id).eq('es_ficticio', false)
           cupo = cupoRestante(alcance.max_prospectos, existentes ?? 0)
@@ -152,12 +153,20 @@ Deno.serve(async (req: Request) => {
             try {
               const { data: previos } = await admin.from('growth_prospectos').select('nombre_comercial').limit(5000)
               const excluidos = new Set(((previos ?? []) as { nombre_comercial: string }[]).map(p => normNombre(p.nombre_comercial)))
-              const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 35_000)
-              const r = await fetch('https://overpass-api.de/api/interpreter', {
-                method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'RestaurantOSCentral/1.0' },
-                body: 'data=' + encodeURIComponent(consultaOverpass(ciudad)),
-              }).finally(() => clearTimeout(timer))
-              if (r.ok) {
+              // Dos servidores públicos del mismo mapa: si uno está saturado (502/504) o tarda, se prueba el otro.
+              let r: Response | null = null
+              for (const servidor of SERVIDORES_OVERPASS) {
+                const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 30_000)
+                try {
+                  const x = await fetch(servidor, {
+                    method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'RestaurantOSCentral/1.0' },
+                    body: 'data=' + encodeURIComponent(consultaOverpass(ciudad)),
+                  })
+                  if (x.ok) { r = x; break }
+                  motivosOsm.push(`${new URL(servidor).host} ${x.status}`)
+                } catch { motivosOsm.push(`${new URL(servidor).host} sin respuesta`) } finally { clearTimeout(timer) }
+              }
+              if (r) {
                 osmCorrio = true
                 const lista = negociosDeOsm(await r.json().catch(() => null), excluidos, cupo)
                 if (lista.length) {
@@ -264,7 +273,7 @@ Deno.serve(async (req: Request) => {
         if (!resp) {
           // Si el mapa abierto ya se consultó y no hay nada nuevo, no es una falla: simplemente hoy no hay más para anotar.
           if (esMateo && osmCorrio) { await cerrar(true, { creados: 0, motivo: 'El mapa abierto ya no tiene negocios nuevos para esta zona y la búsqueda con IA no pudo correr.' }, null, 0); continue }
-          await cerrar(false, null, `El proveedor de IA no respondió. ${fallos.join(' · ')}`.slice(0, 480), 0); continue
+          await cerrar(false, null, `${motivosOsm.length ? `Mapa abierto: ${motivosOsm.join(', ')}. ` : ''}La IA no respondió. ${fallos.join(' · ')}`.slice(0, 480), 0); continue
         }
         const costo = resp.costo
         const crudo = extraerJson(resp.texto)

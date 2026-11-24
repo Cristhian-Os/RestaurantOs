@@ -172,7 +172,7 @@ console.log('central-trabajador (Gemini): todo OK')
 import { ciudadSegura, consultaOverpass, negociosDeOsm, normNombre } from './logica.ts'
 assert.equal(ciudadSegura('Armenia y alrededores'), 'Armenia'); assert.equal(ciudadSegura('Armenia, Quindío'), 'Armenia'); assert.equal(ciudadSegura('Pereira'), 'Pereira')
 assert.equal(ciudadSegura('x"]; drop'), null); assert.equal(ciudadSegura(''), null); assert.equal(ciudadSegura('A'), null)
-assert.match(consultaOverpass('Armenia'), /"name"="Armenia"/); assert.match(consultaOverpass('Armenia', 99999), /out center tags 800;/)
+assert.match(consultaOverpass('Armenia'), /\(4\.42,-75\.8,4\.64,-75\.6\)/, 'Armenia usa recuadro'); assert.match(consultaOverpass('Pereira'), /"name"="Pereira"/, 'otras ciudades, por nombre'); assert.match(consultaOverpass('Armenia', 99999), /out center tags 800;/)
 assert.equal(normNombre('  Pizzería  ROMA!! '), 'pizzeria roma')
 const osm = { elements: [
   { type: 'node', id: 1, tags: { name: 'Pizzería Roma', amenity: 'restaurant', phone: '+57 310 1234567; 3001112222', website: 'https://roma.co', 'addr:street': 'Calle 14', 'addr:housenumber': '12-30', email: 'HOLA@roma.co' } },
