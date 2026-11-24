@@ -107,23 +107,28 @@ Deno.serve(async (req: Request) => {
     const turnos = armarTurnos(((msgs ?? []) as { autor_tipo: string; contenido: string }[]).reverse())
     if (!turnos.length) return no('peticion')
 
-    let r: RespuestaModelo
-    try {
-      r = await llamar(proveedor, clave(proveedor), modelo, sistemaAgente({ nombre: agente.nombre, rol: agente.rol, especialidad: agente.especialidad, objetivos: agente.objetivos, nivel: agente.nivel }, area?.nombre ?? 'Central'),
-        turnos, MAX_TOKENS_RESPUESTA, 25_000)
-    } catch (e) {
-      return no('proveedor_falla', 502, e instanceof Error ? e.message.slice(0, 120) : undefined)
+    // Si el proveedor principal falla (sin saldo, 404, caída), se prueba con los demás que tengan llave, en vez de dejarte sin respuesta.
+    const sistema = sistemaAgente({ nombre: agente.nombre, rol: agente.rol, especialidad: agente.especialidad, objetivos: agente.objetivos, nivel: agente.nivel }, area?.nombre ?? 'Central')
+    const orden = [proveedor, ...PROVEEDORES.filter(p => p.id !== proveedor.id && clave(p) !== '')].slice(0, 3)
+    let r: RespuestaModelo | null = null
+    let usado = { proveedor, modelo }
+    let ultimoError: string | undefined
+    for (const p of orden) {
+      const m = modeloDe(p, cfg.ia_modelos)
+      try { r = await llamar(p, clave(p), m, sistema, turnos, MAX_TOKENS_RESPUESTA, 25_000); usado = { proveedor: p, modelo: m }; break }
+      catch (e) { ultimoError = e instanceof Error ? e.message.slice(0, 120) : undefined }
     }
+    if (!r) return no('proveedor_falla', 502, ultimoError)
     const texto = r.texto.slice(0, 4000)
     if (!texto) return no('vacio', 502)
 
     // El gasto se anota PRIMERO: aunque falle el guardado del mensaje, queda registrado lo que costó.
-    const costo = costoEstimado(r.tokensEntrada, r.tokensSalida, cfg.ia_precios, proveedor.id)
-    await admin.from('central_consumo').insert({ agente_id: agente.id, periodo, proveedor: `${proveedor.id}:${modelo}`.slice(0, 80), tokens: r.tokensEntrada + r.tokensSalida, costo })
+    const costo = costoEstimado(r.tokensEntrada, r.tokensSalida, cfg.ia_precios, usado.proveedor.id)
+    await admin.from('central_consumo').insert({ agente_id: agente.id, periodo, proveedor: `${usado.proveedor.id}:${usado.modelo}`.slice(0, 80), tokens: r.tokensEntrada + r.tokensSalida, costo })
     const { data: guardado, error: errMsg } = await admin.from('central_mensajes')
       .insert({ conversacion_id: conversacionId, autor_tipo: 'agente', autor_id: agente.id, contenido: texto, modo: 'real' }).select('id').single()
     if (errMsg) return no('vacio', 500)
-    return out({ ok: true, mensaje_id: guardado?.id ?? null, proveedor: proveedor.id, modelo, costo })
+    return out({ ok: true, mensaje_id: guardado?.id ?? null, proveedor: usado.proveedor.id, modelo: usado.modelo, costo })
   } catch {
     return out({ ok: false, error: 'interno', mensaje: 'Algo falló en el servidor. Inténtalo de nuevo.' }, 500)
   }

@@ -278,3 +278,47 @@ export function citasGemini(chunks: unknown): Cita[] {
   }
   return out
 }
+
+// ───────────────────────── Mateo con datos abiertos (OpenStreetMap): sin IA, sin costo, con enlace público a cada dato ─────────────────────────
+// Solo lee lo que la gente ya publicó en el mapa abierto (nombre, dirección y, si está, teléfono, web o correo del negocio). No inventa nada.
+export interface NegocioOsm { nombre_comercial: string; ubicacion_publica: string; segmento: string; fuente_url: string; telefono?: string; web?: string; correo?: string }
+
+/** Ciudad apta para la consulta (solo letras): "Armenia y alrededores" → "Armenia". null si no es segura. Evita meter instrucciones en la consulta. */
+export function ciudadSegura(c: unknown): string | null {
+  const primera = String(c ?? '').split(/,| y |\/|\(/i)[0].trim()
+  return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]{2,39}$/.test(primera) ? primera : null
+}
+export function consultaOverpass(ciudad: string, limite = 400): string {
+  return `[out:json][timeout:25];\narea["boundary"="administrative"]["admin_level"="6"]["name"="${ciudad}"]->.a;\nnwr(area.a)["amenity"~"^(restaurant|fast_food|cafe)$"]["name"];\nout center tags ${Math.min(Math.max(limite, 1), 800)};`
+}
+export const normNombre = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+const SEG: Record<string, string> = { restaurant: 'Restaurante', fast_food: 'Comida rápida', cafe: 'Cafetería' }
+const TEL = /^\+?\d[\d\s().-]{5,17}\d$/
+const MAIL = /^[^\s@;]{1,64}@[^\s@;]{1,200}\.[a-z]{2,}$/i
+
+export function negociosDeOsm(raw: unknown, excluidos: Set<string>, cupo: number): NegocioOsm[] {
+  const els = raw && typeof raw === 'object' && Array.isArray((raw as { elements?: unknown }).elements) ? (raw as { elements: unknown[] }).elements : []
+  const vistos = new Set<string>(), out: (NegocioOsm & { _p: number })[] = []
+  for (const e of els) {
+    const o = (e && typeof e === 'object' ? e : {}) as { type?: unknown; id?: unknown; tags?: Record<string, unknown> }
+    const t = o.tags ?? {}
+    if (!['node', 'way', 'relation'].includes(String(o.type)) || !Number.isInteger(o.id)) continue
+    const nombre = txt(t.name, 160)
+    if (nombre.length < 2 || t.brand || t['brand:wikidata']) continue                    // cadenas con marca: no son independientes
+    const clave = normNombre(nombre)
+    if (!clave || vistos.has(clave) || excluidos.has(clave)) continue
+    vistos.add(clave)
+    const tel = txt(String(t.phone ?? t['contact:phone'] ?? '').split(';')[0], 40)
+    const web = txt(String(t.website ?? t['contact:website'] ?? '').split(';')[0], 300)
+    const mail = txt(String(t.email ?? t['contact:email'] ?? '').split(';')[0], 200)
+    const ubic = txt([t['addr:street'], t['addr:housenumber'], t['addr:suburb'] ?? t['addr:neighbourhood']].filter(Boolean).join(' '), 300)
+    const n: NegocioOsm = {
+      nombre_comercial: nombre, ubicacion_publica: ubic, segmento: SEG[String(t.amenity)] ?? 'Restaurante',
+      fuente_url: `https://www.openstreetmap.org/${o.type}/${o.id}`,
+      ...(TEL.test(tel) ? { telefono: tel } : {}), ...(/^https?:\/\//i.test(web) && hostDe(web) ? { web } : {}), ...(MAIL.test(mail) ? { correo: mail.toLowerCase() } : {}),
+    }
+    out.push({ ...n, _p: (n.telefono ? 1 : 0) + (n.web ? 1 : 0) + (n.correo ? 2 : 0) + (ubic ? 1 : 0) })
+  }
+  out.sort((a, b) => b._p - a._p || a.nombre_comercial.localeCompare(b.nombre_comercial))
+  return out.slice(0, Math.max(0, cupo)).map(({ _p, ...n }) => n)
+}

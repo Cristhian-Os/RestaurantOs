@@ -167,3 +167,26 @@ assert.deepEqual(vg.aceptados.map(c => c.nombre_comercial), ['Pizzería Roma']);
 assert.deepEqual(vg.descartados.map(d => d.motivo), ['fuente_no_verificada', 'fuente_no_verificada'])
 assert.equal(validarCandidatos(crudoG, [], {}, 5, true).aceptados.length, 0, 'sin citas no se acepta nada')
 console.log('central-trabajador (Gemini): todo OK')
+
+// ── OpenStreetMap ──
+import { ciudadSegura, consultaOverpass, negociosDeOsm, normNombre } from './logica.ts'
+assert.equal(ciudadSegura('Armenia y alrededores'), 'Armenia'); assert.equal(ciudadSegura('Armenia, Quindío'), 'Armenia'); assert.equal(ciudadSegura('Pereira'), 'Pereira')
+assert.equal(ciudadSegura('x"]; drop'), null); assert.equal(ciudadSegura(''), null); assert.equal(ciudadSegura('A'), null)
+assert.match(consultaOverpass('Armenia'), /"name"="Armenia"/); assert.match(consultaOverpass('Armenia', 99999), /out center tags 800;/)
+assert.equal(normNombre('  Pizzería  ROMA!! '), 'pizzeria roma')
+const osm = { elements: [
+  { type: 'node', id: 1, tags: { name: 'Pizzería Roma', amenity: 'restaurant', phone: '+57 310 1234567; 3001112222', website: 'https://roma.co', 'addr:street': 'Calle 14', 'addr:housenumber': '12-30', email: 'HOLA@roma.co' } },
+  { type: 'way', id: 2, tags: { name: 'Café del Parque', amenity: 'cafe' } },
+  { type: 'node', id: 3, tags: { name: 'McDonalds', amenity: 'fast_food', brand: 'McDonalds' } },
+  { type: 'node', id: 4, tags: { name: 'pizzeria roma', amenity: 'restaurant' } },
+  { type: 'node', id: 5, tags: { name: 'Asadero Ya Existe', amenity: 'restaurant' } },
+  { type: 'node', id: 6, tags: { name: 'Sin teléfono válido', amenity: 'restaurant', phone: 'abc', website: 'javascript:alert(1)', email: 'no es correo' } },
+  { type: 'ocean', id: 7, tags: { name: 'Raro' } }, { type: 'node', id: 'x', tags: { name: 'Id malo' } }, null, 'basura',
+] }
+const nn = negociosDeOsm(osm, new Set([normNombre('Asadero Ya Existe')]), 10)
+assert.deepEqual(nn.map(n => n.nombre_comercial), ['Pizzería Roma', 'Café del Parque', 'Sin teléfono válido'], 'sin cadenas, sin repetidos, sin ya existentes; primero los de mejor contacto')
+assert.equal(nn[0].telefono, '+57 310 1234567'); assert.equal(nn[0].correo, 'hola@roma.co'); assert.equal(nn[0].ubicacion_publica, 'Calle 14 12-30')
+assert.equal(nn[0].fuente_url, 'https://www.openstreetmap.org/node/1'); assert.equal(nn[1].segmento, 'Cafetería')
+assert.equal(nn[2].telefono, undefined); assert.equal(nn[2].web, undefined); assert.equal(nn[2].correo, undefined, 'datos mal formados no se guardan')
+assert.equal(negociosDeOsm(osm, new Set(), 1).length, 1, 'respeta el cupo'); assert.deepEqual(negociosDeOsm(null, new Set(), 5), [])
+console.log('central-trabajador (OpenStreetMap): todo OK')

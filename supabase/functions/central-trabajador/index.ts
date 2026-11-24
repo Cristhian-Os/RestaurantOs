@@ -13,7 +13,7 @@ import { cargarLlaves } from '../_shared/central_llaves.ts'
 import { costoEstimado, modeloDe, proveedorPorId } from '../central-agente/logica.ts'
 import {
   MAX_RESULTADOS_WEB, MAX_TOKENS_BUSQUEDA, armarPedido, armarPedidoContenido, citasDeRespuesta, claveTrabajoDiario, costoCorrida, cupoRestante, extraerJson,
-  armarPlan, citasGemini, lunesDeLaSemana, manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type Cita, type FuncionReal,
+  armarPlan, ciudadSegura, citasGemini, consultaOverpass, negociosDeOsm, normNombre, lunesDeLaSemana, manifiestoValido, planSincronizacion, textoDocumento, validarCandidatos, validarPieza, type Alcance, type Cita, type FuncionReal,
 } from './logica.ts'
 
 type Trabajo = { id: string; tipo: string; agente_id: string; autorizacion_id: string | null }
@@ -139,10 +139,49 @@ Deno.serve(async (req: Request) => {
 
         // Mateo respeta el máximo de prospectos de la campaña.
         let cupo = 0
+        let osmCorrio = false
         if (esMateo) {
           const { count: existentes } = await admin.from('growth_prospectos').select('id', { count: 'exact', head: true }).eq('campana_id', t.autorizacion_id).eq('es_ficticio', false)
           cupo = cupoRestante(alcance.max_prospectos, existentes ?? 0)
           if (cupo === 0) { await cerrar(true, { creados: 0, motivo: 'La campaña ya llegó a su máximo de prospectos.' }, null, 0); continue }
+
+          // 1.º datos abiertos (OpenStreetMap): gratis, sin IA y con enlace público a cada dato. Si hay negocios nuevos, el trabajo termina aquí.
+          // Si no los hay, se intenta la búsqueda con IA (que puede no tener saldo o cupo).
+          const ciudad = ciudadSegura(alcance.ciudad)
+          if (ciudad) {
+            try {
+              const { data: previos } = await admin.from('growth_prospectos').select('nombre_comercial').limit(5000)
+              const excluidos = new Set(((previos ?? []) as { nombre_comercial: string }[]).map(p => normNombre(p.nombre_comercial)))
+              const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 35_000)
+              const r = await fetch('https://overpass-api.de/api/interpreter', {
+                method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'RestaurantOSCentral/1.0' },
+                body: 'data=' + encodeURIComponent(consultaOverpass(ciudad)),
+              }).finally(() => clearTimeout(timer))
+              if (r.ok) {
+                osmCorrio = true
+                const lista = negociosDeOsm(await r.json().catch(() => null), excluidos, cupo)
+                if (lista.length) {
+                  const permiso = await admin.rpc('central_trabajo_puede', { p_id: t.id })
+                  if (!permiso.data?.puede) { await cerrar(false, null, `Bloqueado: ${permiso.data?.motivo ?? 'sin permiso'}`, 0); continue }
+                  let creados = 0, duplicados = 0, fallos = 0
+                  for (const n of lista) {
+                    const { error } = await admin.from('growth_prospectos').insert({
+                      nombre_comercial: n.nombre_comercial, ciudad, ubicacion_publica: n.ubicacion_publica, segmento: n.segmento,
+                      fuente: 'OpenStreetMap (datos abiertos). Sin verificar por una persona', fuente_url: n.fuente_url,
+                      telefono: n.telefono ?? null, web: n.web ?? null, correo: n.correo ?? null, campana_id: t.autorizacion_id, responsable_agente_id: 'mateo',
+                      proxima_accion: 'Verificar que existe y completar su contacto público antes de investigarlo', es_ficticio: false,
+                    })
+                    if (!error) creados++
+                    else if (error.code === '23505') duplicados++
+                    else fallos++
+                  }
+                  await cerrar(true, { fuente: 'OpenStreetMap', creados, duplicados, fallos }, null, 0)
+                  if (creados > 0) await aviso(`🔎 Mateo encontró ${creados} negocio(s) nuevo(s) en el mapa abierto (OpenStreetMap). Míralos en Central → Prospectos y verifica cuáles valen la pena.`)
+                  continue
+                }
+              }
+            } catch { /* se sigue con la búsqueda con IA */ }
+          }
         }
 
         // Proveedores que saben hacer este trabajo: OpenRouter (búsqueda web, con crédito) y Gemini (búsqueda de Google, con cupo gratuito).
@@ -222,7 +261,11 @@ Deno.serve(async (req: Request) => {
           if (r.ok) { resp = r; break }
           fallos.push(`${id}: ${r.motivo}`)
         }
-        if (!resp) { await cerrar(false, null, `El proveedor de IA no respondió. ${fallos.join(' · ')}`.slice(0, 480), 0); continue }
+        if (!resp) {
+          // Si el mapa abierto ya se consultó y no hay nada nuevo, no es una falla: simplemente hoy no hay más para anotar.
+          if (esMateo && osmCorrio) { await cerrar(true, { creados: 0, motivo: 'El mapa abierto ya no tiene negocios nuevos para esta zona y la búsqueda con IA no pudo correr.' }, null, 0); continue }
+          await cerrar(false, null, `El proveedor de IA no respondió. ${fallos.join(' · ')}`.slice(0, 480), 0); continue
+        }
         const costo = resp.costo
         const crudo = extraerJson(resp.texto)
         if (!crudo) { await cerrar(false, null, 'La respuesta de la IA no tuvo el formato esperado.', costo); continue }
