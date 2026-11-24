@@ -177,8 +177,12 @@ Deno.serve(async (req: Request) => {
           })
         } finally { clearTimeout(timer) }
         const costoTokens = (j: RespIA | null) => costoEstimado(Number(j?.usage?.prompt_tokens) || 0, Number(j?.usage?.completion_tokens) || 0, cfg.ia_precios, 'openrouter')
-        const costoBase = esMateo ? costoCorrida(0) : 0.001   // Mateo paga además la búsqueda web; se cobra aunque la respuesta no sirva
-        if (!r.ok) { await cerrar(false, null, `El proveedor respondió ${r.status}.`, costoBase); continue }
+        if (!r.ok) {
+          // Una llamada rechazada no consumió nada: no se cuenta gasto. Se deja el motivo que dio el proveedor (recortado) para poder diagnosticar.
+          const motivo = await r.json().then((j: { error?: { message?: unknown } }) => String(j?.error?.message ?? '').replace(/\s+/g, ' ').slice(0, 140)).catch(() => '')
+          await cerrar(false, null, `El proveedor respondió ${r.status}${motivo ? `: ${motivo}` : ''}.`, 0)
+          continue
+        }
         const j = await r.json() as RespIA
         const costo = esMateo ? costoCorrida(costoTokens(j)) : Math.max(0.001, costoTokens(j))
         const msg = j.choices?.[0]?.message
