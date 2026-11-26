@@ -7,13 +7,15 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from '../services/supabaseClient'
+import { agenteTrabajando } from './catalogo.ts'
 import type {
   Agente, Aprobacion, Consumo, Conversacion, Departamento, Documento, Integracion, Memoria, Notificacion, Proyecto,
-  RestauranteCentral, Reunion, Tarea, Ubicacion,
+  RestauranteCentral, Reunion, Tarea, TrabajoReciente, Ubicacion,
 } from './catalogo.ts'
 
 export interface Datos {
   departamentos: Departamento[]; agentes: Agente[]; tareas: Tarea[]; aprobaciones: Aprobacion[]; proyectos: Proyecto[]
+  trabajos: TrabajoReciente[]
   conversaciones: Conversacion[]; reuniones: Reunion[]; notificaciones: Notificacion[]; documentos: Documento[]; memoria: Memoria[]
   integraciones: Integracion[]; consumo: Consumo[]; ubicaciones: Ubicacion[]; restaurantes: RestauranteCentral[]
   config: Record<string, unknown>
@@ -29,12 +31,13 @@ const EN_VIVO: Record<string, { clave: keyof Datos; pedir: () => PromiseLike<{ d
   central_aprobaciones: { clave: 'aprobaciones', pedir: () => supabase.from('central_aprobaciones').select('*').order('created_at', { ascending: false }).limit(200) },
   central_notificaciones: { clave: 'notificaciones', pedir: () => supabase.from('central_notificaciones').select('*').order('created_at', { ascending: false }).limit(100) },
   central_consumo: { clave: 'consumo', pedir: () => supabase.from('central_consumo').select('*').order('periodo', { ascending: false }).limit(1000) },
+  central_trabajos: { clave: 'trabajos', pedir: () => supabase.from('central_trabajos').select('agente_id, estado, updated_at').order('updated_at', { ascending: false }).limit(60) },
 }
 /** Espera para juntar varios cambios seguidos en una sola recarga. */
 const ESPERA_AGRUPAR_MS = 300
 
 const VACIO: Datos = {
-  departamentos: [], agentes: [], tareas: [], aprobaciones: [], proyectos: [], conversaciones: [], reuniones: [], notificaciones: [],
+  departamentos: [], agentes: [], tareas: [], aprobaciones: [], proyectos: [], trabajos: [], conversaciones: [], reuniones: [], notificaciones: [],
   documentos: [], memoria: [], integraciones: [], consumo: [], ubicaciones: [], restaurantes: [], config: {},
 }
 
@@ -67,7 +70,7 @@ export function CentralDatos({ children }: { children: ReactNode }) {
     if (!silencioso) setEstado('cargando')
     try {
       const q = <T,>(p: PromiseLike<{ data: unknown; error: { code?: string } | null }>) => p.then(r => ({ filas: (r.data ?? []) as T[], error: r.error }))
-      const [{ data: u }, dep, ag, ta, ap, pr, co, re, no, doc, me, inte, con, ub, cfg, rest] = await Promise.all([
+      const [{ data: u }, dep, ag, ta, ap, pr, co, re, no, doc, me, inte, con, ub, cfg, rest, tr] = await Promise.all([
         supabase.auth.getUser(),
         q<Departamento>(supabase.from('central_departamentos').select('*').order('anillo').order('orden')),
         q<Agente>(supabase.from('central_agentes').select('*').order('orden')),
@@ -84,6 +87,7 @@ export function CentralDatos({ children }: { children: ReactNode }) {
         q<Ubicacion>(supabase.from('central_ubicaciones').select('*')),
         q<{ clave: string; valor: unknown }>(supabase.from('central_config').select('*')),
         supabase.rpc('central_restaurantes').then(r => ({ filas: (Array.isArray(r.data) ? r.data : []) as RestauranteCentral[], error: r.error as { code?: string } | null })),
+        q<TrabajoReciente>(supabase.from('central_trabajos').select('agente_id, estado, updated_at').order('updated_at', { ascending: false }).limit(60)),   // si la cola aún no está instalada, simplemente no hay trabajos
       ])
       if (!vivo.current) return
       if (dep.error && SIN_TABLA.has(dep.error.code ?? '')) { setEstado('no_instalado'); return }
@@ -92,7 +96,7 @@ export function CentralDatos({ children }: { children: ReactNode }) {
       setUserId(u.user?.id ?? null)
       setRestaurantesDisponibles(!rest.error)
       setDatos({
-        departamentos: dep.filas, agentes: ag.filas, tareas: ta.filas, aprobaciones: ap.filas, proyectos: pr.filas, conversaciones: co.filas,
+        departamentos: dep.filas, agentes: ag.filas, tareas: ta.filas, aprobaciones: ap.filas, proyectos: pr.filas, trabajos: tr.error ? [] : tr.filas, conversaciones: co.filas,
         reuniones: re.filas, notificaciones: no.filas, documentos: doc.filas, memoria: me.filas, integraciones: inte.filas, consumo: con.filas,
         ubicaciones: ub.filas, restaurantes: rest.filas, config: Object.fromEntries(cfg.filas.map(f => [f.clave, f.valor])),
       })
@@ -154,7 +158,12 @@ export function CentralDatos({ children }: { children: ReactNode }) {
     return error
   }, [cargar])
 
-  const valor = useMemo<Ctx>(() => ({ datos, estado, restaurantesDisponibles, userId, enVivo, recargar, hacer }), [datos, estado, restaurantesDisponibles, userId, enVivo, recargar, hacer])
+  // A cada agente se le agrega, sin tocar la base, si está trabajando de verdad (según la cola de trabajos).
+  const datosVista = useMemo<Datos>(() => {
+    const ahora = Date.now()
+    return { ...datos, agentes: datos.agentes.map(a => ({ ...a, trabajando: agenteTrabajando(a.id, datos.trabajos, ahora) })) }
+  }, [datos])
+  const valor = useMemo<Ctx>(() => ({ datos: datosVista, estado, restaurantesDisponibles, userId, enVivo, recargar, hacer }), [datosVista, estado, restaurantesDisponibles, userId, enVivo, recargar, hacer])
   return <CentralCtx.Provider value={valor}>{children}</CentralCtx.Provider>
 }
 

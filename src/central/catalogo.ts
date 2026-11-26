@@ -18,6 +18,8 @@ export interface Agente {
   id: string; nombre: string; departamento_id: string; rol: 'chef_mayor' | 'jefe' | 'subordinado' | 'asistente'
   especialidad: string; objetivos: string[]; ciclo: Ciclo; nivel: NivelAgente; proveedor_estado: Proveedor
   modelos: string[]; herramientas: string[]; presupuesto_mensual: number; reporta_a: string | null; orden: number
+  /** Calculado en pantalla (no viene de la base): tiene un trabajo en marcha o terminado en las últimas 24 h. */
+  trabajando?: boolean
 }
 export interface Proyecto {
   id: string; nombre: string; descripcion: string; estado: 'planeado' | 'en_curso' | 'pausado' | 'completado' | 'cancelado'
@@ -99,18 +101,28 @@ export const NIVELES_INFO: Record<Nivel, { titulo: string; resumen: string; quie
   N3: { titulo: 'N3 · Solo humano', resumen: 'Borrado destructivo, seguridad, dinero crítico, cuenta principal y despliegues a producción.', quien: 'Solo tú' },
 }
 
-/** Estado visual de un agente (Activo, Atención, Razonamiento, Incidencia, Inactivo): sale de su ciclo real, nunca se inventa. */
-export interface EstadoVisual { id: 'activo' | 'atencion' | 'razonamiento' | 'incidencia' | 'inactivo'; etiqueta: string; color: string }
+/** Un trabajo reciente de un agente (cola de trabajos del servidor). Solo lo necesario para saber si está trabajando. */
+export interface TrabajoReciente { agente_id: string; estado: string; updated_at: string }
+const DIA_MS = 86_400_000
+/** ¿El agente está trabajando de verdad? Sí si tiene un trabajo en marcha o uno terminado bien en las últimas 24 horas. */
+export function agenteTrabajando(agenteId: string, trabajos: TrabajoReciente[], ahora: number = Date.now()): boolean {
+  return trabajos.some(t => t.agente_id === agenteId && (t.estado === 'running' || (t.estado === 'succeeded' && ahora - new Date(t.updated_at).getTime() < DIA_MS)))
+}
+
+/** Estado visual de un agente (Activo, Trabajando, Atención, Razonamiento, Incidencia, Inactivo): sale de su ciclo y de su trabajo real, nunca se inventa. */
+export interface EstadoVisual { id: 'activo' | 'trabajando' | 'atencion' | 'razonamiento' | 'incidencia' | 'inactivo'; etiqueta: string; color: string }
 export const ESTADOS_VISUALES: EstadoVisual[] = [
   { id: 'activo', etiqueta: 'Activo', color: '#34C759' },
+  { id: 'trabajando', etiqueta: 'Trabajando', color: '#34C759' },
   { id: 'atencion', etiqueta: 'Atención', color: '#FACC15' },
   { id: 'razonamiento', etiqueta: 'Razonamiento', color: '#A855F7' },
   { id: 'incidencia', etiqueta: 'Incidencia', color: '#EF4444' },
   { id: 'inactivo', etiqueta: 'Inactivo', color: '#9CA3AF' },
 ]
-export function estadoVisual(a: Pick<Agente, 'ciclo' | 'proveedor_estado'>): EstadoVisual {
+export function estadoVisual(a: Pick<Agente, 'ciclo' | 'proveedor_estado' | 'trabajando'>): EstadoVisual {
   const por = (id: EstadoVisual['id']) => ESTADOS_VISUALES.find(e => e.id === id) as EstadoVisual
   if (a.ciclo === 'suspendido') return por('incidencia')
+  if (a.trabajando && a.proveedor_estado === 'activo') return por('trabajando')   // trabaja de verdad (trabajo en marcha o terminado hoy), aunque su ciclo siga en «diseñado»
   if (a.ciclo === 'activo') return por(a.proveedor_estado === 'activo' ? 'activo' : 'razonamiento')   // en simulación local no es un agente real
   if (a.ciclo === 'configuracion' || a.ciclo === 'pruebas' || a.ciclo === 'en_revision') return por('atencion')
   return por('inactivo')
