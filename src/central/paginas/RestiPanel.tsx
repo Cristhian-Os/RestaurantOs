@@ -1,6 +1,6 @@
 /**
  * RestiPanel.tsx — panel de Resti, el asistente personal de Cristhian (botón flotante en todo Central).
- * Hoy responde en "Simulación local" (sin modelo de IA conectado); la conversación queda guardada como la de cualquier agente.
+ * Responde con IA real si la IA está encendida y Resti está conectada; si no, en "Simulación local" (con aviso). La conversación queda guardada como la de cualquier agente.
  */
 import { useEffect, useState } from 'react'
 import { Modal } from '../../components/ui/Modal'
@@ -12,7 +12,7 @@ import { AvisoHonesto, ErrorAccion } from '../ui.tsx'
 import { Chat } from './Chat'
 
 export function RestiPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { hacer } = useCentral()
+  const { datos, hacer } = useCentral()
   const { agente } = useIndices()
   const resti = agente('resti')
   const [conv, setConv] = useState<string | null>(null)
@@ -29,7 +29,9 @@ export function RestiPanel({ open, onClose }: { open: boolean; onClose: () => vo
     <Modal open={open} onClose={onClose} title="Resti · asistente personal">
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3"><RestiSprite estado="saludo" width={64} /><p className="m-0 text-[color:var(--w-text-2)]">Pregúntame por tareas, aprobaciones o restaurantes.</p></div>
-        <AvisoHonesto tono="warning">Resti aún no tiene un modelo de IA conectado: responde en <b>simulación local</b>, con los datos reales de Central.</AvisoHonesto>
+        {!(datos.config.ia_encendida === true && resti?.proveedor_estado === 'activo') && (
+          <AvisoHonesto tono="warning">Resti aún no tiene un modelo de IA conectado: responde en <b>simulación local</b>, con los datos reales de Central.</AvisoHonesto>
+        )}
         {!resti ? <StatePanel kind="empty" title="Resti no está registrada" text="Falta el agente “resti” en el organigrama." />
           : error ? <ErrorAccion texto={error} />
           : conv ? <Chat conversacionId={conv} agente={resti} vacio="Salúdame para empezar." />
