@@ -1,4 +1,4 @@
-// central-vigia: revisa la plataforma con datos REALES (restaurantes, suscripciones, pedidos, opiniones de usuarios),
+// central-vigia: revisa la plataforma con datos REALES (restaurantes, suscripciones, pedidos, opiniones de usuarios y errores que la app registra de sí misma),
 // convierte lo que encuentra en tareas propuestas para el agente responsable y te avisa por Telegram solo de lo NUEVO.
 // No escribe nada en los restaurantes ni contacta a nadie: solo lee y crea tareas en Central (estado "propuesta", nivel N0).
 // Quién puede llamarla: el dueño con su código de 2 pasos (botón "Revisar ahora") o la programación automática (cabecera secreta).
@@ -25,11 +25,13 @@ Deno.serve(async (req: Request) => {
 
     const ahora = new Date()
     const desde = new Date(ahora.getTime() - 3 * 86_400_000).toISOString()
-    const [rest, subs, ped, ops] = await Promise.all([
+    const [rest, subs, ped, ops, errs] = await Promise.all([
       admin.from('restaurants').select('id, name, active, created_at, trial_ends_at'),
       admin.from('subscriptions').select('restaurant_id, status, current_period_end, trial_ends_at, created_at').order('created_at', { ascending: false }),
       admin.from('orders').select('restaurant_id').neq('status', 'cancelled').gte('created_at', desde).limit(20000),
       admin.from('feedback_items').select('numero, titulo, urgencia, created_at, tipo').eq('estado', 'nuevo').limit(200),
+      // Errores de la app (si la tabla aún no está instalada, simplemente no hay): no frena la revisión del resto.
+      admin.from('app_errores').select('huella, origen, mensaje, ruta, veces, estado, primera_vez, ultima_vez').eq('estado', 'nuevo').order('veces', { ascending: false }).limit(100),
     ])
     if (rest.error || subs.error || ped.error || ops.error) return out({ ok: false, error: 'lectura', mensaje: 'No se pudieron leer los datos de la plataforma.' }, 500)
 
@@ -42,6 +44,7 @@ Deno.serve(async (req: Request) => {
     const datos: Datos = {
       ahora, restaurantes: (rest.data ?? []) as Datos['restaurantes'], suscripciones: [...ultimaSub.values()],
       pedidosPorRestaurante, opiniones: (ops.data ?? []) as Datos['opiniones'],
+      errores: errs.error ? [] : (errs.data ?? []) as Datos['errores'],
     }
     const hallazgos = evaluar(datos)
 
@@ -58,6 +61,9 @@ Deno.serve(async (req: Request) => {
       })
       if (!error) creados.push(h)
     }
+    // Los errores que ya se volvieron tarea pasan a "visto": no se repiten. Si uno resuelto vuelve a ocurrir, la base lo reabre como "nuevo".
+    const vistos = creados.filter(h => h.clave.startsWith('error:')).map(h => h.clave.slice('error:'.length))
+    if (vistos.length) await admin.from('app_errores').update({ estado: 'visto' }).in('huella', vistos).eq('estado', 'nuevo')
 
     let telegram: 'enviado' | 'sin_novedades' | 'sin_configurar' | 'falla' = 'sin_novedades'
     if (creados.length > 0) {

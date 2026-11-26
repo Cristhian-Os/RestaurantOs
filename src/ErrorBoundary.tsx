@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react'
+import { reportarError } from './lib/errorReporter'
 
 interface Props { children: ReactNode }
 interface State { hasError: boolean; error: string; stack: string }
@@ -18,6 +19,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    reportarError('react', error)   // avisa a Central que una pantalla se cayó
     // Log completo para diagnóstico
     console.error('═══ APP CRASH ═══')
     console.error('Error:', error.message)

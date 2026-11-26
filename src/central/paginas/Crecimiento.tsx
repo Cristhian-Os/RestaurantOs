@@ -161,7 +161,7 @@ function Autorizaciones() {
   return (
     <div className="flex flex-col gap-3">
       <TituloBloque>Autorizaciones de campaña</TituloBloque>
-      <AvisoHonesto>Antes de contactar a un prospecto debe existir una campaña activa con tu aprobación. Se puede revocar en cualquier momento. Aún no hay envíos conectados: activar una campaña no manda nada.</AvisoHonesto>
+      <AvisoHonesto>Antes de contactar a un prospecto debe existir una campaña activa con tu aprobación. Se puede revocar en cualquier momento. Central no hace envíos automáticos: activar una campaña no manda nada.</AvisoHonesto>
       {error && <ErrorAccion texto={error} />}
       {filas?.map(a => <TarjetaAutorizacion key={a.id} a={a} recargar={recargar} />)}
       {filas && filas.length === 0 && <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-3)]">Todavía no hay campañas.</p>}
@@ -208,7 +208,7 @@ function NoContactar() {
 export function Crecimiento() {
   return (
     <Pagina titulo="Crecimiento" subtitulo="Reglas y permisos antes de vender: qué se puede ofrecer, a quién se puede contactar y con qué autorización.">
-      <AvisoHonesto tono="warning">Todavía no hay envíos de correo ni publicaciones: nadie contacta a un prospecto. Los agentes solo investigan y proponen.</AvisoHonesto>
+      <AvisoHonesto tono="warning">Central no envía correos ni publica por sí sola: nadie contacta a un prospecto sin que tú lo hagas. Los agentes investigan, redactan borradores y proponen.</AvisoHonesto>
       <Funciones />
       <Autorizaciones />
       <PlanSemanal />

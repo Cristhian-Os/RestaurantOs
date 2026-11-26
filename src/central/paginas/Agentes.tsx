@@ -214,9 +214,13 @@ export function Agentes() {
   const [nuevo, setNuevo] = useState(false)
   if (ruta.id) return <Ficha id={ruta.id} />
   const lista = datos.agentes.filter(a => !area || a.departamento_id === area)
+  const conectados = datos.agentes.filter(a => a.proveedor_estado === 'activo').length
+  const conIA = datos.config.ia_encendida === true && conectados > 0
   return (
     <Pagina titulo="Agentes" subtitulo={`${datos.agentes.length} agentes en el organigrama aprobado`} acciones={<Button onClick={() => setNuevo(true)}>Nuevo agente</Button>}>
-      <AvisoHonesto>Todos los agentes están <b>diseñados, en N0 y sin conexión</b>. Ninguno actúa ni responde con inteligencia artificial hasta que tú configures y autorices un proveedor.</AvisoHonesto>
+      {conIA
+        ? <AvisoHonesto><b>{conectados} de {datos.agentes.length} agentes</b> están conectados y la IA está encendida: responden con inteligencia artificial real. Cada uno sigue limitado por su nivel, y lo que cambia precios, dinero o contratos lo apruebas tú.</AvisoHonesto>
+        : <AvisoHonesto>Ningún agente responde con inteligencia artificial todavía: hace falta encender la IA en Integraciones y conectar al agente en su ficha (Permisos).</AvisoHonesto>}
       <div className="max-w-xs"><Select label="Filtrar por departamento" value={area} onChange={e => setArea(e.target.value)}><option value="">Todos</option>{datos.departamentos.filter(d => datos.agentes.some(a => a.departamento_id === d.id)).map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}</Select></div>
       {lista.length === 0 ? <StatePanel kind="empty" title="Sin agentes en este filtro" /> : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{lista.map(a => <TarjetaAgente key={a.id} a={a} />)}</div>

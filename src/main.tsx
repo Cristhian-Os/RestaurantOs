@@ -6,6 +6,10 @@ import './index.css'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ErrorBoundary } from './ErrorBoundary'
 import { queryClient } from './services/queryClient'
+import { iniciarReporteErrores } from './lib/errorReporter'
+
+// Detector de errores: manda a Central los fallos que nadie capturó (silencioso, nunca rompe la app).
+iniciarReporteErrores()
 
 // ── Registrar Service Worker ───────────────────────────────────
 async function registerSW() {

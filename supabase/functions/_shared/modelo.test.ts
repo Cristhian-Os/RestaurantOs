@@ -92,4 +92,14 @@ assert.equal(await cargarProveedor(admin({})), null)
   assert.equal(llamadas.length, 1)
 }
 
+// Si el proveedor contesta con texto plano (no JSON), el error dice el estado HTTP real, no "Unexpected non-whitespace character after JSON"
+{
+  const textoPlano = (ok: boolean, status: number): Fetch => async () => ({ ok, status, json: async () => JSON.parse('404 page not found') })
+  for (const proveedor of ['compatible', 'gemini'] as const) {
+    const c = { proveedor, modelo: 'm', clave: 'k', urlBase: 'https://x.com' }
+    await assert.rejects(callModel(c, { sistema: 's', usuario: 'u' }, textoPlano(false, 404)), /respondió 404/, `${proveedor}: el estado real, no el error de JSON`)
+    await assert.rejects(callModel(c, { sistema: 's', usuario: 'u' }, textoPlano(true, 200)), /no devolvió una respuesta válida/, `${proveedor}: 200 sin JSON se explica`)
+  }
+}
+
 console.log('modelo.test OK')

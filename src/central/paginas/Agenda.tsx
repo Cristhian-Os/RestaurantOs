@@ -95,7 +95,7 @@ export function Agenda() {
   const cerradas = (citas ?? []).filter(c => !abiertas.includes(c))
   return (
     <Pagina titulo="Agenda comercial" subtitulo="Llamadas y demostraciones con prospectos.">
-      <AvisoHonesto tono="warning">Es una agenda interna: no hay calendario externo conectado y no se avisa a nadie. Una cita solo se confirma cuando el prospecto ya la aceptó, y lo dejas por escrito.</AvisoHonesto>
+      <AvisoHonesto tono="warning">Es una agenda interna: no se sincroniza con ningún calendario externo ni se avisa a nadie. Una cita solo se confirma cuando el prospecto ya la aceptó, y lo dejas por escrito.</AvisoHonesto>
       {error && <ErrorAccion texto={error} />}
       {!citas ? <StatePanel kind="loading" title="Cargando…" /> : (<>
         <div><Button size="sm" onClick={() => setNueva(v => !v)}>{nueva ? 'Cerrar' : 'Nueva cita'}</Button></div>

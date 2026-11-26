@@ -46,7 +46,7 @@ export function Mision() {
   const previas = (filas ?? []).filter(m => m.fecha !== hoyCol())
   return (
     <Pagina titulo="Misión del día" subtitulo="Una sola cosa importante para hoy, elegida con datos reales.">
-      <AvisoHonesto>La misión se elige por reglas simples (cita de hoy, tareas urgentes, seguimientos vencidos…), sin inteligencia artificial. Se crea sola a las 7:00 a. m. y el cierre llega a las 7:30 p. m. por Telegram.</AvisoHonesto>
+      <AvisoHonesto>La misión se elige por reglas simples (cita de hoy, tareas urgentes, seguimientos vencidos…), sin inteligencia artificial. Se crea sola a las 7:00 a. m. y el cierre llega a las 7:30 p. m. por Telegram, de lunes a sábado.</AvisoHonesto>
       {error && <ErrorAccion texto={error} />}
       {!filas ? <StatePanel kind="loading" title="Cargando…" /> : (<>
         {!hoy ? (

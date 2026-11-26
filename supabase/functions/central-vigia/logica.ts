@@ -4,13 +4,18 @@
 export interface Restaurante { id: string; name: string; active: boolean; created_at: string; trial_ends_at: string | null }
 export interface Suscripcion { restaurant_id: string; status: string; current_period_end: string | null; trial_ends_at: string | null }
 export interface Opinion { numero: number; titulo: string; urgencia: string | null; created_at: string; tipo: string | null }
+/** Un error que la app registró de sí misma (tabla app_errores). */
+export interface ErrorApp { huella: string; origen: string; mensaje: string; ruta: string; veces: number; estado: string; primera_vez: string; ultima_vez: string }
 export interface Datos {
   ahora: Date
   restaurantes: Restaurante[]
   suscripciones: Suscripcion[]                 // la más reciente de cada restaurante
   pedidosPorRestaurante: Record<string, number> // pedidos no cancelados en los últimos 3 días
   opiniones: Opinion[]                          // opiniones con estado "nuevo"
+  errores?: ErrorApp[]                          // errores de la app con estado "nuevo"
 }
+/** Máximo de tareas de error por revisión: si algo explota, no se inunda Central. */
+export const MAX_ERRORES_POR_REVISION = 10
 export interface Hallazgo {
   clave: string          // estable: sirve para no repetir la misma tarea
   titulo: string; detalle: string
@@ -55,6 +60,20 @@ export function evaluar(d: Datos): Hallazgo[] {
     if (urgente || horas >= 12) {
       h.push({ clave: `opinion:${o.numero}`, titulo: `Opinión #${o.numero} sin atender: ${o.titulo}`.slice(0, 160), detalle: `${o.tipo ?? 'Opinión'} ${urgente ? 'urgente' : 'sin respuesta hace ' + Math.floor(horas) + ' h'}. Revisarla en Opinión y responder al usuario.`, agente: 'sofia', departamento: 'soporte', prioridad: urgente ? 'P1' : 'P2' })
     }
+  }
+  // Errores técnicos de la app: una pantalla que se cae (react) siempre cuenta; un error suelto de una sola vez es ruido y espera a repetirse.
+  const errores = (d.errores ?? [])
+    .filter(e => e.estado === 'nuevo' && (e.origen === 'react' || e.veces >= 2))
+    .sort((a, b) => b.veces - a.veces)
+    .slice(0, MAX_ERRORES_POR_REVISION)
+  for (const e of errores) {
+    const cae = e.origen === 'react'
+    h.push({
+      clave: `error:${e.huella}`,
+      titulo: `Error en la app: ${e.mensaje}`.slice(0, 160),
+      detalle: `${cae ? 'Se cayó una pantalla' : 'Error de JavaScript'}: ${e.veces} vez/veces en ${e.ruta || 'la app'} (primera ${e.primera_vez.slice(0, 16).replace('T', ' ')} UTC, última ${e.ultima_vez.slice(0, 16).replace('T', ' ')} UTC). Revisarlo y decir si hace falta corregirlo.`,
+      agente: 'tomi', departamento: 'ingenieria', prioridad: cae || e.veces >= 10 ? 'P1' : 'P2',
+    })
   }
   return h
 }

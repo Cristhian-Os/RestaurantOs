@@ -2,7 +2,7 @@
 // (La protección real está en la base: supabase/tests/central_nucleo.sql, casos 4 a 6)
 import assert from 'node:assert/strict'
 import { permite, puedeSerResponsable, exigeAprobacion } from './permisos.ts'
-import { estadoVisual, hace } from './catalogo.ts'
+import { agenteTrabajando, estadoVisual, hace } from './catalogo.ts'
 
 // N0: leer lo puede todo agente; escribir, ninguno de nivel N0
 assert.equal(permite('N0', 'N0'), 'ejecutar')
@@ -33,6 +33,21 @@ assert.equal(estadoVisual({ ciclo: 'activo', proveedor_estado: 'simulacion_local
 assert.equal(estadoVisual({ ciclo: 'activo', proveedor_estado: 'activo' }).id, 'activo')
 assert.equal(estadoVisual({ ciclo: 'suspendido', proveedor_estado: 'activo' }).id, 'incidencia')
 assert.equal(estadoVisual({ ciclo: 'pruebas', proveedor_estado: 'simulacion_local' }).id, 'atencion')
+// Un agente que trabaja de verdad se ve "Trabajando" aunque su ciclo siga en «diseñado»; sin conexión real o suspendido, no
+assert.equal(estadoVisual({ ciclo: 'disenado', proveedor_estado: 'activo', trabajando: true }).id, 'trabajando')
+assert.equal(estadoVisual({ ciclo: 'disenado', proveedor_estado: 'activo', trabajando: false }).id, 'inactivo')
+assert.equal(estadoVisual({ ciclo: 'disenado', proveedor_estado: 'simulacion_local', trabajando: true }).id, 'inactivo')
+assert.equal(estadoVisual({ ciclo: 'suspendido', proveedor_estado: 'activo', trabajando: true }).id, 'incidencia')
+
+// ¿Está trabajando? Trabajo en marcha, o terminado bien en las últimas 24 h. Fallidos, pendientes, viejos o de otro agente no cuentan.
+const t0 = Date.parse('2026-11-26T15:00:00Z')
+const trab = (agente_id: string, estado: string, updated_at: string) => ({ agente_id, estado, updated_at })
+assert.equal(agenteTrabajando('mateo', [trab('mateo', 'succeeded', '2026-11-26T12:50:00Z')], t0), true)
+assert.equal(agenteTrabajando('mateo', [trab('mateo', 'running', '2026-11-20T00:00:00Z')], t0), true, 'en marcha cuenta aunque sea viejo')
+assert.equal(agenteTrabajando('nico', [trab('nico', 'succeeded', '2026-11-25T12:30:00Z')], t0), false, 'terminó hace más de 24 h')
+assert.equal(agenteTrabajando('mateo', [trab('mateo', 'failed', '2026-11-26T14:00:00Z'), trab('mateo', 'pending', '2026-11-26T14:00:00Z')], t0), false, 'fallar o esperar no es trabajar')
+assert.equal(agenteTrabajando('nico', [trab('mateo', 'succeeded', '2026-11-26T14:00:00Z')], t0), false, 'el trabajo de otro agente no cuenta')
+assert.equal(agenteTrabajando('nico', [], t0), false)
 
 // "hace …"
 const ahora = Date.parse('2026-11-14T12:00:00Z')

@@ -77,7 +77,7 @@ export function Reuniones() {
   const pasadas = datos.reuniones.filter(r => r.estado === 'realizada' || r.estado === 'cancelada')
   return (
     <Pagina titulo="Reuniones" subtitulo="Agenda, participantes y actas" acciones={<Button onClick={() => setNueva(true)}>Nueva reunión</Button>}>
-      <AvisoHonesto>Son registros internos de Central. Todavía no se conectan con Google Calendar ni envían invitaciones: esa integración está sin conectar.</AvisoHonesto>
+      <AvisoHonesto>Son registros internos de Central. No se sincronizan con Google Calendar ni envían invitaciones, aunque Google esté conectado.</AvisoHonesto>
       {datos.reuniones.length === 0 ? <StatePanel kind="empty" title="No hay reuniones" text="Programa la primera con “Nueva reunión”." /> : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div className="flex flex-col gap-3"><h2 className="m-0 font-bold text-[color:var(--w-text)]" style={{ fontSize: 'var(--w-fs-title)' }}>Próximas</h2>{proximas.length ? proximas.map(r => <Fila key={r.id} r={r} />) : <p className="m-0 text-[color:var(--w-text-3)]">Ninguna programada.</p>}</div>

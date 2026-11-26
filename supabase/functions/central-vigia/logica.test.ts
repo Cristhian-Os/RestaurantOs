@@ -38,6 +38,21 @@ assert.ok(claves.includes('opinion:7') && claves.includes('opinion:9') && !clave
 assert.equal(h.find(x => x.clave === 'opinion:7')?.prioridad, 'P1')
 assert.equal(new Set(claves).size, claves.length, 'claves únicas')
 assert.equal(evaluar({ ...base, restaurantes: [], suscripciones: [], opiniones: [] }).length, 0)
+
+// Errores de la app: una pantalla caída siempre; un error suelto de una vez no; repetido sí; ya vistos o resueltos no
+const err = (huella: string, origen: string, veces: number, estado = 'nuevo') => ({ huella, origen, mensaje: `fallo ${huella}`, ruta: '/caja', veces, estado, primera_vez: hace(1), ultima_vez: hace(0.1) })
+const sin = { ...base, restaurantes: [], suscripciones: [], opiniones: [] }
+const e = evaluar({ ...sin, errores: [err('a', 'react', 1), err('b', 'ventana', 1), err('c', 'ventana', 3), err('d', 'promesa', 12), err('e', 'ventana', 5, 'visto'), err('f', 'react', 4, 'resuelto')] })
+const ec = e.map(x => x.clave)
+assert.deepEqual(ec.sort(), ['error:a', 'error:c', 'error:d'], 'react siempre, repetidos sí; sueltos, vistos y resueltos no')
+assert.equal(e.find(x => x.clave === 'error:a')?.prioridad, 'P1', 'pantalla caída = P1')
+assert.equal(e.find(x => x.clave === 'error:c')?.prioridad, 'P2')
+assert.equal(e.find(x => x.clave === 'error:d')?.prioridad, 'P1', '10 o más veces = P1')
+assert.ok(e.every(x => x.agente === 'tomi' && x.departamento === 'ingenieria'))
+// Si algo explota, máximo 10 tareas de error por revisión, las más repetidas primero
+const muchos = evaluar({ ...sin, errores: Array.from({ length: 25 }, (_, i) => err(`m${i}`, 'ventana', 2 + i)) })
+assert.equal(muchos.length, 10); assert.equal(muchos[0].clave, 'error:m24')
+assert.equal(evaluar({ ...sin }).length, 0, 'sin errores no hay hallazgos (el campo es opcional)')
 assert.equal(resumenTelegram([], 5), '')
 assert.match(resumenTelegram(h, 4), /Central revisó/)
 console.log('central-vigia: todo OK')
