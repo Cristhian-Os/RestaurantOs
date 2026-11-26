@@ -100,7 +100,7 @@ export function TrabajoAgentes() {
   return (
     <div className="flex flex-col gap-3">
       <TituloBloque>Trabajo de los agentes</TituloBloque>
-      <AvisoHonesto>Hoy los agentes solo investigan: Mateo busca negocios de tu campaña en la web y los deja como "prospecto identificado" para que tú los verifiques. No escriben ni contactan a nadie. Gastan de tu tope mensual de IA.</AvisoHonesto>
+      <AvisoHonesto>Hoy trabajan solos dos agentes. Mateo busca negocios de tu campaña en la web y los deja como "prospecto identificado" para que tú los verifiques. Nico redacta un borrador de contenido al día, que no se publica. Ninguno contacta a nadie ni publica. Gastan de tu tope mensual de IA.</AvisoHonesto>
       <ConversacionTelegram />
       <Card className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
