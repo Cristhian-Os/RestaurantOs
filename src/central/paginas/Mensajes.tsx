@@ -11,12 +11,13 @@ import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { actualizarMensaje, crearMensaje, textoError, type CanalMensaje, type EstadoMensaje } from '../acciones.ts'
+import { enlaceCorreo, enlaceWhatsapp } from '../enlaces.ts'
 import { useEnVivo } from '../enVivo.ts'
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
 
 interface Mensaje {
   id: string; prospecto_id: string; canal: CanalMensaje; paso: number; estado: EstadoMensaje; asunto: string; cuerpo: string; campana_id: string | null
-  growth_prospectos: { nombre_comercial: string; es_ficticio: boolean } | null
+  growth_prospectos: { nombre_comercial: string; es_ficticio: boolean; telefono: string | null; correo: string | null } | null
 }
 interface P { id: string; nombre_comercial: string; es_ficticio: boolean }
 interface Camp { id: string; nombre: string }
@@ -40,6 +41,11 @@ function Fila({ m, camps, recargar }: { m: Mensaje; camps: Camp[]; recargar: () 
     if (!e) { if (cerrar) setEditando(false); await recargar() }
   }
   const guardar = () => hacer(() => actualizarMensaje(m.id, { asunto, cuerpo, campana_id: camp || null }), true)
+  // "Un clic": solo con el mensaje APROBADO. Central no envía nada: abre WhatsApp o el correo del dueño con el texto escrito y él toca enviar.
+  const enlace = m.estado === 'aprobado' && !m.growth_prospectos?.es_ficticio
+    ? (m.canal === 'whatsapp' ? enlaceWhatsapp(m.growth_prospectos?.telefono, m.cuerpo) : m.canal === 'correo' ? enlaceCorreo(m.growth_prospectos?.correo, m.asunto, m.cuerpo) : null)
+    : null
+  const abrir = () => { if (!enlace) return; if (enlace.startsWith('mailto:')) window.location.href = enlace; else window.open(enlace, '_blank', 'noopener,noreferrer') }
   return (
     <Card className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -65,8 +71,10 @@ function Fila({ m, camps, recargar }: { m: Mensaje; camps: Camp[]; recargar: () 
         {editando && <Button size="sm" variant="ghost" onClick={() => setEditando(false)}>Cancelar edición</Button>}
         {m.estado === 'borrador' && !editando && <Button size="sm" loading={ocupado} onClick={() => void hacer(() => actualizarMensaje(m.id, { estado: 'aprobado' }))}>Aprobar</Button>}
         {m.estado === 'aprobado' && <Button size="sm" variant="secondary" loading={ocupado} onClick={() => void hacer(() => actualizarMensaje(m.id, { estado: 'borrador' }))}>Retirar aprobación</Button>}
+        {enlace && <Button size="sm" onClick={abrir}>{m.canal === 'whatsapp' ? 'Abrir WhatsApp con el texto' : 'Abrir correo con el texto'}</Button>}
         {m.estado === 'aprobado' && <Button size="sm" loading={ocupado} onClick={() => void hacer(() => actualizarMensaje(m.id, { estado: 'hecho_manual' }))}>Ya lo envié yo</Button>}
         {(m.estado === 'borrador' || m.estado === 'aprobado') && !editando && <Button size="sm" variant="ghost" loading={ocupado} onClick={() => void hacer(() => actualizarMensaje(m.id, { estado: 'cancelado' }))}>Descartar</Button>}
+        {enlace && m.canal === 'correo' && <p className="m-0 basis-full text-[length:var(--w-fs-caption)] text-[color:var(--w-warning)]">Envíalo desde tu buzón de ventas, no desde tu correo personal: los correos en frío no salen del buzón personal del fundador.</p>}
         {!editando && m.cuerpo && <Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard?.writeText(`${m.asunto ? m.asunto + '\n\n' : ''}${m.cuerpo}`).then(() => setCopiado(true)).catch(() => setCopiado(false)) }}>{copiado ? 'Copiado' : 'Copiar'}</Button>}
       </div>
     </Card>
@@ -85,7 +93,7 @@ export function Mensajes() {
   const [errAccion, setErrAccion] = useState<string | null>(null)
   const recargar = useCallback(async () => {
     const [a, b, c] = await Promise.all([
-      supabase.from('growth_mensajes').select('*, growth_prospectos(nombre_comercial, es_ficticio)').order('created_at', { ascending: false }).limit(200),
+      supabase.from('growth_mensajes').select('*, growth_prospectos(nombre_comercial, es_ficticio, telefono, correo)').order('created_at', { ascending: false }).limit(200),
       supabase.from('growth_prospectos').select('id, nombre_comercial, es_ficticio').not('etapa', 'in', '(perdido,no_contactar)').order('nombre_comercial'),
       supabase.from('growth_autorizaciones').select('id, nombre, vigente_hasta').eq('tipo', 'campana').eq('estado', 'vigente'),
     ])
