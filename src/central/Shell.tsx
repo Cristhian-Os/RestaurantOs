@@ -70,7 +70,7 @@ const itemNav = (activo: boolean) => cn(
 
 export function Shell() {
   const { ruta, ir } = useRuta()
-  const { estado, datos, recargar } = useCentral()
+  const { estado, datos, enVivo, recargar } = useCentral()
   const [mas, setMas] = useState(false)
   const [campana, setCampana] = useState(false)
   const [resti, setResti] = useState(false)
@@ -107,6 +107,11 @@ export function Shell() {
         <p className="m-0 truncate font-bold text-[color:var(--w-text)]" style={{ fontSize: 'var(--w-fs-body-lg)' }}>RestaurantOS Central</p>
         <p className="m-0 truncate text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{actual?.etiqueta}</p>
       </div>
+      <span role="status" className={cn('inline-flex items-center gap-1.5 rounded-[var(--w-r-pill)] px-2.5 py-1 text-[length:var(--w-fs-caption)] font-semibold',
+        enVivo === 'en_vivo' ? 'bg-[var(--w-success-bg)] text-[color:var(--w-success-text)]' : 'bg-[var(--w-warning-bg)] text-[color:var(--w-warning-text)]')}>
+        <span aria-hidden="true" className={cn('h-2 w-2 rounded-full bg-current', enVivo !== 'en_vivo' && 'animate-pulse')} />
+        {enVivo === 'en_vivo' ? 'En vivo' : enVivo === 'conectando' ? 'Conectando…' : 'Reconectando…'}
+      </span>
       <span className="hidden items-center gap-1.5 rounded-[var(--w-r-pill)] bg-[var(--w-success-bg)] px-3 py-1.5 text-[length:var(--w-fs-caption)] font-semibold text-[color:var(--w-success-text)] sm:inline-flex">
         <Icono nombre="candado" size={14} />Acceso verificado · 2 pasos
       </span>
