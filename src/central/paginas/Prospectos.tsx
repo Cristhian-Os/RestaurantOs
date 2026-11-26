@@ -9,7 +9,7 @@ import { Card } from '../../components/ui/Card'
 import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
-import { actualizarProspecto, agregarNota, cargarEjemplos, crearProspecto, crearTarea, ETAPAS, guardarExpediente, textoError, type Etapa } from '../acciones.ts'
+import { actualizarProspecto, agregarNota, cargarEjemplos, crearProspecto, crearTarea, ETAPAS, guardarExpediente, redactarMensaje, textoError, type Etapa } from '../acciones.ts'
 import { useEnVivo } from '../enVivo.ts'
 import { leerLista } from '../importarLista.ts'
 import { Enlace, useRuta } from '../navegacion.tsx'
@@ -20,7 +20,7 @@ interface Prospecto {
   etapa: Etapa; campana_id: string | null; necesidades_confirmadas: string; proxima_accion: string; proxima_accion_en: string | null; motivo_perdida: string | null; es_ficticio: boolean; created_at: string
 }
 interface Historial { id: number; created_at: string; tipo: string; de_etapa: string | null; a_etapa: string | null; detalle: string; actor_tipo: string }
-interface Campana { id: string; nombre: string }
+interface Campana { id: string; nombre: string; alcance?: { canales?: unknown } }
 
 const ETQ = (e: string) => e.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())
 const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—')
@@ -183,7 +183,7 @@ function Detalle({ id }: { id: string }) {
       supabase.from('growth_prospectos').select('*').eq('id', id).maybeSingle(),
       supabase.from('growth_historial').select('*').eq('prospecto_id', id).order('id', { ascending: false }).limit(50),
       supabase.from('growth_expedientes').select('*').eq('prospecto_id', id).maybeSingle(),
-      supabase.from('growth_autorizaciones').select('id, nombre, estado, vigente_hasta').eq('tipo', 'campana').eq('estado', 'vigente'),
+      supabase.from('growth_autorizaciones').select('id, nombre, estado, vigente_hasta, alcance').eq('tipo', 'campana').eq('estado', 'vigente'),
     ])
     setP((a.data as Prospecto | null) ?? null); setHist((b.data ?? []) as Historial[])
     if (c.data) setExp({ investigacion: c.data.investigacion ?? {}, ventas: c.data.ventas ?? {}, fundador: c.data.fundador ?? {} })
@@ -207,6 +207,10 @@ function Detalle({ id }: { id: string }) {
   const [cuando, setCuando] = useState('')
   const [campana, setCampana] = useState('')
   const [nota, setNota] = useState('')
+  const [tel, setTel] = useState(''); const [correoP, setCorreoP] = useState('')
+  const [preparando, setPreparando] = useState<'whatsapp' | 'correo' | null>(null)
+  const [msgIA, setMsgIA] = useState<{ ok: boolean; texto: string } | null>(null)
+  useEffect(() => { setTel(p?.telefono ?? ''); setCorreoP(p?.correo ?? '') }, [p?.id, p?.telefono, p?.correo])
   const [form, setForm] = useState({ hechos: '', hipotesis: '', fuentes: '', confianza: 'media', faltantes: '', oportunidad: '', apertura: '', preguntas: '', mensaje: '', objeciones: '', resumen: '', guion: '' })
   useEffect(() => {
     if (!p) return
@@ -229,6 +233,18 @@ function Detalle({ id }: { id: string }) {
     ventas: { oportunidad: form.oportunidad, frase_apertura: form.apertura, preguntas: aLineas(form.preguntas), mensaje_inicial: form.mensaje, objeciones: aLineas(form.objeciones) },
     fundador: { resumen: form.resumen, guion: form.guion },
   }))
+  // Canales que la campaña del prospecto permite (los define el dueño al crear la campaña; la base los exige al aprobar).
+  const campanaDe = campanas.find(c => c.id === p.campana_id)
+  const canalesCampana = Array.isArray(campanaDe?.alcance?.canales) ? (campanaDe!.alcance!.canales as unknown[]).map(String) : []
+  const permite = (c: 'whatsapp' | 'correo') => canalesCampana.includes(c)
+  const contactoCambiado = tel.trim() !== (p.telefono ?? '') || correoP.trim() !== (p.correo ?? '')
+  const guardarContacto = () => hacer(() => actualizarProspecto(p.id, { telefono: tel.trim() || null, correo: correoP.trim() || null }))
+  const preparar = async (canal: 'whatsapp' | 'correo') => {
+    setPreparando(canal); setMsgIA(null)
+    const e = await redactarMensaje(p.id, canal)
+    setPreparando(null)
+    setMsgIA(e ? { ok: false, texto: e } : { ok: true, texto: 'Listo: quedó un borrador en Mensajes. Revísalo, edítalo si quieres y apruébalo.' })
+  }
   return (
     <Pagina titulo={p.nombre_comercial} subtitulo={`${p.ciudad || 'Sin ciudad'} · ${p.segmento || 'Sin segmento'} · fuente: ${p.fuente}`} acciones={<Enlace a="prospectos">← Todos</Enlace>}>
       {p.es_ficticio && <AvisoHonesto tono="warning">Prospecto de ejemplo: sirve para practicar y nunca se puede contactar.</AvisoHonesto>}
@@ -248,6 +264,25 @@ function Detalle({ id }: { id: string }) {
           <Button size="sm" loading={ocupado} disabled={etapa === p.etapa} onClick={() => void cambiarEtapa()}>Cambiar etapa</Button>
           <Button size="sm" variant="secondary" loading={ocupado} onClick={() => void hacer(() => crearTarea({ titulo: `Mateo: avanzar con ${p.nombre_comercial}`.slice(0, 160), descripcion: `Prospecto en etapa ${ETQ(p.etapa)}. Revisar su expediente en Prospectos.`, prioridad: 'P2', nivel_requerido: 'N0', responsable_agente_id: 'mateo', departamento_id: 'ventas' }))}>Crear tarea para Mateo</Button>
         </div>
+      </Card>
+
+      <Card className="flex flex-col gap-2">
+        <TituloBloque>Primer mensaje (con ayuda de IA)</TituloBloque>
+        <AvisoHonesto>Mateo prepara un borrador del primer mensaje con los datos públicos del negocio y lo que está verificado del producto. No se envía nada: lo revisas en Mensajes, lo apruebas y lo mandas tú. Usa solo teléfono o correo que el negocio tenga público.</AvisoHonesto>
+        <Input label="Teléfono público del negocio" value={tel} onChange={e => setTel(e.target.value)} maxLength={40} inputMode="tel" disabled={p.es_ficticio} />
+        <Input label="Correo público del negocio" value={correoP} onChange={e => setCorreoP(e.target.value)} maxLength={200} inputMode="email" disabled={p.es_ficticio} />
+        {msgIA && (msgIA.ok
+          ? <p role="status" className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-success)]">{msgIA.texto} <Enlace a="mensajes" className="font-semibold underline">Ver en Mensajes</Enlace></p>
+          : <ErrorAccion texto={msgIA.texto} />)}
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" loading={ocupado} disabled={!contactoCambiado || p.es_ficticio} onClick={() => void guardarContacto()}>Guardar contacto</Button>
+          <Button size="sm" loading={preparando === 'whatsapp'} disabled={!!preparando || contactoCambiado || !p.telefono || p.es_ficticio || !permite('whatsapp')} onClick={() => void preparar('whatsapp')}>Preparar WhatsApp</Button>
+          <Button size="sm" loading={preparando === 'correo'} disabled={!!preparando || contactoCambiado || !p.correo || p.es_ficticio || !permite('correo')} onClick={() => void preparar('correo')}>Preparar correo</Button>
+        </div>
+        {!p.es_ficticio && (campanaDe
+          ? <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Campaña «{campanaDe.nombre}»: permite {canalesCampana.length ? canalesCampana.map(c => (c === 'whatsapp' ? 'WhatsApp' : c === 'correo' ? 'correo' : c)).join(' y ') : 'ningún canal'}. Un canal que la campaña no incluya no se puede preparar ni aprobar.</p>
+          : <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Este prospecto no está en una campaña vigente: asígnale una para poder preparar su mensaje.</p>)}
+        {!p.telefono && !p.correo && !p.es_ficticio && <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">Primero agrega el teléfono o el correo público del negocio (por ejemplo, el de su ficha de Google Maps) y toca «Guardar contacto».</p>}
       </Card>
 
       <Card className="flex flex-col gap-2">

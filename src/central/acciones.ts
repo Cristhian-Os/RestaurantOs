@@ -281,7 +281,7 @@ export async function cargarEjemplos(): Promise<string | null> {
   return null
 }
 
-export interface CambiosProspecto { etapa?: Etapa; campana_id?: string | null; motivo_perdida?: string; proxima_accion?: string; proxima_accion_en?: string | null; necesidades_confirmadas?: string }
+export interface CambiosProspecto { etapa?: Etapa; campana_id?: string | null; motivo_perdida?: string; proxima_accion?: string; proxima_accion_en?: string | null; necesidades_confirmadas?: string; telefono?: string | null; correo?: string | null }
 export async function actualizarProspecto(id: string, c: CambiosProspecto): Promise<string | null> {
   const { error } = await supabase.from('growth_prospectos').update(c).eq('id', id)
   return errorProspecto(error)
@@ -335,6 +335,12 @@ export async function crearMensaje(m: NuevoMensaje): Promise<string | null> {
 export async function actualizarMensaje(id: string, c: { asunto?: string; cuerpo?: string; campana_id?: string | null; estado?: EstadoMensaje }): Promise<string | null> {
   const { error } = await supabase.from('growth_mensajes').update(c).eq('id', id)
   return resultado(error)
+}
+
+/** Pide a Mateo (IA) un borrador del PRIMER mensaje de un prospecto. Lo hace el servidor con los frenos de gasto; solo queda guardado como borrador: no se envía nada. `null` = salió bien. */
+export async function redactarMensaje(prospectoId: string, canal: 'whatsapp' | 'correo'): Promise<string | null> {
+  const r = await invocar<{ ok: boolean }>('central-redactar', { prospecto_id: prospectoId, canal })
+  return r.ok === true ? null : r.mensaje
 }
 
 // ── Trabajo automático de los agentes (cola central_trabajos). Los interruptores los decide la base; aquí solo se piden. ──
