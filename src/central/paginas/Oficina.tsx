@@ -34,7 +34,7 @@ function Ficha({ sel, onCerrar }: { sel: Seleccion | null; onCerrar: () => void 
         <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">Toca un espacio, un agente o el núcleo para ver su ficha. Un solo nivel circular: el núcleo (RestaurantOS) y tres anillos.</p>
         <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">{[2, 3, 4].map(a => <li key={a}>{ETIQUETA_ANILLO[a]}</li>)}</ul>
         <div className="flex flex-col gap-1.5"><p className="m-0 font-semibold text-[color:var(--w-text)]">Estado de un agente</p>{ESTADOS_VISUALES.map(e => <Estado key={e.id} color={e.color}>{e.etiqueta}</Estado>)}</div>
-        <AvisoHonesto>El estado sale del ciclo real del agente. Hoy todos están <b>diseñados y sin conexión</b>: se ven en gris (Inactivo).</AvisoHonesto>
+        <AvisoHonesto>El estado sale del ciclo real del agente: los que siguen en <b>«diseñado»</b> se ven en gris (Inactivo). Cambiar el ciclo de un agente es decisión tuya, en su ficha → Permisos.</AvisoHonesto>
       </div>
     )
   }
