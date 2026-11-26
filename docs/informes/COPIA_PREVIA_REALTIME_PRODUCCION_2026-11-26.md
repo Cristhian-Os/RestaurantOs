@@ -12,3 +12,7 @@ central_mensajes, central_notificaciones, central_aprobaciones, central_tareas, 
 
 ## Cómo volver atrás
 Ejecutar, en este orden, `supabase/rollback/20261126130000_central_realtime_crecimiento_down.sql` y `supabase/rollback/20261126120000_central_realtime_down.sql`. Las 17 tablas de "Publicadas antes" no se tocan.
+
+## Anexo · `20261126140000_central_realtime_consumo` (aplicada en producción el 2026-11-26)
+Antes: `central_consumo` existía y no estaba publicada (las otras 34 publicadas quedan igual). Se agrega solo esa tabla.
+Reversa: `supabase/rollback/20261126140000_central_realtime_consumo_down.sql`.
