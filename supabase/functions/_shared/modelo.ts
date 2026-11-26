@@ -56,6 +56,11 @@ export const cadenaGemini = (modelo: string): string[] => {
 const sinThinking = new Set<string>()
 const reintentable = (status: number) => [404, 429, 500, 502, 503, 504].includes(status)
 
+/** Lee el cuerpo como JSON sin que un texto plano (p. ej. una página de error del proveedor) esconda el estado HTTP real. */
+async function leerJson(resp: { json(): Promise<unknown> }): Promise<Obj | null> {
+  try { return (await resp.json()) as Obj } catch { return null }
+}
+
 async function llamarGemini(c: ConfigProveedor, p: PedidoModelo, f: Fetch): Promise<RespuestaModelo> {
   const contents = [
     ...(p.mensajes ?? []).map(m => ({ role: m.rol === 'assistant' ? 'model' : 'user', parts: [{ text: m.texto }] })),
@@ -85,8 +90,9 @@ async function llamarGemini(c: ConfigProveedor, p: PedidoModelo, f: Fetch): Prom
     if (resp.ok || !reintentable(resp.status)) break
   }
   if (!resp) throw new Error('El proveedor tardó demasiado')
-  const d = (await resp.json()) as Obj
+  const d = await leerJson(resp)
   if (!resp.ok) throw new Error(`El proveedor respondió ${resp.status}`)
+  if (!d) throw new Error('El proveedor no devolvió una respuesta válida')
   const partes = (d?.candidates?.[0]?.content?.parts ?? []) as { text?: string; functionCall?: { name?: string; args?: Record<string, unknown> } }[]
   const texto = partes.map(x => x.text ?? '').join('').trim()
   const llamadas = partes.filter(x => x.functionCall?.name).map(x => ({ nombre: String(x.functionCall!.name), args: x.functionCall!.args ?? {} }))
@@ -113,8 +119,9 @@ async function llamarCompatible(c: ConfigProveedor, p: PedidoModelo, f: Fetch): 
       ],
     }),
   }))
-  const d = (await resp.json()) as Obj
+  const d = await leerJson(resp)
   if (!resp.ok) throw new Error(`El proveedor respondió ${resp.status}`)
+  if (!d) throw new Error('El proveedor no devolvió una respuesta válida')
   const u = d?.usage ?? {}
   const llamadas = ((d?.choices?.[0]?.message?.tool_calls ?? []) as { function?: { name?: string; arguments?: string } }[]).filter(t => t.function?.name).map(t => {
     let args: Record<string, unknown> = {}
