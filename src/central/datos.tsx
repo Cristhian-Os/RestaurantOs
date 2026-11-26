@@ -1,7 +1,7 @@
 /**
  * datos.tsx — carga única de los datos de Central y reparto a todas las pantallas (contexto de React).
  * Todo se lee con la sesión del dueño: la base (RLS + central_autorizado()) decide qué devuelve; sin 2 pasos devuelve vacío.
- * Se recarga al volver a la pestaña, después de cada acción y, para agentes, tareas, aprobaciones y avisos, en vivo (Realtime).
+ * Se recarga al volver a la pestaña, después de cada acción y, para agentes, tareas, aprobaciones, avisos y gasto de IA, en vivo (Realtime).
  * Nada de esto toca datos de un restaurante, salvo la lectura
  * agregada de central_restaurantes() (solo lectura).
  */
@@ -28,6 +28,7 @@ const EN_VIVO: Record<string, { clave: keyof Datos; pedir: () => PromiseLike<{ d
   central_tareas: { clave: 'tareas', pedir: () => supabase.from('central_tareas').select('*').order('created_at', { ascending: false }).limit(500) },
   central_aprobaciones: { clave: 'aprobaciones', pedir: () => supabase.from('central_aprobaciones').select('*').order('created_at', { ascending: false }).limit(200) },
   central_notificaciones: { clave: 'notificaciones', pedir: () => supabase.from('central_notificaciones').select('*').order('created_at', { ascending: false }).limit(100) },
+  central_consumo: { clave: 'consumo', pedir: () => supabase.from('central_consumo').select('*').order('periodo', { ascending: false }).limit(1000) },
 }
 /** Espera para juntar varios cambios seguidos en una sola recarga. */
 const ESPERA_AGRUPAR_MS = 300
