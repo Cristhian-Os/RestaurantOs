@@ -3,6 +3,7 @@
  * Tus mensajes se guardan a tu nombre. Si es un chat directo, el agente responde en "Simulación local" (texto armado con datos
  * reales, sin modelo de IA; la base solo deja guardarlo con esa marca desde la app). Si encendiste la IA en Integraciones y el agente
  * está conectado, responde la IA real: la pide y la guarda el servidor, con límites de gasto. Un canal solo guarda tus mensajes.
+ * Los mensajes nuevos de la conversación aparecen solos (Realtime), sin recargar.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../services/supabaseClient'
@@ -26,13 +27,29 @@ export function Chat({ conversacionId, agente, vacio }: { conversacionId: string
   // IA real solo si el dueño la encendió Y este agente está marcado como conectado; en cualquier otro caso, simulación local.
   const iaReal = !!agente && datos.config.ia_encendida === true && agente.proveedor_estado === 'activo'
 
-  const cargar = useCallback(async () => {
+  // `silencioso`: recarga por aviso en vivo; si falla, no borra los mensajes que ya se ven ni muestra error.
+  const cargar = useCallback(async (silencioso = false) => {
     const { data, error: e } = await supabase.from('central_mensajes').select('*').eq('conversacion_id', conversacionId).order('id', { ascending: false }).limit(200)
-    if (e) { setError(textoError(e)); setMensajes([]); return }
+    if (e) { if (!silencioso) { setError(textoError(e)); setMensajes([]) }; return }
     setMensajes(((data ?? []) as Mensaje[]).reverse())
   }, [conversacionId])
 
   useEffect(() => { setMensajes(null); setError(null); void cargar() }, [cargar])
+
+  // En vivo: cuando se guarda un mensaje de esta conversación (por ti, desde otro aparato o la respuesta del agente), aparece solo.
+  useEffect(() => {
+    let activo = true, yaConecto = false
+    let temporizador: ReturnType<typeof setTimeout> | null = null
+    const pedir = () => { if (temporizador) return; temporizador = setTimeout(() => { temporizador = null; if (activo) void cargar(true) }, 150) }
+    const canal = supabase.channel(`central-chat-${conversacionId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'central_mensajes', filter: `conversacion_id=eq.${conversacionId}` }, pedir)
+      .subscribe(s => {
+        if (!activo || s !== 'SUBSCRIBED') return
+        if (yaConecto) void cargar(true)   // volvió tras una caída: se pudo perder un mensaje
+        yaConecto = true
+      })
+    return () => { activo = false; if (temporizador) clearTimeout(temporizador); void supabase.removeChannel(canal) }
+  }, [conversacionId, cargar])
   useEffect(() => { fin.current?.scrollIntoView({ block: 'end' }) }, [mensajes])
 
   const enviar = async () => {
