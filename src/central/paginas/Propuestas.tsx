@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { supabase } from '../../services/supabaseClient'
 import { decidirPropuesta, textoError } from '../acciones.ts'
+import { useEnVivo } from '../enVivo.ts'
 import { AvisoHonesto, ErrorAccion, TituloBloque } from '../ui.tsx'
 
 interface Propuesta {
@@ -63,6 +64,7 @@ export function Propuestas() {
     setError(null); setSinInstalar(false); setFilas((data ?? []) as Propuesta[])
   }, [])
   useEffect(() => { void recargar() }, [recargar])
+  useEnVivo(['central_propuestas'], recargar)
   if (sinInstalar) return null
   const pendientes = filas?.filter(f => f.estado === 'propuesta').length ?? 0
   return (

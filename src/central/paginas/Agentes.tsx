@@ -183,7 +183,9 @@ function Ficha({ id }: { id: string }) {
         )}
         {pestana === 'conversacion' && (
           <>
-            <AvisoHonesto tono="warning">{a.nombre} no está conectado a un modelo de IA. Sus respuestas son <b>simulación local</b>: texto armado con los datos reales de Central, no razonamiento.</AvisoHonesto>
+            {!(datos.config.ia_encendida === true && a.proveedor_estado === 'activo') && (
+              <AvisoHonesto tono="warning">{a.nombre} no está conectado a un modelo de IA. Sus respuestas son <b>simulación local</b>: texto armado con los datos reales de Central, no razonamiento.</AvisoHonesto>
+            )}
             {errorConv ? <ErrorAccion texto={errorConv} /> : conv ? <Chat conversacionId={conv} agente={a} vacio={`Saluda a ${a.nombre}.`} /> : <StatePanel kind="loading" title="Abriendo la conversación…" />}
           </>
         )}

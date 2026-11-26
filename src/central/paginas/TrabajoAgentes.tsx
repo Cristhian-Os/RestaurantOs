@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { supabase } from '../../services/supabaseClient'
 import { moverInterruptor, pedirAlTrabajador, telegramChat, textoError, type EstadoTelegramChat, type RespuestaTrabajador } from '../acciones.ts'
+import { useEnVivo } from '../enVivo.ts'
 import { AvisoHonesto, ErrorAccion, TituloBloque } from '../ui.tsx'
 
 interface Trabajo { id: string; tipo: string; agente_id: string; estado: string; intentos: number; error: string | null; costo: number; resultado: Record<string, unknown> | null; created_at: string }
@@ -78,6 +79,7 @@ export function TrabajoAgentes() {
     setTrabajos((tr.data ?? []) as Trabajo[])
   }, [])
   useEffect(() => { void recargar() }, [recargar])
+  useEnVivo(['central_trabajos'], recargar)
 
   const correr = async (nombre: string, fn: () => Promise<string | null>) => {
     setOcupado(nombre); setError(null); setAviso(null)

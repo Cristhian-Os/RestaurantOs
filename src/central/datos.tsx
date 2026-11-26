@@ -1,7 +1,8 @@
 /**
  * datos.tsx — carga única de los datos de Central y reparto a todas las pantallas (contexto de React).
  * Todo se lee con la sesión del dueño: la base (RLS + central_autorizado()) decide qué devuelve; sin 2 pasos devuelve vacío.
- * Se recarga al volver a la pestaña y después de cada acción. Nada de esto toca datos de un restaurante, salvo la lectura
+ * Se recarga al volver a la pestaña, después de cada acción y, para agentes, tareas, aprobaciones y avisos, en vivo (Realtime).
+ * Nada de esto toca datos de un restaurante, salvo la lectura
  * agregada de central_restaurantes() (solo lectura).
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -18,6 +19,18 @@ export interface Datos {
   config: Record<string, unknown>
 }
 export type EstadoCarga = 'cargando' | 'listo' | 'error' | 'no_instalado'
+/** Estado de la conexión en vivo: conectando (primera vez), en_vivo, o reconectando (se cayó; al volver se recarga todo una vez). */
+export type EstadoEnVivo = 'conectando' | 'en_vivo' | 'reconectando'
+
+/** Tablas que se actualizan solas: al cambiar una, se vuelve a pedir SOLO esa (no las 15 de la carga completa). */
+const EN_VIVO: Record<string, { clave: keyof Datos; pedir: () => PromiseLike<{ data: unknown; error: unknown }> }> = {
+  central_agentes: { clave: 'agentes', pedir: () => supabase.from('central_agentes').select('*').order('orden') },
+  central_tareas: { clave: 'tareas', pedir: () => supabase.from('central_tareas').select('*').order('created_at', { ascending: false }).limit(500) },
+  central_aprobaciones: { clave: 'aprobaciones', pedir: () => supabase.from('central_aprobaciones').select('*').order('created_at', { ascending: false }).limit(200) },
+  central_notificaciones: { clave: 'notificaciones', pedir: () => supabase.from('central_notificaciones').select('*').order('created_at', { ascending: false }).limit(100) },
+}
+/** Espera para juntar varios cambios seguidos en una sola recarga. */
+const ESPERA_AGRUPAR_MS = 300
 
 const VACIO: Datos = {
   departamentos: [], agentes: [], tareas: [], aprobaciones: [], proyectos: [], conversaciones: [], reuniones: [], notificaciones: [],
@@ -26,6 +39,7 @@ const VACIO: Datos = {
 
 interface Ctx {
   datos: Datos; estado: EstadoCarga; restaurantesDisponibles: boolean; userId: string | null
+  enVivo: EstadoEnVivo
   recargar: () => Promise<void>
   /** Ejecuta una acción (de acciones.ts), recarga y devuelve su error (o null). */
   hacer: (fn: () => Promise<string | null>) => Promise<string | null>
@@ -45,6 +59,7 @@ export function CentralDatos({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<EstadoCarga>('cargando')
   const [restaurantesDisponibles, setRestaurantesDisponibles] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
+  const [enVivo, setEnVivo] = useState<EstadoEnVivo>('conectando')
   const vivo = useRef(true)
 
   const cargar = useCallback(async (silencioso: boolean) => {
@@ -95,13 +110,50 @@ export function CentralDatos({ children }: { children: ReactNode }) {
   }, [cargar])
 
   const recargar = useCallback(() => cargar(true), [cargar])
+
+  // Vuelve a pedir una sola tabla. Un fallo no borra lo que ya se ve.
+  const refrescar = useCallback(async (tabla: string) => {
+    const t = EN_VIVO[tabla]
+    if (!t) return
+    try {
+      const r = await t.pedir()
+      if (!vivo.current || r.error) return
+      setDatos(d => ({ ...d, [t.clave]: (r.data ?? []) as never }))
+    } catch { /* se conserva lo que ya se ve */ }
+  }, [])
+
+  // Conexión en vivo: se abre cuando Central ya cargó. RLS decide qué eventos le llegan a esta sesión.
+  const listo = estado === 'listo'
+  useEffect(() => {
+    if (!listo) return
+    let activo = true, yaConecto = false
+    const pendientes = new Set<string>()
+    let temporizador: ReturnType<typeof setTimeout> | null = null
+    const volcar = () => { temporizador = null; const tablas = [...pendientes]; pendientes.clear(); tablas.forEach(t => void refrescar(t)) }
+    const canal = supabase.channel('central-en-vivo')
+    for (const tabla of Object.keys(EN_VIVO)) {
+      canal.on('postgres_changes', { event: '*', schema: 'public', table: tabla }, () => {
+        pendientes.add(tabla)
+        if (!temporizador) temporizador = setTimeout(volcar, ESPERA_AGRUPAR_MS)
+      })
+    }
+    canal.subscribe(s => {
+      if (!activo) return
+      if (s === 'SUBSCRIBED') {
+        setEnVivo('en_vivo')
+        if (yaConecto) void cargar(true)   // volvió tras una caída: pudo perderse algo, se recarga todo una vez
+        yaConecto = true
+      } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') setEnVivo('reconectando')
+    })
+    return () => { activo = false; if (temporizador) clearTimeout(temporizador); void supabase.removeChannel(canal) }
+  }, [listo, cargar, refrescar])
   const hacer = useCallback(async (fn: () => Promise<string | null>) => {
     const error = await fn()
     await cargar(true)
     return error
   }, [cargar])
 
-  const valor = useMemo<Ctx>(() => ({ datos, estado, restaurantesDisponibles, userId, recargar, hacer }), [datos, estado, restaurantesDisponibles, userId, recargar, hacer])
+  const valor = useMemo<Ctx>(() => ({ datos, estado, restaurantesDisponibles, userId, enVivo, recargar, hacer }), [datos, estado, restaurantesDisponibles, userId, enVivo, recargar, hacer])
   return <CentralCtx.Provider value={valor}>{children}</CentralCtx.Provider>
 }
 

@@ -11,6 +11,7 @@ import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { actualizarMensaje, crearMensaje, textoError, type CanalMensaje, type EstadoMensaje } from '../acciones.ts'
+import { useEnVivo } from '../enVivo.ts'
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
 
 interface Mensaje {
@@ -93,6 +94,7 @@ export function Mensajes() {
     setCamps(((c.data ?? []) as (Camp & { vigente_hasta: string })[]).filter(x => new Date(x.vigente_hasta) > new Date()))
   }, [])
   useEffect(() => { void recargar() }, [recargar])
+  useEnVivo(['growth_mensajes', 'growth_prospectos', 'growth_autorizaciones'], recargar)
 
   /** Arma un borrador con lo que ya hay en el expediente (apertura y mensaje inicial) y la forma de darse de baja. */
   const usarPlantilla = async () => {
