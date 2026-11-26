@@ -10,6 +10,7 @@ import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { actualizarCita, crearCita, textoError, type EstadoCita, type TipoCita } from '../acciones.ts'
+import { useEnVivo } from '../enVivo.ts'
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
 
 interface Cita {
@@ -83,6 +84,7 @@ export function Agenda() {
     setPs((b.data ?? []) as P[])
   }, [])
   useEffect(() => { void recargar() }, [recargar])
+  useEnVivo(['growth_citas', 'growth_prospectos'], recargar)
   const crear = async () => {
     setOcupado(true); setErrAccion(null)
     const e = await crearCita({ prospecto_id: f.prospecto, tipo: f.tipo, canal: f.canal, contacto: f.contacto })

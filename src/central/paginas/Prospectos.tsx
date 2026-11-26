@@ -10,6 +10,7 @@ import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { actualizarProspecto, agregarNota, cargarEjemplos, crearProspecto, crearTarea, ETAPAS, guardarExpediente, textoError, type Etapa } from '../acciones.ts'
+import { useEnVivo } from '../enVivo.ts'
 import { leerLista } from '../importarLista.ts'
 import { Enlace, useRuta } from '../navegacion.tsx'
 import { AvisoHonesto, ErrorAccion, Kpi, Pagina, TituloBloque } from '../ui.tsx'
@@ -92,6 +93,7 @@ function Lista() {
     if (e) setError(textoError(e)); else { setError(null); setFilas((data ?? []) as Prospecto[]) }
   }, [])
   useEffect(() => { void recargar() }, [recargar])
+  useEnVivo(['growth_prospectos'], recargar)
   const { ocupado, error: errAccion, hacer } = useHacer(recargar)
   const campo = (k: keyof typeof f) => (e: { target: { value: string } }) => setF(p => ({ ...p, [k]: e.target.value }))
   const reales = filas?.filter(p => !p.es_ficticio) ?? []
@@ -188,6 +190,16 @@ function Detalle({ id }: { id: string }) {
     setCampanas(((d.data ?? []) as (Campana & { vigente_hasta: string })[]).filter(x => new Date(x.vigente_hasta) > new Date()))
   }, [id])
   useEffect(() => { void recargar() }, [recargar])
+  // En vivo solo el prospecto y su historial: el expediente no se recarga solo para no borrar lo que estés escribiendo.
+  const refrescarVivo = useCallback(async () => {
+    const [a, b] = await Promise.all([
+      supabase.from('growth_prospectos').select('*').eq('id', id).maybeSingle(),
+      supabase.from('growth_historial').select('*').eq('prospecto_id', id).order('id', { ascending: false }).limit(50),
+    ])
+    if (a.error || b.error) return
+    setP((a.data as Prospecto | null) ?? null); setHist((b.data ?? []) as Historial[])
+  }, [id])
+  useEnVivo(['growth_prospectos', 'growth_historial'], refrescarVivo)
   const { ocupado, error, hacer } = useHacer(recargar)
 
   const [etapa, setEtapa] = useState<Etapa>('prospecto_identificado')

@@ -10,6 +10,7 @@ import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { activarAutorizacion, agregarNoContactar, crearCampana, guardarFuncion, revocarAutorizacion, textoError, type EstadoFuncion } from '../acciones.ts'
+import { useEnVivo } from '../enVivo.ts'
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
 import { TrabajoAgentes } from './TrabajoAgentes.tsx'
 import { Propuestas } from './Propuestas.tsx'
@@ -34,6 +35,7 @@ function useFilas<T>(tabla: string, orden: string, ascendente = true) {
     if (e) setError(textoError(e)); else { setError(null); setFilas((data ?? []) as T[]) }
   }, [tabla, orden, ascendente])
   useEffect(() => { void recargar() }, [recargar])
+  useEnVivo([tabla], recargar)
   return { filas, error, recargar }
 }
 

@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { supabase } from '../../services/supabaseClient'
 import { aprobarPlan, cambiarItemPlan, pedirAlTrabajador, textoError } from '../acciones.ts'
+import { useEnVivo } from '../enVivo.ts'
 import { AvisoHonesto, ErrorAccion, TituloBloque } from '../ui.tsx'
 
 interface Plan { id: string; semana: string; estado: string; resumen: string }
@@ -33,6 +34,7 @@ export function PlanSemanal() {
     if (p) { const r = await supabase.from('central_plan_items').select('id, dia, agente_id, tipo, descripcion, estado').eq('plan_id', p.id).order('dia').order('created_at'); setItems((r.data ?? []) as Item[]) } else setItems([])
   }, [])
   useEffect(() => { void recargar() }, [recargar])
+  useEnVivo(['central_plan_semanal', 'central_plan_items'], recargar)
 
   const hacer = async (clave: string, fn: () => Promise<string | null>) => { setOcupado(clave); setError(null); setAviso(null); const e = await fn(); setOcupado(null); if (e) setError(e); await recargar() }
   const generar = () => hacer('generar', async () => {

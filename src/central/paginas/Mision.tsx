@@ -10,6 +10,7 @@ import { Input } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { supabase } from '../../services/supabaseClient'
 import { actualizarMision, generarMision, textoError } from '../acciones.ts'
+import { useEnVivo } from '../enVivo.ts'
 import { AvisoHonesto, ErrorAccion, Pagina, TituloBloque } from '../ui.tsx'
 
 interface Cierre { tareas_completadas: number; cambios_de_etapa: number; notas: number; citas_realizadas: number; prospectos_creados: number; pendientes: string[] }
@@ -34,6 +35,7 @@ export function Mision() {
     if (e) setError(textoError(e)); else { setError(null); setFilas((data ?? []) as MisionFila[]) }
   }, [])
   useEffect(() => { void recargar() }, [recargar])
+  useEnVivo(['growth_misiones'], recargar)
   const hacer = async (fn: () => Promise<string | null>) => {
     setOcupado(true); setErrAccion(null)
     const e = await fn()
