@@ -114,7 +114,7 @@ export function Mensajes() {
   const visibles = (ms ?? []).filter(m => filtro === 'todos' || (filtro === 'abiertos' ? m.estado === 'borrador' || m.estado === 'aprobado' : m.estado === filtro))
   return (
     <Pagina titulo="Mensajes" subtitulo="Borradores de contacto por prospecto y canal.">
-      <AvisoHonesto tono="warning">Todavía no hay un correo ni WhatsApp conectado: nada se envía solo. "Aprobado" significa listo para enviar. Si lo mandas tú mismo, toca "Ya lo envié yo" para dejar constancia en el historial del prospecto.</AvisoHonesto>
+      <AvisoHonesto tono="warning">Central no envía correos ni WhatsApp por sí sola: nada se envía solo. "Aprobado" significa listo para enviar. Si lo mandas tú mismo, toca "Ya lo envié yo" para dejar constancia en el historial del prospecto.</AvisoHonesto>
       {error && <ErrorAccion texto={error} />}
       {!ms ? <StatePanel kind="loading" title="Cargando…" /> : (<>
         <div className="flex flex-wrap gap-2 items-end">

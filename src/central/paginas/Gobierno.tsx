@@ -11,7 +11,7 @@ import { Card } from '../../components/ui/Card'
 import { Input, Select, Textarea } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { Toggle } from '../../components/ui/Toggle'
-import { actualizarAgente, conectarTodosLosAgentes,actualizarIntegracion, estadoConexiones, guardarConfig, guardarLlave, probarProveedor, probarTelegram, quitarLlave, type EstadoConexiones, type NombreLlave } from '../acciones.ts'
+import { actualizarAgente, conectarTodosLosAgentes,actualizarIntegracion, estadoConexiones, googleOauth, guardarConfig, guardarLlave, probarProveedor, probarTelegram, quitarLlave, type EstadoConexiones, type EstadoGoogle, type NombreLlave } from '../acciones.ts'
 import { usd, type Integracion } from '../catalogo.ts'
 import { useCentral, useIndices } from '../datos.tsx'
 import { AgenteAvatar, AvisoHonesto, ErrorAccion, Kpi, Pagina, TituloBloque, useAccion } from '../ui.tsx'
@@ -20,21 +20,41 @@ const ETQ_ESTADO: Record<Integracion['estado'], string> = { no_conectada: 'No co
 const TONO_ESTADO: Record<Integracion['estado'], Tone> = { no_conectada: 'neutral', pendiente_autorizacion: 'warning', activa: 'success' }
 const ETQ_ADAPTADOR: Record<Integracion['adaptador'], string> = { ninguno: 'Sin adaptador', mock_local: 'Simulación local', real: 'Adaptador real' }
 
-function TarjetaIntegracion({ i }: { i: Integracion }) {
+interface EstadoVivo { texto: string; tono: Tone }
+/** Estado REAL de una integración, leído del servidor (llaves guardadas, conexión de Google). `null` = no hay forma de saberlo: se muestra el dato guardado. */
+function estadoVivo(id: string, est: EstadoConexiones | null, google: EstadoGoogle | null): EstadoVivo | null {
+  if (id === 'claude' || id === 'nvidia' || id === 'deepseek') {
+    const p = est?.proveedores.find(x => x.id === id)
+    if (!p) return null
+    return p.llave ? { texto: 'Llave guardada', tono: 'success' } : { texto: 'Sin llave', tono: 'neutral' }
+  }
+  if (id === 'telegram' && est) {
+    const { token, chat } = est.telegram
+    if (token && chat) return { texto: 'Llaves guardadas', tono: 'success' }
+    return token || chat ? { texto: 'A medias: falta token o chat_id', tono: 'warning' } : { texto: 'Sin llaves', tono: 'neutral' }
+  }
+  if (id === 'google_workspace' && google) {
+    if (google.conectado) return { texto: 'Conectada', tono: 'success' }
+    return google.cliente ? { texto: 'Falta autorizar', tono: 'warning' } : { texto: 'Sin conectar', tono: 'neutral' }
+  }
+  return null
+}
+
+function TarjetaIntegracion({ i, vivo }: { i: Integracion; vivo: EstadoVivo | null }) {
   const { ocupado, error, ejecutar } = useAccion()
   const [notas, setNotas] = useState(i.notas)
   const pendiente = i.estado === 'pendiente_autorizacion'
   return (
     <Card className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2"><p className="m-0 flex-1 font-bold text-[color:var(--w-text)]">{i.nombre}</p><Badge tone={TONO_ESTADO[i.estado]}>{ETQ_ESTADO[i.estado]}</Badge></div>
+      <div className="flex flex-wrap items-center gap-2"><p className="m-0 flex-1 font-bold text-[color:var(--w-text)]">{i.nombre}</p><Badge tone={vivo ? vivo.tono : TONO_ESTADO[i.estado]}>{vivo ? vivo.texto : ETQ_ESTADO[i.estado]}</Badge></div>
       <p className="m-0 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">{i.descripcion}</p>
-      <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{ETQ_ADAPTADOR[i.adaptador]}. Permisos mínimos que pediría:</p>
+      <p className="m-0 text-[length:var(--w-fs-caption)] text-[color:var(--w-text-3)]">{vivo ? 'Estado leído del servidor.' : `${ETQ_ADAPTADOR[i.adaptador]}.`} Permisos mínimos que pediría:</p>
       <ul className="m-0 list-disc pl-5 text-[length:var(--w-fs-label)] text-[color:var(--w-text-2)]">{i.scopes.map(s => <li key={s}>{s}</li>)}</ul>
       <Textarea label="Notas" value={notas} onChange={e => setNotas(e.target.value)} rows={2} maxLength={2000} />
       <ErrorAccion texto={error} />
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" loading={ocupado} disabled={notas === i.notas} onClick={() => void ejecutar(() => actualizarIntegracion(i.id, { notas }))}>Guardar notas</Button>
-        {i.estado !== 'activa' && <Button size="sm" variant={pendiente ? 'ghost' : 'secondary'} loading={ocupado} onClick={() => void ejecutar(() => actualizarIntegracion(i.id, { estado: pendiente ? 'no_conectada' : 'pendiente_autorizacion' }))}>{pendiente ? 'Quitar de pendientes' : 'Marcar pendiente de autorización'}</Button>}
+        {i.estado !== 'activa' && vivo?.tono !== 'success' && <Button size="sm" variant={pendiente ? 'ghost' : 'secondary'} loading={ocupado} onClick={() => void ejecutar(() => actualizarIntegracion(i.id, { estado: pendiente ? 'no_conectada' : 'pendiente_autorizacion' }))}>{pendiente ? 'Quitar de pendientes' : 'Marcar pendiente de autorización'}</Button>}
       </div>
     </Card>
   )
@@ -219,11 +239,19 @@ function PanelIA() {
 
 export function Integraciones() {
   const { datos } = useCentral()
+  const [est, setEst] = useState<EstadoConexiones | null>(null)
+  const [google, setGoogle] = useState<EstadoGoogle | null>(null)
+  useEffect(() => {
+    let vivo = true
+    void estadoConexiones().then(r => { if (vivo && r.ok === true) setEst(r.datos) })
+    void googleOauth<EstadoGoogle>('estado').then(r => { if (vivo && r.ok === true) setGoogle(r.datos) })
+    return () => { vivo = false }
+  }, [])
   return (
-    <Pagina titulo="Integraciones" subtitulo="Modelos de IA, avisos y redes sociales, todo apagado hasta que tú lo conectes">
+    <Pagina titulo="Integraciones" subtitulo="Modelos de IA, avisos y redes sociales: cada tarjeta muestra su estado real">
       <AvisoHonesto>Nada se conecta solo. Pega aquí tus llaves: el servidor las guarda y no se vuelven a mostrar ni las ven los agentes (para cambiar una, pega otra). En redes sociales los agentes solo preparan borradores: publicar siempre lo decide una persona.</AvisoHonesto>
       <PanelIA />
-      {datos.integraciones.length === 0 ? <StatePanel kind="empty" title="Sin integraciones registradas" /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{datos.integraciones.map(i => <TarjetaIntegracion key={i.id} i={i} />)}</div>}
+      {datos.integraciones.length === 0 ? <StatePanel kind="empty" title="Sin integraciones registradas" /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{datos.integraciones.map(i => <TarjetaIntegracion key={i.id} i={i} vivo={estadoVivo(i.id, est, google)} />)}</div>}
     </Pagina>
   )
 }
