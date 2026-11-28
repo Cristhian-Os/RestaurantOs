@@ -1100,8 +1100,9 @@ export default function PublicMenu() {
   const [orderNumber,   setOrderNumber]   = useState<number | null>(null)
   const [orderStatus,   setOrderStatus]   = useState<string | null>(null)
   const [isPaid,        setIsPaid]        = useState(false)
-  const [payReminderDue,  setPayReminderDue]  = useState(false)   // pasó 1 minuto desde que envió el pedido
-  const [payReminderSeen, setPayReminderSeen] = useState(false)   // el cliente ya cerró el recordatorio
+  // Recordatorios de pago: nivel 1 a los 60 s, nivel 2 a los 120 s (más firme). "Seen" = último nivel que el cliente cerró.
+  const [payReminderLevel, setPayReminderLevel] = useState<0 | 1 | 2>(0)
+  const [payReminderSeen,  setPayReminderSeen]  = useState<0 | 1 | 2>(0)
   const [showTracking,  setShowTracking]  = useState(false)
   const [onlinePay,     setOnlinePay]     = useState(false)   // ¿el restaurante acepta pagos en línea?
   const [brandExtra,    setBrandExtra]    = useState<{
@@ -1302,25 +1303,33 @@ export default function PublicMenu() {
     return () => { cancelled = true; clearInterval(interval) }
   }, [orderId, orderStatus])
 
-  // Recordatorio: si a los 60 s de enviar el pedido sigue sin pagar, se le avisa una vez que
-  // debe pagar primero para que pase a cocina. Si paga antes, no aparece (se revisa al mostrarlo).
+  // Recordatorios: si a los 60 s de enviar el pedido sigue sin pagar se le recuerda que debe pagar primero;
+  // a los 120 s se le avisa con firmeza que sin pago nunca llegará a cocina. Si paga antes, no aparecen
+  // (se revisa al mostrarlos).
   useEffect(() => {
-    setPayReminderDue(false); setPayReminderSeen(false)
+    setPayReminderLevel(0); setPayReminderSeen(0)
     if (!orderId) return
-    const t = setTimeout(() => setPayReminderDue(true), 60_000)
-    return () => clearTimeout(t)
+    const t1 = setTimeout(() => setPayReminderLevel(1), 60_000)
+    const t2 = setTimeout(() => setPayReminderLevel(2), 120_000)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [orderId])
 
-  // Mesa con QR: el pedido nace cuando el mesero lo acepta; desde ahí corren los 60 s.
+  // Mesa con QR: el pedido nace cuando el mesero lo acepta; desde ahí corren los 60 s y los 120 s.
   // Solo se recuerda si la base confirma que NO está pagado (pagado === false).
   const mesaSinPagarId = (qr.activo ? qr.est?.solicitudes : undefined)?.find(s => s.estado === 'aceptado' && s.pagado === false)?.id ?? null
-  const [mesaPayDueId,  setMesaPayDueId]  = useState<string | null>(null)
-  const [mesaPaySeenId, setMesaPaySeenId] = useState<string | null>(null)
+  const [mesaPayLevel, setMesaPayLevel] = useState<{ id: string | null; n: 0 | 1 | 2 }>({ id: null, n: 0 })
+  const [mesaPaySeen,  setMesaPaySeen]  = useState<{ id: string | null; n: 0 | 1 | 2 }>({ id: null, n: 0 })
   useEffect(() => {
     if (!mesaSinPagarId) return
-    const t = setTimeout(() => setMesaPayDueId(mesaSinPagarId), 60_000)
-    return () => clearTimeout(t)
+    const t1 = setTimeout(() => setMesaPayLevel({ id: mesaSinPagarId, n: 1 }), 60_000)
+    const t2 = setTimeout(() => setMesaPayLevel({ id: mesaSinPagarId, n: 2 }), 120_000)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [mesaSinPagarId])
+
+  // Qué recordatorio toca mostrar ahora (0 = ninguno): el nivel alcanzado que el cliente aún no ha cerrado.
+  const nivelDirecto = orderStatus === 'pending' && !isPaid && payReminderLevel > payReminderSeen ? payReminderLevel : 0
+  const nivelMesa = mesaSinPagarId && mesaPayLevel.id === mesaSinPagarId && mesaPayLevel.n > (mesaPaySeen.id === mesaSinPagarId ? mesaPaySeen.n : 0) ? mesaPayLevel.n : 0
+  const nivelRecordatorio = Math.max(nivelDirecto, nivelMesa) as 0 | 1 | 2
 
   // ── derived state ──────────────────────────────────────────────
   // Orden de aparición: el que define el restaurante (Menú → Configurar)
@@ -1854,10 +1863,7 @@ export default function PublicMenu() {
 
         {/* ── Recordatorio a los 60 s: sigue sin pagar, así que cocina aún no lo tiene ── */}
         <AnimatePresence>
-          {!showPayNotice && (
-            (payReminderDue && !payReminderSeen && orderStatus === 'pending' && !isPaid) ||
-            (!!mesaSinPagarId && mesaPayDueId === mesaSinPagarId && mesaPaySeenId !== mesaSinPagarId)
-          ) && (
+          {!showPayNotice && nivelRecordatorio > 0 && (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               role="alertdialog" aria-modal="true" aria-labelledby="pm-pay-reminder-title"
@@ -1868,16 +1874,18 @@ export default function PublicMenu() {
                 style={{ width: '100%', maxWidth: 380, background: 'var(--w-surface)', border: '1px solid var(--w-warning)', borderRadius: '1.25rem', padding: '1.5rem 1.25rem', textAlign: 'center' }}
               >
                 <p id="pm-pay-reminder-title" style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: 'var(--w-text)', fontSize: '1.25rem', margin: 0 }}>
-                  Aún falta tu pago
+                  {nivelRecordatorio === 2 ? 'Tu pedido no llegará a cocina' : 'Aún falta tu pago'}
                 </p>
                 <p style={{ fontFamily: 'var(--w-font)', color: 'var(--w-text)', fontSize: '1rem', lineHeight: 1.45, margin: '0.75rem 0 0' }}>
-                  Tu pedido todavía no llega a cocina. Primero debes pagar en caja para que lo preparemos.
+                  {nivelRecordatorio === 2
+                    ? 'Si no pagas en caja, tu pedido nunca llegará a cocina y no lo prepararemos.'
+                    : 'Tu pedido todavía no llega a cocina. Primero debes pagar en caja para que lo preparemos.'}
                 </p>
                 <p style={{ fontFamily: 'var(--w-font)', color: 'var(--w-text-3)', fontSize: '0.8125rem', lineHeight: 1.4, margin: '0.5rem 0 1.25rem' }}>
-                  En cuanto pagues, pasa a cocina.
+                  {nivelRecordatorio === 2 ? 'Acércate a caja ahora y págalo.' : 'En cuanto pagues, pasa a cocina.'}
                 </p>
                 <button
-                  onClick={() => { setPayReminderSeen(true); setMesaPaySeenId(mesaSinPagarId) }}
+                  onClick={() => { setPayReminderSeen(payReminderLevel); setMesaPaySeen({ id: mesaSinPagarId, n: mesaPayLevel.id === mesaSinPagarId ? mesaPayLevel.n : 0 }) }}
                   style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '0.875rem', border: 'none', cursor: 'pointer', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1rem' }}
                 >
                   Entendido
