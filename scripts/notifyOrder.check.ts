@@ -1,7 +1,7 @@
 // Chequeo de la lógica pura de notify-order (sin red ni framework):
 //   node --experimental-strip-types scripts/notifyOrder.check.ts
 import assert from 'node:assert/strict'
-import { WINDOW_MS, buildMessage, cutoffIso, evaluateOrder, type OrderRow } from '../supabase/functions/notify-order/logic.ts'
+import { WINDOW_MS, buildMessage, cutoffIso, evaluateOrder, recipientRoles, type OrderRow } from '../supabase/functions/notify-order/logic.ts'
 
 const NOW = Date.parse('2026-10-02T15:00:00Z')
 const base: OrderRow = {
@@ -40,3 +40,10 @@ assert.equal(buildMessage({ table_num: null, customer_name: '   ' }).body, 'Un c
 assert.equal(buildMessage({ table_num: null, customer_name: 'A\nB\r\nC' }).body, 'A B C hizo un pedido')
 assert.ok(buildMessage({ table_num: null, customer_name: 'x'.repeat(500) }).body.length < 60)
 
+
+// Pedido que espera pago en Caja: el aviso va a Caja y admin (no a cocina) y dice que está por cobrar
+assert.deepEqual(recipientRoles({ espera_pago_qr: true }), ['cashier', 'admin'])
+assert.deepEqual(recipientRoles({ espera_pago_qr: false }), ['kitchen', 'admin'])
+assert.deepEqual(recipientRoles({}), ['kitchen', 'admin'])
+assert.deepEqual(buildMessage({ table_num: 7, customer_name: 'Ana', espera_pago_qr: true }), { title: 'Pedido por cobrar', body: 'Mesa 7 hizo un pedido y espera pagar en caja' })
+assert.equal(buildMessage({ table_num: null, customer_name: 'Ana', espera_pago_qr: true }).body, 'Ana hizo un pedido y espera pagar en caja')

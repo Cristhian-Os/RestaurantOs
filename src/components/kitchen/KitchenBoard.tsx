@@ -586,7 +586,8 @@ export const KitchenBoard = memo(({ tv = false, onMenu, onLogout }: BoardProps) 
       .eq('en_espera_pago', false)   // domicilio por transferencia: no pasa a cocina hasta que Caja confirme el pago
       .order('created_at', { ascending: true })
     if (!error) {
-      const parsed = (data || []).map(parseOrder)
+      // Pedido del QR que aún espera el pago en Caja: no pasa a cocina hasta que quede pagado.
+      const parsed = (data || []).filter(o => !o.espera_pago_qr).map(parseOrder)
       setOrders(prev => {
         if (prevCount.current > 0 && parsed.filter(o => o.status === 'pending').length >
             prev.filter(o => o.status === 'pending').length) {

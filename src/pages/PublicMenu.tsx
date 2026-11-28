@@ -1363,7 +1363,8 @@ export default function PublicMenu() {
     ? (brandExtra.cerrado_mensaje || 'Cerrado temporalmente. Vuelve más tarde.')
     : `Cerrado ahora · Atendemos de ${brandExtra.horario_apertura} a ${brandExtra.horario_cierre}`
 
-  const canConfirm = (mesa.trim() !== '' || clientName.trim() !== '') && !isClosedNow
+  // El nombre es obligatorio: Caja lo necesita para saber a quién cobrar. La mesa es opcional.
+  const canConfirm = clientName.trim() !== '' && !isClosedNow
 
   const sendOrder = useCallback(async () => {
     if (!canConfirm || cart.length === 0 || !restaurantId) return
@@ -2117,7 +2118,7 @@ export default function PublicMenu() {
                   </div>
                 )}
                 <div style={{ gridColumn: mesa ? '1 / -1' : undefined }}>
-                  <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>¿A quién tenemos el gusto de atender?</label>
+                  <label className="ed-kicker" style={{ display: 'block', marginBottom: '0.5rem' }}>¿A quién tenemos el gusto de atender? (obligatorio)</label>
                   <input type="text" value={clientName} onChange={e => rememberName(e.target.value)} placeholder="Ej: María"
                     style={{ width: '100%', background: 'var(--w-surface-sunken)', borderRadius: '0.875rem', padding: '0.75rem 1rem', border: '1px solid var(--w-border)', outline: 'none', fontSize: '0.9375rem', color: 'var(--w-text)', fontFamily: 'var(--w-font)', boxSizing: 'border-box' }} />
                 </div>
@@ -2143,7 +2144,7 @@ export default function PublicMenu() {
               )}
               {!isClosedNow && !canConfirm && (
                 <p className="ed-body" style={{ fontSize: '0.75rem', color: 'var(--w-text-3)', marginBottom: '1rem', textAlign: 'center' }}>
-                  Ingresa tu <strong style={{ color: 'var(--w-text)' }}>nombre</strong> o el número de <strong style={{ color: 'var(--w-text)' }}>mesa</strong> para continuar
+                  Escribe tu <strong style={{ color: 'var(--w-text)' }}>nombre</strong> para continuar
                 </p>
               )}
               {!isClosedNow && !!brandExtra.propina_sugerida_pct && (
@@ -2176,7 +2177,7 @@ export default function PublicMenu() {
               <button className="w-press bg-[var(--w-accent)] text-[color:var(--w-on-accent)] rounded-[var(--w-r-md)] shadow-[var(--w-shadow-terra)] hover:bg-[var(--w-accent-hover)]"
                 onClick={() => { setSendError(null); sendOrder() }} disabled={sending || !canConfirm}
                 style={{ width: '100%', padding: '1.05rem', border: 'none', fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--w-font)', cursor: !canConfirm ? 'not-allowed' : 'pointer', opacity: !canConfirm ? 0.5 : 1 }}>
-                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : !canConfirm ? 'Ingresa nombre o mesa' : qr.activo ? 'Enviar al mesero →' : 'Finalizar pedido →'}
+                {sending ? 'Enviando...' : isClosedNow ? 'Cerrado ahora' : !canConfirm ? 'Escribe tu nombre' : qr.activo ? 'Enviar al mesero →' : 'Finalizar pedido →'}
               </button>
               <button onClick={() => setShowCart(false)}
                 style={{ width: '100%', marginTop: '0.625rem', padding: '0.95rem', borderRadius: 'var(--w-r-md)', border: '1px solid var(--w-border)', background: 'var(--w-surface-sunken)', color: 'var(--w-text)', fontWeight: 600, fontSize: '0.9375rem', fontFamily: 'var(--w-font)', cursor: 'pointer' }}>

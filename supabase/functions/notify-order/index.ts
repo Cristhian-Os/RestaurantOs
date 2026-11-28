@@ -5,7 +5,7 @@
 // Desplegada con verify_jwt = true (la anon key sirve); NO exige sesión de personal.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { deliverPush, makeVapidGetter } from '../send-push/sender.ts'
-import { buildMessage, cutoffIso, evaluateOrder, type OrderRow } from './logic.ts'
+import { buildMessage, cutoffIso, evaluateOrder, recipientRoles, type OrderRow } from './logic.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     if (typeof order_id !== 'string' || !UUID.test(order_id)) return reply({ error: 'order_id inválido' }, 400)
 
     const { data: order } = await admin.from('orders')
-      .select('restaurant_id, user_id, tipo_pedido, status, created_at, push_notified_at, table_num, customer_name')
+      .select('restaurant_id, user_id, tipo_pedido, status, created_at, push_notified_at, table_num, customer_name, espera_pago_qr')
       .eq('id', order_id).maybeSingle()
     if (!order) return reply({ error: 'pedido no encontrado' }, 404)
 
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
 
     try {
       const { data: staff } = await admin.from('profiles').select('id')
-        .eq('restaurant_id', order.restaurant_id).in('role', ['kitchen', 'admin'])
+        .eq('restaurant_id', order.restaurant_id).in('role', recipientRoles(order))
       const ids = (staff ?? []).map((p: { id: string }) => p.id)
       if (ids.length === 0) return reply({ sent: 0, recipients: 0, reason: 'sin destinatarios' })
 

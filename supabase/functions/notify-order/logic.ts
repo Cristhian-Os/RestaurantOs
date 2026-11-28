@@ -11,6 +11,8 @@ export interface OrderRow {
   push_notified_at: string | null
   table_num: number | null
   customer_name: string | null
+  /** true = el pedido espera el pago en Caja y todavía no debe llegar a cocina. */
+  espera_pago_qr?: boolean | null
 }
 
 export type Verdict = 'ok' | 'not_public' | 'too_old' | 'already_notified'
@@ -33,10 +35,17 @@ export const cutoffIso = (now: number) => new Date(now - WINDOW_MS).toISOString(
 // El nombre lo escribe el cliente: se limpia (sin saltos/control) y se acorta.
 const clean = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 40)
 
-export function buildMessage(o: Pick<OrderRow, 'table_num' | 'customer_name'>): { title: string; body: string } {
+/** A quién se avisa: si el pedido espera pago, a Caja (cocina se entera cuando se cobre); si no, a cocina. */
+export function recipientRoles(o: Pick<OrderRow, 'espera_pago_qr'>): ('kitchen' | 'cashier' | 'admin')[] {
+  return o.espera_pago_qr ? ['cashier', 'admin'] : ['kitchen', 'admin']
+}
+
+export function buildMessage(o: Pick<OrderRow, 'table_num' | 'customer_name' | 'espera_pago_qr'>): { title: string; body: string } {
   const name = o.customer_name ? clean(o.customer_name) : ''
+  const quien = o.table_num ? `Mesa ${o.table_num}` : (name || 'Un cliente')
+  if (o.espera_pago_qr) return { title: 'Pedido por cobrar', body: `${quien} hizo un pedido y espera pagar en caja` }
   return {
     title: 'Nuevo pedido',
-    body: o.table_num ? `Mesa ${o.table_num} hizo un pedido` : `${name || 'Un cliente'} hizo un pedido`,
+    body: o.table_num ? `Mesa ${o.table_num} hizo un pedido` : `${quien} hizo un pedido`,
   }
 }
