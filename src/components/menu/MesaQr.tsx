@@ -12,6 +12,8 @@ import { formatCOP } from '../../config/billing'
 
 export interface SolicitudMesa {
   id: string; estado: 'pendiente' | 'aceptado' | 'rechazado' | 'expirado'; motivo: string | null; total: number; created_at: string
+  /** Pedido ya aceptado y pagado en Caja (solo viene si la base de datos tiene el dato; si no, undefined). */
+  pagado?: boolean
   items: { name: string; quantity: number; price: number; notes: string | null }[]
 }
 export interface EstadoMesa {

@@ -1311,6 +1311,17 @@ export default function PublicMenu() {
     return () => clearTimeout(t)
   }, [orderId])
 
+  // Mesa con QR: el pedido nace cuando el mesero lo acepta; desde ahí corren los 60 s.
+  // Solo se recuerda si la base confirma que NO está pagado (pagado === false).
+  const mesaSinPagarId = (qr.activo ? qr.est?.solicitudes : undefined)?.find(s => s.estado === 'aceptado' && s.pagado === false)?.id ?? null
+  const [mesaPayDueId,  setMesaPayDueId]  = useState<string | null>(null)
+  const [mesaPaySeenId, setMesaPaySeenId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!mesaSinPagarId) return
+    const t = setTimeout(() => setMesaPayDueId(mesaSinPagarId), 60_000)
+    return () => clearTimeout(t)
+  }, [mesaSinPagarId])
+
   // ── derived state ──────────────────────────────────────────────
   // Orden de aparición: el que define el restaurante (Menú → Configurar)
   const categories = useMemo(() =>
@@ -1843,7 +1854,10 @@ export default function PublicMenu() {
 
         {/* ── Recordatorio a los 60 s: sigue sin pagar, así que cocina aún no lo tiene ── */}
         <AnimatePresence>
-          {payReminderDue && !payReminderSeen && !showPayNotice && orderStatus === 'pending' && !isPaid && (
+          {!showPayNotice && (
+            (payReminderDue && !payReminderSeen && orderStatus === 'pending' && !isPaid) ||
+            (!!mesaSinPagarId && mesaPayDueId === mesaSinPagarId && mesaPaySeenId !== mesaSinPagarId)
+          ) && (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               role="alertdialog" aria-modal="true" aria-labelledby="pm-pay-reminder-title"
@@ -1863,7 +1877,7 @@ export default function PublicMenu() {
                   En cuanto pagues, pasa a cocina.
                 </p>
                 <button
-                  onClick={() => setPayReminderSeen(true)}
+                  onClick={() => { setPayReminderSeen(true); setMesaPaySeenId(mesaSinPagarId) }}
                   style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '0.875rem', border: 'none', cursor: 'pointer', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1rem' }}
                 >
                   Entendido
