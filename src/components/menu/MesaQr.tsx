@@ -120,7 +120,7 @@ export type MesaQr = ReturnType<typeof useMesaQr>
 
 const ETIQUETA: Record<SolicitudMesa['estado'], { t: string; c: string }> = {
   pendiente: { t: 'Esperando al mesero…', c: 'var(--w-warning-text)' },
-  aceptado:  { t: 'Aceptado: ya lo preparan', c: 'var(--w-success-text)' },
+  aceptado:  { t: 'Aceptado: paga en caja para que lo preparen', c: 'var(--w-success-text)' },
   rechazado: { t: 'Rechazado', c: 'var(--w-danger-text)' },
   expirado:  { t: 'Sin respuesta: llama al mesero', c: 'var(--w-text-3)' },
 }
