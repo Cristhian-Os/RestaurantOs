@@ -1100,6 +1100,8 @@ export default function PublicMenu() {
   const [orderNumber,   setOrderNumber]   = useState<number | null>(null)
   const [orderStatus,   setOrderStatus]   = useState<string | null>(null)
   const [isPaid,        setIsPaid]        = useState(false)
+  const [payReminderDue,  setPayReminderDue]  = useState(false)   // pasó 1 minuto desde que envió el pedido
+  const [payReminderSeen, setPayReminderSeen] = useState(false)   // el cliente ya cerró el recordatorio
   const [showTracking,  setShowTracking]  = useState(false)
   const [onlinePay,     setOnlinePay]     = useState(false)   // ¿el restaurante acepta pagos en línea?
   const [brandExtra,    setBrandExtra]    = useState<{
@@ -1299,6 +1301,15 @@ export default function PublicMenu() {
     }, 5000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [orderId, orderStatus])
+
+  // Recordatorio: si a los 60 s de enviar el pedido sigue sin pagar, se le avisa una vez que
+  // debe pagar primero para que pase a cocina. Si paga antes, no aparece (se revisa al mostrarlo).
+  useEffect(() => {
+    setPayReminderDue(false); setPayReminderSeen(false)
+    if (!orderId) return
+    const t = setTimeout(() => setPayReminderDue(true), 60_000)
+    return () => clearTimeout(t)
+  }, [orderId])
 
   // ── derived state ──────────────────────────────────────────────
   // Orden de aparición: el que define el restaurante (Menú → Configurar)
@@ -1821,6 +1832,38 @@ export default function PublicMenu() {
                 </p>
                 <button
                   onClick={() => setShowPayNotice(false)}
+                  style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '0.875rem', border: 'none', cursor: 'pointer', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1rem' }}
+                >
+                  Entendido
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Recordatorio a los 60 s: sigue sin pagar, así que cocina aún no lo tiene ── */}
+        <AnimatePresence>
+          {payReminderDue && !payReminderSeen && !showPayNotice && orderStatus === 'pending' && !isPaid && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              role="alertdialog" aria-modal="true" aria-labelledby="pm-pay-reminder-title"
+              style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+                style={{ width: '100%', maxWidth: 380, background: 'var(--w-surface)', border: '1px solid var(--w-warning)', borderRadius: '1.25rem', padding: '1.5rem 1.25rem', textAlign: 'center' }}
+              >
+                <p id="pm-pay-reminder-title" style={{ fontFamily: 'var(--w-font)', fontWeight: 700, color: 'var(--w-text)', fontSize: '1.25rem', margin: 0 }}>
+                  Aún falta tu pago
+                </p>
+                <p style={{ fontFamily: 'var(--w-font)', color: 'var(--w-text)', fontSize: '1rem', lineHeight: 1.45, margin: '0.75rem 0 0' }}>
+                  Tu pedido todavía no llega a cocina. Primero debes pagar en caja para que lo preparemos.
+                </p>
+                <p style={{ fontFamily: 'var(--w-font)', color: 'var(--w-text-3)', fontSize: '0.8125rem', lineHeight: 1.4, margin: '0.5rem 0 1.25rem' }}>
+                  En cuanto pagues, pasa a cocina.
+                </p>
+                <button
+                  onClick={() => setPayReminderSeen(true)}
                   style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '0.875rem', border: 'none', cursor: 'pointer', background: 'var(--w-accent)', color: 'var(--w-on-accent)', fontFamily: 'var(--w-font)', fontWeight: 700, fontSize: '1rem' }}
                 >
                   Entendido
